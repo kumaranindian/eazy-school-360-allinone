@@ -1,0 +1,103 @@
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/logging/app_logger.dart';
+import '../../data/firebase_push_gateway.dart';
+import '../../domain/push_gateway.dart';
+import 'notification_providers.dart';
+
+final pushGatewayProvider = Provider<PushGateway>(
+  (ref) => FirebasePushGateway(),
+  retry: noRetry,
+);
+
+/// Keeps this device's push registration in step with the signed-in user and
+/// their preference: registered while push is on, removed when it is off.
+/// Watch it from the signed-in shell; it holds no state of its own.
+///
+/// Best-effort by design — a failed registration must never break the app —
+/// and it never prompts when the preference is off.
+final pushRegistrationProvider = FutureProvider.autoDispose<void>((ref) async {
+  final gateway = ref.watch(pushGatewayProvider);
+  if (!gateway.supported) return;
+  final scope = await ref.watch(notificationScopeProvider.future);
+  if (scope == null) return;
+  final prefs = await ref.watch(notificationPreferencesProvider.future);
+  final repo = ref.read(notificationRepositoryProvider);
+  String? current;
+
+  Future<void> register(String token) async {
+    current = token;
+    await repo.saveDevice(
+      userId: scope.userId,
+      token: token,
+      platform: gateway.platform,
+    );
+  }
+
+  try {
+    AppLogger.debug('Push registration: starting...', tag: 'Push');
+    AppLogger.debug('Push enabled: ${prefs.pushEnabled}', tag: 'Push');
+    AppLogger.debug('Platform supported: ${gateway.supported}', tag: 'Push');
+
+    if (!prefs.pushEnabled) {
+      final token = await gateway.getToken();
+      AppLogger.debug('Push disabled, removing token: $token', tag: 'Push');
+      if (token != null) {
+        await repo.removeDevice(userId: scope.userId, token: token);
+      }
+      return;
+    }
+
+    AppLogger.debug('Requesting permission...', tag: 'Push');
+    if (!await gateway.requestPermission()) {
+      AppLogger.debug('Permission denied', tag: 'Push');
+      return;
+    }
+
+    AppLogger.debug('Permission granted, getting token...', tag: 'Push');
+    final token = await gateway.getToken();
+    AppLogger.debug(
+      'Token obtained: ${token != null ? "YES (${token.substring(0, 20)}...)" : "NO"}',
+      tag: 'Push',
+    );
+
+    if (token != null) await register(token);
+    final sub = gateway.onTokenRefresh.listen((t) {
+      final old = current;
+      unawaited(() async {
+        try {
+          if (old != null && old != t) {
+            await repo.removeDevice(userId: scope.userId, token: old);
+          }
+          await register(t);
+        } catch (e) {
+          AppLogger.error('Push token refresh failed', tag: 'Push', error: e);
+        }
+      }());
+    });
+    ref.onDispose(sub.cancel);
+  } catch (e) {
+    AppLogger.error('Push registration failed', tag: 'Push', error: e);
+  }
+}, retry: noRetry);
+
+/// Called before sign-out: stops this device receiving the user's
+/// notifications. Failures are swallowed so sign-out always proceeds.
+Future<void> unregisterPushDevice(WidgetRef ref) async {
+  try {
+    final gateway = ref.read(pushGatewayProvider);
+    if (!gateway.supported) return;
+    final scope = await ref.read(notificationScopeProvider.future);
+    final token = await gateway.getToken();
+    if (scope != null && token != null) {
+      await ref
+          .read(notificationRepositoryProvider)
+          .removeDevice(userId: scope.userId, token: token);
+    }
+    await gateway.deleteToken();
+  } catch (e) {
+    AppLogger.error('Push unregister failed', tag: 'Push', error: e);
+  }
+}

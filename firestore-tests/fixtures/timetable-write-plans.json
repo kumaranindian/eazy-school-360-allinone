@@ -1,0 +1,1468 @@
+{
+  "scenarios": [
+    {
+      "name": "section sa: v1 draft, publish, v2 truncates, v3 replaces",
+      "batches": [
+        {
+          "as": "tt-admin",
+          "label": "create draft v1",
+          "ops": [
+            {
+              "op": "set",
+              "path": "timetableCounters/y1__c5__sa",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "last": 1,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetables/y1__c5__sa__v1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "classId": "c5",
+                "sectionId": "sa",
+                "className": "Class 5",
+                "sectionName": "SA",
+                "version": 1,
+                "status": "DRAFT",
+                "name": "Term 1",
+                "dayPeriodSets": {
+                  "MONDAY": "y1__regular",
+                  "TUESDAY": "y1__regular"
+                },
+                "effectiveFromKey": "2026-06-01",
+                "effectiveToKey": null,
+                "entryCount": 0,
+                "teacherIds": [],
+                "copiedFrom": null,
+                "revision": 1,
+                "lastEvent": "CREATED",
+                "publishedBy": null,
+                "publishedAt": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "tt-admin",
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetableHistory/y1__c5__sa__v1__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "timetableId": "y1__c5__sa__v1",
+                "version": 1,
+                "title": "Class 5 SA",
+                "revision": 1,
+                "toStatus": "DRAFT",
+                "event": "CREATED",
+                "actorId": "tt-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "tt-admin",
+          "label": "save cells",
+          "ops": [
+            {
+              "op": "set",
+              "path": "timetableEntries/y1__c5__sa__v1__MONDAY__p1",
+              "data": {
+                "timetableId": "y1__c5__sa__v1",
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "classId": "c5",
+                "sectionId": "sa",
+                "weekday": "MONDAY",
+                "slotId": "p1",
+                "periodNumber": 1,
+                "startMin": 540,
+                "endMin": 580,
+                "subjectId": "math",
+                "subjectName": "math",
+                "teacherStaffId": "st1",
+                "teacherName": "st1",
+                "room": "Room 5",
+                "live": false
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetableEntries/y1__c5__sa__v1__MONDAY__p2",
+              "data": {
+                "timetableId": "y1__c5__sa__v1",
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "classId": "c5",
+                "sectionId": "sa",
+                "weekday": "MONDAY",
+                "slotId": "p2",
+                "periodNumber": 2,
+                "startMin": 590,
+                "endMin": 630,
+                "subjectId": "eng",
+                "subjectName": "eng",
+                "teacherStaffId": "st2",
+                "teacherName": "st2",
+                "room": null,
+                "live": false
+              }
+            }
+          ]
+        },
+        {
+          "as": "tt-admin",
+          "label": "save draft metadata",
+          "ops": [
+            {
+              "op": "update",
+              "path": "timetables/y1__c5__sa__v1",
+              "data": {
+                "name": "Term 1",
+                "dayPeriodSets": {
+                  "MONDAY": "y1__regular",
+                  "TUESDAY": "y1__regular"
+                },
+                "effectiveFromKey": "2026-06-01",
+                "effectiveToKey": null,
+                "entryCount": 2,
+                "teacherIds": [
+                  "st1",
+                  "st2"
+                ],
+                "revision": 2,
+                "lastEvent": "EDITED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetableHistory/y1__c5__sa__v1__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "timetableId": "y1__c5__sa__v1",
+                "version": 1,
+                "title": "Class 5 SA",
+                "revision": 2,
+                "toStatus": "DRAFT",
+                "event": "EDITED",
+                "actorId": "tt-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "tt-admin",
+          "label": "publish v1",
+          "ops": [
+            {
+              "op": "set",
+              "path": "timetableLocks/branch",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "publishSeq": 1,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "update",
+              "path": "timetables/y1__c5__sa__v1",
+              "data": {
+                "status": "PUBLISHED",
+                "revision": 3,
+                "lastEvent": "PUBLISHED",
+                "publishedBy": "tt-admin",
+                "publishedAt": {
+                  "$serverTimestamp": true
+                },
+                "lockSeq": 1,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetableHistory/y1__c5__sa__v1__3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "timetableId": "y1__c5__sa__v1",
+                "version": 1,
+                "title": "Class 5 SA",
+                "revision": 3,
+                "toStatus": "PUBLISHED",
+                "event": "PUBLISHED",
+                "actorId": "tt-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "update",
+              "path": "timetableEntries/y1__c5__sa__v1__MONDAY__p1",
+              "data": {
+                "live": true
+              }
+            },
+            {
+              "op": "update",
+              "path": "timetableEntries/y1__c5__sa__v1__MONDAY__p2",
+              "data": {
+                "live": true
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/y1__c5__sa__v1__PUBLISHED__3__tt-t1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "tt-t1",
+                "type": "TIMETABLE_PUBLISHED",
+                "applicationId": null,
+                "timetableId": "y1__c5__sa__v1",
+                "substitutionId": null,
+                "revision": 3,
+                "title": "New timetable published",
+                "body": "Class 5 SA",
+                "createdBy": "tt-admin",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/y1__c5__sa__v1__PUBLISHED__3__tt-t2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "tt-t2",
+                "type": "TIMETABLE_PUBLISHED",
+                "applicationId": null,
+                "timetableId": "y1__c5__sa__v1",
+                "substitutionId": null,
+                "revision": 3,
+                "title": "New timetable published",
+                "body": "Class 5 SA",
+                "createdBy": "tt-admin",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "tt-admin",
+          "label": "create draft v2",
+          "ops": [
+            {
+              "op": "update",
+              "path": "timetableCounters/y1__c5__sa",
+              "data": {
+                "last": 2,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetables/y1__c5__sa__v2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "classId": "c5",
+                "sectionId": "sa",
+                "className": "Class 5",
+                "sectionName": "SA",
+                "version": 2,
+                "status": "DRAFT",
+                "name": "Term 1",
+                "dayPeriodSets": {
+                  "MONDAY": "y1__regular",
+                  "TUESDAY": "y1__regular"
+                },
+                "effectiveFromKey": "2026-09-01",
+                "effectiveToKey": null,
+                "entryCount": 0,
+                "teacherIds": [],
+                "copiedFrom": null,
+                "revision": 1,
+                "lastEvent": "CREATED",
+                "publishedBy": null,
+                "publishedAt": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "tt-admin",
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetableHistory/y1__c5__sa__v2__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "timetableId": "y1__c5__sa__v2",
+                "version": 2,
+                "title": "Class 5 SA",
+                "revision": 1,
+                "toStatus": "DRAFT",
+                "event": "CREATED",
+                "actorId": "tt-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "tt-admin",
+          "label": "save cells",
+          "ops": [
+            {
+              "op": "set",
+              "path": "timetableEntries/y1__c5__sa__v2__MONDAY__p1",
+              "data": {
+                "timetableId": "y1__c5__sa__v2",
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "classId": "c5",
+                "sectionId": "sa",
+                "weekday": "MONDAY",
+                "slotId": "p1",
+                "periodNumber": 1,
+                "startMin": 540,
+                "endMin": 580,
+                "subjectId": "math",
+                "subjectName": "math",
+                "teacherStaffId": "st1",
+                "teacherName": "st1",
+                "room": null,
+                "live": false
+              }
+            }
+          ]
+        },
+        {
+          "as": "tt-admin",
+          "label": "save draft metadata",
+          "ops": [
+            {
+              "op": "update",
+              "path": "timetables/y1__c5__sa__v2",
+              "data": {
+                "name": "Term 1",
+                "dayPeriodSets": {
+                  "MONDAY": "y1__regular",
+                  "TUESDAY": "y1__regular"
+                },
+                "effectiveFromKey": "2026-09-01",
+                "effectiveToKey": null,
+                "entryCount": 1,
+                "teacherIds": [
+                  "st1"
+                ],
+                "revision": 2,
+                "lastEvent": "EDITED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetableHistory/y1__c5__sa__v2__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "timetableId": "y1__c5__sa__v2",
+                "version": 2,
+                "title": "Class 5 SA",
+                "revision": 2,
+                "toStatus": "DRAFT",
+                "event": "EDITED",
+                "actorId": "tt-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "tt-admin",
+          "label": "publish v2 (truncates v1)",
+          "ops": [
+            {
+              "op": "update",
+              "path": "timetableLocks/branch",
+              "data": {
+                "publishSeq": 2,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "update",
+              "path": "timetables/y1__c5__sa__v2",
+              "data": {
+                "status": "PUBLISHED",
+                "revision": 3,
+                "lastEvent": "PUBLISHED",
+                "publishedBy": "tt-admin",
+                "publishedAt": {
+                  "$serverTimestamp": true
+                },
+                "lockSeq": 2,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetableHistory/y1__c5__sa__v2__3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "timetableId": "y1__c5__sa__v2",
+                "version": 2,
+                "title": "Class 5 SA",
+                "revision": 3,
+                "toStatus": "PUBLISHED",
+                "event": "PUBLISHED",
+                "actorId": "tt-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "update",
+              "path": "timetableEntries/y1__c5__sa__v2__MONDAY__p1",
+              "data": {
+                "live": true
+              }
+            },
+            {
+              "op": "update",
+              "path": "timetables/y1__c5__sa__v1",
+              "data": {
+                "effectiveToKey": "2026-08-31",
+                "revision": 4,
+                "lastEvent": "TRUNCATED",
+                "supersededBy": "y1__c5__sa__v2",
+                "lockSeq": 2,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetableHistory/y1__c5__sa__v1__4",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "timetableId": "y1__c5__sa__v1",
+                "version": 1,
+                "title": "Class 5 SA",
+                "revision": 4,
+                "toStatus": "PUBLISHED",
+                "event": "TRUNCATED",
+                "actorId": "tt-admin",
+                "actorName": "Admin",
+                "note": "Ends 31/08/2026",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "tt-admin",
+          "label": "create draft v3",
+          "ops": [
+            {
+              "op": "update",
+              "path": "timetableCounters/y1__c5__sa",
+              "data": {
+                "last": 3,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetables/y1__c5__sa__v3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "classId": "c5",
+                "sectionId": "sa",
+                "className": "Class 5",
+                "sectionName": "SA",
+                "version": 3,
+                "status": "DRAFT",
+                "name": "Term 1",
+                "dayPeriodSets": {
+                  "MONDAY": "y1__regular",
+                  "TUESDAY": "y1__regular"
+                },
+                "effectiveFromKey": "2026-05-01",
+                "effectiveToKey": null,
+                "entryCount": 0,
+                "teacherIds": [],
+                "copiedFrom": null,
+                "revision": 1,
+                "lastEvent": "CREATED",
+                "publishedBy": null,
+                "publishedAt": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "tt-admin",
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetableHistory/y1__c5__sa__v3__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "timetableId": "y1__c5__sa__v3",
+                "version": 3,
+                "title": "Class 5 SA",
+                "revision": 1,
+                "toStatus": "DRAFT",
+                "event": "CREATED",
+                "actorId": "tt-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "tt-admin",
+          "label": "save cells",
+          "ops": [
+            {
+              "op": "set",
+              "path": "timetableEntries/y1__c5__sa__v3__MONDAY__p1",
+              "data": {
+                "timetableId": "y1__c5__sa__v3",
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "classId": "c5",
+                "sectionId": "sa",
+                "weekday": "MONDAY",
+                "slotId": "p1",
+                "periodNumber": 1,
+                "startMin": 540,
+                "endMin": 580,
+                "subjectId": "math",
+                "subjectName": "math",
+                "teacherStaffId": "st1",
+                "teacherName": "st1",
+                "room": null,
+                "live": false
+              }
+            }
+          ]
+        },
+        {
+          "as": "tt-admin",
+          "label": "save draft metadata",
+          "ops": [
+            {
+              "op": "update",
+              "path": "timetables/y1__c5__sa__v3",
+              "data": {
+                "name": "Term 1",
+                "dayPeriodSets": {
+                  "MONDAY": "y1__regular",
+                  "TUESDAY": "y1__regular"
+                },
+                "effectiveFromKey": "2026-05-01",
+                "effectiveToKey": null,
+                "entryCount": 1,
+                "teacherIds": [
+                  "st1"
+                ],
+                "revision": 2,
+                "lastEvent": "EDITED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetableHistory/y1__c5__sa__v3__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "timetableId": "y1__c5__sa__v3",
+                "version": 3,
+                "title": "Class 5 SA",
+                "revision": 2,
+                "toStatus": "DRAFT",
+                "event": "EDITED",
+                "actorId": "tt-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "tt-admin",
+          "label": "publish v3 (replaces v1)",
+          "ops": [
+            {
+              "op": "update",
+              "path": "timetableLocks/branch",
+              "data": {
+                "publishSeq": 3,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "update",
+              "path": "timetables/y1__c5__sa__v3",
+              "data": {
+                "status": "PUBLISHED",
+                "revision": 3,
+                "lastEvent": "PUBLISHED",
+                "publishedBy": "tt-admin",
+                "publishedAt": {
+                  "$serverTimestamp": true
+                },
+                "lockSeq": 3,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetableHistory/y1__c5__sa__v3__3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "timetableId": "y1__c5__sa__v3",
+                "version": 3,
+                "title": "Class 5 SA",
+                "revision": 3,
+                "toStatus": "PUBLISHED",
+                "event": "PUBLISHED",
+                "actorId": "tt-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "update",
+              "path": "timetableEntries/y1__c5__sa__v3__MONDAY__p1",
+              "data": {
+                "live": true
+              }
+            },
+            {
+              "op": "update",
+              "path": "timetables/y1__c5__sa__v1",
+              "data": {
+                "status": "ARCHIVED",
+                "revision": 5,
+                "lastEvent": "SUPERSEDED",
+                "supersededBy": "y1__c5__sa__v3",
+                "lockSeq": 3,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetableHistory/y1__c5__sa__v1__5",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "timetableId": "y1__c5__sa__v1",
+                "version": 1,
+                "title": "Class 5 SA",
+                "revision": 5,
+                "toStatus": "ARCHIVED",
+                "event": "SUPERSEDED",
+                "actorId": "tt-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "update",
+              "path": "timetableEntries/y1__c5__sa__v1__MONDAY__p1",
+              "data": {
+                "live": false
+              }
+            },
+            {
+              "op": "update",
+              "path": "timetableEntries/y1__c5__sa__v1__MONDAY__p2",
+              "data": {
+                "live": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "substitution: assign, change, cancel, reinstate",
+      "batches": [
+        {
+          "as": "tt-admin",
+          "label": "assign cover",
+          "ops": [
+            {
+              "op": "set",
+              "path": "substitutionDays/2026-09-07",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "dateKey": "2026-09-07",
+                "seq": 1,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "substitutions/2026-09-07__y1__c5__sa__v2__p1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "dateKey": "2026-09-07",
+                "date": {
+                  "$time": "2026-09-07T00:00:00.000Z"
+                },
+                "timetableId": "y1__c5__sa__v2",
+                "timetableVersion": 2,
+                "entryId": "y1__c5__sa__v2__MONDAY__p1",
+                "slotId": "p1",
+                "weekday": "MONDAY",
+                "periodNumber": 1,
+                "startMin": 540,
+                "endMin": 580,
+                "classId": "c5",
+                "sectionId": "sa",
+                "classLabel": "Class 5 SA",
+                "subjectId": "math",
+                "subjectName": "math",
+                "originalTeacherId": "st1",
+                "originalTeacherName": "st1",
+                "substituteTeacherId": "st3",
+                "substituteTeacherName": "st3",
+                "reasonKind": "LEAVE",
+                "reason": "Approved leave",
+                "leaveApplicationId": null,
+                "status": "ACTIVE",
+                "revision": 1,
+                "lastEvent": "ASSIGNED",
+                "cancelReason": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "tt-admin",
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "substitutionHistory/2026-09-07__y1__c5__sa__v2__p1__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "substitutionId": "2026-09-07__y1__c5__sa__v2__p1",
+                "dateKey": "2026-09-07",
+                "revision": 1,
+                "event": "ASSIGNED",
+                "substituteTeacherId": "st3",
+                "substituteTeacherName": "st3",
+                "actorId": "tt-admin",
+                "actorName": "Admin",
+                "note": "Approved leave",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/2026-09-07__y1__c5__sa__v2__p1__ASSIGNED__1__tt-t3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "tt-t3",
+                "type": "SUBSTITUTION_ASSIGNED",
+                "applicationId": null,
+                "timetableId": null,
+                "substitutionId": "2026-09-07__y1__c5__sa__v2__p1",
+                "revision": 1,
+                "title": "You are covering a period",
+                "body": "x",
+                "createdBy": "tt-admin",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/2026-09-07__y1__c5__sa__v2__p1__ASSIGNED__1__tt-t1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "tt-t1",
+                "type": "SUBSTITUTION_ASSIGNED",
+                "applicationId": null,
+                "timetableId": null,
+                "substitutionId": "2026-09-07__y1__c5__sa__v2__p1",
+                "revision": 1,
+                "title": "You are covering a period",
+                "body": "x",
+                "createdBy": "tt-admin",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "tt-admin",
+          "label": "change substitute",
+          "ops": [
+            {
+              "op": "update",
+              "path": "substitutionDays/2026-09-07",
+              "data": {
+                "seq": 2,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "update",
+              "path": "substitutions/2026-09-07__y1__c5__sa__v2__p1",
+              "data": {
+                "substituteTeacherId": "st2",
+                "substituteTeacherName": "st2",
+                "reason": "Approved leave",
+                "revision": 2,
+                "lastEvent": "CHANGED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "substitutionHistory/2026-09-07__y1__c5__sa__v2__p1__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "substitutionId": "2026-09-07__y1__c5__sa__v2__p1",
+                "dateKey": "2026-09-07",
+                "revision": 2,
+                "event": "CHANGED",
+                "substituteTeacherId": "st3",
+                "substituteTeacherName": "st2",
+                "actorId": "tt-admin",
+                "actorName": "Admin",
+                "note": "note text",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/2026-09-07__y1__c5__sa__v2__p1__CHANGED__2__tt-t2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "tt-t2",
+                "type": "SUBSTITUTION_CHANGED",
+                "applicationId": null,
+                "timetableId": null,
+                "substitutionId": "2026-09-07__y1__c5__sa__v2__p1",
+                "revision": 2,
+                "title": "t",
+                "body": "x",
+                "createdBy": "tt-admin",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "tt-admin",
+          "label": "cancel",
+          "ops": [
+            {
+              "op": "update",
+              "path": "substitutionDays/2026-09-07",
+              "data": {
+                "seq": 3,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "update",
+              "path": "substitutions/2026-09-07__y1__c5__sa__v2__p1",
+              "data": {
+                "status": "CANCELLED",
+                "cancelReason": "Teacher returned",
+                "revision": 3,
+                "lastEvent": "CANCELLED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "substitutionHistory/2026-09-07__y1__c5__sa__v2__p1__3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "substitutionId": "2026-09-07__y1__c5__sa__v2__p1",
+                "dateKey": "2026-09-07",
+                "revision": 3,
+                "event": "CANCELLED",
+                "substituteTeacherId": "st3",
+                "substituteTeacherName": "st2",
+                "actorId": "tt-admin",
+                "actorName": "Admin",
+                "note": "note text",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/2026-09-07__y1__c5__sa__v2__p1__CANCELLED__3__tt-t2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "tt-t2",
+                "type": "SUBSTITUTION_CANCELLED",
+                "applicationId": null,
+                "timetableId": null,
+                "substitutionId": "2026-09-07__y1__c5__sa__v2__p1",
+                "revision": 3,
+                "title": "t",
+                "body": "x",
+                "createdBy": "tt-admin",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "tt-admin",
+          "label": "reinstate",
+          "ops": [
+            {
+              "op": "update",
+              "path": "substitutionDays/2026-09-07",
+              "data": {
+                "seq": 4,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "update",
+              "path": "substitutions/2026-09-07__y1__c5__sa__v2__p1",
+              "data": {
+                "substituteTeacherId": "st3",
+                "substituteTeacherName": "st3",
+                "reasonKind": "LEAVE",
+                "reason": "Approved leave",
+                "leaveApplicationId": null,
+                "status": "ACTIVE",
+                "revision": 4,
+                "lastEvent": "REINSTATED",
+                "cancelReason": null,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "substitutionHistory/2026-09-07__y1__c5__sa__v2__p1__4",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "substitutionId": "2026-09-07__y1__c5__sa__v2__p1",
+                "dateKey": "2026-09-07",
+                "revision": 4,
+                "event": "REINSTATED",
+                "substituteTeacherId": "st3",
+                "substituteTeacherName": "st3",
+                "actorId": "tt-admin",
+                "actorName": "Admin",
+                "note": "note text",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/2026-09-07__y1__c5__sa__v2__p1__REINSTATED__4__tt-t2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "tt-t2",
+                "type": "SUBSTITUTION_ASSIGNED",
+                "applicationId": null,
+                "timetableId": null,
+                "substitutionId": "2026-09-07__y1__c5__sa__v2__p1",
+                "revision": 4,
+                "title": "t",
+                "body": "x",
+                "createdBy": "tt-admin",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "withdraw a published version",
+      "batches": [
+        {
+          "as": "tt-admin",
+          "label": "withdraw v2",
+          "ops": [
+            {
+              "op": "update",
+              "path": "timetableLocks/branch",
+              "data": {
+                "publishSeq": 4,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "update",
+              "path": "timetables/y1__c5__sa__v2",
+              "data": {
+                "status": "ARCHIVED",
+                "revision": 4,
+                "lastEvent": "ARCHIVED",
+                "lockSeq": 4,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetableHistory/y1__c5__sa__v2__4",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "timetableId": "y1__c5__sa__v2",
+                "version": 2,
+                "title": "Class 5 SA",
+                "revision": 4,
+                "toStatus": "ARCHIVED",
+                "event": "ARCHIVED",
+                "actorId": "tt-admin",
+                "actorName": "Admin",
+                "note": "Withdrawn",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "update",
+              "path": "timetableEntries/y1__c5__sa__v2__MONDAY__p1",
+              "data": {
+                "live": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "draft discard, then bell schedules",
+      "batches": [
+        {
+          "as": "tt-admin",
+          "label": "create draft v1",
+          "ops": [
+            {
+              "op": "set",
+              "path": "timetableCounters/y1__c5__sb",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "last": 1,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetables/y1__c5__sb__v1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "classId": "c5",
+                "sectionId": "sb",
+                "className": "Class 5",
+                "sectionName": "SB",
+                "version": 1,
+                "status": "DRAFT",
+                "name": "Term 1",
+                "dayPeriodSets": {
+                  "MONDAY": "y1__regular",
+                  "TUESDAY": "y1__regular"
+                },
+                "effectiveFromKey": "2026-06-01",
+                "effectiveToKey": null,
+                "entryCount": 0,
+                "teacherIds": [],
+                "copiedFrom": null,
+                "revision": 1,
+                "lastEvent": "CREATED",
+                "publishedBy": null,
+                "publishedAt": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "tt-admin",
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetableHistory/y1__c5__sb__v1__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "timetableId": "y1__c5__sb__v1",
+                "version": 1,
+                "title": "Class 5 SB",
+                "revision": 1,
+                "toStatus": "DRAFT",
+                "event": "CREATED",
+                "actorId": "tt-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "tt-admin",
+          "label": "discard draft",
+          "ops": [
+            {
+              "op": "update",
+              "path": "timetables/y1__c5__sb__v1",
+              "data": {
+                "status": "ARCHIVED",
+                "revision": 2,
+                "lastEvent": "ARCHIVED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "timetableHistory/y1__c5__sb__v1__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "timetableId": "y1__c5__sb__v1",
+                "version": 1,
+                "title": "Class 5 SB",
+                "revision": 2,
+                "toStatus": "ARCHIVED",
+                "event": "ARCHIVED",
+                "actorId": "tt-admin",
+                "actorName": "Admin",
+                "note": "Not needed",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "tt-admin",
+          "label": "create then update a period set",
+          "ops": [
+            {
+              "op": "set",
+              "path": "periodSets/y1__regular",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "name": "Regular",
+                "slots": [
+                  {
+                    "slotId": "p1",
+                    "number": 1,
+                    "kind": "TEACHING",
+                    "label": "",
+                    "startMin": 540,
+                    "endMin": 580
+                  },
+                  {
+                    "slotId": "brk",
+                    "number": null,
+                    "kind": "BREAK",
+                    "label": "Break",
+                    "startMin": 580,
+                    "endMin": 590
+                  },
+                  {
+                    "slotId": "p2",
+                    "number": 2,
+                    "kind": "TEACHING",
+                    "label": "",
+                    "startMin": 590,
+                    "endMin": 630
+                  }
+                ],
+                "status": "ACTIVE",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "tt-admin",
+                "updatedBy": "tt-admin"
+              }
+            }
+          ]
+        },
+        {
+          "as": "tt-admin",
+          "label": "update a period set",
+          "ops": [
+            {
+              "op": "update",
+              "path": "periodSets/y1__regular",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "name": "Regular",
+                "slots": [
+                  {
+                    "slotId": "p1",
+                    "number": 1,
+                    "kind": "TEACHING",
+                    "label": "",
+                    "startMin": 540,
+                    "endMin": 580
+                  },
+                  {
+                    "slotId": "brk",
+                    "number": null,
+                    "kind": "BREAK",
+                    "label": "Break",
+                    "startMin": 580,
+                    "endMin": 590
+                  },
+                  {
+                    "slotId": "p2",
+                    "number": 2,
+                    "kind": "TEACHING",
+                    "label": "",
+                    "startMin": 590,
+                    "endMin": 630
+                  }
+                ],
+                "status": "ACTIVE",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "tt-admin"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

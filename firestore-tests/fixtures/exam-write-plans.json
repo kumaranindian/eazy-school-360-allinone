@@ -1,0 +1,2171 @@
+{
+  "scenarios": [
+    {
+      "name": "schemes",
+      "batches": [
+        {
+          "as": "ex-admin",
+          "label": "create a grading scheme",
+          "ops": [
+            {
+              "op": "set",
+              "path": "gradingSchemes/scheme-1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "name": "Standard grading",
+                "description": "",
+                "bands": [
+                  {
+                    "grade": "A+",
+                    "label": "Outstanding",
+                    "minPercent": 90.0,
+                    "gradePoint": null
+                  },
+                  {
+                    "grade": "A",
+                    "label": "Excellent",
+                    "minPercent": 80.0,
+                    "gradePoint": null
+                  },
+                  {
+                    "grade": "B",
+                    "label": "Very good",
+                    "minPercent": 70.0,
+                    "gradePoint": null
+                  },
+                  {
+                    "grade": "C",
+                    "label": "Good",
+                    "minPercent": 60.0,
+                    "gradePoint": null
+                  },
+                  {
+                    "grade": "D",
+                    "label": "Satisfactory",
+                    "minPercent": 33.0,
+                    "gradePoint": null
+                  },
+                  {
+                    "grade": "E",
+                    "label": "Needs improvement",
+                    "minPercent": 0.0,
+                    "gradePoint": null
+                  }
+                ],
+                "passPercent": 33.0,
+                "overallPassPercent": null,
+                "decimals": 2,
+                "rounding": "HALF_UP",
+                "absentPolicy": "EXCLUDE",
+                "aggregate": "TOTAL",
+                "rankingEnabled": false,
+                "status": "ACTIVE",
+                "revision": 1,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "ex-admin",
+                "updatedBy": "ex-admin"
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "edit the grading scheme",
+          "ops": [
+            {
+              "op": "update",
+              "path": "gradingSchemes/scheme-1",
+              "data": {
+                "name": "Standard grading",
+                "description": "",
+                "bands": [
+                  {
+                    "grade": "A+",
+                    "label": "Outstanding",
+                    "minPercent": 90.0,
+                    "gradePoint": null
+                  },
+                  {
+                    "grade": "A",
+                    "label": "Excellent",
+                    "minPercent": 80.0,
+                    "gradePoint": null
+                  },
+                  {
+                    "grade": "B",
+                    "label": "Very good",
+                    "minPercent": 70.0,
+                    "gradePoint": null
+                  },
+                  {
+                    "grade": "C",
+                    "label": "Good",
+                    "minPercent": 60.0,
+                    "gradePoint": null
+                  },
+                  {
+                    "grade": "D",
+                    "label": "Satisfactory",
+                    "minPercent": 33.0,
+                    "gradePoint": null
+                  },
+                  {
+                    "grade": "E",
+                    "label": "Needs improvement",
+                    "minPercent": 0.0,
+                    "gradePoint": null
+                  }
+                ],
+                "passPercent": 33.0,
+                "overallPassPercent": null,
+                "decimals": 2,
+                "rounding": "HALF_UP",
+                "absentPolicy": "EXCLUDE",
+                "aggregate": "TOTAL",
+                "rankingEnabled": false,
+                "status": "ACTIVE",
+                "revision": 2,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "examination lifecycle with marks, publication and correction",
+      "batches": [
+        {
+          "as": "ex-admin",
+          "label": "create examination",
+          "ops": [
+            {
+              "op": "set",
+              "path": "examinations/y1__c5__sa__half-yearly",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "classId": "c5",
+                "sectionId": "sa",
+                "classLabel": "Class 5 – A",
+                "nameSlug": "half-yearly",
+                "name": "Half-yearly",
+                "description": "",
+                "type": "HALF_YEARLY",
+                "schemeId": "scheme-1",
+                "startDateKey": "2026-09-01",
+                "endDateKey": "2026-09-10",
+                "instructions": "",
+                "status": "DRAFT",
+                "revision": 1,
+                "lastEvent": "CREATED",
+                "subjectCount": 0,
+                "sheetCount": 0,
+                "approvedSheets": 0,
+                "resultVersion": 0,
+                "resultCount": 0,
+                "resultsWritten": 0,
+                "schemeSnapshot": null,
+                "finalizedBy": null,
+                "publishedBy": null,
+                "publishedAt": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "ex-admin",
+                "updatedBy": "ex-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "examHistory/y1__c5__sa__half-yearly__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "examId": "y1__c5__sa__half-yearly",
+                "classId": "c5",
+                "revision": 1,
+                "event": "CREATED",
+                "toStatus": "DRAFT",
+                "actorId": "ex-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "add subject math",
+          "ops": [
+            {
+              "op": "set",
+              "path": "examinationSubjects/y1__c5__sa__half-yearly__math",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "subjectId": "math",
+                "academicYearId": "y1",
+                "classId": "c5",
+                "subjectName": "Maths",
+                "maxMarks": 100.0,
+                "passMarks": 35.0,
+                "weightage": 2.0,
+                "dateKey": "2026-09-02",
+                "startMin": 540,
+                "endMin": 660,
+                "theoryMax": null,
+                "practicalMax": null,
+                "revision": 1,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "ex-admin",
+                "updatedBy": "ex-admin"
+              }
+            },
+            {
+              "op": "update",
+              "path": "examinations/y1__c5__sa__half-yearly",
+              "data": {
+                "subjectCount": 1,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "add subject sci",
+          "ops": [
+            {
+              "op": "set",
+              "path": "examinationSubjects/y1__c5__sa__half-yearly__sci",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "subjectId": "sci",
+                "academicYearId": "y1",
+                "classId": "c5",
+                "subjectName": "Science",
+                "maxMarks": 100.0,
+                "passMarks": 35.0,
+                "weightage": 2.0,
+                "dateKey": "2026-09-02",
+                "startMin": 540,
+                "endMin": 660,
+                "theoryMax": 70.0,
+                "practicalMax": 30.0,
+                "revision": 1,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "ex-admin",
+                "updatedBy": "ex-admin"
+              }
+            },
+            {
+              "op": "update",
+              "path": "examinations/y1__c5__sa__half-yearly",
+              "data": {
+                "subjectCount": 2,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "change a subject",
+          "ops": [
+            {
+              "op": "update",
+              "path": "examinationSubjects/y1__c5__sa__half-yearly__math",
+              "data": {
+                "subjectName": "Maths",
+                "maxMarks": 100.0,
+                "passMarks": 35.0,
+                "weightage": 2.0,
+                "dateKey": "2026-09-02",
+                "startMin": 540,
+                "endMin": 660,
+                "theoryMax": null,
+                "practicalMax": null,
+                "revision": 2,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "edit configuration",
+          "ops": [
+            {
+              "op": "update",
+              "path": "examinations/y1__c5__sa__half-yearly",
+              "data": {
+                "name": "Half-yearly examination",
+                "description": "",
+                "type": "HALF_YEARLY",
+                "schemeId": "scheme-1",
+                "startDateKey": "2026-09-01",
+                "endDateKey": "2026-09-10",
+                "instructions": "",
+                "revision": 2,
+                "lastEvent": "EDITED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "examHistory/y1__c5__sa__half-yearly__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "examId": "y1__c5__sa__half-yearly",
+                "classId": "c5",
+                "revision": 2,
+                "event": "EDITED",
+                "toStatus": "DRAFT",
+                "actorId": "ex-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "schedule",
+          "ops": [
+            {
+              "op": "update",
+              "path": "examinations/y1__c5__sa__half-yearly",
+              "data": {
+                "status": "SCHEDULED",
+                "revision": 3,
+                "lastEvent": "SCHEDULED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "examHistory/y1__c5__sa__half-yearly__3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "examId": "y1__c5__sa__half-yearly",
+                "classId": "c5",
+                "revision": 3,
+                "event": "SCHEDULED",
+                "toStatus": "SCHEDULED",
+                "actorId": "ex-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "open marks entry (2 sheets)",
+          "ops": [
+            {
+              "op": "update",
+              "path": "examinations/y1__c5__sa__half-yearly",
+              "data": {
+                "status": "IN_PROGRESS",
+                "revision": 4,
+                "lastEvent": "STARTED",
+                "sheetCount": 2,
+                "approvedSheets": 0,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "examHistory/y1__c5__sa__half-yearly__4",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "examId": "y1__c5__sa__half-yearly",
+                "classId": "c5",
+                "revision": 4,
+                "event": "STARTED",
+                "toStatus": "IN_PROGRESS",
+                "actorId": "ex-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-t1",
+          "label": "first save of math (creates the sheet)",
+          "ops": [
+            {
+              "op": "set",
+              "path": "marksSheets/y1__c5__sa__half-yearly__math__sa",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "subjectId": "math",
+                "sectionId": "sa",
+                "classId": "c5",
+                "academicYearId": "y1",
+                "status": "DRAFT",
+                "revision": 1,
+                "lastEvent": "SAVED",
+                "rosterCount": 2,
+                "submittedBy": null,
+                "submittedAt": null,
+                "approvedBy": null,
+                "approvedAt": null,
+                "reviewNote": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "ex-t1",
+                "updatedBy": "ex-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksSheetHistory/y1__c5__sa__half-yearly__math__sa__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "sheetId": "y1__c5__sa__half-yearly__math__sa",
+                "revision": 1,
+                "event": "SAVED",
+                "toStatus": "DRAFT",
+                "actorId": "ex-t1",
+                "actorName": "Maths teacher",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksEntries/y1__c5__sa__half-yearly__math__sa__ex-s1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "subjectId": "math",
+                "sheetId": "y1__c5__sa__half-yearly__math__sa",
+                "sectionId": "sa",
+                "classId": "c5",
+                "academicYearId": "y1",
+                "studentId": "ex-s1",
+                "studentName": "ex-s1",
+                "rollNumber": null,
+                "status": "ENTERED",
+                "marks": 0.0,
+                "theory": null,
+                "practical": null,
+                "remark": "",
+                "revision": 1,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "ex-t1",
+                "updatedBy": "ex-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksRevisions/y1__c5__sa__half-yearly__math__sa__ex-s1__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "subjectId": "math",
+                "entryId": "y1__c5__sa__half-yearly__math__sa__ex-s1",
+                "studentId": "ex-s1",
+                "revision": 1,
+                "status": "ENTERED",
+                "marks": 0.0,
+                "remark": "",
+                "actorId": "ex-t1",
+                "actorName": "Maths teacher",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksEntries/y1__c5__sa__half-yearly__math__sa__ex-s2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "subjectId": "math",
+                "sheetId": "y1__c5__sa__half-yearly__math__sa",
+                "sectionId": "sa",
+                "classId": "c5",
+                "academicYearId": "y1",
+                "studentId": "ex-s2",
+                "studentName": "ex-s2",
+                "rollNumber": null,
+                "status": "ABSENT",
+                "marks": null,
+                "theory": null,
+                "practical": null,
+                "remark": "",
+                "revision": 1,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "ex-t1",
+                "updatedBy": "ex-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksRevisions/y1__c5__sa__half-yearly__math__sa__ex-s2__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "subjectId": "math",
+                "entryId": "y1__c5__sa__half-yearly__math__sa__ex-s2",
+                "studentId": "ex-s2",
+                "revision": 1,
+                "status": "ABSENT",
+                "marks": null,
+                "remark": "",
+                "actorId": "ex-t1",
+                "actorName": "Maths teacher",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-t1",
+          "label": "correct an entry",
+          "ops": [
+            {
+              "op": "update",
+              "path": "marksEntries/y1__c5__sa__half-yearly__math__sa__ex-s1",
+              "data": {
+                "status": "ENTERED",
+                "marks": 72.0,
+                "theory": null,
+                "practical": null,
+                "remark": "",
+                "revision": 2,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksRevisions/y1__c5__sa__half-yearly__math__sa__ex-s1__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "subjectId": "math",
+                "entryId": "y1__c5__sa__half-yearly__math__sa__ex-s1",
+                "studentId": "ex-s1",
+                "revision": 2,
+                "status": "ENTERED",
+                "marks": 72.0,
+                "remark": "",
+                "actorId": "ex-t1",
+                "actorName": "Maths teacher",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-t1",
+          "label": "submit maths",
+          "ops": [
+            {
+              "op": "update",
+              "path": "marksSheets/y1__c5__sa__half-yearly__math__sa",
+              "data": {
+                "status": "SUBMITTED",
+                "submittedBy": "ex-t1",
+                "submittedAt": {
+                  "$serverTimestamp": true
+                },
+                "revision": 2,
+                "lastEvent": "SUBMITTED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksSheetHistory/y1__c5__sa__half-yearly__math__sa__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "sheetId": "y1__c5__sa__half-yearly__math__sa",
+                "revision": 2,
+                "event": "SUBMITTED",
+                "toStatus": "SUBMITTED",
+                "actorId": "ex-t1",
+                "actorName": "Maths teacher",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-badmin",
+          "label": "approve maths",
+          "ops": [
+            {
+              "op": "update",
+              "path": "marksSheets/y1__c5__sa__half-yearly__math__sa",
+              "data": {
+                "status": "APPROVED",
+                "approvedBy": "ex-badmin",
+                "approvedAt": {
+                  "$serverTimestamp": true
+                },
+                "revision": 3,
+                "lastEvent": "APPROVED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-badmin"
+              }
+            },
+            {
+              "op": "update",
+              "path": "examinations/y1__c5__sa__half-yearly",
+              "data": {
+                "approvedSheets": 1,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-badmin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksSheetHistory/y1__c5__sa__half-yearly__math__sa__3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "sheetId": "y1__c5__sa__half-yearly__math__sa",
+                "revision": 3,
+                "event": "APPROVED",
+                "toStatus": "APPROVED",
+                "actorId": "ex-badmin",
+                "actorName": "Branch admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-t2",
+          "label": "first save of sci (creates the sheet)",
+          "ops": [
+            {
+              "op": "set",
+              "path": "marksSheets/y1__c5__sa__half-yearly__sci__sa",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "subjectId": "sci",
+                "sectionId": "sa",
+                "classId": "c5",
+                "academicYearId": "y1",
+                "status": "DRAFT",
+                "revision": 1,
+                "lastEvent": "SAVED",
+                "rosterCount": 2,
+                "submittedBy": null,
+                "submittedAt": null,
+                "approvedBy": null,
+                "approvedAt": null,
+                "reviewNote": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "ex-t2",
+                "updatedBy": "ex-t2"
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksSheetHistory/y1__c5__sa__half-yearly__sci__sa__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "sheetId": "y1__c5__sa__half-yearly__sci__sa",
+                "revision": 1,
+                "event": "SAVED",
+                "toStatus": "DRAFT",
+                "actorId": "ex-t2",
+                "actorName": "Science teacher",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksEntries/y1__c5__sa__half-yearly__sci__sa__ex-s1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "subjectId": "sci",
+                "sheetId": "y1__c5__sa__half-yearly__sci__sa",
+                "sectionId": "sa",
+                "classId": "c5",
+                "academicYearId": "y1",
+                "studentId": "ex-s1",
+                "studentName": "ex-s1",
+                "rollNumber": null,
+                "status": "ENTERED",
+                "marks": 85.0,
+                "theory": 60.0,
+                "practical": 25.0,
+                "remark": "",
+                "revision": 1,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "ex-t2",
+                "updatedBy": "ex-t2"
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksRevisions/y1__c5__sa__half-yearly__sci__sa__ex-s1__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "subjectId": "sci",
+                "entryId": "y1__c5__sa__half-yearly__sci__sa__ex-s1",
+                "studentId": "ex-s1",
+                "revision": 1,
+                "status": "ENTERED",
+                "marks": 85.0,
+                "remark": "",
+                "actorId": "ex-t2",
+                "actorName": "Science teacher",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksEntries/y1__c5__sa__half-yearly__sci__sa__ex-s2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "subjectId": "sci",
+                "sheetId": "y1__c5__sa__half-yearly__sci__sa",
+                "sectionId": "sa",
+                "classId": "c5",
+                "academicYearId": "y1",
+                "studentId": "ex-s2",
+                "studentName": "ex-s2",
+                "rollNumber": null,
+                "status": "EXEMPTED",
+                "marks": null,
+                "theory": null,
+                "practical": null,
+                "remark": "",
+                "revision": 1,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "ex-t2",
+                "updatedBy": "ex-t2"
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksRevisions/y1__c5__sa__half-yearly__sci__sa__ex-s2__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "subjectId": "sci",
+                "entryId": "y1__c5__sa__half-yearly__sci__sa__ex-s2",
+                "studentId": "ex-s2",
+                "revision": 1,
+                "status": "EXEMPTED",
+                "marks": null,
+                "remark": "",
+                "actorId": "ex-t2",
+                "actorName": "Science teacher",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-t2",
+          "label": "submit science",
+          "ops": [
+            {
+              "op": "update",
+              "path": "marksSheets/y1__c5__sa__half-yearly__sci__sa",
+              "data": {
+                "status": "SUBMITTED",
+                "submittedBy": "ex-t2",
+                "submittedAt": {
+                  "$serverTimestamp": true
+                },
+                "revision": 2,
+                "lastEvent": "SUBMITTED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-t2"
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksSheetHistory/y1__c5__sa__half-yearly__sci__sa__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "sheetId": "y1__c5__sa__half-yearly__sci__sa",
+                "revision": 2,
+                "event": "SUBMITTED",
+                "toStatus": "SUBMITTED",
+                "actorId": "ex-t2",
+                "actorName": "Science teacher",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "approve science",
+          "ops": [
+            {
+              "op": "update",
+              "path": "marksSheets/y1__c5__sa__half-yearly__sci__sa",
+              "data": {
+                "status": "APPROVED",
+                "approvedBy": "ex-admin",
+                "approvedAt": {
+                  "$serverTimestamp": true
+                },
+                "revision": 3,
+                "lastEvent": "APPROVED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            },
+            {
+              "op": "update",
+              "path": "examinations/y1__c5__sa__half-yearly",
+              "data": {
+                "approvedSheets": 2,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksSheetHistory/y1__c5__sa__half-yearly__sci__sa__3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "sheetId": "y1__c5__sa__half-yearly__sci__sa",
+                "revision": 3,
+                "event": "APPROVED",
+                "toStatus": "APPROVED",
+                "actorId": "ex-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "finalise (version 1)",
+          "ops": [
+            {
+              "op": "update",
+              "path": "examinations/y1__c5__sa__half-yearly",
+              "data": {
+                "status": "COMPLETED",
+                "revision": 5,
+                "lastEvent": "FINALIZED",
+                "resultVersion": 1,
+                "resultCount": 2,
+                "resultsWritten": 0,
+                "schemeSnapshot": {
+                  "schemeId": "",
+                  "name": "Standard grading",
+                  "bands": [
+                    {
+                      "grade": "A+",
+                      "label": "Outstanding",
+                      "minPercent": 90.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "A",
+                      "label": "Excellent",
+                      "minPercent": 80.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "B",
+                      "label": "Very good",
+                      "minPercent": 70.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "C",
+                      "label": "Good",
+                      "minPercent": 60.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "D",
+                      "label": "Satisfactory",
+                      "minPercent": 33.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "E",
+                      "label": "Needs improvement",
+                      "minPercent": 0.0,
+                      "gradePoint": null
+                    }
+                  ],
+                  "passPercent": 33.0,
+                  "overallPassPercent": null,
+                  "decimals": 2,
+                  "rounding": "HALF_UP",
+                  "absentPolicy": "EXCLUDE",
+                  "aggregate": "TOTAL",
+                  "rankingEnabled": false,
+                  "revision": 1
+                },
+                "finalizedBy": "ex-admin",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "examHistory/y1__c5__sa__half-yearly__5",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "examId": "y1__c5__sa__half-yearly",
+                "classId": "c5",
+                "revision": 5,
+                "event": "FINALIZED",
+                "toStatus": "COMPLETED",
+                "actorId": "ex-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "write the results",
+          "ops": [
+            {
+              "op": "set",
+              "path": "resultSummaries/y1__c5__sa__half-yearly__ex-s1__v1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "examName": "Half-yearly examination",
+                "studentId": "ex-s1",
+                "studentName": "ex-s1",
+                "version": 1,
+                "academicYearId": "y1",
+                "classId": "c5",
+                "sectionId": "sa",
+                "classLabel": "Class 5 – A",
+                "status": "FINAL",
+                "summary": {
+                  "studentId": "ex-s1",
+                  "studentName": "ex-s1",
+                  "admissionNumber": null,
+                  "rollNumber": null,
+                  "sectionId": "sa",
+                  "lines": [
+                    {
+                      "subjectId": "math",
+                      "subjectName": "Maths",
+                      "maxMarks": 100.0,
+                      "passMarks": 35.0,
+                      "weightage": 2.0,
+                      "obtained": 72.0,
+                      "theory": null,
+                      "practical": null,
+                      "markStatus": "ENTERED",
+                      "outcome": "PASSED",
+                      "percent": 72.0,
+                      "grade": "B",
+                      "gradePoint": null,
+                      "remark": "",
+                      "counted": true
+                    },
+                    {
+                      "subjectId": "sci",
+                      "subjectName": "Science",
+                      "maxMarks": 100.0,
+                      "passMarks": 35.0,
+                      "weightage": 2.0,
+                      "obtained": 85.0,
+                      "theory": 60.0,
+                      "practical": 25.0,
+                      "markStatus": "ENTERED",
+                      "outcome": "PASSED",
+                      "percent": 85.0,
+                      "grade": "A",
+                      "gradePoint": null,
+                      "remark": "",
+                      "counted": true
+                    }
+                  ],
+                  "totalObtained": 157.0,
+                  "totalMax": 200.0,
+                  "percentage": 78.5,
+                  "weightedPercentage": 78.5,
+                  "overallPercentage": 78.5,
+                  "overallGrade": "B",
+                  "gpa": null,
+                  "result": "PASS",
+                  "hasAbsence": false,
+                  "rank": null,
+                  "classSize": null
+                },
+                "schemeSnapshot": {
+                  "schemeId": "",
+                  "name": "Standard grading",
+                  "bands": [
+                    {
+                      "grade": "A+",
+                      "label": "Outstanding",
+                      "minPercent": 90.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "A",
+                      "label": "Excellent",
+                      "minPercent": 80.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "B",
+                      "label": "Very good",
+                      "minPercent": 70.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "C",
+                      "label": "Good",
+                      "minPercent": 60.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "D",
+                      "label": "Satisfactory",
+                      "minPercent": 33.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "E",
+                      "label": "Needs improvement",
+                      "minPercent": 0.0,
+                      "gradePoint": null
+                    }
+                  ],
+                  "passPercent": 33.0,
+                  "overallPassPercent": null,
+                  "decimals": 2,
+                  "rounding": "HALF_UP",
+                  "absentPolicy": "EXCLUDE",
+                  "aggregate": "TOTAL",
+                  "rankingEnabled": false,
+                  "revision": 1
+                },
+                "attendance": {
+                  "attendedDays": 90.0,
+                  "markedDays": 100,
+                  "percentage": 90.0,
+                  "fromKey": "2026-06-01",
+                  "toKey": "2026-09-10"
+                },
+                "teacherRemark": "Good",
+                "principalRemark": "",
+                "calculatedBy": "ex-admin",
+                "calculatedAt": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "resultSummaries/y1__c5__sa__half-yearly__ex-s2__v1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "examName": "Half-yearly examination",
+                "studentId": "ex-s2",
+                "studentName": "ex-s2",
+                "version": 1,
+                "academicYearId": "y1",
+                "classId": "c5",
+                "sectionId": "sa",
+                "classLabel": "Class 5 – A",
+                "status": "FINAL",
+                "summary": {
+                  "studentId": "ex-s2",
+                  "studentName": "ex-s2",
+                  "admissionNumber": null,
+                  "rollNumber": null,
+                  "sectionId": "sa",
+                  "lines": [
+                    {
+                      "subjectId": "math",
+                      "subjectName": "Maths",
+                      "maxMarks": 100.0,
+                      "passMarks": 35.0,
+                      "weightage": 2.0,
+                      "obtained": 40.0,
+                      "theory": null,
+                      "practical": null,
+                      "markStatus": "ENTERED",
+                      "outcome": "PASSED",
+                      "percent": 40.0,
+                      "grade": "D",
+                      "gradePoint": null,
+                      "remark": "",
+                      "counted": true
+                    },
+                    {
+                      "subjectId": "sci",
+                      "subjectName": "Science",
+                      "maxMarks": 100.0,
+                      "passMarks": 35.0,
+                      "weightage": 2.0,
+                      "obtained": 85.0,
+                      "theory": 60.0,
+                      "practical": 25.0,
+                      "markStatus": "ENTERED",
+                      "outcome": "PASSED",
+                      "percent": 85.0,
+                      "grade": "A",
+                      "gradePoint": null,
+                      "remark": "",
+                      "counted": true
+                    }
+                  ],
+                  "totalObtained": 125.0,
+                  "totalMax": 200.0,
+                  "percentage": 62.5,
+                  "weightedPercentage": 62.5,
+                  "overallPercentage": 62.5,
+                  "overallGrade": "C",
+                  "gpa": null,
+                  "result": "PASS",
+                  "hasAbsence": false,
+                  "rank": null,
+                  "classSize": null
+                },
+                "schemeSnapshot": {
+                  "schemeId": "",
+                  "name": "Standard grading",
+                  "bands": [
+                    {
+                      "grade": "A+",
+                      "label": "Outstanding",
+                      "minPercent": 90.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "A",
+                      "label": "Excellent",
+                      "minPercent": 80.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "B",
+                      "label": "Very good",
+                      "minPercent": 70.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "C",
+                      "label": "Good",
+                      "minPercent": 60.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "D",
+                      "label": "Satisfactory",
+                      "minPercent": 33.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "E",
+                      "label": "Needs improvement",
+                      "minPercent": 0.0,
+                      "gradePoint": null
+                    }
+                  ],
+                  "passPercent": 33.0,
+                  "overallPassPercent": null,
+                  "decimals": 2,
+                  "rounding": "HALF_UP",
+                  "absentPolicy": "EXCLUDE",
+                  "aggregate": "TOTAL",
+                  "rankingEnabled": false,
+                  "revision": 1
+                },
+                "attendance": {
+                  "attendedDays": 90.0,
+                  "markedDays": 100,
+                  "percentage": 90.0,
+                  "fromKey": "2026-06-01",
+                  "toKey": "2026-09-10"
+                },
+                "teacherRemark": "Good",
+                "principalRemark": "",
+                "calculatedBy": "ex-admin",
+                "calculatedAt": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "count the results written",
+          "ops": [
+            {
+              "op": "update",
+              "path": "examinations/y1__c5__sa__half-yearly",
+              "data": {
+                "resultsWritten": 2,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "publish (version 1)",
+          "ops": [
+            {
+              "op": "update",
+              "path": "examinations/y1__c5__sa__half-yearly",
+              "data": {
+                "status": "PUBLISHED",
+                "revision": 6,
+                "lastEvent": "PUBLISHED",
+                "publishedBy": "ex-admin",
+                "publishedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "examHistory/y1__c5__sa__half-yearly__6",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "examId": "y1__c5__sa__half-yearly",
+                "classId": "c5",
+                "revision": 6,
+                "event": "PUBLISHED",
+                "toStatus": "PUBLISHED",
+                "actorId": "ex-admin",
+                "actorName": "Admin",
+                "note": "Result version 1",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "broadcastNotices/y1__c5__sa__half-yearly__PUBLISHED__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "type": "RESULT_PUBLISHED",
+                "audienceKind": "SECTION",
+                "classId": "c5",
+                "sectionId": "sa",
+                "title": "Results published",
+                "body": "Half-yearly examination",
+                "refType": "EXAM",
+                "refId": "y1__c5__sa__half-yearly",
+                "revision": 1,
+                "createdBy": "ex-admin",
+                "createdAt": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "withdraw",
+          "ops": [
+            {
+              "op": "update",
+              "path": "examinations/y1__c5__sa__half-yearly",
+              "data": {
+                "status": "WITHDRAWN",
+                "revision": 7,
+                "lastEvent": "WITHDRAWN",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "examHistory/y1__c5__sa__half-yearly__7",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "examId": "y1__c5__sa__half-yearly",
+                "classId": "c5",
+                "revision": 7,
+                "event": "WITHDRAWN",
+                "toStatus": "WITHDRAWN",
+                "actorId": "ex-admin",
+                "actorName": "Admin",
+                "note": "Maths marks were misread",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "reopen for correction",
+          "ops": [
+            {
+              "op": "update",
+              "path": "examinations/y1__c5__sa__half-yearly",
+              "data": {
+                "status": "IN_PROGRESS",
+                "revision": 8,
+                "lastEvent": "REOPENED",
+                "resultsWritten": 0,
+                "resultCount": 0,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "examHistory/y1__c5__sa__half-yearly__8",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "examId": "y1__c5__sa__half-yearly",
+                "classId": "c5",
+                "revision": 8,
+                "event": "REOPENED",
+                "toStatus": "IN_PROGRESS",
+                "actorId": "ex-admin",
+                "actorName": "Admin",
+                "note": "Correct the maths marks",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "return the maths sheet",
+          "ops": [
+            {
+              "op": "update",
+              "path": "marksSheets/y1__c5__sa__half-yearly__math__sa",
+              "data": {
+                "status": "RETURNED",
+                "reviewNote": "Student 2 was present",
+                "approvedBy": null,
+                "approvedAt": null,
+                "revision": 4,
+                "lastEvent": "RETURNED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            },
+            {
+              "op": "update",
+              "path": "examinations/y1__c5__sa__half-yearly",
+              "data": {
+                "approvedSheets": 1,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksSheetHistory/y1__c5__sa__half-yearly__math__sa__4",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "sheetId": "y1__c5__sa__half-yearly__math__sa",
+                "revision": 4,
+                "event": "RETURNED",
+                "toStatus": "RETURNED",
+                "actorId": "ex-admin",
+                "actorName": "Admin",
+                "note": "Student 2 was present",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-t1",
+          "label": "enter the corrected marks",
+          "ops": [
+            {
+              "op": "update",
+              "path": "marksEntries/y1__c5__sa__half-yearly__math__sa__ex-s2",
+              "data": {
+                "status": "ENTERED",
+                "marks": 40.0,
+                "theory": null,
+                "practical": null,
+                "remark": "",
+                "revision": 2,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksRevisions/y1__c5__sa__half-yearly__math__sa__ex-s2__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "subjectId": "math",
+                "entryId": "y1__c5__sa__half-yearly__math__sa__ex-s2",
+                "studentId": "ex-s2",
+                "revision": 2,
+                "status": "ENTERED",
+                "marks": 40.0,
+                "remark": "",
+                "actorId": "ex-t1",
+                "actorName": "Maths teacher",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-t1",
+          "label": "resubmit maths",
+          "ops": [
+            {
+              "op": "update",
+              "path": "marksSheets/y1__c5__sa__half-yearly__math__sa",
+              "data": {
+                "status": "SUBMITTED",
+                "submittedBy": "ex-t1",
+                "submittedAt": {
+                  "$serverTimestamp": true
+                },
+                "revision": 5,
+                "lastEvent": "SUBMITTED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksSheetHistory/y1__c5__sa__half-yearly__math__sa__5",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "sheetId": "y1__c5__sa__half-yearly__math__sa",
+                "revision": 5,
+                "event": "SUBMITTED",
+                "toStatus": "SUBMITTED",
+                "actorId": "ex-t1",
+                "actorName": "Maths teacher",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "approve maths again",
+          "ops": [
+            {
+              "op": "update",
+              "path": "marksSheets/y1__c5__sa__half-yearly__math__sa",
+              "data": {
+                "status": "APPROVED",
+                "approvedBy": "ex-admin",
+                "approvedAt": {
+                  "$serverTimestamp": true
+                },
+                "revision": 6,
+                "lastEvent": "APPROVED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            },
+            {
+              "op": "update",
+              "path": "examinations/y1__c5__sa__half-yearly",
+              "data": {
+                "approvedSheets": 2,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "marksSheetHistory/y1__c5__sa__half-yearly__math__sa__6",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "sheetId": "y1__c5__sa__half-yearly__math__sa",
+                "revision": 6,
+                "event": "APPROVED",
+                "toStatus": "APPROVED",
+                "actorId": "ex-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "finalise (version 2)",
+          "ops": [
+            {
+              "op": "update",
+              "path": "examinations/y1__c5__sa__half-yearly",
+              "data": {
+                "status": "COMPLETED",
+                "revision": 9,
+                "lastEvent": "FINALIZED",
+                "resultVersion": 2,
+                "resultCount": 2,
+                "resultsWritten": 0,
+                "schemeSnapshot": {
+                  "schemeId": "",
+                  "name": "Standard grading",
+                  "bands": [
+                    {
+                      "grade": "A+",
+                      "label": "Outstanding",
+                      "minPercent": 90.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "A",
+                      "label": "Excellent",
+                      "minPercent": 80.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "B",
+                      "label": "Very good",
+                      "minPercent": 70.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "C",
+                      "label": "Good",
+                      "minPercent": 60.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "D",
+                      "label": "Satisfactory",
+                      "minPercent": 33.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "E",
+                      "label": "Needs improvement",
+                      "minPercent": 0.0,
+                      "gradePoint": null
+                    }
+                  ],
+                  "passPercent": 33.0,
+                  "overallPassPercent": null,
+                  "decimals": 2,
+                  "rounding": "HALF_UP",
+                  "absentPolicy": "EXCLUDE",
+                  "aggregate": "TOTAL",
+                  "rankingEnabled": false,
+                  "revision": 1
+                },
+                "finalizedBy": "ex-admin",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "examHistory/y1__c5__sa__half-yearly__9",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "examId": "y1__c5__sa__half-yearly",
+                "classId": "c5",
+                "revision": 9,
+                "event": "FINALIZED",
+                "toStatus": "COMPLETED",
+                "actorId": "ex-admin",
+                "actorName": "Admin",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "write version 2",
+          "ops": [
+            {
+              "op": "set",
+              "path": "resultSummaries/y1__c5__sa__half-yearly__ex-s1__v2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "examName": "Half-yearly examination",
+                "studentId": "ex-s1",
+                "studentName": "ex-s1",
+                "version": 2,
+                "academicYearId": "y1",
+                "classId": "c5",
+                "sectionId": "sa",
+                "classLabel": "Class 5 – A",
+                "status": "FINAL",
+                "summary": {
+                  "studentId": "ex-s1",
+                  "studentName": "ex-s1",
+                  "admissionNumber": null,
+                  "rollNumber": null,
+                  "sectionId": "sa",
+                  "lines": [
+                    {
+                      "subjectId": "math",
+                      "subjectName": "Maths",
+                      "maxMarks": 100.0,
+                      "passMarks": 35.0,
+                      "weightage": 2.0,
+                      "obtained": 72.0,
+                      "theory": null,
+                      "practical": null,
+                      "markStatus": "ENTERED",
+                      "outcome": "PASSED",
+                      "percent": 72.0,
+                      "grade": "B",
+                      "gradePoint": null,
+                      "remark": "",
+                      "counted": true
+                    },
+                    {
+                      "subjectId": "sci",
+                      "subjectName": "Science",
+                      "maxMarks": 100.0,
+                      "passMarks": 35.0,
+                      "weightage": 2.0,
+                      "obtained": 85.0,
+                      "theory": 60.0,
+                      "practical": 25.0,
+                      "markStatus": "ENTERED",
+                      "outcome": "PASSED",
+                      "percent": 85.0,
+                      "grade": "A",
+                      "gradePoint": null,
+                      "remark": "",
+                      "counted": true
+                    }
+                  ],
+                  "totalObtained": 157.0,
+                  "totalMax": 200.0,
+                  "percentage": 78.5,
+                  "weightedPercentage": 78.5,
+                  "overallPercentage": 78.5,
+                  "overallGrade": "B",
+                  "gpa": null,
+                  "result": "PASS",
+                  "hasAbsence": false,
+                  "rank": null,
+                  "classSize": null
+                },
+                "schemeSnapshot": {
+                  "schemeId": "",
+                  "name": "Standard grading",
+                  "bands": [
+                    {
+                      "grade": "A+",
+                      "label": "Outstanding",
+                      "minPercent": 90.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "A",
+                      "label": "Excellent",
+                      "minPercent": 80.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "B",
+                      "label": "Very good",
+                      "minPercent": 70.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "C",
+                      "label": "Good",
+                      "minPercent": 60.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "D",
+                      "label": "Satisfactory",
+                      "minPercent": 33.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "E",
+                      "label": "Needs improvement",
+                      "minPercent": 0.0,
+                      "gradePoint": null
+                    }
+                  ],
+                  "passPercent": 33.0,
+                  "overallPassPercent": null,
+                  "decimals": 2,
+                  "rounding": "HALF_UP",
+                  "absentPolicy": "EXCLUDE",
+                  "aggregate": "TOTAL",
+                  "rankingEnabled": false,
+                  "revision": 1
+                },
+                "attendance": null,
+                "teacherRemark": "",
+                "principalRemark": "Well done",
+                "calculatedBy": "ex-admin",
+                "calculatedAt": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "resultSummaries/y1__c5__sa__half-yearly__ex-s2__v2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "examId": "y1__c5__sa__half-yearly",
+                "examName": "Half-yearly examination",
+                "studentId": "ex-s2",
+                "studentName": "ex-s2",
+                "version": 2,
+                "academicYearId": "y1",
+                "classId": "c5",
+                "sectionId": "sa",
+                "classLabel": "Class 5 – A",
+                "status": "FINAL",
+                "summary": {
+                  "studentId": "ex-s2",
+                  "studentName": "ex-s2",
+                  "admissionNumber": null,
+                  "rollNumber": null,
+                  "sectionId": "sa",
+                  "lines": [
+                    {
+                      "subjectId": "math",
+                      "subjectName": "Maths",
+                      "maxMarks": 100.0,
+                      "passMarks": 35.0,
+                      "weightage": 2.0,
+                      "obtained": 40.0,
+                      "theory": null,
+                      "practical": null,
+                      "markStatus": "ENTERED",
+                      "outcome": "PASSED",
+                      "percent": 40.0,
+                      "grade": "D",
+                      "gradePoint": null,
+                      "remark": "",
+                      "counted": true
+                    },
+                    {
+                      "subjectId": "sci",
+                      "subjectName": "Science",
+                      "maxMarks": 100.0,
+                      "passMarks": 35.0,
+                      "weightage": 2.0,
+                      "obtained": 85.0,
+                      "theory": 60.0,
+                      "practical": 25.0,
+                      "markStatus": "ENTERED",
+                      "outcome": "PASSED",
+                      "percent": 85.0,
+                      "grade": "A",
+                      "gradePoint": null,
+                      "remark": "",
+                      "counted": true
+                    }
+                  ],
+                  "totalObtained": 125.0,
+                  "totalMax": 200.0,
+                  "percentage": 62.5,
+                  "weightedPercentage": 62.5,
+                  "overallPercentage": 62.5,
+                  "overallGrade": "C",
+                  "gpa": null,
+                  "result": "PASS",
+                  "hasAbsence": false,
+                  "rank": null,
+                  "classSize": null
+                },
+                "schemeSnapshot": {
+                  "schemeId": "",
+                  "name": "Standard grading",
+                  "bands": [
+                    {
+                      "grade": "A+",
+                      "label": "Outstanding",
+                      "minPercent": 90.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "A",
+                      "label": "Excellent",
+                      "minPercent": 80.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "B",
+                      "label": "Very good",
+                      "minPercent": 70.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "C",
+                      "label": "Good",
+                      "minPercent": 60.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "D",
+                      "label": "Satisfactory",
+                      "minPercent": 33.0,
+                      "gradePoint": null
+                    },
+                    {
+                      "grade": "E",
+                      "label": "Needs improvement",
+                      "minPercent": 0.0,
+                      "gradePoint": null
+                    }
+                  ],
+                  "passPercent": 33.0,
+                  "overallPassPercent": null,
+                  "decimals": 2,
+                  "rounding": "HALF_UP",
+                  "absentPolicy": "EXCLUDE",
+                  "aggregate": "TOTAL",
+                  "rankingEnabled": false,
+                  "revision": 1
+                },
+                "attendance": null,
+                "teacherRemark": "",
+                "principalRemark": "Well done",
+                "calculatedBy": "ex-admin",
+                "calculatedAt": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "count version 2",
+          "ops": [
+            {
+              "op": "update",
+              "path": "examinations/y1__c5__sa__half-yearly",
+              "data": {
+                "resultsWritten": 2,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            }
+          ]
+        },
+        {
+          "as": "ex-admin",
+          "label": "publish (version 2)",
+          "ops": [
+            {
+              "op": "update",
+              "path": "examinations/y1__c5__sa__half-yearly",
+              "data": {
+                "status": "PUBLISHED",
+                "revision": 10,
+                "lastEvent": "PUBLISHED",
+                "publishedBy": "ex-admin",
+                "publishedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "ex-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "examHistory/y1__c5__sa__half-yearly__10",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "examId": "y1__c5__sa__half-yearly",
+                "classId": "c5",
+                "revision": 10,
+                "event": "PUBLISHED",
+                "toStatus": "PUBLISHED",
+                "actorId": "ex-admin",
+                "actorName": "Admin",
+                "note": "Result version 2",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "broadcastNotices/y1__c5__sa__half-yearly__PUBLISHED__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "type": "RESULT_PUBLISHED",
+                "audienceKind": "SECTION",
+                "classId": "c5",
+                "sectionId": "sa",
+                "title": "Results published",
+                "body": "Half-yearly examination",
+                "refType": "EXAM",
+                "refId": "y1__c5__sa__half-yearly",
+                "revision": 2,
+                "createdBy": "ex-admin",
+                "createdAt": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,137 @@
+{
+  "milestone": 11,
+  "name": "Notifications & Parent–Teacher Communication",
+  "date": "2026-10-10",
+  "status": "implemented-with-documented-gaps",
+  "features": [
+    {
+      "name": "In-app notification centre: newest first, unread count, read/all read (confirmed), category/unread filters, pagination, safe navigation",
+      "status": "complete",
+      "evidence": "notification_center_page.dart; 9 widget tests"
+    },
+    {
+      "name": "Event model across categories reusing notifications/broadcastNotices/noticeReads (no duplicate system)",
+      "status": "complete",
+      "evidence": "feed_item.dart, notification_category.dart; unit tests"
+    },
+    {
+      "name": "Idempotent generation (deterministic ids, same-commit, create-only), no drafts, no message text in notices",
+      "status": "complete",
+      "evidence": "rules tests + mutants; contract replay"
+    },
+    {
+      "name": "Notification preferences: own only, categories, critical not mutable, channel availability stated",
+      "status": "complete",
+      "evidence": "notification_preferences_page.dart; rules + widget tests"
+    },
+    {
+      "name": "Parent-teacher conversations: linked parent + child + slot teacher + opt-in; one child per conversation",
+      "status": "complete",
+      "evidence": "conversation rules tests + mutants"
+    },
+    {
+      "name": "Messaging safety: validation, length, attachments, no duplicates, no edit/delete, closed conversations, report/flag, admin access only after report",
+      "status": "complete",
+      "evidence": "rules tests; widget tests"
+    },
+    {
+      "name": "Conversation UI: list, new, thread, composer, attachments, unread, close/reopen/archive/report with confirmations, history; phone/tablet/desktop",
+      "status": "complete",
+      "evidence": "conversation_page.dart etc.; 18 widget tests"
+    },
+    {
+      "name": "Private attachments with participant-only Storage rules",
+      "status": "complete (not first message; not readable by admins)",
+      "evidence": "communication-storage-rules.test.mjs"
+    },
+    {
+      "name": "Push notifications (FCM)",
+      "status": "not implemented",
+      "evidence": "needs messaging dependency + trusted sender; no service-account keys in client"
+    },
+    {
+      "name": "Attendance, fee reminder and payment receipt notifications",
+      "status": "not implemented",
+      "evidence": "would modify finished modules / needs scheduler"
+    },
+    {
+      "name": "Retention / expiry cleanup",
+      "status": "partial",
+      "evidence": "expiry is a display filter; no backend cleanup"
+    },
+    {
+      "name": "Exactly-once delivery",
+      "status": "not claimed",
+      "evidence": "at-most-once creation per event id, atomic with the change"
+    }
+  ],
+  "commands": [
+    {
+      "command": "dart format (changed paths only)",
+      "result": "0 changed after final run",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter analyze",
+      "result": "No issues found!",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter test",
+      "result": "+863: All tests passed! (817 before; +46)",
+      "outcome": "pass"
+    },
+    {
+      "command": "firebase emulators:exec --only firestore,storage … npm test (serial)",
+      "result": "tests 263, pass 263, fail 0 (248 before; +15)",
+      "outcome": "pass"
+    },
+    {
+      "command": "mutation check of new rules",
+      "result": "28 mutants: 24 killed, 4 equivalent",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter build web",
+      "result": "✓ Built build/web",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter build apk --debug",
+      "result": "✓ Built build/app/outputs/flutter-apk/app-debug.apk",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter build ios --no-codesign",
+      "result": "BLOCKED: iOS 26.5 platform not installed in Xcode",
+      "outcome": "blocked"
+    }
+  ],
+  "tests": {
+    "flutter": {
+      "before": 817,
+      "after": 863,
+      "passed": 863,
+      "failed": 0
+    },
+    "rules": {
+      "before": 248,
+      "after": 263,
+      "passed": 263,
+      "failed": 0
+    },
+    "mutants": {
+      "total": 28,
+      "killed": 24,
+      "equivalent": 4
+    }
+  },
+  "delivery": {
+    "in_app": "implemented",
+    "push": "not implemented (no messaging backend; no keys in client)",
+    "email": "not provided",
+    "sms": "not provided",
+    "semantics": "at-most-once creation per event id, atomic with the business change; no exactly-once claim"
+  },
+  "next": "Milestone 12 not started; awaiting explicit approval"
+}

@@ -1,0 +1,25 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>EazySchool 360 — Milestone 6 Report</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;max-width:860px;margin:2rem auto;padding:0 16px;color:#1b1b1f}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:6px 8px;text-align:left}.ok{color:#0a7d33;font-weight:600}.bad{color:#b3261e;font-weight:600}@media(prefers-color-scheme:dark){body{background:#121212;color:#eee}td,th{border-color:#444}}</style></head><body>
+<h1>Milestone 6 — Fees, Invoices, Payments &amp; Receipts</h1>
+<p>Avail404 · EazySchool 360 · 2026-10-09 · Status: <b>implemented, with documented gaps</b></p>
+<h2>Command results</h2>
+<table><tr><th>Command</th><th>Result</th></tr>
+<tr><td>flutter analyze</td><td class="ok">No issues</td></tr>
+<tr><td>flutter test</td><td class="ok">465 passed / 0 failed</td></tr>
+<tr><td>Rules suite (emulator, all files)</td><td class="ok">134 passed / 0 failed (36 fees)</td></tr>
+<tr><td>flutter build web</td><td class="ok">success</td></tr>
+<tr><td>flutter build apk --debug</td><td class="ok">success</td></tr>
+<tr><td>flutter build ios --no-codesign</td><td class="bad">blocked — iOS 26.5 platform not installed</td></tr></table>
+<h2>Financial integrity</h2><ul>
+<li>Integer minor units; basis-point concessions rounded half up.</li>
+<li>Concurrency-safe invoice/receipt numbers (counter + unique reservation + rules range check).</li>
+<li>Idempotent payments (id = key) and bulk generation (deterministic invoice ids + line locks).</li>
+<li>Overpayment rejected in UI, repository and rules; stale concurrent payments refused at commit.</li>
+<li>Reversal/refund/waiver/void are recorded events tied to invoice changes by rules; receipts retained.</li>
+<li>Multi-tenant, branch, teacher and parent isolation tested with direct reads/writes.</li></ul>
+<h2>Known gaps</h2><ul>
+<li>Rules cannot sum invoice lines — a trusted backend is needed to enforce line integrity against a malicious privileged client.</li>
+<li>No real-Firebase end-to-end run; Dart repositories not exercised against the emulator; indexes unexercised.</li>
+<li>iOS build not possible here. Single-invoice payments, no drafts, fixed payment methods.</li>
+<li>Milestone 4 <code>dart format</code> over-reach (disclosed earlier).</li></ul>
+<p>Details: <code>docs/milestone-6-fees-management.md</code>. Milestone 7 has not been started.</p></body></html>

@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EazySchool 360 — Implementation &amp; Architecture Validation Report</title>
+<style>
+  :root{
+    --bg:#f4f6f9; --surface:#ffffff; --surface-2:#f8fafc; --border:#e2e8f0; --border-strong:#cbd5e1;
+    --text:#0f172a; --text-dim:#475569; --text-faint:#94a3b8;
+    --blue:#2563eb; --blue-bg:#eff6ff; --blue-bd:#bfdbfe;
+    --green:#15803d; --green-bg:#f0fdf4; --green-bd:#bbf7d0;
+    --amber:#b45309; --amber-bg:#fffbeb; --amber-bd:#fde68a;
+    --red:#b91c1c; --red-bg:#fef2f2; --red-bd:#fecaca;
+    --purple:#6d28d9; --purple-bg:#f5f3ff; --purple-bd:#ddd6fe;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(15,23,42,.04), 0 1px 1px rgba(15,23,42,.03);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0b1220; --surface:#111827; --surface-2:#0f172a; --border:#1f2937; --border-strong:#334155;
+      --text:#e5e7eb; --text-dim:#9ca3af; --text-faint:#6b7280;
+      --blue:#60a5fa; --blue-bg:#0f1b33; --blue-bd:#1e3a6e;
+      --green:#4ade80; --green-bg:#0c1f14; --green-bd:#145a2b;
+      --amber:#fbbf24; --amber-bg:#241c08; --amber-bd:#78500c;
+      --red:#f87171; --red-bg:#2a1212; --red-bd:#7f1d1d;
+      --purple:#a78bfa; --purple-bg:#1c1530; --purple-bd:#4c2a9e;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0b1220; --surface:#111827; --surface-2:#0f172a; --border:#1f2937; --border-strong:#334155;
+    --text:#e5e7eb; --text-dim:#9ca3af; --text-faint:#6b7280;
+    --blue:#60a5fa; --blue-bg:#0f1b33; --blue-bd:#1e3a6e;
+    --green:#4ade80; --green-bg:#0c1f14; --green-bd:#145a2b;
+    --amber:#fbbf24; --amber-bg:#241c08; --amber-bd:#78500c;
+    --red:#f87171; --red-bg:#2a1212; --red-bd:#7f1d1d;
+    --purple:#a78bfa; --purple-bg:#1c1530; --purple-bd:#4c2a9e;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  body{font-size:15px;line-height:1.55;}
+  a{color:var(--blue);}
+  code, pre, .mono{font-family:var(--mono);}
+  code{background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:.88em;}
+  pre{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;overflow-x:auto;font-size:.82em;line-height:1.5;}
+  pre code{border:none;background:none;padding:0;}
+
+  header.hero{background:linear-gradient(135deg,#0f172a,#1e3a8a 70%);color:#f1f5f9;padding:40px 24px 32px;}
+  :root[data-theme="dark"] header.hero, @media (prefers-color-scheme: dark){ header.hero{background:linear-gradient(135deg,#05070d,#0b1733 70%);} }
+  .hero-inner{max-width:1180px;margin:0 auto;}
+  .hero-eyebrow{font-size:.78em;text-transform:uppercase;letter-spacing:.09em;color:#93c5fd;font-weight:600;}
+  .hero h1{font-size:1.9em;margin:.25em 0 .1em;font-weight:700;}
+  .hero .sub{color:#cbd5e1;font-size:1.02em;max-width:720px;}
+  .hero-meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px;}
+  .hero-meta span{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:5px 13px;font-size:.82em;color:#e2e8f0;}
+
+  nav.toc{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--border);box-shadow:var(--shadow);}
+  nav.toc .inner{max-width:1180px;margin:0 auto;padding:0 24px;display:flex;gap:2px;overflow-x:auto;scrollbar-width:thin;}
+  nav.toc a{white-space:nowrap;padding:12px 10px;font-size:.82em;color:var(--text-dim);text-decoration:none;border-bottom:2px solid transparent;}
+  nav.toc a:hover{color:var(--blue);}
+
+  main{max-width:1180px;margin:0 auto;padding:28px 24px 80px;}
+  section{margin-bottom:46px;scroll-margin-top:52px;}
+  section h2{font-size:1.4em;margin:0 0 4px;display:flex;align-items:center;gap:10px;}
+  section h2 .num{font-size:.6em;color:var(--text-faint);font-weight:600;}
+  section > .lead{color:var(--text-dim);margin:0 0 18px;max-width:860px;}
+  h3{font-size:1.08em;margin:22px 0 8px;}
+  h4{font-size:.95em;margin:16px 0 6px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;}
+  .grid{display:grid;gap:14px;}
+  .grid.cols-4{grid-template-columns:repeat(4,1fr);}
+  .grid.cols-3{grid-template-columns:repeat(3,1fr);}
+  .grid.cols-2{grid-template-columns:repeat(2,1fr);}
+  @media (max-width:900px){ .grid.cols-4{grid-template-columns:repeat(2,1fr);} .grid.cols-3{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:620px){ .grid.cols-4,.grid.cols-3,.grid.cols-2{grid-template-columns:1fr;} nav.toc{display:none;} }
+
+  .stat-card .label{font-size:.76em;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);font-weight:600;}
+  .stat-card .value{font-size:1.5em;font-weight:700;margin-top:4px;}
+  .stat-card .hint{font-size:.82em;color:var(--text-dim);margin-top:4px;}
+
+  .badge{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 11px;font-size:.78em;font-weight:700;letter-spacing:.02em;border:1px solid transparent;white-space:nowrap;}
+  .badge.pass,.badge.good,.badge.implemented,.badge.low,.badge.ready{background:var(--green-bg);color:var(--green);border-color:var(--green-bd);}
+  .badge.partial,.badge.medium,.badge.warning,.badge.needs-review,.badge.needs-work{background:var(--amber-bg);color:var(--amber);border-color:var(--amber-bd);}
+  .badge.fail,.badge.critical,.badge.high,.badge.not-implemented,.badge.broken,.badge.blocked,.badge.incorrect{background:var(--red-bg);color:var(--red);border-color:var(--red-bd);}
+  .badge.info,.badge.unknown,.badge.not-tested,.badge.placeholder{background:var(--blue-bg);color:var(--blue);border-color:var(--blue-bd);}
+  .badge.fixed{background:var(--purple-bg);color:var(--purple);border-color:var(--purple-bd);}
+  .badge.dot::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block;}
+
+  table{width:100%;border-collapse:collapse;font-size:.88em;background:var(--surface);}
+  thead th{text-align:left;font-size:.76em;text-transform:uppercase;letter-spacing:.04em;color:var(--text-faint);border-bottom:2px solid var(--border-strong);padding:9px 10px;white-space:nowrap;}
+  tbody td{padding:10px;border-bottom:1px solid var(--border);vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  .table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);}
+  .table-wrap table{border:none;box-shadow:none;}
+
+  .finding{border:1px solid var(--border);border-left-width:5px;border-radius:8px;padding:14px 16px;margin-bottom:12px;background:var(--surface);}
+  .finding.sev-critical{border-left-color:var(--red);}
+  .finding.sev-high{border-left-color:#ea580c;}
+  .finding.sev-medium{border-left-color:var(--amber);}
+  .finding.sev-low{border-left-color:var(--text-faint);}
+  .finding .fhead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;}
+  .finding .ftitle{font-weight:650;font-size:.98em;}
+  .finding .fmeta{font-size:.82em;color:var(--text-dim);margin-top:6px;}
+  .finding .fmeta b{color:var(--text);}
+  .finding .floc{font-family:var(--mono);font-size:.82em;background:var(--surface-2);border:1px solid var(--border);border-radius:5px;padding:1px 6px;}
+
+  .diagram{font-family:var(--mono);font-size:.84em;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;line-height:1.3;}
+  .diagram .box{display:inline-block;border:1.5px solid var(--border-strong);background:var(--surface);border-radius:7px;padding:7px 16px;margin:3px;box-shadow:var(--shadow);}
+  .diagram .arrow{color:var(--text-faint);text-align:center;}
+  .flow-col{display:flex;flex-direction:column;align-items:center;gap:0;}
+  .flow-row{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;}
+
+  .tree{font-family:var(--mono);font-size:.85em;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;white-space:pre;overflow-x:auto;}
+  .tree .tag{font-family:var(--sans);display:inline-block;margin-left:8px;}
+
+  details.tech{border:1px solid var(--border);border-radius:8px;background:var(--surface);margin:10px 0;}
+  details.tech summary{cursor:pointer;padding:10px 14px;font-weight:600;font-size:.88em;list-style:none;display:flex;align-items:center;gap:8px;}
+  details.tech summary::-webkit-details-marker{display:none;}
+  details.tech summary::before{content:"▸";color:var(--text-faint);transition:transform .15s;}
+  details.tech[open] summary::before{transform:rotate(90deg);}
+  details.tech .body{padding:0 14px 14px;border-top:1px solid var(--border);margin-top:0;}
+
+  .checklist{list-style:none;padding:0;margin:0;}
+  .checklist li{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--border);font-size:.92em;}
+  .checklist li:last-child{border-bottom:none;}
+  .checklist .ctext{flex:1;}
+
+  .pill-row{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;}
+
+  footer{max-width:1180px;margin:0 auto;padding:20px 24px 60px;color:var(--text-faint);font-size:.82em;border-top:1px solid var(--border);}
+  .evidence{font-size:.82em;color:var(--text-dim);}
+  .note-box{background:var(--blue-bg);border:1px solid var(--blue-bd);border-radius:8px;padding:12px 16px;font-size:.9em;color:var(--text);}
+  .note-box.warn{background:var(--amber-bg);border-color:var(--amber-bd);}
+  .note-box.danger{background:var(--red-bg);border-color:var(--red-bd);}
+  .corr{font-size:.82em;color:var(--text-dim);background:var(--surface-2);border:1px dashed var(--border-strong);border-radius:6px;padding:8px 12px;margin-top:8px;}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="hero-eyebrow">Avail404 · EazySchool 360</div>
+    <h1>Implementation &amp; Architecture Validation Report</h1>
+    <p class="sub">Independent validation of Milestone 0 (Architecture &amp; Repository Foundation) and Milestone 1 (Multi-Tenant Core + Authentication) against the actual repository — not the documentation. One critical and several high/medium tenant-isolation defects were found in <code>firestore.rules</code> during this audit and have been fixed; all findings below are evidence-based.</p>
+    <div class="hero-meta">
+      <span>Application ID: com.avail404.eazyschool.eazyschool360</span>
+      <span>Validated: Milestone 0 + Milestone 1</span>
+      <span>Repository state: post-fix (this report reflects the repo <i>after</i> remediation)</span>
+    </div>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="inner">
+    <a href="#exec">1. Executive Summary</a>
+    <a href="#project">2. Project Info</a>
+    <a href="#milestones">3. Milestones</a>
+    <a href="#architecture">4. Architecture</a>
+    <a href="#folders">5. Folder Structure</a>
+    <a href="#auth">6. Authentication</a>
+    <a href="#tenant">7. Multi-Tenant</a>
+    <a href="#roles">8. Roles &amp; Permissions</a>
+    <a href="#firestore">9. Firestore Architecture</a>
+    <a href="#rules">10. Security Rules</a>
+    <a href="#schoolcreate">11. School Creation</a>
+    <a href="#responsive">12. Responsive UI</a>
+    <a href="#errorloading">13. Error &amp; Loading</a>
+    <a href="#testing">14. Testing</a>
+    <a href="#security">15. Security Audit</a>
+    <a href="#quality">16. Code Quality</a>
+    <a href="#readiness">17. Production Readiness</a>
+    <a href="#fixes">18. Recommended Fixes</a>
+    <a href="#exit">19. Exit Criteria</a>
+  </div>
+</nav>
+
+<main>
+
+<!-- 1. EXECUTIVE SUMMARY -->
+<section id="exec">
+  <h2><span class="num">01</span> Executive Summary</h2>
+  <p class="lead">This validation inspected the actual source code, Firestore security rules, build configuration, and tests for Milestones 0 and 1 — documentation was treated as a claim to verify, not a fact. One <b>critical</b> tenant-isolation defect was found and fixed during this audit, along with three high-severity and several medium/low findings. After fixes, both milestones pass validation.</p>
+
+  <div class="grid cols-4">
+    <div class="card stat-card">
+      <div class="label">Milestone 0</div>
+      <div class="value"><span class="badge pass">PASS</span></div>
+      <div class="hint">Foundation is solid; 2 low-severity cleanup items fixed.</div>
+    </div>
+    <div class="card stat-card">
+      <div class="label">Milestone 1</div>
+      <div class="value"><span class="badge pass">PASS (post-fix)</span></div>
+      <div class="hint">1 critical + 3 high + 5 medium findings fixed during this audit.</div>
+    </div>
+    <div class="card stat-card">
+      <div class="label">Automated tests</div>
+      <div class="value">57 / 57</div>
+      <div class="hint">36 Flutter (<code>flutter test</code>) + 21 Firestore rules (emulator), all passing.</div>
+    </div>
+    <div class="card stat-card">
+      <div class="label">Production ready?</div>
+      <div class="value"><span class="badge needs-work">NOT YET</span></div>
+      <div class="hint">No real Firebase project; no Users/School management UI. See §17.</div>
+    </div>
+  </div>
+
+  <h3>What was actually wrong (before this audit's fixes)</h3>
+  <p>The single most important finding: a brand-new, unprivileged account could create its own <code>/users/{uid}</code> profile claiming <code>role: SCHOOL_ADMIN</code> of <b>any existing school</b> — including one it had no relationship to — because the self-signup rule checked only "does this account already have a profile," not "is this school actually new." This is a full tenant-takeover path and is now closed (see Finding <b>SEC-01</b> in §15). The underlying design doc's reasoning for why this used to require a non-atomic two-phase write was also factually wrong (Firestore rules' <code>getAfter()</code>/<code>existsAfter()</code> <i>do</i> see same-batch writes) — correcting that understanding is what made the real fix (one atomic batch, cross-validated) possible.</p>
+
+  <h3>Overall health after fixes</h3>
+  <ul>
+    <li><b>Architecture</b>: clean feature-first layering, no god classes/widgets found, no direct Firestore calls from widgets, no hard-coded role checks in UI code (verified by grep across <code>lib/features/*/presentation</code> and <code>lib/core/routing</code> — zero matches).</li>
+    <li><b>Security</b>: tenant isolation, audit-field integrity, and role-escalation resistance are now demonstrated by 21 passing Firestore-emulator tests, including 9 added during this audit specifically to catch the defects found.</li>
+    <li><b>Scope discipline</b>: no Student/Fee/Attendance/Leave/Homework/Announcement code exists anywhere in the repository (confirmed by search) — the "don't start future modules" constraint was honored in both milestones.</li>
+  </ul>
+  <p>No percentage score is given — the brief asked not to invent one, and "% complete" for a two-milestone foundation isn't a measurable quantity. The status matrix in §22-equivalent (see the features list in the JSON companion file) is the measurable breakdown.</p>
+</section>
+
+<!-- 2. PROJECT INFO -->
+<section id="project">
+  <h2><span class="num">02</span> Project Information</h2>
+  <div class="table-wrap">
+    <table>
+      <tbody>
+        <tr><td style="width:220px"><b>Company</b></td><td>Avail404</td></tr>
+        <tr><td><b>Product</b></td><td>EazySchool 360</td></tr>
+        <tr><td><b>Platforms</b></td><td>Web, Android, iOS (single Flutter codebase)</td></tr>
+        <tr><td><b>Framework</b></td><td>Flutter 3.32 / Dart 3.8 (stable)</td></tr>
+        <tr><td><b>Backend</b></td><td>Firebase (Auth, Firestore, Storage) — no Cloud Functions (deliberate, see §10)</td></tr>
+        <tr><td><b>Authentication</b></td><td>Firebase Auth — email/password + Google Sign-In</td></tr>
+        <tr><td><b>Database</b></td><td>Cloud Firestore</td></tr>
+        <tr><td><b>Storage</b></td><td>Firebase Storage dependency present; unused by any feature yet (<code>storage.rules</code> default-denies everything)</td></tr>
+        <tr><td><b>State management</b></td><td>Riverpod (<code>flutter_riverpod</code> 3.3.2), no code generation</td></tr>
+        <tr><td><b>Routing</b></td><td><code>go_router</code> 17.0.0 (<code>StatefulShellRoute.indexedStack</code>)</td></tr>
+        <tr><td><b>Application ID</b></td><td><code>com.avail404.eazyschool.eazyschool360</code> (Android namespace/applicationId and iOS bundle identifier — verified identical, see §20-equivalent in §2 below)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Dependency audit (pubspec.yaml)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Package</th><th>Used?</th><th>Why it's there</th></tr></thead>
+      <tbody>
+        <tr><td><code>flutter_riverpod</code></td><td><span class="badge good">USED</span></td><td>State management throughout; imported in 19 files.</td></tr>
+        <tr><td><code>go_router</code></td><td><span class="badge good">USED</span></td><td>All routing (<code>app_router.dart</code>, <code>app_shell.dart</code>, nav links).</td></tr>
+        <tr><td><code>firebase_core</code></td><td><span class="badge good">USED</span></td><td>App bootstrap (<code>Firebase.initializeApp</code>).</td></tr>
+        <tr><td><code>firebase_auth</code></td><td><span class="badge good">USED</span></td><td><code>FirebaseAuthRepository</code> — the only file that imports it directly.</td></tr>
+        <tr><td><code>cloud_firestore</code></td><td><span class="badge good">USED</span></td><td><code>FirebaseUserRepository</code>, <code>FirebaseSchoolRepository</code>.</td></tr>
+        <tr><td><code>google_sign_in</code></td><td><span class="badge good">USED</span></td><td>Mobile Google Sign-In token exchange in <code>FirebaseAuthRepository</code>.</td></tr>
+        <tr><td><code>intl</code></td><td><span class="badge warning">UNUSED</span></td><td>Zero imports found in <code>lib/</code>. Added in Milestone 0, not yet used by any feature. Not a defect — low-cost to keep for upcoming date/number formatting — but flagged as true per the audit's "determine whether it is actually used" instruction.</td></tr>
+        <tr><td><code>firebase_storage</code></td><td><span class="badge warning">UNUSED</span></td><td>Zero imports in <code>lib/</code>. <code>storage.rules</code> exists but no feature uploads a file. Consistent with documented "Known limitations" — not hidden.</td></tr>
+        <tr><td><code>cupertino_icons</code></td><td><span class="badge warning">UNUSED</span></td><td>Default Flutter-template dependency; zero <code>CupertinoIcons.*</code> references found. Harmless (tiny asset), but technically dead weight.</td></tr>
+        <tr><td><code>flutter_lints</code> (dev)</td><td><span class="badge good">USED</span></td><td>Powers <code>analysis_options.yaml</code>; <code>flutter analyze</code> is clean.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="evidence">Per the audit brief, no packages were upgraded or removed — this is reported as an audit finding (§16), not auto-remediated, since removing an unused dependency is a judgment call outside "fix only Milestone 0/1 defects."</p>
+</section>
+
+<!-- 3. MILESTONE STATUS -->
+<section id="milestones">
+  <h2><span class="num">03</span> Milestone Status</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Milestone</th><th>Status</th><th>Validated</th><th>Issues found</th><th>Risk (post-fix)</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>Milestone 0</b><br><span class="evidence">Architecture &amp; Repository Foundation</span></td>
+          <td><span class="badge pass">PASS</span></td>
+          <td>Repo structure, Flutter/Dart config, feature-first layering, theming, responsive framework, routing skeleton, error/loading/logging foundation, Firebase init, test foundation, docs — all inspected directly in source.</td>
+          <td>2 low (stale template TODO comment; none security-relevant)</td>
+          <td><span class="badge low">LOW</span></td>
+        </tr>
+        <tr>
+          <td><b>Milestone 1</b><br><span class="evidence">Multi-Tenant Core + Authentication</span></td>
+          <td><span class="badge pass">PASS (post-fix)</span></td>
+          <td>Auth flows, user/school/branch models, tenant context, roles/permissions, <code>firestore.rules</code> (line-by-line), school creation, audit fields, responsive auth UI, error handling, rules tests, auth tests.</td>
+          <td>1 critical, 3 high, 5 medium, 2 low — <b>all fixed</b> during this validation (see §15)</td>
+          <td><span class="badge low">LOW</span> <span class="evidence">(was CRITICAL before fixes)</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note-box warn" style="margin-top:14px;">
+    <b>Important:</b> the risk column is <i>after</i> the fixes documented in this report. Before this audit, Milestone 1's tenant isolation had a working exploit path (SEC-01) — a repository in that state should not be considered production-safe regardless of what its own documentation claimed.
+  </div>
+</section>
+
+<!-- 4. ARCHITECTURE -->
+<section id="architecture">
+  <h2><span class="num">04</span> Architecture</h2>
+  <p class="lead">The actual dependency direction observed in source, confirmed by reading the repository rather than assumed from folder names.</p>
+
+  <div class="diagram">
+    <div class="flow-col">
+      <div class="box">Flutter App (main_dev.dart → bootstrap.dart → app.dart)</div>
+      <div class="arrow">↓</div>
+      <div class="box">Presentation (pages / widgets — ConsumerWidget)</div>
+      <div class="arrow">↓</div>
+      <div class="box">Providers / State (Riverpod: AsyncNotifier, Provider, StreamProvider)</div>
+      <div class="arrow">↓</div>
+      <div class="box">Repositories (abstract interface in <code>domain/</code>, impl in <code>data/</code>)</div>
+      <div class="arrow">↓</div>
+      <div class="flow-row">
+        <div class="box">Firebase Auth</div>
+        <div class="box">Cloud Firestore</div>
+        <div class="box">Firebase Storage <span style="color:var(--text-faint)">(unused)</span></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Cross-cutting composition point</h3>
+  <p><code>lib/core/tenant/tenant_context_provider.dart</code> composes the <code>authentication</code>, <code>users</code>, and <code>school_setup</code> repositories into one <code>TenantContext</code>, which <code>app_router.dart</code> and <code>app_shell.dart</code> both read. This is documented in <code>PROJECT_ARCHITECTURE.md</code> as a deliberate, narrow exception to "core has no business logic," and verified in source — <code>core/tenant/</code> imports feature <i>domain</i> types only (models/interfaces), never feature <i>data</i> implementations directly.</p>
+
+  <h3>Anti-pattern sweep — findings</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Checked for</th><th>Result</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td>God classes / god widgets</td><td><span class="badge good">GOOD</span></td><td>Largest file in <code>lib/</code> is 141 lines (<code>login_form.dart</code>); no file mixes fetch+transform+render for more than one concern.</td></tr>
+        <tr><td>Business logic inside UI (widgets computing state)</td><td><span class="badge good">GOOD</span></td><td>All async work routed through <code>AsyncNotifier</code> controllers; widgets only read <code>ref.watch</code> results.</td></tr>
+        <tr><td>Direct Firestore calls from widgets</td><td><span class="badge good">GOOD</span></td><td><code>grep -rn "FirebaseFirestore.instance\|FirebaseAuth.instance" lib/features/*/presentation</code> → zero matches. All access goes through <code>FirebaseUserRepository</code>/<code>FirebaseSchoolRepository</code>/<code>FirebaseAuthRepository</code>.</td></tr>
+        <tr><td>Duplicate models / repositories / providers</td><td><span class="badge good">GOOD</span></td><td>One <code>UserProfile</code>, one <code>School</code>, one <code>Branch</code>, one repository implementation each.</td></tr>
+        <tr><td>Circular dependencies</td><td><span class="badge good">GOOD</span></td><td><code>core/</code> → feature <i>domain</i> only (one direction); features never import each other's <code>data/</code> or <code>presentation/</code> layers.</td></tr>
+        <tr><td>Hard-coded tenant IDs / user IDs</td><td><span class="badge good">GOOD</span></td><td>None found outside test fixtures (<code>test/</code>, <code>firestore-tests/</code>), which is expected and correct.</td></tr>
+        <tr><td>Hard-coded role checks in UI (<code>if (role == ...)</code>)</td><td><span class="badge good">GOOD</span></td><td><code>grep -rn "UserRole\." lib/features/*/presentation lib/core/routing lib/shared</code> → zero matches. All gating goes through <code>tenantContext.can(Permission.x)</code> against the centralized <code>RolePermissions</code> map.</td></tr>
+        <tr><td>Improper global mutable state</td><td><span class="badge good">GOOD</span></td><td>All state is Riverpod-scoped; no top-level mutable variables found.</td></tr>
+        <tr><td>Excessive <code>dynamic</code></td><td><span class="badge good">GOOD</span></td><td>Only use is <code>Map&lt;String, dynamic&gt;</code> for Firestore document payloads, which is the correct, idiomatic use.</td></tr>
+        <tr><td><code>print()</code>/<code>debugPrint()</code> instead of structured logging</td><td><span class="badge good">GOOD</span></td><td>Zero occurrences; all logging goes through <code>AppLogger</code>.</td></tr>
+        <tr><td>Route-permission logic duplicated/drift-prone</td><td><span class="badge fixed">FIXED (ARCH-01)</span></td><td>Router redirect and nav-item visibility used to be two separately-maintained checks. Centralized into <code>AppRoutes.requiredPermissions</code> during this audit — see §15.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 5. FOLDER STRUCTURE -->
+<section id="folders">
+  <h2><span class="num">05</span> Folder Structure</h2>
+  <p class="lead">Actual structure, from <code>find lib -name "*.dart"</code> (70 files total). Labels reflect this audit's judgment, not aspiration.</p>
+  <div class="tree">lib/
+├── app/                         <span class="tag">✅ GOOD</span>
+│   ├── app.dart
+│   └── bootstrap.dart
+├── core/                        <span class="tag">✅ GOOD — infra only, no business logic (one documented exception: tenant/)</span>
+│   ├── config/                  env selection, Firebase options per environment
+│   ├── constants/                route paths, Firestore field names
+│   ├── errors/                  AppFailure + error_mapper (hardened this audit)
+│   ├── extensions/
+│   ├── logging/
+│   ├── permissions/             UserRole, Permission, RolePermissions
+│   ├── routing/                 app_router.dart, app_routes.dart, app_shell.dart
+│   ├── tenant/                  TenantContext + provider  <span class="tag">⚠️ NEEDS REVIEW — narrow, documented exception to core's "no business logic" rule</span>
+│   ├── theme/
+│   ├── utils/
+│   └── validators/
+├── features/                    <span class="tag">✅ GOOD — feature-first, consistent data/domain/presentation split</span>
+│   ├── authentication/          data + domain + presentation(pages/widgets/providers) — fully wired
+│   ├── dashboard/                presentation only (by design — no own data)
+│   ├── school_setup/            data + domain + presentation — fully wired
+│   └── users/                   data + domain (real) + presentation  <span class="tag">⚠️ NEEDS REVIEW — UsersPage is a placeholder, no list/invite UI</span>
+├── shared/                      <span class="tag">✅ GOOD — cross-feature, not infra-specific</span>
+│   ├── dialogs/ · error/ · layouts/ · loading/
+└── main.dart, main_dev.dart, main_test.dart, main_uat.dart, main_prod.dart   <span class="tag">✅ GOOD</span>
+</div>
+  <p class="evidence">No <code>INCORRECT</code>-rated folders were found. The one <code>NEEDS REVIEW</code> item outside <code>users/</code> (the <code>core/tenant/</code> exception) is explicitly called out and justified in <code>PROJECT_ARCHITECTURE.md</code> rather than silently present — documentation and code agree here.</p>
+</section>
+
+<!-- 6. AUTHENTICATION -->
+<section id="auth">
+  <h2><span class="num">06</span> Authentication</h2>
+
+  <h3>Actual flow (traced through source, not assumed)</h3>
+  <div class="diagram">
+    <div class="flow-col">
+      <div class="box">App start → <code>bootstrap.dart</code> → <code>Firebase.initializeApp</code> (fails gracefully if unconfigured)</div>
+      <div class="arrow">↓</div>
+      <div class="box">GoRouter redirect reads <code>authStateChangesProvider</code></div>
+      <div class="arrow">↓</div>
+      <div class="flow-row">
+        <div class="box">Not authenticated → <code>/login</code> or <code>/forgot-password</code></div>
+        <div class="box">Authenticated → continue below</div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="box"><code>TenantContextNotifier</code> loads <code>/users/{uid}</code> via <code>UserRepository</code></div>
+      <div class="arrow">↓</div>
+      <div class="flow-row">
+        <div class="box">No profile → <code>/create-school</code></div>
+        <div class="box">status ≠ ACTIVE → <code>/account-inactive</code></div>
+        <div class="box">ACTIVE → load School + Branch</div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="box">TenantContext assembled (role, permissions) → <code>/dashboard</code>, nav filtered by permission</div>
+    </div>
+  </div>
+
+  <h3>Method-by-method validation</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Status</th><th>Evidence / notes</th></tr></thead>
+      <tbody>
+        <tr><td>Email/password login</td><td><span class="badge implemented">IMPLEMENTED</span></td><td><code>FirebaseAuthRepository.signInWithEmailAndPassword</code>; wired to <code>LoginForm</code> → <code>SignInController</code>.</td></tr>
+        <tr><td>Logout</td><td><span class="badge implemented">IMPLEMENTED</span></td><td><code>signOut()</code>; fixed this audit so a Google sign-out failure can't mask a successful Firebase sign-out (QUALITY-01).</td></tr>
+        <tr><td>Registration</td><td><span class="badge info">N/A BY DESIGN</span></td><td>No standalone "register" screen — self-signup via <code>/create-school</code> creates the account's first profile. This matches the brief's school-creation flow, not a gap.</td></tr>
+        <tr><td>Password reset</td><td><span class="badge implemented">IMPLEMENTED</span></td><td><code>sendPasswordResetEmail</code> → Firebase's hosted reset page. Email-enumeration leak fixed this audit (AUTH-02).</td></tr>
+        <tr><td>Session persistence</td><td><span class="badge implemented">IMPLEMENTED</span></td><td>Delegated to <code>firebase_auth</code>'s own persistence (platform default); <code>authStateChangesProvider</code> reflects it reactively.</td></tr>
+        <tr><td>Error handling</td><td><span class="badge implemented">IMPLEMENTED</span></td><td>Every path maps through <code>error_mapper.dart</code> to a user-facing <code>AppFailure</code>/<code>ConfigurationFailure</code> message — see §13.</td></tr>
+        <tr><td>Google Sign-In — Web</td><td><span class="badge partial">CODE COMPLETE, UNVERIFIED</span></td><td><code>_firebaseAuth.signInWithPopup(GoogleAuthProvider())</code>. Cannot be exercised without a real Firebase project.</td></tr>
+        <tr><td>Google Sign-In — Android</td><td><span class="badge partial">CODE COMPLETE, UNVERIFIED</span></td><td><code>google_sign_in</code> v7 token exchange → <code>signInWithCredential</code>. Needs SHA-1/SHA-256 fingerprints registered against a real project; none exists.</td></tr>
+        <tr><td>Google Sign-In — iOS</td><td><span class="badge partial">CODE COMPLETE, UNVERIFIED</span></td><td>Same plugin path. <code>ios/Runner/Info.plist</code> has <b>no</b> <code>CFBundleURLTypes</code>/reversed-client-ID URL scheme yet — confirmed absent by direct inspection, not assumed. Required before Google Sign-In can work on a real iOS build.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note-box">A Google Sign-In button existing is <b>not</b> treated as "Google authentication working" in this report, per the audit brief's explicit instruction. The code path was traced end-to-end; the platform registration gap is called out rather than glossed over.</div>
+</section>
+
+<!-- 7. MULTI-TENANT -->
+<section id="tenant">
+  <h2><span class="num">07</span> Multi-Tenant Architecture</h2>
+
+  <h3>Where tenant identity actually comes from (traced, not assumed)</h3>
+  <ul>
+    <li><b>schoolId / branchId</b>: read from the signed-in user's own <code>/users/{uid}</code> Firestore document — never from a client-supplied parameter, local variable, or widget argument. Confirmed by reading <code>TenantContextNotifier.build()</code>: it derives everything from <code>authState.uid</code> and the fetched profile.</li>
+    <li><b>Current user</b>: held in <code>TenantContext.user</code>, assembled once per sign-in by <code>tenantContextProvider</code>, read everywhere via <code>ref.watch(tenantContextProvider)</code> — not duplicated into separate ad hoc state.</li>
+    <li><b>Centralization</b>: <span class="badge good">YES</span>. Exactly one provider (<code>tenantContextProvider</code>) is the source of tenant context; <code>grep</code> confirms no other file independently re-derives schoolId.</li>
+    <li><b>Can the UI override schoolId?</b> <span class="badge good">NO</span> for reads (always the caller's own profile). For <i>writes</i>, repository methods do accept a <code>schoolId</code> parameter (e.g. <code>getBranch(schoolId, branchId)</code>) — this is necessary for an admin acting on their own school, and is safe only because <b>Firestore rules independently re-derive and check the caller's real schoolId via <code>get()</code> on every write</b>, never trusting the parameter alone.</li>
+    <li><b>Is tenant information trusted from the client?</b> <span class="badge good">NO</span> — see §10. Every rule that matters re-derives the caller's role/schoolId/branchId server-side from their own profile document, which only privileged writers (not the user themself, for the authorization fields) can change.</li>
+  </ul>
+
+  <h3>Dangerous-pattern search</h3>
+  <p>Searched for <code>.where('schoolId'</code> or equivalent client-side-trust query patterns: <span class="badge good">NONE FOUND</span> (<code>grep -rn "\.where(" lib</code> → no matches; no feature queries a collection by a client-supplied tenant filter yet, since no business collections exist). This is the correct state for this milestone — the risk this pattern represents is a <b>future</b> concern for whoever builds the first business feature, and is called out as such in <code>MULTI_TENANT_GUIDE.md</code> → "How to add a new tenant-aware feature."</p>
+
+  <h3>Tenant model</h3>
+  <div class="diagram">
+    <div class="flow-col">
+      <div class="box">Platform (PLATFORM_ADMIN — not scoped to any school)</div>
+      <div class="arrow">↓</div>
+      <div class="box">School <code>/schools/{schoolId}</code> (SCHOOL_ADMIN — scoped to this school, all its branches)</div>
+      <div class="arrow">↓</div>
+      <div class="box">Branch <code>/schools/{schoolId}/branches/{branchId}</code> (BRANCH_ADMIN / TEACHER / FINANCE / PARENT)</div>
+    </div>
+  </div>
+
+  <h3>Why <code>/users</code> is a flat collection, not nested under <code>/schools/{schoolId}</code></h3>
+  <p>Verified rationale in <code>FIRESTORE_ARCHITECTURE.md</code> and confirmed consistent with the actual rule/schema: a client must be able to answer "what school am I?" before it knows any schoolId to construct a nested path — a flat <code>/users/{uid}</code>, self-readable by its own owner, is what makes that bootstrapping possible. This is a sound, deliberate design choice, not an oversight.</p>
+</section>
+
+<!-- 8. ROLES & PERMISSIONS -->
+<section id="roles">
+  <h2><span class="num">08</span> Roles &amp; Permissions</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Role</th><th>Implemented</th><th>Authentication scope</th><th>Tenant access</th><th>Permissions (RolePermissions.grants)</th></tr></thead>
+      <tbody>
+        <tr><td><code>PLATFORM_ADMIN</code></td><td><span class="badge implemented">YES</span></td><td>Not school-scoped</td><td>All schools (rules: <code>isPlatformAdmin()</code>)</td><td>managePlatform, manageSchool, manageBranches, manageUsers, viewUsers, manageOwnProfile</td></tr>
+        <tr><td><code>SCHOOL_ADMIN</code></td><td><span class="badge implemented">YES</span></td><td>One school, all branches</td><td>Own school only (rules: <code>isSchoolAdminOf(schoolId)</code>)</td><td>manageSchool, manageBranches, manageUsers, viewUsers, manageOwnProfile</td></tr>
+        <tr><td><code>BRANCH_ADMIN</code></td><td><span class="badge implemented">YES</span></td><td>One branch</td><td>Own branch only (rules: <code>isBranchAdminOf(schoolId, branchId)</code> — <b>added this audit</b>, SEC-05)</td><td>manageUsers, viewUsers, manageOwnProfile</td></tr>
+        <tr><td><code>TEACHER</code></td><td><span class="badge implemented">YES</span></td><td>One branch</td><td>Self + read within own school/branch per role rules</td><td>viewUsers, manageOwnProfile</td></tr>
+        <tr><td><code>FINANCE</code></td><td><span class="badge implemented">YES</span></td><td>One branch</td><td>Self + read within own school/branch</td><td>viewUsers, manageOwnProfile</td></tr>
+        <tr><td><code>PARENT</code></td><td><span class="badge implemented">YES</span></td><td>One branch (their child's)</td><td>Self only — <b>cannot read another parent's profile</b>, verified by test</td><td>manageOwnProfile</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h4>Centralization check</h4>
+  <ul>
+    <li>Role checks: <span class="badge good">CENTRALIZED</span> — one <code>UserRole</code> enum, one <code>RolePermissions.grants</code> map (<code>lib/core/permissions/role_permissions.dart</code>).</li>
+    <li>Duplication: <span class="badge good">NONE FOUND</span> — no second permission map, no scattered <code>if (role == ...)</code>.</li>
+    <li>Can users modify their own role? <span class="badge good">NO</span> — <code>firestore.rules</code> self-update path explicitly excludes <code>role</code>/<code>schoolId</code>/<code>branchId</code>/<code>status</code> via <code>changedOnly([...])</code>, and this is covered by a passing test ("a user cannot change their own role, schoolId, or status").</li>
+    <li>Are role changes protected? <span class="badge good">YES</span> — only a same-school/branch admin (never self, never to PLATFORM_ADMIN/SCHOOL_ADMIN) can change another user's role; verified by 4 dedicated rules tests.</li>
+  </ul>
+  <p class="evidence">This is a UX-layer mirror of what <code>firestore.rules</code> independently re-implements — the two cannot share code (rules can't call Dart), so keeping them in sync is manual and documented in <code>MULTI_TENANT_GUIDE.md</code> → "How to add a new role."</p>
+</section>
+
+<!-- 9. FIRESTORE ARCHITECTURE -->
+<section id="firestore">
+  <h2><span class="num">09</span> Firestore Architecture</h2>
+  <p class="lead">Collections actually defined in <code>firestore.rules</code> and written by repository code — nothing invented.</p>
+
+  <h4>/users/{uid}</h4>
+  <div class="table-wrap"><table>
+    <tbody>
+      <tr><td style="width:160px"><b>Purpose</b></td><td>User profile — identity, role, and tenant membership for every account.</td></tr>
+      <tr><td><b>Tenant ownership</b></td><td>Flat (not nested) — <code>schoolId</code>/<code>branchId</code> fields establish ownership; see §7.</td></tr>
+      <tr><td><b>Key fields</b></td><td><code>schoolId</code>, <code>branchId</code>, <code>name</code>, <code>email</code>, <code>phone</code>, <code>photoUrl</code>, <code>role</code>, <code>status</code>, audit fields</td></tr>
+      <tr><td><b>Access control</b></td><td>Self (own doc) + same-school SCHOOL_ADMIN + same-branch BRANCH_ADMIN + PLATFORM_ADMIN, per §10</td></tr>
+    </tbody>
+  </table></div>
+
+  <h4>/schools/{schoolId}</h4>
+  <div class="table-wrap"><table>
+    <tbody>
+      <tr><td style="width:160px"><b>Purpose</b></td><td>Tenant root — one document per school.</td></tr>
+      <tr><td><b>Tenant ownership</b></td><td>Document ID <i>is</i> the schoolId.</td></tr>
+      <tr><td><b>Key fields</b></td><td><code>name</code>, <code>logoUrl</code>, <code>email</code>, <code>phone</code>, <code>address</code>, <code>city</code>, <code>state</code>, <code>country</code>, <code>status</code>, audit fields</td></tr>
+      <tr><td><b>Access control</b></td><td>Read: same-school or platform admin. Create: only as part of the atomic self-signup batch (§11). Update: SCHOOL_ADMIN of that school (profile fields only, not <code>status</code> — fixed, SEC-03) or platform admin.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h4>/schools/{schoolId}/branches/{branchId}</h4>
+  <div class="table-wrap"><table>
+    <tbody>
+      <tr><td style="width:160px"><b>Purpose</b></td><td>A school may have many branches — modeled from day one, never assumed 1:1.</td></tr>
+      <tr><td><b>Tenant ownership</b></td><td>Nested under its school's path; <code>schoolId</code> field also stored for consistency checks.</td></tr>
+      <tr><td><b>Key fields</b></td><td><code>schoolId</code>, <code>name</code>, <code>code</code>, <code>address</code>, <code>phone</code>, <code>status</code>, audit fields</td></tr>
+      <tr><td><b>Access control</b></td><td>Read: same-school or platform admin. Create: school admin/platform admin, or the <code>main</code> branch inside the self-signup batch. Update: school admin or that branch's own BRANCH_ADMIN.</td></tr>
+    </tbody>
+  </table></div>
+
+  <p class="evidence">No <code>firestore.indexes.json</code> exists (confirmed absent) — correctly so, since no composite queries exist yet (no <code>.where()</code> calls in the codebase). <code>FIRESTORE_ARCHITECTURE.md</code> documents this as the trigger point for adding one.</p>
+</section>
+
+<!-- 10. SECURITY RULES -->
+<section id="rules">
+  <h2><span class="num">10</span> Firestore Security Rules</h2>
+  <p class="lead">Full line-by-line review of <code>firestore.rules</code> (the post-fix version). No <code>allow read, write: if true</code> or equivalent exists anywhere — confirmed by direct inspection, not a keyword search alone.</p>
+
+  <h3>Authentication requirement</h3>
+  <p>Every rule gates on <code>isSignedIn()</code> (<code>request.auth != null</code>) at minimum. The bottom fallback (<code>match /{document=**} { allow read, write: if false; }</code>) denies anything not explicitly matched, including for signed-in users — confirmed by test ("an unmatched collection path default-denies even a signed-in, profiled caller").</p>
+
+  <h3>User-profile / status validation</h3>
+  <p><code>isActiveCaller()</code> requires both a profile to exist <i>and</i> <code>status == 'ACTIVE'</code>. An <code>INVITED</code> or <code>DISABLED</code> caller fails every <code>isActiveCaller()</code>-gated check — the only thing such an account can still do is read its own <code>/users/{uid}</code> document (so the client can show <i>why</i> it's blocked). Verified for both statuses by test.</p>
+
+  <h3>Tenant (school/branch) isolation</h3>
+  <p>Enforced via a lookup-table pattern: every authorization decision reads the <i>caller's own</i> profile via <code>get()</code>, never trusting the request's own claimed schoolId for who the caller is. <code>isSameSchool</code>/<code>isSchoolAdminOf</code>/<code>isBranchAdminOf</code> all compare the caller's looked-up <code>schoolId</code>/<code>branchId</code> against the target. Demonstrated by 6+ dedicated isolation tests (School A vs. B, branch-level, cross-school create/update attempts).</p>
+
+  <h3>Create / Read / Update / Delete permissions</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Collection</th><th>Create</th><th>Read</th><th>Update</th><th>Delete</th></tr></thead>
+      <tbody>
+        <tr><td><code>/users/{uid}</code></td><td>Self-signup (atomic batch only) OR same-school/branch admin provisioning a subordinate, role-restricted</td><td>Self, same-school admin, same-branch branch-admin, platform admin</td><td>Self (profile fields only) OR scoped admin (role/status/branch, never to admin roles) OR platform admin</td><td><code>if false</code> — soft-delete via <code>status</code> only</td></tr>
+        <tr><td><code>/schools/{id}</code></td><td>Self-signup atomic batch only</td><td>Same school or platform admin</td><td>School admin (profile fields, not <code>status</code>) or platform admin</td><td><code>if false</code></td></tr>
+        <tr><td><code>/schools/{id}/branches/{id}</code></td><td>School/platform admin, or <code>main</code> inside self-signup batch</td><td>Same school or platform admin</td><td>School admin (any field set) or that branch's admin (non-status fields)</td><td><code>if false</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Role validation &amp; privilege-escalation resistance</h3>
+  <ul>
+    <li>No path lets a client-supplied write set <code>role: 'PLATFORM_ADMIN'</code> — verified absent in every create/update branch.</li>
+    <li>A <code>SCHOOL_ADMIN</code> can never be created/edited by another <code>SCHOOL_ADMIN</code> (admins only manage roles listed in <code>schoolAdminManagedRoles()</code>, which excludes <code>SCHOOL_ADMIN</code> itself).</li>
+    <li>A new account can only become <code>SCHOOL_ADMIN</code> of a school it is <i>simultaneously creating</i> in the same batch (post-fix) — never an existing one.</li>
+  </ul>
+
+  <h3>Client-controlled vs. immutable fields</h3>
+  <ul>
+    <li><b>Immutable on update, for everyone</b>: <code>createdAt</code>, <code>createdBy</code> (<code>validUpdateAudit()</code>).</li>
+    <li><b>Server-enforced, not client-chosen (fixed this audit, SEC-04)</b>: <code>createdAt</code>/<code>updatedAt</code> must equal <code>request.time</code>; <code>createdBy</code>/<code>updatedBy</code> must equal <code>request.auth.uid</code>.</li>
+    <li><b>Field-scoped updates</b>: every update rule uses <code>request.resource.data.diff(resource.data).affectedKeys().hasOnly([...])</code> to enumerate exactly which fields a given actor may touch — not just "which values are acceptable," closing the SEC-03 hole where an allowed actor could change an unrelated field (like <code>status</code>) alongside a permitted one.</li>
+  </ul>
+
+  <div class="note-box">No secrets of any kind appear in <code>firestore.rules</code> or <code>storage.rules</code> — both are pure authorization logic with zero embedded credentials, confirmed by direct reading.</div>
+</section>
+
+<!-- 11. SCHOOL CREATION -->
+<section id="schoolcreate">
+  <h2><span class="num">11</span> School Creation Flow</h2>
+  <p class="lead">Actual implementation in <code>FirebaseSchoolRepository.createSchoolForCurrentUser</code>, post-fix.</p>
+  <div class="diagram">
+    <div class="flow-col">
+      <div class="box">ONE atomic <code>WriteBatch</code>:</div>
+      <div class="arrow">↓</div>
+      <div class="box">Create School</div>
+      <div class="arrow">+</div>
+      <div class="box">Create School Admin user profile</div>
+      <div class="arrow">+</div>
+      <div class="box">Create Default Branch ("main")</div>
+      <div class="arrow">↓</div>
+      <div class="box">batch.commit() — all three exist, or none do</div>
+    </div>
+  </div>
+
+  <h3>Failure-scenario analysis</h3>
+  <p><b>What happens if school creation succeeds but admin-profile creation fails?</b> It cannot — both are part of the same <code>WriteBatch</code>, which Firestore commits atomically; there is no window where one exists without the other. This was <i>not</i> true before this audit's fix: the original implementation used two separate writes (a batch for school+profile, then a <i>separate</i> call for the branch), justified by an incorrect belief that Firestore rules cannot see same-batch writes. That belief was wrong (<code>getAfter()</code>/<code>existsAfter()</code> exist specifically for this), and the two-phase design is what left the SEC-01 hole open — rules couldn't easily verify "this profile belongs to a school really being created right now," so the self-signup rule fell back to the weaker (exploitable) check "the account just doesn't have a profile yet."</p>
+
+  <h3>Idempotent repair path (for accounts created under the old flow)</h3>
+  <p>If an account has a profile but — because it predates this fix — no default branch, calling <code>createSchoolForCurrentUser</code> again detects the existing profile and creates <i>only</i> the missing branch (now a legitimate write, since the caller is by then an active <code>SCHOOL_ADMIN</code> of that school). This repair path is real code, covered implicitly by the repository's existing-profile branch, though not currently exercised by an automated test (see §16 recommendations).</p>
+</section>
+
+<!-- 12. RESPONSIVE UI -->
+<section id="responsive">
+  <h2><span class="num">12</span> Responsive UI</h2>
+  <div class="grid cols-4">
+    <div class="card"><h4 style="margin-top:0">Mobile</h4><span class="badge pass">VERIFIED</span><p style="font-size:.88em">390×844 test confirms <code>NavigationBar</code> (bottom nav) renders, <code>NavigationRail</code> does not.</p></div>
+    <div class="card"><h4 style="margin-top:0">Tablet</h4><span class="badge info">NOT DIRECTLY TESTED</span><p style="font-size:.88em">Breakpoint logic (<code>Breakpoints.mobile</code>/<code>tablet</code>) is unit-covered (<code>responsive_test.dart</code>); no widget test pins a tablet-width screenshot specifically.</p></div>
+    <div class="card"><h4 style="margin-top:0">Desktop</h4><span class="badge pass">VERIFIED</span><p style="font-size:.88em">1400×900 test confirms extended <code>NavigationRail</code> renders, bottom nav does not.</p></div>
+    <div class="card"><h4 style="margin-top:0">Web</h4><span class="badge pass">BUILD VERIFIED</span><p style="font-size:.88em"><code>flutter build web --release</code> succeeds; layout itself shares the same responsive widgets as mobile/desktop (no separate web-only layout code).</p></div>
+  </div>
+  <h3>Issues found</h3>
+  <p><span class="badge low">LOW</span> No fixed-width layouts, hard-coded dimensions, or raw <code>SizedBox(width: &lt;px&gt;)</code> login/auth patterns found in <code>authentication/</code> or <code>school_setup/</code> presentation code — all auth/onboarding forms use <code>ResponsiveBuilder</code> + <code>ConstrainedBox(maxWidth: ...)</code> consistently. Keyboard-safety (scrollable forms) is present via <code>SingleChildScrollView</code> wrapping every form. No broken-layout defects found.</p>
+</section>
+
+<!-- 13. ERROR & LOADING -->
+<section id="errorloading">
+  <h2><span class="num">13</span> Error &amp; Loading Handling</h2>
+  <h3>Raw-error leakage check</h3>
+  <p>Searched every catch path and UI surface for raw Firebase/Dart exception text reaching a user: <span class="badge good">NONE FOUND</span>. Every repository catch block funnels through <code>mapExceptionToFailure</code>/<code>userMessageFor</code> to one of <code>NetworkFailure</code>, <code>AuthFailure</code>, <code>PermissionFailure</code>, <code>NotFoundFailure</code>, <code>ValidationFailure</code>, <code>ConfigurationFailure</code> (added this audit), or <code>UnknownFailure</code> — each with a human-readable, non-technical message. Example confirmed in source: Firestore's raw <code>"permission-denied: Missing or insufficient permissions."</code> maps to <code>"You don't have permission to perform this action."</code></p>
+  <h3>Loading/Success/Error/Empty coverage</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Async operation</th><th>Loading</th><th>Success</th><th>Error</th><th>Empty</th></tr></thead>
+      <tbody>
+        <tr><td>Sign in (email/password, Google)</td><td>✅ button spinner</td><td>✅ router redirect</td><td>✅ snackbar</td><td>n/a</td></tr>
+        <tr><td>Password reset</td><td>✅</td><td>✅ confirmation panel</td><td>✅ snackbar</td><td>n/a</td></tr>
+        <tr><td>Tenant context resolution</td><td>✅ <code>SplashPage</code></td><td>✅ dashboard</td><td>✅ <code>ErrorView</code> with retry</td><td>n/a (null state routes to onboarding, which is correct, not an "empty" UI state)</td></tr>
+        <tr><td>School creation</td><td>✅ button spinner</td><td>✅ redirect via tenant refresh</td><td>✅ snackbar</td><td>n/a</td></tr>
+        <tr><td>School-profile read (<code>SchoolSetupPage</code>)</td><td>✅ <code>AsyncValueWidget</code></td><td>✅</td><td>✅</td><td>✅ <code>EmptyView</code> if no school</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="evidence">"The spinner never spins forever" is structural here, not a convention someone has to remember: every controller uses <code>AsyncValue.guard</code> or an explicit try/catch that always reaches a terminal state.</p>
+</section>
+
+<!-- 14. TESTING -->
+<section id="testing">
+  <h2><span class="num">14</span> Testing</h2>
+  <div class="grid cols-3">
+    <div class="card stat-card"><div class="label">Flutter tests</div><div class="value">36 / 36 <span style="color:var(--green)">✓</span></div><div class="hint"><code>flutter test</code> — 8 test files</div></div>
+    <div class="card stat-card"><div class="label">Firestore rules tests</div><div class="value">21 / 21 <span style="color:var(--green)">✓</span></div><div class="hint">Against the real Firestore emulator, not a mock</div></div>
+    <div class="card stat-card"><div class="label"><code>flutter analyze</code></div><div class="value">0 issues</div><div class="hint">Clean across the whole <code>lib/</code> and <code>test/</code> tree</div></div>
+  </div>
+
+  <h3>Test inventory</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Area</th><th>Tests exist</th><th>Coverage quality</th><th>Risk</th></tr></thead>
+      <tbody>
+        <tr><td>Roles &amp; permissions (Dart)</td><td><span class="badge good">YES</span> (6 tests)</td><td>Exhaustive — every role × every permission cross-checked for consistency.</td><td><span class="badge low">LOW</span></td></tr>
+        <tr><td>Tenant context resolution</td><td><span class="badge good">YES</span> (5 tests)</td><td>Signed-out, no-profile, active, platform-admin, inactive — all five states covered.</td><td><span class="badge low">LOW</span></td></tr>
+        <tr><td>Router redirect / permission guard (added this audit)</td><td><span class="badge good">YES</span> (9 tests)</td><td>No-profile, disabled, invited, admin dashboard, cross-role URL-bar access attempts, desktop/mobile nav shape. <b>Mutation-tested</b>: the permission guard was temporarily disabled and confirmed to make 7 of these tests fail, proving the tests actually exercise the guard rather than passing vacuously.</td><td><span class="badge low">LOW</span></td></tr>
+        <tr><td>Multi-tenant isolation (rules)</td><td><span class="badge good">YES</span> (8 tests)</td><td>School A vs. B read/create/update, cross-school branch add, parent-vs-parent, orphan-school attack, existing-school-takeover attack.</td><td><span class="badge low">LOW</span> <span class="evidence">(was CRITICAL — these are exactly the tests that caught SEC-01)</span></td></tr>
+        <tr><td>Security rules — audit fields &amp; role escalation</td><td><span class="badge good">YES</span> (6 tests)</td><td>Forged timestamps, impersonated <code>createdBy</code>, self-promotion, admin-granted escalation, school-status self-edit.</td><td><span class="badge low">LOW</span></td></tr>
+        <tr><td>School creation (rules)</td><td><span class="badge good">YES</span> (2 tests)</td><td>One-batch success path + rejection of the old split-write pattern.</td><td><span class="badge low">LOW</span></td></tr>
+        <tr><td>Authentication (Dart/UI layer)</td><td><span class="badge partial">PARTIAL</span></td><td>Fakes prove the UI/provider wiring; no Firebase-Auth-emulator test exists for real sign-in/Google/reset-email behavior.</td><td><span class="badge medium">MEDIUM</span></td></tr>
+        <tr><td>Responsive breakpoints (unit)</td><td><span class="badge good">YES</span> (3 tests)</td><td>Boundary values for mobile/tablet/desktop.</td><td><span class="badge low">LOW</span></td></tr>
+        <tr><td>Theme / validators</td><td><span class="badge good">YES</span> (6 tests)</td><td>Light/dark brightness, email/password validators.</td><td><span class="badge low">LOW</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="evidence">Numbers above are exact counts from the actual test run output on this repository (<code>flutter test</code>: <code>+36: All tests passed!</code>; emulator run: <code>pass 21 / fail 0</code>), not estimates.</p>
+</section>
+
+<!-- 15. SECURITY AUDIT -->
+<section id="security">
+  <h2><span class="num">15</span> Security Audit</h2>
+  <p class="lead">Every finding below was reproduced as a <b>failing test against the pre-fix rules</b> before being fixed, then re-verified passing after the fix — this is evidence-based, not a code-reading guess.</p>
+
+  <div class="finding sev-critical">
+    <div class="fhead"><span class="ftitle">SEC-01 — Self-signup could claim an existing school as SCHOOL_ADMIN</span><span class="badge critical">CRITICAL</span></div>
+    <div class="fmeta"><b>Location:</b> <span class="floc">firestore.rules</span> (/users create rule, pre-fix) · <b>Status:</b> <span class="badge fixed">FIXED</span></div>
+    <p style="margin:10px 0 4px">A brand-new account (no existing profile) could <code>set</code> its own <code>/users/{uid}</code> document with <code>schoolId</code> pointing at <b>any school already in the database</b> and <code>role: 'SCHOOL_ADMIN'</code>. The only check was "does this uid already have a profile" — it never verified the school was new or that the caller had any real relationship to it. This is a full tenant takeover: an attacker who merely knows (or guesses) a schoolId becomes that school's admin.</p>
+    <p style="margin:4px 0"><b>Impact:</b> complete compromise of an arbitrary existing tenant's data.</p>
+    <p style="margin:4px 0"><b>Fix:</b> self-signup now requires creating the school and the profile in <i>one</i> atomic batch; the rule uses <code>getAfter()</code>/<code>existsAfter()</code> to confirm the referenced school did not exist before this write and was authored by the same caller in the same batch.</p>
+    <p class="evidence">Reproduced by: <code>test('ATTACK: a fresh account cannot self-claim SCHOOL_ADMIN of an EXISTING school')</code> — failed before the fix, passes after.</p>
+  </div>
+
+  <div class="finding sev-high">
+    <div class="fhead"><span class="ftitle">SEC-02 — Orphan-tenant profile creation</span><span class="badge high">HIGH</span></div>
+    <div class="fmeta"><b>Location:</b> <span class="floc">firestore.rules</span> (/users create rule, pre-fix) · <b>Status:</b> <span class="badge fixed">FIXED</span></div>
+    <p style="margin:10px 0 4px">A new account could create a <code>SCHOOL_ADMIN</code> profile referencing a <code>schoolId</code> that was never created at all (no matching <code>/schools/{id}</code> document ever existed). Lower severity than SEC-01 (no real tenant is compromised), but still a data-integrity and authorization-logic defect — the same root cause.</p>
+    <p style="margin:4px 0"><b>Fix:</b> same <code>isSelfSignupBatchFor()</code> fix as SEC-01.</p>
+    <p class="evidence"><code>test('ATTACK: a fresh account cannot create a profile pointing at a school it never created')</code></p>
+  </div>
+
+  <div class="finding sev-high">
+    <div class="fhead"><span class="ftitle">SEC-03 — School admin could self-reverse a platform-level suspension</span><span class="badge high">HIGH</span></div>
+    <div class="fmeta"><b>Location:</b> <span class="floc">firestore.rules</span> (/schools update rule, pre-fix) · <b>Status:</b> <span class="badge fixed">FIXED</span></div>
+    <p style="margin:10px 0 4px">The update rule allowed a <code>SCHOOL_ADMIN</code> to update "their own school" without restricting <i>which fields</i>. Since <code>status</code> (ACTIVE/INACTIVE/SUSPENDED) is a field on the same document, an admin could rewrite it — undermining any future platform-level suspension/moderation capability.</p>
+    <p style="margin:4px 0"><b>Fix:</b> school-admin updates restricted to profile fields only (<code>name</code>, <code>logoUrl</code>, <code>email</code>, <code>phone</code>, <code>address</code>, <code>city</code>, <code>state</code>, <code>country</code>) via <code>diff().affectedKeys().hasOnly([...])</code>; <code>status</code> changes require <code>isPlatformAdmin()</code>.</p>
+    <p class="evidence"><code>test('a school admin cannot change their own school status (e.g. lift a platform suspension)')</code></p>
+  </div>
+
+  <div class="finding sev-high">
+    <div class="fhead"><span class="ftitle">SEC-04 — Audit fields were client-controlled</span><span class="badge high">HIGH</span></div>
+    <div class="fmeta"><b>Location:</b> <span class="floc">firestore.rules</span> (all create/update rules, pre-fix) · <b>Status:</b> <span class="badge fixed">FIXED</span></div>
+    <p style="margin:10px 0 4px">Rules checked that <code>createdAt</code>/<code>createdBy</code> didn't <i>change on update</i>, but nothing verified they were set correctly <i>on create</i> — a client could set <code>createdAt</code> to an arbitrary backdated timestamp or <code>createdBy</code>/<code>updatedBy</code> to impersonate a different user, undermining every audit trail in the system.</p>
+    <p style="margin:4px 0"><b>Fix:</b> <code>validCreateAudit()</code>/<code>validUpdateAudit()</code> now require <code>createdAt == request.time</code>, <code>updatedAt == request.time</code>, and the actor fields to equal <code>request.auth.uid</code>.</p>
+    <p class="evidence"><code>test('audit fields cannot be forged on create or update')</code> — covers both a backdated timestamp and an impersonated <code>updatedBy</code>.</p>
+  </div>
+
+  <div class="finding sev-medium">
+    <div class="fhead"><span class="ftitle">SEC-05 — BRANCH_ADMIN had a Dart-side permission with no matching rules path</span><span class="badge medium">MEDIUM</span></div>
+    <div class="fmeta"><b>Location:</b> <span class="floc">lib/core/permissions/role_permissions.dart</span> vs. <span class="floc">firestore.rules</span> (pre-fix) · <b>Status:</b> <span class="badge fixed">FIXED</span></div>
+    <p style="margin:10px 0 4px">The Dart <code>RolePermissions</code> map grants <code>BRANCH_ADMIN</code> the <code>manageUsers</code> permission (so UI would show management affordances to them), but <code>firestore.rules</code> had no create/update path for a branch admin at all — meaning the feature would appear available in the UI and then fail with a confusing permission-denied error server-side. A UX/consistency defect, not an exploit, but exactly the "UI promises what the backend doesn't deliver" pattern the brief asked to check for.</p>
+    <p style="margin:4px 0"><b>Fix:</b> added <code>isBranchAdminOf</code>-scoped create/update rules, restricted to <code>TEACHER</code>/<code>FINANCE</code>/<code>PARENT</code> within that admin's own branch.</p>
+    <p class="evidence"><code>test('a branch admin can manage users only within their own branch, never escalate')</code></p>
+  </div>
+
+  <div class="finding sev-medium">
+    <div class="fhead"><span class="ftitle">AUTH-01 — INVITED accounts were not blocked from reaching the dashboard</span><span class="badge medium">MEDIUM</span></div>
+    <div class="fmeta"><b>Location:</b> <span class="floc">lib/core/tenant/tenant_context_provider.dart</span> (pre-fix) · <b>Status:</b> <span class="badge fixed">FIXED</span></div>
+    <p style="margin:10px 0 4px">The client-side check only tested <code>status == UserStatus.disabled</code>. An <code>INVITED</code> (not-yet-activated) profile would fall through that check, load a full <code>TenantContext</code>, and reach the authenticated dashboard — even though <code>firestore.rules</code> already denied such a caller real data access (so the UI would show a dashboard that then fails on every read). Client/server disagreement on what "active" means.</p>
+    <p style="margin:4px 0"><b>Fix:</b> check widened to <code>status != UserStatus.active</code>; exception generalized to <code>AccountInactiveException(status)</code> with status-aware messaging on a new <code>/account-inactive</code> page.</p>
+    <p class="evidence"><code>testWidgets('signed in, INVITED profile -> account-inactive page (not a splash retry loop)')</code></p>
+  </div>
+
+  <div class="finding sev-medium">
+    <div class="fhead"><span class="ftitle">ARCH-01 — Route permission enforcement and nav-item visibility could silently drift apart</span><span class="badge medium">MEDIUM</span></div>
+    <div class="fmeta"><b>Location:</b> <span class="floc">lib/core/routing/app_router.dart</span>, <span class="floc">app_shell.dart</span> (pre-fix) · <b>Status:</b> <span class="badge fixed">FIXED</span></div>
+    <p style="margin:10px 0 4px">The router's redirect logic did not check permissions for already-resolved tenants at all (any signed-in, active user could navigate to <code>/school</code> or <code>/users</code> by typing the URL, even if their role lacked the permission) — the nav shell simply didn't show the <i>link</i>, which is a usability nicety, not an access control, per this project's own stated security principle.</p>
+    <p style="margin:4px 0"><b>Fix:</b> added <code>AppRoutes.requiredPermissions</code>, a single map both the router's redirect and <code>AppShell</code>'s nav filter now read from, closing the direct-URL bypass and eliminating the drift risk.</p>
+    <p class="evidence"><code>testWidgets('parent cannot open /school by URL — redirected to dashboard')</code>, <code>testWidgets('teacher cannot open /school but can open /users')</code>. Mutation-tested (guard disabled → 7 tests failed → guard restored → all pass).</p>
+  </div>
+
+  <div class="finding sev-medium">
+    <div class="fhead"><span class="ftitle">AUTH-02 — Password-reset email-enumeration inconsistency</span><span class="badge medium">MEDIUM</span></div>
+    <div class="fmeta"><b>Location:</b> <span class="floc">lib/features/authentication/data/firebase_auth_repository.dart</span> (pre-fix) · <b>Status:</b> <span class="badge fixed">FIXED</span></div>
+    <p style="margin:10px 0 4px">An unregistered email would surface as a generic failure while a registered one succeeded silently — letting the UI be used to enumerate which emails have accounts.</p>
+    <p style="margin:4px 0"><b>Fix:</b> <code>user-not-found</code> is now treated as success in the repository so the UI response is identical either way.</p>
+    <p class="evidence">Code review (no Firebase Auth emulator test harness exists for this flow — see §16 recommendations).</p>
+  </div>
+
+  <div class="finding sev-medium">
+    <div class="fhead"><span class="ftitle">QUALITY-01 — Google sign-out failure could mask a successful Firebase sign-out</span><span class="badge medium">MEDIUM</span></div>
+    <div class="fmeta"><b>Location:</b> <span class="floc">lib/features/authentication/data/firebase_auth_repository.dart</span> (pre-fix) · <b>Status:</b> <span class="badge fixed">FIXED</span></div>
+    <p style="margin:10px 0 4px">Both sign-out calls shared one try/catch; a Google-side failure (e.g. no network) would report <code>signOut()</code> as failed even though the user's Firebase session was already cleared — confusing UX, not a security hole.</p>
+    <p style="margin:4px 0"><b>Fix:</b> Google sign-out is now a separate, logged, best-effort step that never throws.</p>
+  </div>
+
+  <div class="finding sev-low">
+    <div class="fhead"><span class="ftitle">DOC-01 — Incorrect rationale for the (defective) two-phase write</span><span class="badge low">LOW</span></div>
+    <div class="fmeta"><b>Location:</b> <span class="floc">FIRESTORE_ARCHITECTURE.md</span>, <span class="floc">MULTI_TENANT_GUIDE.md</span> (pre-fix) · <b>Status:</b> <span class="badge fixed">FIXED</span></div>
+    <p style="margin:10px 0 4px">Documentation asserted Firestore rules cannot observe other writes in the same batch — the stated justification for the two-phase write that enabled SEC-01. This is incorrect; <code>getAfter()</code>/<code>existsAfter()</code> exist precisely for this. Flagged because the audit brief required not trusting documentation, and this is a case where the documentation's own reasoning was the root cause of a real defect.</p>
+    <p style="margin:4px 0"><b>Fix:</b> corrected, with a visible correction note left in place rather than silently rewritten.</p>
+  </div>
+
+  <div class="finding sev-low">
+    <div class="fhead"><span class="ftitle">DOC-02 — Stale template TODO comment</span><span class="badge low">LOW</span></div>
+    <div class="fmeta"><b>Location:</b> <span class="floc">android/app/build.gradle.kts</span> · <b>Status:</b> <span class="badge fixed">FIXED</span></div>
+    <p style="margin:10px 0 4px">A Flutter-template <code>// TODO: Specify your own unique Application ID</code> comment remained even though the applicationId was already correctly set to <code>com.avail404.eazyschool.eazyschool360</code>.</p>
+    <p style="margin:4px 0"><b>Fix:</b> removed.</p>
+  </div>
+
+  <h3>Hard-coded secrets scan</h3>
+  <p>Searched <code>lib/</code>, <code>android/</code>, <code>ios/</code>, <code>web/</code>, and <code>firestore-tests/*.mjs</code> for Google API key patterns (<code>AIza...</code>), PEM private-key headers, and OAuth access-token patterns (<code>ya29...</code>): <span class="badge good">NO SECRETS FOUND</span>. The gitignored <code>firebase_options_&lt;env&gt;.dart</code> files contain only placeholder literals (e.g. <code>'REPLACE_WITH_FLUTTERFIRE_CONFIGURE'</code>) — confirmed by direct inspection, values not reproduced here per the audit brief's redaction instruction.</p>
+</section>
+
+<!-- 16. CODE QUALITY -->
+<section id="quality">
+  <h2><span class="num">16</span> Code Quality</h2>
+  <div class="grid cols-2">
+    <div class="card">
+      <h4 style="margin-top:0">Architecture quality</h4>
+      <span class="badge good">GOOD</span>
+      <p style="font-size:.9em">Consistent layering, no god classes (largest file: 141 lines), clean domain/data/presentation separation per feature.</p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">Maintainability</h4>
+      <span class="badge good">GOOD</span>
+      <p style="font-size:.9em">Centralized constants (<code>FirestoreFields</code>, <code>AppRoutes</code>), centralized permission map, no magic strings for roles/statuses (all enums with explicit wire-value mapping).</p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">Duplication</h4>
+      <span class="badge good">NONE FOUND</span>
+      <p style="font-size:.9em">No duplicate models, repositories, or providers. One minor UI-string duplication pattern (per-form error-message extraction) was consolidated into <code>userMessageFor()</code> during this audit.</p>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">TODO / FIXME / dead code</h4>
+      <span class="badge good">CLEAN (post-fix)</span>
+      <p style="font-size:.9em">One stale template TODO found and removed (DOC-02). No <code>FIXME</code>, no commented-out implementation blocks, no unused files found in <code>lib/</code>.</p>
+    </div>
+  </div>
+
+  <h3>Dependency concerns</h3>
+  <p>See §2 for the full table. Three dependencies (<code>intl</code>, <code>firebase_storage</code>, <code>cupertino_icons</code>) are present but unused by any current feature. Per the audit's explicit "this is an audit, not an upgrade exercise" instruction, none were removed — reported as a finding for a future cleanup pass instead.</p>
+
+  <h3>Complexity</h3>
+  <p><code>firestore.rules</code> is now meaningfully more complex than before this audit (21 tests vs. 12 previously) — this is the correct tradeoff: the pre-fix rules were <i>simpler</i> but had a critical hole. Complexity was added only where a test proves it's load-bearing, not speculatively.</p>
+</section>
+
+<!-- 17. PRODUCTION READINESS -->
+<section id="readiness">
+  <h2><span class="num">17</span> Production Readiness</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Category</th><th>Status</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>Architecture</td><td><span class="badge ready">READY</span></td><td>Feature-first, clean layering, verified via direct code inspection (§4).</td></tr>
+        <tr><td>Security (rules)</td><td><span class="badge ready">READY</span></td><td>21 passing isolation/escalation/audit tests against the real emulator, post-fix.</td></tr>
+        <tr><td>Authentication</td><td><span class="badge needs-work">NEEDS WORK</span></td><td>Email/password is real; Google Sign-In is code-complete but unconfigured (no real project, no iOS URL scheme, no Android SHA fingerprints).</td></tr>
+        <tr><td>Multi-tenancy</td><td><span class="badge ready">READY</span></td><td>Isolation enforced and tested; school-status enforcement (suspended school → locked out) is an open product decision, not a security hole.</td></tr>
+        <tr><td>UI (auth/onboarding)</td><td><span class="badge ready">READY</span></td><td>Responsive, loading/error/empty states present.</td></tr>
+        <tr><td>UI (tenant management)</td><td><span class="badge blocked">BLOCKED</span></td><td>No Users/School management screens exist — only a read-only school page and a placeholder Users page.</td></tr>
+        <tr><td>Testing</td><td><span class="badge ready">READY</span></td><td>57/57 automated tests passing across two different test runners (Flutter + Firestore emulator).</td></tr>
+        <tr><td>Build</td><td><span class="badge ready">READY</span></td><td>Web + Android debug builds succeed; iOS build is config-valid, blocked only by this machine's missing platform SDK (environment, not code).</td></tr>
+        <tr><td>Documentation</td><td><span class="badge ready">READY</span></td><td>Comprehensive and now corrected where it was factually wrong (DOC-01).</td></tr>
+        <tr><td>Observability</td><td><span class="badge not-validated">NOT VALIDATED</span></td><td>No crash reporting / analytics / remote logging exists or was claimed to exist — out of scope for M0/M1, genuinely absent, not assessed as a defect.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 18. RECOMMENDED FIXES -->
+<section id="fixes">
+  <h2><span class="num">18</span> Recommended Fixes (remaining, after this audit's own fixes)</h2>
+  <p class="lead">Everything P0/P1 discovered during this audit was already fixed as part of producing this report (§15). What remains is lower-priority or explicitly out of this audit's fix authority (new UI/business decisions).</p>
+  <div class="pill-row">
+    <span class="badge critical">P0</span><span class="evidence">— none outstanding</span>
+  </div>
+  <ul>
+    <li><span class="badge high">P1</span> Add a Firebase Auth emulator test harness for email/password + password-reset flows, so AUTH-02-style defects are caught by CI, not code review alone.</li>
+    <li><span class="badge medium">P2</span> Decide and implement what a <code>SUSPENDED</code>/<code>INACTIVE</code> school's users should experience (currently modeled but not enforced — see PROJECT_ARCHITECTURE.md "Known limitations").</li>
+    <li><span class="badge medium">P2</span> Add an automated test for the school-creation "repair" path (profile exists, branch missing) described in §11 — currently real code, not test-covered.</li>
+    <li><span class="badge low">P3</span> Remove or genuinely adopt the three unused dependencies (<code>intl</code>, <code>firebase_storage</code>, <code>cupertino_icons</code>) once a feature needs them.</li>
+    <li><span class="badge low">P3</span> Register a real Firebase project + Google OAuth client per environment so Google Sign-In can be exercised end-to-end (tracked as a known, expected gap, not a code defect).</li>
+  </ul>
+  <div class="note-box">No future business module (Student Management, Fees, Attendance, Leave, Homework, Announcements) is recommended here, per the audit brief's explicit instruction.</div>
+</section>
+
+<!-- 19. EXIT CRITERIA -->
+<section id="exit">
+  <h2><span class="num">19</span> Milestone 1 Exit Criteria</h2>
+  <ul class="checklist">
+    <li><span class="badge pass">PASS</span><span class="ctext">Authentication works — email/password verified end-to-end via fakes + widget tests; Google code-complete but platform-unverified</span></li>
+    <li><span class="badge pass">PASS</span><span class="ctext">User profile works — model, repository, Firestore rules, round-trip tests all pass</span></li>
+    <li><span class="badge pass">PASS</span><span class="ctext">Tenant context works — 5 dedicated resolution tests, all states covered</span></li>
+    <li><span class="badge pass">PASS</span><span class="ctext">Roles work — 6 enums, centralized, round-trip tested</span></li>
+    <li><span class="badge pass">PASS</span><span class="ctext">Permissions work — centralized map, UI-gated, rules-enforced (BRANCH_ADMIN gap closed this audit)</span></li>
+    <li><span class="badge pass">PASS</span><span class="ctext">Tenant isolation enforced — critical hole (SEC-01) found and closed this audit; now proven by 8+ isolation tests</span></li>
+    <li><span class="badge pass">PASS</span><span class="ctext">Security rules validated — 21/21 emulator tests passing, including 9 added during this audit</span></li>
+    <li><span class="badge pass">PASS</span><span class="ctext">School creation works — rewritten to one atomic batch this audit; two-phase defect closed</span></li>
+    <li><span class="badge pass">PASS</span><span class="ctext">Audit fields protected — server-side enforcement added this audit (SEC-04)</span></li>
+    <li><span class="badge pass">PASS</span><span class="ctext">Responsive UI validated — mobile/desktop nav shape tested; tablet breakpoint unit-tested but not widget-screenshotted</span></li>
+    <li><span class="badge pass">PASS</span><span class="ctext">Tests pass — 36/36 Flutter + 21/21 rules</span></li>
+    <li><span class="badge pass">PASS</span><span class="ctext"><code>flutter analyze</code> passes — 0 issues</span></li>
+    <li><span class="badge partial">PARTIAL</span><span class="ctext">Build validated — Web + Android succeed; iOS blocked by local Xcode platform SDK (environment, not code)</span></li>
+    <li><span class="badge pass">PASS</span><span class="ctext">Documentation complete — corrected for factual errors found during this audit (DOC-01)</span></li>
+  </ul>
+</section>
+
+</main>
+
+<footer>
+  Generated for Avail404 · EazySchool 360 — this report reflects the repository state <b>after</b> the fixes described in §15 were applied. Machine-readable companion: <code>docs/eazyschool360-implementation-status.json</code>. No Milestone 2 / business-module work was started as part of this validation.
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,244 @@
+rules_version = '2';
+
+// Mirrors firestore.rules' lookup-table pattern via firestore.get() —
+// Storage rules can read the caller's Firestore profile the same way
+// Firestore rules read other Firestore documents. See
+// SECURITY_ARCHITECTURE.md → "Custom claims vs. lookup rules" for why
+// this approach (not custom claims) was chosen project-wide.
+//
+// Only the school logo path is in active use (Milestone 2 — see
+// docs/milestone-2-school-setup.md). Everything else remains
+// default-deny, same rationale as firestore.rules' fallback.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function callerProfile() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isActiveCaller() {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && callerProfile().status == 'ACTIVE';
+    }
+
+    function isSameSchool(schoolId) {
+      return isActiveCaller() && callerProfile().schoolId == schoolId;
+    }
+
+    function canManageSchool(schoolId) {
+      return isActiveCaller()
+        && callerProfile().schoolId == schoolId
+        && (callerProfile().role == 'SCHOOL_ADMIN' || callerProfile().role == 'PLATFORM_ADMIN');
+    }
+
+    // Same school+branch, read-only — mirrors firestore.rules'
+    // canViewStudentData (teacher/finance read, no general parent grant;
+    // a parent's photo access to their OWN children's photos is out of
+    // scope for this milestone's Storage rules — the foundation is the
+    // relationship record in Firestore, not Storage path authorization).
+    function isSameBranch(schoolId, branchId) {
+      return isActiveCaller() && callerProfile().schoolId == schoolId && callerProfile().branchId == branchId;
+    }
+
+    function canManageStudentData(schoolId, branchId) {
+      return isActiveCaller() && callerProfile().schoolId == schoolId
+        && (
+          callerProfile().role == 'PLATFORM_ADMIN' ||
+          callerProfile().role == 'SCHOOL_ADMIN' ||
+          (callerProfile().role == 'BRANCH_ADMIN' && callerProfile().branchId == branchId)
+        );
+    }
+
+    // schools/{schoolId}/logo.{ext} — see
+    // FirebaseSchoolRepository.uploadSchoolLogo. A fixed filename per
+    // school (not a generated one) means re-uploading always replaces the
+    // previous logo instead of accumulating orphaned files, and the rule
+    // only needs to scope by schoolId, not validate a filename pattern.
+    match /schools/{schoolId}/{fileName} {
+      allow read: if isSameSchool(schoolId);
+      allow write: if canManageSchool(schoolId)
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if false;
+    }
+
+    // schools/{schoolId}/branches/{branchId}/students/{studentId}/photo.{ext}
+    // (Milestone 3) — see FirebaseStudentRepository.uploadStudentPhoto.
+    // {fileName} matches the whole "photo.png" segment, same as the school
+    // logo rule above — a wildcard cannot mix with literal text within one
+    // path segment.
+    match /schools/{schoolId}/branches/{branchId}/students/{studentId}/{fileName} {
+      allow read: if isSameBranch(schoolId, branchId) || canManageStudentData(schoolId, branchId);
+      allow write: if canManageStudentData(schoolId, branchId)
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if false;
+    }
+
+    // schools/{schoolId}/branches/{branchId}/parents/{parentId}/photo.{ext}
+    // (Milestone 3) — see FirebaseParentRepository.uploadParentPhoto.
+    match /schools/{schoolId}/branches/{branchId}/parents/{parentId}/{fileName} {
+      allow read: if isSameBranch(schoolId, branchId) || canManageStudentData(schoolId, branchId);
+      allow write: if canManageStudentData(schoolId, branchId)
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if false;
+    }
+
+    // schools/{schoolId}/branches/{branchId}/staff/{staffId}/photo
+    // (Milestone 4) — see FirebaseStaffRepository.uploadStaffPhoto. One
+    // fixed object name per staff member, so replacing overwrites. Unlike
+    // student/parent photos this path allows delete (the "Remove photo"
+    // action), and ONLY this fixed name is writable.
+    match /schools/{schoolId}/branches/{branchId}/staff/{staffId}/{fileName} {
+      allow read: if isSameBranch(schoolId, branchId) || canManageStudentData(schoolId, branchId);
+      allow write: if fileName == 'photo'
+        && canManageStudentData(schoolId, branchId)
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if fileName == 'photo' && canManageStudentData(schoolId, branchId);
+    }
+
+    // schools/{schoolId}/branches/{branchId}/staff/{staffId}/documents/
+    // {documentId}/{fileName} (Milestone 4) — ID proofs, certificates.
+    // Sensitive: managers only for read AND write (a teacher or finance
+    // user, even in the same branch, cannot open a colleague's documents).
+    // PDF/JPEG/PNG up to 5MB; never deletable (removal is a soft flag in
+    // Firestore).
+    match /schools/{schoolId}/branches/{branchId}/staff/{staffId}/documents/{documentId}/{fileName} {
+      allow read: if canManageStudentData(schoolId, branchId);
+      allow write: if canManageStudentData(schoolId, branchId)
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/jpeg|image/png');
+      allow delete: if false;
+    }
+
+    // schools/{schoolId}/branches/{branchId}/leaveDocs/{applicantUid}/
+    // {applicationId}/{fileName} (Milestone 7) — supporting documents for a
+    // leave application (often medical). The path carries the APPLICANT's uid:
+    // only that person may add files under it (a parent cannot write into
+    // another applicant's folder), and only they and reviewing admins may read.
+    // Teachers and finance users cannot, even in the same branch. PDF/JPEG/PNG
+    // up to 5MB, create-only: a file is never replaced or deleted (a withdrawn
+    // application's files stay with its history).
+    match /schools/{schoolId}/branches/{branchId}/leaveDocs/{applicantUid}/{applicationId}/{fileName} {
+      allow read: if isSameSchool(schoolId)
+        && (request.auth.uid == applicantUid || canManageStudentData(schoolId, branchId));
+      allow write: if resource == null
+        && isSameSchool(schoolId)
+        && request.auth.uid == applicantUid
+        && request.resource != null
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/jpeg|image/png');
+      allow delete: if false;
+    }
+
+    // ---- Homework, submissions, announcements (Milestone 9) --------------
+    //
+    // Storage rules may make at most two Firestore lookups per request; the
+    // caller's profile is one, so each rule below spends exactly one more:
+    //  * homework / announcement files: the parent document (its author is
+    //    `createdBy` / `authorId`, its visibility is `status`);
+    //  * a student's submission files: the parent's ACTIVE portal link.
+    // Consequences, stated rather than hidden (see the milestone doc §10):
+    //  * a submission file is writable by a linked parent whenever the link
+    //    is active — the deadline, enrolment and status are enforced by the
+    //    Firestore submission rule, so an out-of-policy upload is an orphan
+    //    object that no submission references;
+    //  * a teacher reads a submission file only if they created the homework
+    //    (an admin who created it on a teacher's behalf can read; that
+    //    teacher cannot through Storage).
+    // All three paths are create-only: no overwrite, no delete. Allowed types
+    // are PDF, JPEG, PNG, plain text and DOCX up to 10 MB. There is no
+    // malware scanning of uploaded files.
+    function hwFileTypeOk() {
+      return request.resource != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches(
+             'application/pdf|image/jpeg|image/png|text/plain|application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    }
+
+    function isAdminOfBranch(schoolId, branchId) {
+      return canManageStudentData(schoolId, branchId);
+    }
+
+    function fsDoc(schoolId, branchId, collectionName, id) {
+      return /databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/$(collectionName)/$(id);
+    }
+
+    // schools/{s}/branches/{b}/homework/{hw}/files/{file} — teacher material.
+    match /schools/{schoolId}/branches/{branchId}/homework/{homeworkId}/files/{fileName} {
+      allow read: if isAdminOfBranch(schoolId, branchId)
+        || (isActiveCaller() && callerProfile().schoolId == schoolId
+            && firestore.exists(fsDoc(schoolId, branchId, 'homework', homeworkId))
+            && (firestore.get(fsDoc(schoolId, branchId, 'homework', homeworkId)).data.createdBy == request.auth.uid
+                || (firestore.get(fsDoc(schoolId, branchId, 'homework', homeworkId)).data.status in ['PUBLISHED', 'CLOSED']
+                    && (callerProfile().role == 'PARENT'
+                        || (callerProfile().role == 'TEACHER' && callerProfile().branchId == branchId)))));
+      allow write: if resource == null && hwFileTypeOk()
+        && (isAdminOfBranch(schoolId, branchId)
+            || (isActiveCaller() && callerProfile().schoolId == schoolId
+                && callerProfile().role == 'TEACHER' && callerProfile().branchId == branchId
+                && firestore.exists(fsDoc(schoolId, branchId, 'homework', homeworkId))
+                && firestore.get(fsDoc(schoolId, branchId, 'homework', homeworkId)).data.createdBy == request.auth.uid));
+      allow delete: if false;
+    }
+
+    // schools/{s}/branches/{b}/homework/{hw}/submissions/{studentId}/{file}
+    match /schools/{schoolId}/branches/{branchId}/homework/{homeworkId}/submissions/{studentId}/{fileName} {
+      allow read: if isAdminOfBranch(schoolId, branchId)
+        || (isActiveCaller() && callerProfile().schoolId == schoolId
+            && ((callerProfile().role == 'PARENT' && callerProfile().linkedParentId != null
+                 && firestore.exists(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/students/$(studentId)/parentLinks/$(callerProfile().linkedParentId))
+                 && firestore.get(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/students/$(studentId)/parentLinks/$(callerProfile().linkedParentId)).data.status == 'ACTIVE')
+                || (callerProfile().role == 'TEACHER' && callerProfile().branchId == branchId
+                    && firestore.exists(fsDoc(schoolId, branchId, 'homework', homeworkId))
+                    && firestore.get(fsDoc(schoolId, branchId, 'homework', homeworkId)).data.createdBy == request.auth.uid)));
+      allow write: if resource == null && hwFileTypeOk()
+        && isActiveCaller() && callerProfile().schoolId == schoolId
+        && callerProfile().role == 'PARENT' && callerProfile().linkedParentId != null
+        && firestore.exists(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/students/$(studentId)/parentLinks/$(callerProfile().linkedParentId))
+        && firestore.get(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/students/$(studentId)/parentLinks/$(callerProfile().linkedParentId)).data.status == 'ACTIVE'
+        && firestore.get(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/students/$(studentId)/parentLinks/$(callerProfile().linkedParentId)).data.canAccessPortal == true;
+      allow delete: if false;
+    }
+
+    // schools/{s}/branches/{b}/announcements/{id}/files/{file}
+    match /schools/{schoolId}/branches/{branchId}/announcements/{announcementId}/files/{fileName} {
+      allow read: if isAdminOfBranch(schoolId, branchId)
+        || (isActiveCaller() && callerProfile().schoolId == schoolId
+            && firestore.exists(fsDoc(schoolId, branchId, 'announcements', announcementId))
+            && (firestore.get(fsDoc(schoolId, branchId, 'announcements', announcementId)).data.authorId == request.auth.uid
+                || firestore.get(fsDoc(schoolId, branchId, 'announcements', announcementId)).data.status == 'PUBLISHED'));
+      allow write: if resource == null && hwFileTypeOk()
+        && (isAdminOfBranch(schoolId, branchId)
+            || (isActiveCaller() && callerProfile().schoolId == schoolId
+                && callerProfile().role == 'TEACHER' && callerProfile().branchId == branchId
+                && firestore.exists(fsDoc(schoolId, branchId, 'announcements', announcementId))
+                && firestore.get(fsDoc(schoolId, branchId, 'announcements', announcementId)).data.authorId == request.auth.uid));
+      allow delete: if false;
+    }
+
+    // schools/{s}/branches/{b}/conversations/{id}/files/{file} (Milestone 11)
+    // — attachments of a parent–teacher conversation. Only its two members
+    // read; only a member of an OPEN conversation uploads; create-only; same
+    // type and size limits as homework files. The conversation must already
+    // exist (a first message cannot carry a file). No malware scanning.
+    match /schools/{schoolId}/branches/{branchId}/conversations/{conversationId}/files/{fileName} {
+      allow read: if isActiveCaller() && callerProfile().schoolId == schoolId
+        && firestore.exists(fsDoc(schoolId, branchId, 'conversations', conversationId))
+        && request.auth.uid in firestore.get(fsDoc(schoolId, branchId, 'conversations', conversationId)).data.participants;
+      allow write: if resource == null && hwFileTypeOk()
+        && isActiveCaller() && callerProfile().schoolId == schoolId
+        && firestore.exists(fsDoc(schoolId, branchId, 'conversations', conversationId))
+        && request.auth.uid in firestore.get(fsDoc(schoolId, branchId, 'conversations', conversationId)).data.participants
+        && firestore.get(fsDoc(schoolId, branchId, 'conversations', conversationId)).data.status == 'OPEN';
+      allow delete: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

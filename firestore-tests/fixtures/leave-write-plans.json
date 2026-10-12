@@ -1,0 +1,1685 @@
+{
+  "scenarios": [
+    {
+      "name": "student: submit, approve, cancel",
+      "batches": [
+        {
+          "as": "lv-parent",
+          "label": "submit",
+          "ops": [
+            {
+              "op": "set",
+              "path": "leaveApplications/ct-s1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "subjectName": "Anil Kumar",
+                "subjectCode": "CODE-1",
+                "academicYearId": "y1",
+                "classId": "c5",
+                "className": "Class 5",
+                "sectionId": "sa",
+                "sectionName": "A",
+                "applicantUserId": "lv-parent",
+                "applicantName": "Applicant",
+                "relation": "PARENT",
+                "typeId": "STUDENT__sick",
+                "typeName": "Sick leave",
+                "payType": "NA",
+                "startDateKey": "2026-08-03",
+                "endDateKey": "2026-08-04",
+                "startDate": {
+                  "$time": "2026-08-03T00:00:00.000Z"
+                },
+                "endDate": {
+                  "$time": "2026-08-04T00:00:00.000Z"
+                },
+                "halfDay": "NONE",
+                "units": 4,
+                "countedDateKeys": [
+                  "2026-08-03",
+                  "2026-08-04"
+                ],
+                "reason": "Fever and rest",
+                "attachments": [],
+                "balanceId": null,
+                "leaveYearStartKey": "2026-06-01",
+                "status": "PENDING",
+                "revision": 1,
+                "lastEvent": "SUBMIT",
+                "decidedBy": null,
+                "decidedByName": null,
+                "decidedAt": null,
+                "decisionRemarks": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "lv-parent",
+                "updatedBy": "lv-parent"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveHistory/ct-s1__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "applicationId": "ct-s1",
+                "revision": 1,
+                "fromStatus": null,
+                "toStatus": "PENDING",
+                "event": "SUBMIT",
+                "actorId": "lv-parent",
+                "actorName": "Applicant",
+                "remarks": null,
+                "at": {
+                  "$serverTimestamp": true
+                },
+                "applicantUserId": "lv-parent",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-08-03__FIRST",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-parent",
+                "applicationId": "ct-s1",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "dateKey": "2026-08-03",
+                "slot": "FIRST"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-08-03__SECOND",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-parent",
+                "applicationId": "ct-s1",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "dateKey": "2026-08-03",
+                "slot": "SECOND"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-08-04__FIRST",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-parent",
+                "applicationId": "ct-s1",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "dateKey": "2026-08-04",
+                "slot": "FIRST"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-08-04__SECOND",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-parent",
+                "applicationId": "ct-s1",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "dateKey": "2026-08-04",
+                "slot": "SECOND"
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/ct-s1__SUBMIT__1__REVIEWERS",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "REVIEWERS",
+                "recipientUserId": null,
+                "type": "LEAVE_SUBMITTED",
+                "applicationId": "ct-s1",
+                "revision": 1,
+                "title": "New leave request",
+                "body": "x",
+                "createdBy": "lv-parent",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "lv-admin",
+          "label": "approve",
+          "ops": [
+            {
+              "op": "update",
+              "path": "leaveApplications/ct-s1",
+              "data": {
+                "status": "APPROVED",
+                "revision": 2,
+                "lastEvent": "APPROVE",
+                "decidedBy": "lv-admin",
+                "decidedByName": "Reviewer",
+                "decidedAt": {
+                  "$serverTimestamp": true
+                },
+                "decisionRemarks": null,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "lv-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveHistory/ct-s1__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "applicationId": "ct-s1",
+                "revision": 2,
+                "fromStatus": "PENDING",
+                "toStatus": "APPROVED",
+                "event": "APPROVE",
+                "actorId": "lv-admin",
+                "actorName": "Reviewer",
+                "remarks": null,
+                "at": {
+                  "$serverTimestamp": true
+                },
+                "applicantUserId": "lv-parent",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveCalendar/ct-s1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "subjectName": "Anil Kumar",
+                "academicYearId": "y1",
+                "classId": "c5",
+                "sectionId": "sa",
+                "startDateKey": "2026-08-03",
+                "endDateKey": "2026-08-04",
+                "halfDay": "NONE",
+                "countedDateKeys": [
+                  "2026-08-03",
+                  "2026-08-04"
+                ],
+                "status": "ACTIVE"
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/ct-s1__APPROVE__2__lv-parent",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "lv-parent",
+                "type": "LEAVE_APPROVED",
+                "applicationId": "ct-s1",
+                "revision": 2,
+                "title": "Leave approved",
+                "body": "x",
+                "createdBy": "lv-admin",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "lv-admin2",
+          "label": "cancel approved",
+          "ops": [
+            {
+              "op": "update",
+              "path": "leaveApplications/ct-s1",
+              "data": {
+                "status": "CANCELLED",
+                "revision": 3,
+                "lastEvent": "CANCEL",
+                "decidedBy": "lv-admin2",
+                "decidedByName": "R",
+                "decidedAt": {
+                  "$serverTimestamp": true
+                },
+                "decisionRemarks": "Child will attend",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "lv-admin2"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveHistory/ct-s1__3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "applicationId": "ct-s1",
+                "revision": 3,
+                "fromStatus": "APPROVED",
+                "toStatus": "CANCELLED",
+                "event": "CANCEL",
+                "actorId": "lv-admin2",
+                "actorName": "R",
+                "remarks": "Child will attend",
+                "at": {
+                  "$serverTimestamp": true
+                },
+                "applicantUserId": "lv-parent",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1"
+              }
+            },
+            {
+              "op": "update",
+              "path": "leaveCalendar/ct-s1",
+              "data": {
+                "status": "CANCELLED"
+              }
+            },
+            {
+              "op": "delete",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-08-03__FIRST"
+            },
+            {
+              "op": "delete",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-08-03__SECOND"
+            },
+            {
+              "op": "delete",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-08-04__FIRST"
+            },
+            {
+              "op": "delete",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-08-04__SECOND"
+            },
+            {
+              "op": "set",
+              "path": "notifications/ct-s1__CANCEL__3__lv-parent",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "lv-parent",
+                "type": "LEAVE_CANCELLED",
+                "applicationId": "ct-s1",
+                "revision": 3,
+                "title": "Approved leave cancelled",
+                "body": "x",
+                "createdBy": "lv-admin2",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "student: submit then withdraw",
+      "batches": [
+        {
+          "as": "lv-parent",
+          "label": "submit",
+          "ops": [
+            {
+              "op": "set",
+              "path": "leaveApplications/ct-s2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "subjectName": "Anil Kumar",
+                "subjectCode": "CODE-1",
+                "academicYearId": "y1",
+                "classId": "c5",
+                "className": "Class 5",
+                "sectionId": "sa",
+                "sectionName": "A",
+                "applicantUserId": "lv-parent",
+                "applicantName": "Applicant",
+                "relation": "PARENT",
+                "typeId": "STUDENT__sick",
+                "typeName": "Sick leave",
+                "payType": "NA",
+                "startDateKey": "2026-09-07",
+                "endDateKey": "2026-09-07",
+                "startDate": {
+                  "$time": "2026-09-07T00:00:00.000Z"
+                },
+                "endDate": {
+                  "$time": "2026-09-07T00:00:00.000Z"
+                },
+                "halfDay": "NONE",
+                "units": 2,
+                "countedDateKeys": [
+                  "2026-09-07"
+                ],
+                "reason": "Fever and rest",
+                "attachments": [],
+                "balanceId": null,
+                "leaveYearStartKey": "2026-06-01",
+                "status": "PENDING",
+                "revision": 1,
+                "lastEvent": "SUBMIT",
+                "decidedBy": null,
+                "decidedByName": null,
+                "decidedAt": null,
+                "decisionRemarks": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "lv-parent",
+                "updatedBy": "lv-parent"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveHistory/ct-s2__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "applicationId": "ct-s2",
+                "revision": 1,
+                "fromStatus": null,
+                "toStatus": "PENDING",
+                "event": "SUBMIT",
+                "actorId": "lv-parent",
+                "actorName": "Applicant",
+                "remarks": null,
+                "at": {
+                  "$serverTimestamp": true
+                },
+                "applicantUserId": "lv-parent",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-09-07__FIRST",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-parent",
+                "applicationId": "ct-s2",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "dateKey": "2026-09-07",
+                "slot": "FIRST"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-09-07__SECOND",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-parent",
+                "applicationId": "ct-s2",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "dateKey": "2026-09-07",
+                "slot": "SECOND"
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/ct-s2__SUBMIT__1__REVIEWERS",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "REVIEWERS",
+                "recipientUserId": null,
+                "type": "LEAVE_SUBMITTED",
+                "applicationId": "ct-s2",
+                "revision": 1,
+                "title": "New leave request",
+                "body": "x",
+                "createdBy": "lv-parent",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "lv-parent",
+          "label": "withdraw",
+          "ops": [
+            {
+              "op": "update",
+              "path": "leaveApplications/ct-s2",
+              "data": {
+                "status": "WITHDRAWN",
+                "revision": 2,
+                "lastEvent": "WITHDRAW",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "lv-parent"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveHistory/ct-s2__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "applicationId": "ct-s2",
+                "revision": 2,
+                "fromStatus": "PENDING",
+                "toStatus": "WITHDRAWN",
+                "event": "WITHDRAW",
+                "actorId": "lv-parent",
+                "actorName": "P",
+                "remarks": null,
+                "at": {
+                  "$serverTimestamp": true
+                },
+                "applicantUserId": "lv-parent",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1"
+              }
+            },
+            {
+              "op": "delete",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-09-07__FIRST"
+            },
+            {
+              "op": "delete",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-09-07__SECOND"
+            },
+            {
+              "op": "set",
+              "path": "notifications/ct-s2__WITHDRAW__2__REVIEWERS",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "REVIEWERS",
+                "recipientUserId": null,
+                "type": "LEAVE_WITHDRAWN",
+                "applicationId": "ct-s2",
+                "revision": 2,
+                "title": "Leave request withdrawn",
+                "body": "x",
+                "createdBy": "lv-parent",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "student: return for correction, then resubmit",
+      "batches": [
+        {
+          "as": "lv-parent",
+          "label": "submit",
+          "ops": [
+            {
+              "op": "set",
+              "path": "leaveApplications/ct-s3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "subjectName": "Anil Kumar",
+                "subjectCode": "CODE-1",
+                "academicYearId": "y1",
+                "classId": "c5",
+                "className": "Class 5",
+                "sectionId": "sa",
+                "sectionName": "A",
+                "applicantUserId": "lv-parent",
+                "applicantName": "Applicant",
+                "relation": "PARENT",
+                "typeId": "STUDENT__sick",
+                "typeName": "Sick leave",
+                "payType": "NA",
+                "startDateKey": "2026-10-05",
+                "endDateKey": "2026-10-06",
+                "startDate": {
+                  "$time": "2026-10-05T00:00:00.000Z"
+                },
+                "endDate": {
+                  "$time": "2026-10-06T00:00:00.000Z"
+                },
+                "halfDay": "NONE",
+                "units": 4,
+                "countedDateKeys": [
+                  "2026-10-05",
+                  "2026-10-06"
+                ],
+                "reason": "Fever and rest",
+                "attachments": [],
+                "balanceId": null,
+                "leaveYearStartKey": "2026-06-01",
+                "status": "PENDING",
+                "revision": 1,
+                "lastEvent": "SUBMIT",
+                "decidedBy": null,
+                "decidedByName": null,
+                "decidedAt": null,
+                "decisionRemarks": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "lv-parent",
+                "updatedBy": "lv-parent"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveHistory/ct-s3__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "applicationId": "ct-s3",
+                "revision": 1,
+                "fromStatus": null,
+                "toStatus": "PENDING",
+                "event": "SUBMIT",
+                "actorId": "lv-parent",
+                "actorName": "Applicant",
+                "remarks": null,
+                "at": {
+                  "$serverTimestamp": true
+                },
+                "applicantUserId": "lv-parent",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-10-05__FIRST",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-parent",
+                "applicationId": "ct-s3",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "dateKey": "2026-10-05",
+                "slot": "FIRST"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-10-05__SECOND",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-parent",
+                "applicationId": "ct-s3",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "dateKey": "2026-10-05",
+                "slot": "SECOND"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-10-06__FIRST",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-parent",
+                "applicationId": "ct-s3",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "dateKey": "2026-10-06",
+                "slot": "FIRST"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-10-06__SECOND",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-parent",
+                "applicationId": "ct-s3",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "dateKey": "2026-10-06",
+                "slot": "SECOND"
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/ct-s3__SUBMIT__1__REVIEWERS",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "REVIEWERS",
+                "recipientUserId": null,
+                "type": "LEAVE_SUBMITTED",
+                "applicationId": "ct-s3",
+                "revision": 1,
+                "title": "New leave request",
+                "body": "x",
+                "createdBy": "lv-parent",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "lv-admin",
+          "label": "return for correction",
+          "ops": [
+            {
+              "op": "update",
+              "path": "leaveApplications/ct-s3",
+              "data": {
+                "status": "RETURNED",
+                "revision": 2,
+                "lastEvent": "RETURN",
+                "decidedBy": "lv-admin",
+                "decidedByName": "R",
+                "decidedAt": {
+                  "$serverTimestamp": true
+                },
+                "decisionRemarks": "Add the doctor note",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "lv-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveHistory/ct-s3__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "applicationId": "ct-s3",
+                "revision": 2,
+                "fromStatus": "PENDING",
+                "toStatus": "RETURNED",
+                "event": "RETURN",
+                "actorId": "lv-admin",
+                "actorName": "R",
+                "remarks": "Add the doctor note",
+                "at": {
+                  "$serverTimestamp": true
+                },
+                "applicantUserId": "lv-parent",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1"
+              }
+            },
+            {
+              "op": "delete",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-10-05__FIRST"
+            },
+            {
+              "op": "delete",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-10-05__SECOND"
+            },
+            {
+              "op": "delete",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-10-06__FIRST"
+            },
+            {
+              "op": "delete",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-10-06__SECOND"
+            },
+            {
+              "op": "set",
+              "path": "notifications/ct-s3__RETURN__2__lv-parent",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "lv-parent",
+                "type": "LEAVE_RETURNED",
+                "applicationId": "ct-s3",
+                "revision": 2,
+                "title": "Leave returned for correction",
+                "body": "x",
+                "createdBy": "lv-admin",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "lv-parent",
+          "label": "resubmit",
+          "ops": [
+            {
+              "op": "update",
+              "path": "leaveApplications/ct-s3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "subjectName": "Anil Kumar",
+                "subjectCode": "CODE-1",
+                "academicYearId": "y1",
+                "classId": "c5",
+                "className": "Class 5",
+                "sectionId": "sa",
+                "sectionName": "A",
+                "applicantUserId": "lv-parent",
+                "applicantName": "Applicant",
+                "relation": "PARENT",
+                "typeId": "STUDENT__sick",
+                "typeName": "Sick leave",
+                "payType": "NA",
+                "startDateKey": "2026-10-05",
+                "endDateKey": "2026-10-06",
+                "startDate": {
+                  "$time": "2026-10-05T00:00:00.000Z"
+                },
+                "endDate": {
+                  "$time": "2026-10-06T00:00:00.000Z"
+                },
+                "halfDay": "NONE",
+                "units": 4,
+                "countedDateKeys": [
+                  "2026-10-05",
+                  "2026-10-06"
+                ],
+                "reason": "Fever and rest",
+                "attachments": [],
+                "balanceId": null,
+                "leaveYearStartKey": "2026-06-01",
+                "status": "PENDING",
+                "revision": 3,
+                "lastEvent": "RESUBMIT",
+                "decidedBy": null,
+                "decidedByName": null,
+                "decidedAt": null,
+                "decisionRemarks": null,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "lv-parent"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveHistory/ct-s3__3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "applicationId": "ct-s3",
+                "revision": 3,
+                "fromStatus": "RETURNED",
+                "toStatus": "PENDING",
+                "event": "RESUBMIT",
+                "actorId": "lv-parent",
+                "actorName": "P",
+                "remarks": null,
+                "at": {
+                  "$serverTimestamp": true
+                },
+                "applicantUserId": "lv-parent",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-10-05__FIRST",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-parent",
+                "applicationId": "ct-s3",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "dateKey": "2026-10-05",
+                "slot": "FIRST"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-10-05__SECOND",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-parent",
+                "applicationId": "ct-s3",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "dateKey": "2026-10-05",
+                "slot": "SECOND"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-10-06__FIRST",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-parent",
+                "applicationId": "ct-s3",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "dateKey": "2026-10-06",
+                "slot": "FIRST"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STUDENT_stu-1__2026-10-06__SECOND",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-parent",
+                "applicationId": "ct-s3",
+                "subjectKind": "STUDENT",
+                "subjectId": "stu-1",
+                "dateKey": "2026-10-06",
+                "slot": "SECOND"
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/ct-s3__RESUBMIT__3__REVIEWERS",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "REVIEWERS",
+                "recipientUserId": null,
+                "type": "LEAVE_SUBMITTED",
+                "applicationId": "ct-s3",
+                "revision": 3,
+                "title": "Leave request resubmitted",
+                "body": "x",
+                "createdBy": "lv-parent",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "staff: submit, approve (balance created), cancel, adjust",
+      "batches": [
+        {
+          "as": "lv-teacher",
+          "label": "submit",
+          "ops": [
+            {
+              "op": "set",
+              "path": "leaveApplications/ct-t1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "subjectKind": "STAFF",
+                "subjectId": "staff-t",
+                "subjectName": "Priya Iyer",
+                "subjectCode": "CODE-1",
+                "academicYearId": "y1",
+                "classId": null,
+                "className": null,
+                "sectionId": null,
+                "sectionName": null,
+                "applicantUserId": "lv-teacher",
+                "applicantName": "Applicant",
+                "relation": "SELF",
+                "typeId": "STAFF__cl",
+                "typeName": "Casual leave",
+                "payType": "PAID",
+                "startDateKey": "2026-08-17",
+                "endDateKey": "2026-08-18",
+                "startDate": {
+                  "$time": "2026-08-17T00:00:00.000Z"
+                },
+                "endDate": {
+                  "$time": "2026-08-18T00:00:00.000Z"
+                },
+                "halfDay": "NONE",
+                "units": 4,
+                "countedDateKeys": [
+                  "2026-08-17",
+                  "2026-08-18"
+                ],
+                "reason": "Fever and rest",
+                "attachments": [],
+                "balanceId": "staff-t__STAFF__cl__y1",
+                "leaveYearStartKey": "2026-06-01",
+                "status": "PENDING",
+                "revision": 1,
+                "lastEvent": "SUBMIT",
+                "decidedBy": null,
+                "decidedByName": null,
+                "decidedAt": null,
+                "decisionRemarks": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "lv-teacher",
+                "updatedBy": "lv-teacher"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveHistory/ct-t1__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "applicationId": "ct-t1",
+                "revision": 1,
+                "fromStatus": null,
+                "toStatus": "PENDING",
+                "event": "SUBMIT",
+                "actorId": "lv-teacher",
+                "actorName": "Applicant",
+                "remarks": null,
+                "at": {
+                  "$serverTimestamp": true
+                },
+                "applicantUserId": "lv-teacher",
+                "subjectKind": "STAFF",
+                "subjectId": "staff-t"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STAFF_staff-t__2026-08-17__FIRST",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-teacher",
+                "applicationId": "ct-t1",
+                "subjectKind": "STAFF",
+                "subjectId": "staff-t",
+                "dateKey": "2026-08-17",
+                "slot": "FIRST"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STAFF_staff-t__2026-08-17__SECOND",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-teacher",
+                "applicationId": "ct-t1",
+                "subjectKind": "STAFF",
+                "subjectId": "staff-t",
+                "dateKey": "2026-08-17",
+                "slot": "SECOND"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STAFF_staff-t__2026-08-18__FIRST",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-teacher",
+                "applicationId": "ct-t1",
+                "subjectKind": "STAFF",
+                "subjectId": "staff-t",
+                "dateKey": "2026-08-18",
+                "slot": "FIRST"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STAFF_staff-t__2026-08-18__SECOND",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-teacher",
+                "applicationId": "ct-t1",
+                "subjectKind": "STAFF",
+                "subjectId": "staff-t",
+                "dateKey": "2026-08-18",
+                "slot": "SECOND"
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/ct-t1__SUBMIT__1__REVIEWERS",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "REVIEWERS",
+                "recipientUserId": null,
+                "type": "LEAVE_SUBMITTED",
+                "applicationId": "ct-t1",
+                "revision": 1,
+                "title": "New leave request",
+                "body": "x",
+                "createdBy": "lv-teacher",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "lv-admin",
+          "label": "approve",
+          "ops": [
+            {
+              "op": "set",
+              "path": "leaveLedger/ct-t1__consume",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "staffId": "staff-t",
+                "typeId": "STAFF__cl",
+                "academicYearId": "y1",
+                "balanceId": "staff-t__STAFF__cl__y1",
+                "entryType": "CONSUME",
+                "units": 4,
+                "applicationId": "ct-t1",
+                "reason": null,
+                "actorId": "lv-admin",
+                "actorName": "Reviewer",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveBalances/staff-t__STAFF__cl__y1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "staffId": "staff-t",
+                "typeId": "STAFF__cl",
+                "academicYearId": "y1",
+                "leaveYearStartKey": "2026-06-01",
+                "entitlementUnits": 24,
+                "accrual": "UPFRONT",
+                "exceedPolicy": "BLOCK",
+                "carryForwardUnits": 0,
+                "adjustmentUnits": 0,
+                "consumedUnits": 4,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "lv-admin",
+                "updatedBy": "lv-admin",
+                "lastLedgerId": "ct-t1__consume"
+              }
+            },
+            {
+              "op": "update",
+              "path": "leaveApplications/ct-t1",
+              "data": {
+                "status": "APPROVED",
+                "revision": 2,
+                "lastEvent": "APPROVE",
+                "decidedBy": "lv-admin",
+                "decidedByName": "Reviewer",
+                "decidedAt": {
+                  "$serverTimestamp": true
+                },
+                "decisionRemarks": null,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "lv-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveHistory/ct-t1__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "applicationId": "ct-t1",
+                "revision": 2,
+                "fromStatus": "PENDING",
+                "toStatus": "APPROVED",
+                "event": "APPROVE",
+                "actorId": "lv-admin",
+                "actorName": "Reviewer",
+                "remarks": null,
+                "at": {
+                  "$serverTimestamp": true
+                },
+                "applicantUserId": "lv-teacher",
+                "subjectKind": "STAFF",
+                "subjectId": "staff-t"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveCalendar/ct-t1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "subjectKind": "STAFF",
+                "subjectId": "staff-t",
+                "subjectName": "Priya Iyer",
+                "academicYearId": "y1",
+                "classId": null,
+                "sectionId": null,
+                "startDateKey": "2026-08-17",
+                "endDateKey": "2026-08-18",
+                "halfDay": "NONE",
+                "countedDateKeys": [
+                  "2026-08-17",
+                  "2026-08-18"
+                ],
+                "status": "ACTIVE"
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/ct-t1__APPROVE__2__lv-teacher",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "lv-teacher",
+                "type": "LEAVE_APPROVED",
+                "applicationId": "ct-t1",
+                "revision": 2,
+                "title": "Leave approved",
+                "body": "x",
+                "createdBy": "lv-admin",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "lv-admin2",
+          "label": "cancel approved (restore balance)",
+          "ops": [
+            {
+              "op": "set",
+              "path": "leaveLedger/ct-t1__restore",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "staffId": "staff-t",
+                "typeId": "STAFF__cl",
+                "academicYearId": "y1",
+                "balanceId": "staff-t__STAFF__cl__y1",
+                "entryType": "RESTORE",
+                "units": 4,
+                "applicationId": "ct-t1",
+                "reason": "Cover found",
+                "actorId": "lv-admin2",
+                "actorName": "R",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "update",
+              "path": "leaveBalances/staff-t__STAFF__cl__y1",
+              "data": {
+                "consumedUnits": 0,
+                "lastLedgerId": "ct-t1__restore",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "lv-admin2"
+              }
+            },
+            {
+              "op": "update",
+              "path": "leaveApplications/ct-t1",
+              "data": {
+                "status": "CANCELLED",
+                "revision": 3,
+                "lastEvent": "CANCEL",
+                "decidedBy": "lv-admin2",
+                "decidedByName": "R",
+                "decidedAt": {
+                  "$serverTimestamp": true
+                },
+                "decisionRemarks": "Cover found",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "lv-admin2"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveHistory/ct-t1__3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "applicationId": "ct-t1",
+                "revision": 3,
+                "fromStatus": "APPROVED",
+                "toStatus": "CANCELLED",
+                "event": "CANCEL",
+                "actorId": "lv-admin2",
+                "actorName": "R",
+                "remarks": "Cover found",
+                "at": {
+                  "$serverTimestamp": true
+                },
+                "applicantUserId": "lv-teacher",
+                "subjectKind": "STAFF",
+                "subjectId": "staff-t"
+              }
+            },
+            {
+              "op": "update",
+              "path": "leaveCalendar/ct-t1",
+              "data": {
+                "status": "CANCELLED"
+              }
+            },
+            {
+              "op": "delete",
+              "path": "leaveDayLocks/STAFF_staff-t__2026-08-17__FIRST"
+            },
+            {
+              "op": "delete",
+              "path": "leaveDayLocks/STAFF_staff-t__2026-08-17__SECOND"
+            },
+            {
+              "op": "delete",
+              "path": "leaveDayLocks/STAFF_staff-t__2026-08-18__FIRST"
+            },
+            {
+              "op": "delete",
+              "path": "leaveDayLocks/STAFF_staff-t__2026-08-18__SECOND"
+            },
+            {
+              "op": "set",
+              "path": "notifications/ct-t1__CANCEL__3__lv-teacher",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "lv-teacher",
+                "type": "LEAVE_CANCELLED",
+                "applicationId": "ct-t1",
+                "revision": 3,
+                "title": "Approved leave cancelled",
+                "body": "x",
+                "createdBy": "lv-admin2",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "lv-admin",
+          "label": "manual adjustment",
+          "ops": [
+            {
+              "op": "set",
+              "path": "leaveLedger/adj_contract_1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "staffId": "staff-t",
+                "typeId": "STAFF__cl",
+                "academicYearId": "y1",
+                "balanceId": "staff-t__STAFF__cl__y1",
+                "entryType": "ADJUSTMENT",
+                "units": 4,
+                "applicationId": null,
+                "reason": "Granted for exam duty",
+                "actorId": "lv-admin",
+                "actorName": "A",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "update",
+              "path": "leaveBalances/staff-t__STAFF__cl__y1",
+              "data": {
+                "adjustmentUnits": 4,
+                "lastLedgerId": "adj_contract_1",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "lv-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/adj__adj_contract_1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "lv-teacher",
+                "type": "LEAVE_BALANCE_ADJUSTED",
+                "applicationId": null,
+                "revision": null,
+                "title": "Your leave balance was adjusted",
+                "body": "+2.0 day(s): Granted for exam duty",
+                "createdBy": "lv-admin",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "staff: half day against an existing balance",
+      "needsBalance": true,
+      "batches": [
+        {
+          "as": "lv-teacher",
+          "label": "submit",
+          "ops": [
+            {
+              "op": "set",
+              "path": "leaveApplications/ct-t2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "subjectKind": "STAFF",
+                "subjectId": "staff-t",
+                "subjectName": "Priya Iyer",
+                "subjectCode": "CODE-1",
+                "academicYearId": "y1",
+                "classId": null,
+                "className": null,
+                "sectionId": null,
+                "sectionName": null,
+                "applicantUserId": "lv-teacher",
+                "applicantName": "Applicant",
+                "relation": "SELF",
+                "typeId": "STAFF__cl",
+                "typeName": "Casual leave",
+                "payType": "PAID",
+                "startDateKey": "2026-11-02",
+                "endDateKey": "2026-11-02",
+                "startDate": {
+                  "$time": "2026-11-02T00:00:00.000Z"
+                },
+                "endDate": {
+                  "$time": "2026-11-02T00:00:00.000Z"
+                },
+                "halfDay": "FIRST",
+                "units": 1,
+                "countedDateKeys": [
+                  "2026-11-02"
+                ],
+                "reason": "Fever and rest",
+                "attachments": [],
+                "balanceId": "staff-t__STAFF__cl__y1",
+                "leaveYearStartKey": "2026-06-01",
+                "status": "PENDING",
+                "revision": 1,
+                "lastEvent": "SUBMIT",
+                "decidedBy": null,
+                "decidedByName": null,
+                "decidedAt": null,
+                "decisionRemarks": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "lv-teacher",
+                "updatedBy": "lv-teacher"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveHistory/ct-t2__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "applicationId": "ct-t2",
+                "revision": 1,
+                "fromStatus": null,
+                "toStatus": "PENDING",
+                "event": "SUBMIT",
+                "actorId": "lv-teacher",
+                "actorName": "Applicant",
+                "remarks": null,
+                "at": {
+                  "$serverTimestamp": true
+                },
+                "applicantUserId": "lv-teacher",
+                "subjectKind": "STAFF",
+                "subjectId": "staff-t"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveDayLocks/STAFF_staff-t__2026-11-02__FIRST",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "lockedBy": "lv-teacher",
+                "applicationId": "ct-t2",
+                "subjectKind": "STAFF",
+                "subjectId": "staff-t",
+                "dateKey": "2026-11-02",
+                "slot": "FIRST"
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/ct-t2__SUBMIT__1__REVIEWERS",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "REVIEWERS",
+                "recipientUserId": null,
+                "type": "LEAVE_SUBMITTED",
+                "applicationId": "ct-t2",
+                "revision": 1,
+                "title": "New leave request",
+                "body": "x",
+                "createdBy": "lv-teacher",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "lv-admin",
+          "label": "approve",
+          "ops": [
+            {
+              "op": "set",
+              "path": "leaveLedger/ct-t2__consume",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "staffId": "staff-t",
+                "typeId": "STAFF__cl",
+                "academicYearId": "y1",
+                "balanceId": "staff-t__STAFF__cl__y1",
+                "entryType": "CONSUME",
+                "units": 1,
+                "applicationId": "ct-t2",
+                "reason": null,
+                "actorId": "lv-admin",
+                "actorName": "Reviewer",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "update",
+              "path": "leaveBalances/staff-t__STAFF__cl__y1",
+              "data": {
+                "consumedUnits": 1,
+                "lastLedgerId": "ct-t2__consume",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "lv-admin"
+              }
+            },
+            {
+              "op": "update",
+              "path": "leaveApplications/ct-t2",
+              "data": {
+                "status": "APPROVED",
+                "revision": 2,
+                "lastEvent": "APPROVE",
+                "decidedBy": "lv-admin",
+                "decidedByName": "Reviewer",
+                "decidedAt": {
+                  "$serverTimestamp": true
+                },
+                "decisionRemarks": null,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "lv-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveHistory/ct-t2__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "applicationId": "ct-t2",
+                "revision": 2,
+                "fromStatus": "PENDING",
+                "toStatus": "APPROVED",
+                "event": "APPROVE",
+                "actorId": "lv-admin",
+                "actorName": "Reviewer",
+                "remarks": null,
+                "at": {
+                  "$serverTimestamp": true
+                },
+                "applicantUserId": "lv-teacher",
+                "subjectKind": "STAFF",
+                "subjectId": "staff-t"
+              }
+            },
+            {
+              "op": "set",
+              "path": "leaveCalendar/ct-t2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "subjectKind": "STAFF",
+                "subjectId": "staff-t",
+                "subjectName": "Priya Iyer",
+                "academicYearId": "y1",
+                "classId": null,
+                "sectionId": null,
+                "startDateKey": "2026-11-02",
+                "endDateKey": "2026-11-02",
+                "halfDay": "FIRST",
+                "countedDateKeys": [
+                  "2026-11-02"
+                ],
+                "status": "ACTIVE"
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/ct-t2__APPROVE__2__lv-teacher",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "lv-teacher",
+                "type": "LEAVE_APPROVED",
+                "applicationId": "ct-t2",
+                "revision": 2,
+                "title": "Leave approved",
+                "body": "x",
+                "createdBy": "lv-admin",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

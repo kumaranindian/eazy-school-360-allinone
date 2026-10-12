@@ -1,0 +1,224 @@
+{
+  "project": "EazySchool 360",
+  "company": "Avail404",
+  "applicationId": "com.avail404.eazyschool.eazyschool360",
+  "validatedMilestones": [
+    "milestone-0",
+    "milestone-1"
+  ],
+  "validationDate": "2026-10-06",
+  "overallStatus": "PASS_WITH_FIXES_APPLIED",
+  "productionReady": false,
+  "repository": {
+    "gitCommits": 0,
+    "note": "Repository has no commits yet; all work exists as a working tree. Validation was performed directly against the working tree, not a diff."
+  },
+  "criticalIssues": [
+    {
+      "id": "SEC-01",
+      "title": "Self-signup could claim an EXISTING school as SCHOOL_ADMIN",
+      "location": "firestore.rules (/users create rule, pre-fix)",
+      "status": "FIXED",
+      "fix": "Self-signup now requires one atomic WriteBatch creating the school AND the profile together; rules verify this with getAfter()/existsAfter() and require the school did not exist before the write.",
+      "evidence": "firestore-tests/rules.test.mjs: 'ATTACK: a fresh account cannot self-claim SCHOOL_ADMIN of an EXISTING school' (fails on pre-fix rules, passes on current rules)"
+    }
+  ],
+  "highIssues": [
+    {
+      "id": "SEC-02",
+      "title": "A profile could reference a schoolId for a school that was never created (orphan tenant)",
+      "location": "firestore.rules (/users create rule, pre-fix)",
+      "status": "FIXED",
+      "fix": "Same isSelfSignupBatchFor() fix as SEC-01 closes this too.",
+      "evidence": "firestore-tests/rules.test.mjs: 'ATTACK: a fresh account cannot create a profile pointing at a school it never created'"
+    },
+    {
+      "id": "SEC-03",
+      "title": "A SCHOOL_ADMIN could change their own school's status field (e.g. lift a platform-level suspension)",
+      "location": "firestore.rules (/schools update rule, pre-fix)",
+      "status": "FIXED",
+      "fix": "School-admin updates are now restricted to profile fields only via request.resource.data.diff(resource.data).affectedKeys().hasOnly([...]); status is excluded.",
+      "evidence": "firestore-tests/rules.test.mjs: 'a school admin cannot change their own school status (e.g. lift a platform suspension)'"
+    },
+    {
+      "id": "SEC-04",
+      "title": "createdBy/updatedBy and createdAt/updatedAt were client-supplied, not server-enforced",
+      "location": "firestore.rules (all create/update rules, pre-fix)",
+      "status": "FIXED",
+      "fix": "validCreateAudit()/validUpdateAudit() now require createdAt/updatedAt == request.time and createdBy/updatedBy == request.auth.uid; createdAt/createdBy are immutable on update.",
+      "evidence": "firestore-tests/rules.test.mjs: 'audit fields cannot be forged on create or update'"
+    }
+  ],
+  "mediumIssues": [
+    {
+      "id": "SEC-05",
+      "title": "RolePermissions granted BRANCH_ADMIN the manageUsers permission in the Dart UI layer, but firestore.rules had no corresponding path for a branch admin to create/update users",
+      "location": "lib/core/permissions/role_permissions.dart vs. firestore.rules (pre-fix)",
+      "status": "FIXED",
+      "fix": "Added isBranchAdminOf-scoped create/update rules for /users restricted to TEACHER/FINANCE/PARENT within the admin's own branch.",
+      "evidence": "firestore-tests/rules.test.mjs: 'a branch admin can manage users only within their own branch, never escalate'"
+    },
+    {
+      "id": "AUTH-01",
+      "title": "An INVITED (not-yet-activated) user profile was never explicitly rejected by TenantContextNotifier and would resolve to a full, usable TenantContext",
+      "location": "lib/core/tenant/tenant_context_provider.dart (pre-fix: only checked status == disabled)",
+      "status": "FIXED",
+      "fix": "Check widened to 'status != active', generalized AccountDisabledException to AccountInactiveException(status), added /account-inactive page distinguishing invited vs. disabled messaging.",
+      "evidence": "test/widget/app_router_test.dart: 'signed in, INVITED profile -> account-inactive page (not a splash retry loop)'"
+    },
+    {
+      "id": "ARCH-01",
+      "title": "Route-level permission enforcement and nav-item visibility were two separate, independently-maintained checks (app_router.dart vs. app_shell.dart) that could silently drift apart",
+      "location": "lib/core/routing/app_router.dart, lib/core/routing/app_shell.dart (pre-fix)",
+      "status": "FIXED",
+      "fix": "Centralized into AppRoutes.requiredPermissions — one map both the router redirect and AppShell's nav filter read from.",
+      "evidence": "test/widget/app_router_test.dart: 'parent cannot open /school by URL' and 'teacher cannot open /school but can open /users'; mutation-tested by temporarily disabling the guard and confirming the tests fail"
+    },
+    {
+      "id": "AUTH-02",
+      "title": "sendPasswordResetEmail's user-not-found FirebaseAuthException would surface as a generic failure, which — combined with success returning silently — created a timing/behavior difference an attacker could use to enumerate registered emails",
+      "location": "lib/features/authentication/data/firebase_auth_repository.dart (pre-fix)",
+      "status": "FIXED",
+      "fix": "user-not-found is now treated as success in the repository, so the UI shows the same 'if an account exists...' message regardless.",
+      "evidence": "Code review; no emulator-based Auth test exists for this (Firebase Auth emulator for this specific flow was not stood up — see Known Issues)"
+    },
+    {
+      "id": "QUALITY-01",
+      "title": "signOut() called Firebase sign-out and Google sign-out in one try/catch; a failure in the (non-critical) Google sign-out step would be reported as a sign-out failure even though the Firebase session was already cleared",
+      "location": "lib/features/authentication/data/firebase_auth_repository.dart (pre-fix)",
+      "status": "FIXED",
+      "fix": "Google sign-out is now a separate, best-effort step: logged on failure, never thrown.",
+      "evidence": "Code review"
+    }
+  ],
+  "lowIssues": [
+    {
+      "id": "DOC-01",
+      "title": "FIRESTORE_ARCHITECTURE.md and MULTI_TENANT_GUIDE.md incorrectly stated that Firestore rules cannot see other writes in the same batch, used to justify a two-phase (non-atomic) school-creation write",
+      "location": "FIRESTORE_ARCHITECTURE.md, MULTI_TENANT_GUIDE.md (pre-fix)",
+      "status": "FIXED",
+      "fix": "Corrected: getAfter()/existsAfter() DO see the batch's resulting state. Documentation rewritten to describe the single-batch design and includes a visible correction note.",
+      "evidence": "Diff of FIRESTORE_ARCHITECTURE.md / MULTI_TENANT_GUIDE.md"
+    },
+    {
+      "id": "DOC-02",
+      "title": "Stale Flutter-template TODO comment left in Android build config",
+      "location": "android/app/build.gradle.kts",
+      "status": "FIXED",
+      "fix": "Removed the 'TODO: Specify your own unique Application ID' comment (the applicationId is already set and was never actually a TODO).",
+      "evidence": "Diff of android/app/build.gradle.kts"
+    }
+  ],
+  "acceptedDesignTradeoffs": [
+    {
+      "title": "No Firebase Auth custom claims / no Cloud Functions",
+      "detail": "Tenant isolation uses a Firestore-rules lookup-table pattern (get() against the caller's own /users/{uid}) instead of custom claims, specifically because it needs no Cloud Functions deployment and is fully testable against the emulator today. Documented in SECURITY_ARCHITECTURE.md as a deliberate, revisitable tradeoff, not a gap."
+    }
+  ],
+  "knownLimitations": [
+    "No real Firebase project exists yet — all firebase_options_<env>.dart files are gitignored placeholders. Nothing Firebase-backed (including the rules above) runs against a real backend; correctness is demonstrated via the Firestore emulator only.",
+    "Google Sign-In code is complete (Web popup + mobile google_sign_in token exchange) but cannot complete a real sign-in without a real Firebase project + registered OAuth client/SHA fingerprints.",
+    "No Users/School management UI exists (list staff, invite a user, change a role) — only the backend/rules/repository foundation. UsersPage is a placeholder.",
+    "SchoolStatus (ACTIVE/INACTIVE/SUSPENDED) is modeled and a SCHOOL_ADMIN can no longer self-modify it, but nothing currently enforces that a SUSPENDED school's users lose access — that behavior is undefined pending a product decision.",
+    "No Cloud Functions exist to create a Firebase Auth account for someone else; an admin can create a /users profile for a subordinate via rules, but provisioning the actual sign-in credential needs a server-side flow not yet built.",
+    "No custom in-app password-reset screen; relies on Firebase's hosted action-handler page.",
+    "firestore-tests/ (Node, @firebase/rules-unit-testing) is the only thing validating firestore.rules; there is no equivalent emulator-based test for Firebase Auth flows (email/password, Google) — those are validated by code review and Dart-side fakes only."
+  ],
+  "features": [
+    { "name": "Flutter project scaffold, pubspec, analysis_options", "status": "IMPLEMENTED", "milestone": "milestone-0" },
+    { "name": "Feature-first architecture (core/features/shared/app)", "status": "IMPLEMENTED", "milestone": "milestone-0" },
+    { "name": "Environment config (dev/test/uat/prod) via main_<env>.dart + EnvConfig", "status": "IMPLEMENTED", "milestone": "milestone-0" },
+    { "name": "Theme system (light/dark, design tokens)", "status": "IMPLEMENTED", "milestone": "milestone-0" },
+    { "name": "Responsive framework (Breakpoints, ResponsiveBuilder, AdaptiveScaffold)", "status": "IMPLEMENTED", "milestone": "milestone-0" },
+    { "name": "GoRouter routing foundation", "status": "IMPLEMENTED", "milestone": "milestone-0" },
+    { "name": "Centralized error mapping (AppFailure, error_mapper.dart)", "status": "IMPLEMENTED", "milestone": "milestone-0" },
+    { "name": "Loading/error/empty state widgets (AsyncValueWidget, ErrorView, EmptyView)", "status": "IMPLEMENTED", "milestone": "milestone-0" },
+    { "name": "Centralized logging (AppLogger)", "status": "IMPLEMENTED", "milestone": "milestone-0" },
+    { "name": "Firebase initialization (graceful failure if unconfigured)", "status": "IMPLEMENTED", "milestone": "milestone-0" },
+    { "name": "Firestore/Storage foundation (rules files, default-deny baseline)", "status": "IMPLEMENTED", "milestone": "milestone-0" },
+    { "name": "Test foundation (flutter_test smoke test)", "status": "IMPLEMENTED", "milestone": "milestone-0" },
+    { "name": "Documentation set (README, PROJECT/FIRESTORE/SECURITY_ARCHITECTURE, DEVELOPMENT_GUIDE)", "status": "IMPLEMENTED", "milestone": "milestone-0" },
+    { "name": "Email/password authentication", "status": "IMPLEMENTED", "milestone": "milestone-1" },
+    { "name": "Google Sign-In (code complete; not runnable without a real Firebase project)", "status": "PARTIALLY_IMPLEMENTED", "milestone": "milestone-1" },
+    { "name": "Logout", "status": "IMPLEMENTED", "milestone": "milestone-1" },
+    { "name": "Password reset (forgot-password email flow)", "status": "IMPLEMENTED", "milestone": "milestone-1" },
+    { "name": "Authentication state handling / session persistence", "status": "IMPLEMENTED", "milestone": "milestone-1" },
+    { "name": "User profile model + repository", "status": "IMPLEMENTED", "milestone": "milestone-1" },
+    { "name": "School entity + repository", "status": "IMPLEMENTED", "milestone": "milestone-1" },
+    { "name": "Branch entity", "status": "IMPLEMENTED", "milestone": "milestone-1" },
+    { "name": "Tenant context (TenantContext/TenantContextNotifier)", "status": "IMPLEMENTED", "milestone": "milestone-1" },
+    { "name": "Tenant isolation (Firestore rules)", "status": "IMPLEMENTED", "milestone": "milestone-1", "note": "Critical hole (SEC-01/02) found and fixed during this validation; now covered by emulator tests." },
+    { "name": "Roles (PLATFORM_ADMIN/SCHOOL_ADMIN/BRANCH_ADMIN/TEACHER/FINANCE/PARENT)", "status": "IMPLEMENTED", "milestone": "milestone-1" },
+    { "name": "Permissions (centralized RolePermissions map)", "status": "IMPLEMENTED", "milestone": "milestone-1" },
+    { "name": "Authorization (route guard + rules)", "status": "IMPLEMENTED", "milestone": "milestone-1" },
+    { "name": "Firestore security rules", "status": "IMPLEMENTED", "milestone": "milestone-1", "note": "Hardened during validation; see criticalIssues/highIssues." },
+    { "name": "School creation", "status": "IMPLEMENTED", "milestone": "milestone-1", "note": "Rewritten during validation from a two-phase write to one atomic WriteBatch." },
+    { "name": "Default branch creation", "status": "IMPLEMENTED", "milestone": "milestone-1" },
+    { "name": "User creation (admin provisioning a subordinate's Firestore profile)", "status": "PARTIALLY_IMPLEMENTED", "milestone": "milestone-1", "note": "Rules support it; no UI exists yet, and no flow creates the underlying Firebase Auth account for that user." },
+    { "name": "Account status (ACTIVE/INVITED/DISABLED) enforcement", "status": "IMPLEMENTED", "milestone": "milestone-1", "note": "INVITED handling was a gap (AUTH-01), fixed during validation." },
+    { "name": "Audit fields (createdAt/updatedAt/createdBy/updatedBy)", "status": "IMPLEMENTED", "milestone": "milestone-1", "note": "Server-side enforcement (SEC-04) was missing and is now added." },
+    { "name": "Responsive authentication UI", "status": "IMPLEMENTED", "milestone": "milestone-1" },
+    { "name": "Error handling (user-facing messages, no raw exceptions)", "status": "IMPLEMENTED", "milestone": "milestone-1" },
+    { "name": "Loading states", "status": "IMPLEMENTED", "milestone": "milestone-1" },
+    { "name": "Security-rule tests", "status": "IMPLEMENTED", "milestone": "milestone-1", "note": "21 tests against the Firestore emulator, including 9 added during this validation." },
+    { "name": "Authentication/tenant/permission tests (Dart)", "status": "IMPLEMENTED", "milestone": "milestone-1" },
+    { "name": "Users/School management UI (list, invite, edit)", "status": "NOT_IMPLEMENTED", "milestone": "future" },
+    { "name": "Student Management", "status": "NOT_IMPLEMENTED", "milestone": "future" },
+    { "name": "Fees", "status": "NOT_IMPLEMENTED", "milestone": "future" },
+    { "name": "Attendance", "status": "NOT_IMPLEMENTED", "milestone": "future" },
+    { "name": "Leave", "status": "NOT_IMPLEMENTED", "milestone": "future" },
+    { "name": "Homework", "status": "NOT_IMPLEMENTED", "milestone": "future" },
+    { "name": "Announcements", "status": "NOT_IMPLEMENTED", "milestone": "future" }
+  ],
+  "tests": {
+    "flutter": {
+      "framework": "flutter_test",
+      "testFiles": 8,
+      "totalTests": 36,
+      "passed": 36,
+      "failed": 0,
+      "command": "flutter test"
+    },
+    "firestoreRules": {
+      "framework": "@firebase/rules-unit-testing + node:test, against the Firestore emulator",
+      "testFile": "firestore-tests/rules.test.mjs",
+      "totalTests": 21,
+      "passed": 21,
+      "failed": 0,
+      "addedDuringValidation": 9,
+      "command": "firebase emulators:exec --only firestore --project demo-audit \"cd firestore-tests && npm test\""
+    },
+    "analyze": {
+      "command": "flutter analyze",
+      "result": "No issues found"
+    }
+  },
+  "builds": {
+    "web": { "command": "flutter build web --release", "result": "SUCCESS" },
+    "androidDebug": { "command": "flutter build apk --debug", "result": "SUCCESS", "verifiedApplicationId": "com.avail404.eazyschool.eazyschool360" },
+    "ios": {
+      "command": "flutter build ios --debug --no-codesign -t lib/main_dev.dart",
+      "result": "BLOCKED_BY_ENVIRONMENT",
+      "detail": "pod install succeeds and the build targets the correct bundle id (com.avail404.eazyschool.eazyschool360); final compile fails only because this machine's Xcode does not have the iOS 26.5 platform SDK installed locally. Not a code or configuration defect."
+    }
+  },
+  "identity": {
+    "company": "Avail404",
+    "product": "EazySchool 360",
+    "androidNamespace": "com.avail404.eazyschool.eazyschool360",
+    "androidApplicationId": "com.avail404.eazyschool.eazyschool360",
+    "kotlinPackage": "com.avail404.eazyschool.eazyschool360",
+    "iosBundleIdentifier": "com.avail404.eazyschool.eazyschool360",
+    "androidDisplayLabel": "EazySchool 360",
+    "iosDisplayName": "EazySchool 360",
+    "webAppTitle": "EazySchool 360",
+    "mismatchesFound": false
+  },
+  "secretsScan": {
+    "patternsChecked": ["Google API keys (AIza...)", "PEM private key headers", "OAuth access tokens (ya29...)"],
+    "locationsScanned": ["lib/", "android/", "ios/", "web/", "firestore-tests/*.mjs"],
+    "result": "NO_SECRETS_FOUND",
+    "note": "firebase_options_<env>.dart files contain only placeholder string literals (e.g. 'REPLACE_WITH_FLUTTERFIRE_CONFIGURE') and are gitignored; no real Firebase project credentials exist in this repository."
+  },
+  "nextRecommendedMilestone": "Users & School Management UI: build the staff list / invite / role-change screens against the repository and Firestore-rules foundation validated in this report, and make the school-status (ACTIVE/INACTIVE/SUSPENDED) enforcement decision called out in Known Limitations. Do not begin Student Management, Fees, Attendance, Leave, Homework, or Announcements until that UI closes the gap this report identifies."
+}

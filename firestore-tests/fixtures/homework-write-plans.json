@@ -1,0 +1,1343 @@
+{
+  "scenarios": [
+    {
+      "name": "homework lifecycle",
+      "batches": [
+        {
+          "as": "hc-t1",
+          "label": "create draft",
+          "ops": [
+            {
+              "op": "set",
+              "path": "homework/hcb1__sa",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "batchId": "hcb1",
+                "classId": "c5",
+                "sectionId": "sa",
+                "classLabel": "Class 5 – A",
+                "subjectId": "math",
+                "subjectName": "Mathematics",
+                "teacherStaffId": "st1",
+                "teacherName": "Teacher",
+                "assignedDateKey": "2026-08-01",
+                "maxMarks": 10,
+                "title": "Chapter 4 exercises",
+                "description": "Do questions 1 to 10",
+                "dueDateKey": "2099-06-01",
+                "dueTimeMin": null,
+                "dueAt": {
+                  "$time": "2099-06-01T17:00:00.000Z"
+                },
+                "attachments": [],
+                "requiresSubmission": true,
+                "allowFiles": true,
+                "allowLate": false,
+                "allowResubmission": true,
+                "status": "DRAFT",
+                "revision": 1,
+                "lastEvent": "CREATED",
+                "publishedBy": null,
+                "publishedAt": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "hc-t1",
+                "updatedBy": "hc-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "homeworkHistory/hcb1__sa__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "homeworkId": "hcb1__sa",
+                "classId": "c5",
+                "sectionId": "sa",
+                "revision": 1,
+                "event": "CREATED",
+                "toStatus": "DRAFT",
+                "actorId": "hc-t1",
+                "actorName": "Teacher",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-t1",
+          "label": "edit draft",
+          "ops": [
+            {
+              "op": "update",
+              "path": "homework/hcb1__sa",
+              "data": {
+                "title": "Chapter 4 exercises (v2)",
+                "description": "Do questions 1 to 10",
+                "dueDateKey": "2099-06-01",
+                "dueTimeMin": null,
+                "dueAt": {
+                  "$time": "2099-06-01T17:00:00.000Z"
+                },
+                "attachments": [],
+                "requiresSubmission": true,
+                "allowFiles": true,
+                "allowLate": true,
+                "allowResubmission": true,
+                "revision": 2,
+                "lastEvent": "EDITED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "hc-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "homeworkHistory/hcb1__sa__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "homeworkId": "hcb1__sa",
+                "classId": "c5",
+                "sectionId": "sa",
+                "revision": 2,
+                "event": "EDITED",
+                "toStatus": "DRAFT",
+                "actorId": "hc-t1",
+                "actorName": "Teacher",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-t1",
+          "label": "publish",
+          "ops": [
+            {
+              "op": "update",
+              "path": "homework/hcb1__sa",
+              "data": {
+                "status": "PUBLISHED",
+                "revision": 3,
+                "lastEvent": "PUBLISHED",
+                "publishedBy": "hc-t1",
+                "publishedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "hc-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "homeworkHistory/hcb1__sa__3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "homeworkId": "hcb1__sa",
+                "classId": "c5",
+                "sectionId": "sa",
+                "revision": 3,
+                "event": "PUBLISHED",
+                "toStatus": "PUBLISHED",
+                "actorId": "hc-t1",
+                "actorName": "Teacher",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "broadcastNotices/hcb1__sa__PUBLISHED__3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "type": "HOMEWORK_PUBLISHED",
+                "audienceKind": "SECTION",
+                "classId": "c5",
+                "sectionId": "sa",
+                "title": "New homework: Mathematics",
+                "body": "Chapter 4 exercises (v2) · due 01/06/2099",
+                "refType": "HOMEWORK",
+                "refId": "hcb1__sa",
+                "revision": 3,
+                "createdBy": "hc-t1",
+                "createdAt": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-t1",
+          "label": "extend the deadline",
+          "ops": [
+            {
+              "op": "update",
+              "path": "homework/hcb1__sa",
+              "data": {
+                "dueDateKey": "2099-06-08",
+                "dueTimeMin": null,
+                "dueAt": {
+                  "$time": "2099-06-08T17:00:00.000Z"
+                },
+                "revision": 4,
+                "lastEvent": "DUE_CHANGED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "hc-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "homeworkHistory/hcb1__sa__4",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "homeworkId": "hcb1__sa",
+                "classId": "c5",
+                "sectionId": "sa",
+                "revision": 4,
+                "event": "DUE_CHANGED",
+                "toStatus": "PUBLISHED",
+                "actorId": "hc-t1",
+                "actorName": "Teacher",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "broadcastNotices/hcb1__sa__DUE_CHANGED__4",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "type": "HOMEWORK_DUE_CHANGED",
+                "audienceKind": "SECTION",
+                "classId": "c5",
+                "sectionId": "sa",
+                "title": "Deadline changed: Mathematics",
+                "body": "Chapter 4 exercises (v2) · due 08/06/2099",
+                "refType": "HOMEWORK",
+                "refId": "hcb1__sa",
+                "revision": 4,
+                "createdBy": "hc-t1",
+                "createdAt": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-t1",
+          "label": "update instructions",
+          "ops": [
+            {
+              "op": "update",
+              "path": "homework/hcb1__sa",
+              "data": {
+                "description": "Do questions 1 to 12",
+                "attachments": [],
+                "revision": 5,
+                "lastEvent": "EDITED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "hc-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "homeworkHistory/hcb1__sa__5",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "homeworkId": "hcb1__sa",
+                "classId": "c5",
+                "sectionId": "sa",
+                "revision": 5,
+                "event": "EDITED",
+                "toStatus": "PUBLISHED",
+                "actorId": "hc-t1",
+                "actorName": "Teacher",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-t1",
+          "label": "closed",
+          "ops": [
+            {
+              "op": "update",
+              "path": "homework/hcb1__sa",
+              "data": {
+                "status": "CLOSED",
+                "revision": 6,
+                "lastEvent": "CLOSED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "hc-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "homeworkHistory/hcb1__sa__6",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "homeworkId": "hcb1__sa",
+                "classId": "c5",
+                "sectionId": "sa",
+                "revision": 6,
+                "event": "CLOSED",
+                "toStatus": "CLOSED",
+                "actorId": "hc-t1",
+                "actorName": "Teacher",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-t1",
+          "label": "archived",
+          "ops": [
+            {
+              "op": "update",
+              "path": "homework/hcb1__sa",
+              "data": {
+                "status": "ARCHIVED",
+                "revision": 7,
+                "lastEvent": "ARCHIVED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "hc-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "homeworkHistory/hcb1__sa__7",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "homeworkId": "hcb1__sa",
+                "classId": "c5",
+                "sectionId": "sa",
+                "revision": 7,
+                "event": "ARCHIVED",
+                "toStatus": "ARCHIVED",
+                "actorId": "hc-t1",
+                "actorName": "Teacher",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "submission lifecycle",
+      "batches": [
+        {
+          "as": "hc-t1",
+          "label": "create draft",
+          "ops": [
+            {
+              "op": "set",
+              "path": "homework/hcb2__sa",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "batchId": "hcb2",
+                "classId": "c5",
+                "sectionId": "sa",
+                "classLabel": "Class 5 – A",
+                "subjectId": "math",
+                "subjectName": "Mathematics",
+                "teacherStaffId": "st1",
+                "teacherName": "Teacher",
+                "assignedDateKey": "2026-08-01",
+                "maxMarks": 10,
+                "title": "Chapter 4 exercises",
+                "description": "Do questions 1 to 10",
+                "dueDateKey": "2099-06-01",
+                "dueTimeMin": null,
+                "dueAt": {
+                  "$time": "2099-06-01T17:00:00.000Z"
+                },
+                "attachments": [],
+                "requiresSubmission": true,
+                "allowFiles": true,
+                "allowLate": false,
+                "allowResubmission": true,
+                "status": "DRAFT",
+                "revision": 1,
+                "lastEvent": "CREATED",
+                "publishedBy": null,
+                "publishedAt": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "hc-t1",
+                "updatedBy": "hc-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "homeworkHistory/hcb2__sa__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "homeworkId": "hcb2__sa",
+                "classId": "c5",
+                "sectionId": "sa",
+                "revision": 1,
+                "event": "CREATED",
+                "toStatus": "DRAFT",
+                "actorId": "hc-t1",
+                "actorName": "Teacher",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-t1",
+          "label": "publish",
+          "ops": [
+            {
+              "op": "update",
+              "path": "homework/hcb2__sa",
+              "data": {
+                "status": "PUBLISHED",
+                "revision": 2,
+                "lastEvent": "PUBLISHED",
+                "publishedBy": "hc-t1",
+                "publishedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "hc-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "homeworkHistory/hcb2__sa__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "homeworkId": "hcb2__sa",
+                "classId": "c5",
+                "sectionId": "sa",
+                "revision": 2,
+                "event": "PUBLISHED",
+                "toStatus": "PUBLISHED",
+                "actorId": "hc-t1",
+                "actorName": "Teacher",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "broadcastNotices/hcb2__sa__PUBLISHED__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "type": "HOMEWORK_PUBLISHED",
+                "audienceKind": "SECTION",
+                "classId": "c5",
+                "sectionId": "sa",
+                "title": "New homework: Mathematics",
+                "body": "Chapter 4 exercises · due 01/06/2099",
+                "refType": "HOMEWORK",
+                "refId": "hcb2__sa",
+                "revision": 2,
+                "createdBy": "hc-t1",
+                "createdAt": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-p1",
+          "label": "family hands in",
+          "ops": [
+            {
+              "op": "set",
+              "path": "homeworkSubmissions/hcb2__sa__hc-stu1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "homeworkId": "hcb2__sa",
+                "studentId": "hc-stu1",
+                "studentName": "Student One",
+                "classId": "c5",
+                "sectionId": "sa",
+                "status": "SUBMITTED",
+                "late": false,
+                "textAnswer": "My first answer",
+                "attachments": [],
+                "revision": 1,
+                "lastEvent": "SUBMIT",
+                "submittedBy": "hc-p1",
+                "submittedAt": {
+                  "$serverTimestamp": true
+                },
+                "feedback": null,
+                "marks": null,
+                "gradedBy": null,
+                "gradedByName": null,
+                "gradedAt": null,
+                "reviewedBy": null,
+                "reviewedAt": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "hc-p1",
+                "updatedBy": "hc-p1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "homeworkRevisions/hcb2__sa__hc-stu1__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "submissionId": "hcb2__sa__hc-stu1",
+                "homeworkId": "hcb2__sa",
+                "studentId": "hc-stu1",
+                "revision": 1,
+                "event": "SUBMIT",
+                "status": "SUBMITTED",
+                "textAnswer": "My first answer",
+                "attachments": [],
+                "feedback": null,
+                "marks": null,
+                "actorId": "hc-p1",
+                "actorName": "Parent",
+                "actorRole": "PARENT",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-p1",
+          "label": "family changes the answer",
+          "ops": [
+            {
+              "op": "set",
+              "path": "homeworkRevisions/hcb2__sa__hc-stu1__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "submissionId": "hcb2__sa__hc-stu1",
+                "homeworkId": "hcb2__sa",
+                "studentId": "hc-stu1",
+                "revision": 2,
+                "event": "RESUBMIT",
+                "status": "RESUBMITTED",
+                "textAnswer": "A better answer",
+                "attachments": [],
+                "feedback": null,
+                "marks": null,
+                "actorId": "hc-p1",
+                "actorName": "Parent",
+                "actorRole": "PARENT",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "update",
+              "path": "homeworkSubmissions/hcb2__sa__hc-stu1",
+              "data": {
+                "status": "RESUBMITTED",
+                "late": false,
+                "textAnswer": "A better answer",
+                "attachments": [],
+                "revision": 2,
+                "lastEvent": "RESUBMIT",
+                "submittedBy": "hc-p1",
+                "submittedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "hc-p1"
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-t1",
+          "label": "teacher grades",
+          "ops": [
+            {
+              "op": "set",
+              "path": "homeworkRevisions/hcb2__sa__hc-stu1__3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "submissionId": "hcb2__sa__hc-stu1",
+                "homeworkId": "hcb2__sa",
+                "studentId": "hc-stu1",
+                "revision": 3,
+                "event": "GRADE",
+                "status": "GRADED",
+                "textAnswer": "A better answer",
+                "attachments": [],
+                "feedback": "Well done",
+                "marks": 8,
+                "actorId": "hc-t1",
+                "actorName": "Teacher",
+                "actorRole": "TEACHER",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "update",
+              "path": "homeworkSubmissions/hcb2__sa__hc-stu1",
+              "data": {
+                "status": "GRADED",
+                "marks": 8,
+                "feedback": "Well done",
+                "gradedBy": "hc-t1",
+                "gradedByName": "Teacher",
+                "gradedAt": {
+                  "$serverTimestamp": true
+                },
+                "revision": 3,
+                "lastEvent": "GRADE",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "hc-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/hcb2__sa__hc-stu1__GRADE__3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "hc-p1",
+                "type": "HOMEWORK_GRADED",
+                "applicationId": null,
+                "submissionId": "hcb2__sa__hc-stu1",
+                "homeworkId": "hcb2__sa",
+                "revision": 3,
+                "title": "Homework graded",
+                "body": "Mathematics · Chapter 4 exercises",
+                "createdBy": "hc-t1",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-admin",
+          "label": "admin regrades",
+          "ops": [
+            {
+              "op": "set",
+              "path": "homeworkRevisions/hcb2__sa__hc-stu1__4",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "submissionId": "hcb2__sa__hc-stu1",
+                "homeworkId": "hcb2__sa",
+                "studentId": "hc-stu1",
+                "revision": 4,
+                "event": "GRADE",
+                "status": "GRADED",
+                "textAnswer": "A better answer",
+                "attachments": [],
+                "feedback": "Regraded",
+                "marks": 7,
+                "actorId": "hc-admin",
+                "actorName": "Admin",
+                "actorRole": "SCHOOL_ADMIN",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "update",
+              "path": "homeworkSubmissions/hcb2__sa__hc-stu1",
+              "data": {
+                "status": "GRADED",
+                "marks": 7,
+                "feedback": "Regraded",
+                "gradedBy": "hc-admin",
+                "gradedByName": "Admin",
+                "gradedAt": {
+                  "$serverTimestamp": true
+                },
+                "revision": 4,
+                "lastEvent": "GRADE",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "hc-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/hcb2__sa__hc-stu1__GRADE__4",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "hc-p1",
+                "type": "HOMEWORK_GRADED",
+                "applicationId": null,
+                "submissionId": "hcb2__sa__hc-stu1",
+                "homeworkId": "hcb2__sa",
+                "revision": 4,
+                "title": "Homework graded",
+                "body": "Mathematics · Chapter 4 exercises",
+                "createdBy": "hc-admin",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-t1",
+          "label": "teacher returns for revision",
+          "ops": [
+            {
+              "op": "set",
+              "path": "homeworkRevisions/hcb2__sa__hc-stu1__5",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "submissionId": "hcb2__sa__hc-stu1",
+                "homeworkId": "hcb2__sa",
+                "studentId": "hc-stu1",
+                "revision": 5,
+                "event": "RETURN",
+                "status": "RETURNED_FOR_REVISION",
+                "textAnswer": "A better answer",
+                "attachments": [],
+                "feedback": "Show your working",
+                "marks": null,
+                "actorId": "hc-t1",
+                "actorName": "Teacher",
+                "actorRole": "TEACHER",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "update",
+              "path": "homeworkSubmissions/hcb2__sa__hc-stu1",
+              "data": {
+                "status": "RETURNED_FOR_REVISION",
+                "marks": null,
+                "feedback": "Show your working",
+                "gradedBy": null,
+                "gradedByName": null,
+                "gradedAt": null,
+                "reviewedBy": "hc-t1",
+                "reviewedAt": {
+                  "$serverTimestamp": true
+                },
+                "revision": 5,
+                "lastEvent": "RETURN",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "hc-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/hcb2__sa__hc-stu1__RETURN__5",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "hc-p1",
+                "type": "HOMEWORK_RETURNED",
+                "applicationId": null,
+                "submissionId": "hcb2__sa__hc-stu1",
+                "homeworkId": "hcb2__sa",
+                "revision": 5,
+                "title": "Homework returned for revision",
+                "body": "Mathematics · Chapter 4 exercises",
+                "createdBy": "hc-t1",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-p1",
+          "label": "family revises and resubmits",
+          "ops": [
+            {
+              "op": "set",
+              "path": "homeworkRevisions/hcb2__sa__hc-stu1__6",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "submissionId": "hcb2__sa__hc-stu1",
+                "homeworkId": "hcb2__sa",
+                "studentId": "hc-stu1",
+                "revision": 6,
+                "event": "RESUBMIT",
+                "status": "RESUBMITTED",
+                "textAnswer": "With working",
+                "attachments": [],
+                "feedback": null,
+                "marks": null,
+                "actorId": "hc-p1",
+                "actorName": "Parent",
+                "actorRole": "PARENT",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "update",
+              "path": "homeworkSubmissions/hcb2__sa__hc-stu1",
+              "data": {
+                "status": "RESUBMITTED",
+                "late": false,
+                "textAnswer": "With working",
+                "attachments": [],
+                "revision": 6,
+                "lastEvent": "RESUBMIT",
+                "submittedBy": "hc-p1",
+                "submittedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "hc-p1"
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-t1",
+          "label": "teacher marks reviewed",
+          "ops": [
+            {
+              "op": "set",
+              "path": "homeworkRevisions/hcb2__sa__hc-stu1__7",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "submissionId": "hcb2__sa__hc-stu1",
+                "homeworkId": "hcb2__sa",
+                "studentId": "hc-stu1",
+                "revision": 7,
+                "event": "REVIEW",
+                "status": "RESUBMITTED",
+                "textAnswer": "With working",
+                "attachments": [],
+                "feedback": null,
+                "marks": null,
+                "actorId": "hc-t1",
+                "actorName": "Teacher",
+                "actorRole": "TEACHER",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "update",
+              "path": "homeworkSubmissions/hcb2__sa__hc-stu1",
+              "data": {
+                "reviewedBy": "hc-t1",
+                "reviewedAt": {
+                  "$serverTimestamp": true
+                },
+                "revision": 7,
+                "lastEvent": "REVIEW",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "hc-t1"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "announcement lifecycle",
+      "batches": [
+        {
+          "as": "hc-admin",
+          "label": "create draft",
+          "ops": [
+            {
+              "op": "set",
+              "path": "announcements/an_hc1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": null,
+                "audienceKind": "PARENTS",
+                "classId": null,
+                "sectionId": null,
+                "audienceLabel": null,
+                "title": "Sports day",
+                "body": "On Friday at 9am",
+                "attachments": [],
+                "publishAt": null,
+                "expiresAt": null,
+                "status": "DRAFT",
+                "revision": 1,
+                "lastEvent": "CREATED",
+                "authorId": "hc-admin",
+                "authorName": "Author",
+                "authorRole": "SCHOOL_ADMIN",
+                "publishedBy": null,
+                "publishedAt": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "hc-admin",
+                "updatedBy": "hc-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "announcementHistory/an_hc1__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "announcementId": "an_hc1",
+                "revision": 1,
+                "event": "CREATED",
+                "toStatus": "DRAFT",
+                "actorId": "hc-admin",
+                "actorName": "Admin",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-admin",
+          "label": "edit draft",
+          "ops": [
+            {
+              "op": "update",
+              "path": "announcements/an_hc1",
+              "data": {
+                "title": "Sports day (moved)",
+                "body": "On Friday at 9am",
+                "attachments": [],
+                "publishAt": null,
+                "expiresAt": null,
+                "revision": 2,
+                "lastEvent": "EDITED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "hc-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "announcementHistory/an_hc1__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "announcementId": "an_hc1",
+                "revision": 2,
+                "event": "EDITED",
+                "toStatus": "DRAFT",
+                "actorId": "hc-admin",
+                "actorName": "Admin",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-admin",
+          "label": "publish",
+          "ops": [
+            {
+              "op": "update",
+              "path": "announcements/an_hc1",
+              "data": {
+                "status": "PUBLISHED",
+                "publishAt": {
+                  "$time": "2026-08-01T00:00:00.000Z"
+                },
+                "expiresAt": {
+                  "$time": "2099-01-01T00:00:00.000Z"
+                },
+                "publishedBy": "hc-admin",
+                "publishedAt": {
+                  "$serverTimestamp": true
+                },
+                "revision": 3,
+                "lastEvent": "PUBLISHED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "hc-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "announcementHistory/an_hc1__3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "announcementId": "an_hc1",
+                "revision": 3,
+                "event": "PUBLISHED",
+                "toStatus": "PUBLISHED",
+                "actorId": "hc-admin",
+                "actorName": "Admin",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "broadcastNotices/an_hc1__PUBLISHED__3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "type": "ANNOUNCEMENT_PUBLISHED",
+                "audienceKind": "PARENTS",
+                "classId": null,
+                "sectionId": null,
+                "title": "New announcement",
+                "body": "Sports day",
+                "refType": "ANNOUNCEMENT",
+                "refId": "an_hc1",
+                "revision": 3,
+                "createdBy": "hc-admin",
+                "createdAt": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-admin",
+          "label": "update published text",
+          "ops": [
+            {
+              "op": "update",
+              "path": "announcements/an_hc1",
+              "data": {
+                "title": "Sports day (moved)",
+                "body": "On Friday at 9am",
+                "attachments": [],
+                "expiresAt": null,
+                "revision": 4,
+                "lastEvent": "UPDATED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "hc-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "announcementHistory/an_hc1__4",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "announcementId": "an_hc1",
+                "revision": 4,
+                "event": "UPDATED",
+                "toStatus": "PUBLISHED",
+                "actorId": "hc-admin",
+                "actorName": "Admin",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "broadcastNotices/an_hc1__UPDATED__4",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "type": "ANNOUNCEMENT_UPDATED",
+                "audienceKind": "PARENTS",
+                "classId": null,
+                "sectionId": null,
+                "title": "Announcement updated",
+                "body": "Sports day (moved)",
+                "refType": "ANNOUNCEMENT",
+                "refId": "an_hc1",
+                "revision": 4,
+                "createdBy": "hc-admin",
+                "createdAt": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-admin",
+          "label": "archive",
+          "ops": [
+            {
+              "op": "update",
+              "path": "announcements/an_hc1",
+              "data": {
+                "status": "ARCHIVED",
+                "revision": 5,
+                "lastEvent": "ARCHIVED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "hc-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "announcementHistory/an_hc1__5",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "announcementId": "an_hc1",
+                "revision": 5,
+                "event": "ARCHIVED",
+                "toStatus": "ARCHIVED",
+                "actorId": "hc-admin",
+                "actorName": "Admin",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-t2",
+          "label": "class teacher drafts a section notice",
+          "ops": [
+            {
+              "op": "set",
+              "path": "announcements/an_hc2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "audienceKind": "SECTION",
+                "classId": "c5",
+                "sectionId": "sa",
+                "audienceLabel": null,
+                "title": "Bring a sweater",
+                "body": "On Friday at 9am",
+                "attachments": [],
+                "publishAt": null,
+                "expiresAt": null,
+                "status": "DRAFT",
+                "revision": 1,
+                "lastEvent": "CREATED",
+                "authorId": "hc-t2",
+                "authorName": "Author",
+                "authorRole": "TEACHER",
+                "publishedBy": null,
+                "publishedAt": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "hc-t2",
+                "updatedBy": "hc-t2"
+              }
+            },
+            {
+              "op": "set",
+              "path": "announcementHistory/an_hc2__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "announcementId": "an_hc2",
+                "revision": 1,
+                "event": "CREATED",
+                "toStatus": "DRAFT",
+                "actorId": "hc-t2",
+                "actorName": "Class teacher",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "hc-t2",
+          "label": "class teacher publishes it",
+          "ops": [
+            {
+              "op": "update",
+              "path": "announcements/an_hc2",
+              "data": {
+                "status": "PUBLISHED",
+                "publishAt": {
+                  "$time": "2026-08-01T00:00:00.000Z"
+                },
+                "expiresAt": null,
+                "publishedBy": "hc-t2",
+                "publishedAt": {
+                  "$serverTimestamp": true
+                },
+                "revision": 2,
+                "lastEvent": "PUBLISHED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "hc-t2"
+              }
+            },
+            {
+              "op": "set",
+              "path": "announcementHistory/an_hc2__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "announcementId": "an_hc2",
+                "revision": 2,
+                "event": "PUBLISHED",
+                "toStatus": "PUBLISHED",
+                "actorId": "hc-t2",
+                "actorName": "Class teacher",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "broadcastNotices/an_hc2__PUBLISHED__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "type": "ANNOUNCEMENT_PUBLISHED",
+                "audienceKind": "SECTION",
+                "classId": "c5",
+                "sectionId": "sa",
+                "title": "New announcement",
+                "body": "Bring a sweater",
+                "refType": "ANNOUNCEMENT",
+                "refId": "an_hc2",
+                "revision": 2,
+                "createdBy": "hc-t2",
+                "createdAt": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

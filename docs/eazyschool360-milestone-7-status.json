@@ -1,0 +1,254 @@
+{
+  "milestone": 7,
+  "name": "Student & Staff Leave Management",
+  "date": "2026-10-10",
+  "status": "implemented-with-documented-gaps",
+  "overall": "partially complete only in the sense of the listed gaps; every required screen, rule, test and report exists and passes",
+  "features": [
+    {
+      "name": "Leave types & policy (create/edit/deactivate; pay, documents, half days, max days, roles, employment types, entitlement, accrual, carry-forward, over-balance policy)",
+      "status": "complete",
+      "evidence": "leave_type.dart, leave_types_page.dart; unit + widget + rules tests"
+    },
+    {
+      "name": "Student leave by linked parent (portal), counted days shown before submit",
+      "status": "complete",
+      "evidence": "leave_apply_form.dart, my_leave_page.dart; widget + rules tests"
+    },
+    {
+      "name": "Student leave on behalf by admin when branch policy allows",
+      "status": "complete",
+      "evidence": "AdminApplyPage + leaveSettings rule; rules test"
+    },
+    {
+      "name": "Staff leave self-service (own record only)",
+      "status": "complete",
+      "evidence": "leave_apply_pages.dart; widget + rules tests"
+    },
+    {
+      "name": "Staff leave on behalf by admin",
+      "status": "partial",
+      "evidence": "Allowed by rules with the setting; no screen"
+    },
+    {
+      "name": "Approval workflow: approve / reject / return / withdraw / resubmit / cancel approved",
+      "status": "complete",
+      "evidence": "firebase_leave_application_repository.dart; rules tests incl. concurrency"
+    },
+    {
+      "name": "Self-approval prevented",
+      "status": "complete",
+      "evidence": "rules + LeaveWorkflow.checkDecision; tested both"
+    },
+    {
+      "name": "Append-only decision history",
+      "status": "complete",
+      "evidence": "leaveHistory rules (update/delete refused); tested"
+    },
+    {
+      "name": "Overlap prevention incl. concurrent submissions and half-day sessions",
+      "status": "complete",
+      "evidence": "leaveDayLocks; rules tests"
+    },
+    {
+      "name": "Staff balances, ledger, adjustments, carry-forward, restore on cancel",
+      "status": "complete",
+      "evidence": "leave_balance.dart + rules; no duplicate deduction tested"
+    },
+    {
+      "name": "Pending-day reservation policy",
+      "status": "not implemented",
+      "evidence": "Pending is informational; documented"
+    },
+    {
+      "name": "Attendance integration (annotation; no attendance writes)",
+      "status": "complete",
+      "evidence": "attendance_sheet_rows.dart; 5 widget tests"
+    },
+    {
+      "name": "Leave calendar with filters",
+      "status": "complete",
+      "evidence": "leave_calendar_page.dart; widget + rules tests"
+    },
+    {
+      "name": "Reports via aggregate queries (status counts, usage by type, by section, staff balances)",
+      "status": "complete",
+      "evidence": "firebase_leave_support_repositories.dart; widget test"
+    },
+    {
+      "name": "In-app notifications, written with their event; no external channel",
+      "status": "complete",
+      "evidence": "notifications rules + page; tested"
+    },
+    {
+      "name": "Supporting documents (Storage rules, create-only, owner + reviewers)",
+      "status": "complete",
+      "evidence": "storage.rules; 3 Storage rules tests"
+    },
+    {
+      "name": "Designated approver / multi-level approval",
+      "status": "not implemented",
+      "evidence": "No such role exists; reviewers are admins"
+    },
+    {
+      "name": "Counted dates verified against the calendar by rules",
+      "status": "not possible in rules",
+      "evidence": "Needs trusted backend; documented"
+    }
+  ],
+  "commands": [
+    {
+      "command": "dart format (leave + modified test files)",
+      "result": "Formatted 36 files (0 changed)",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter analyze",
+      "result": "No issues found!",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter test",
+      "result": "00:34 +575: All tests passed! (465 before M7; +110)",
+      "outcome": "pass"
+    },
+    {
+      "command": "firebase emulators:exec --only firestore,storage --project demo-eazy-school-360 \"cd firestore-tests && npm test\"",
+      "result": "tests 171, pass 171, fail 0 (serial)",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter build web",
+      "result": "✓ Built build/web",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter build apk --debug",
+      "result": "✓ Built build/app/outputs/flutter-apk/app-debug.apk",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter build ios --no-codesign",
+      "result": "iOS 26.5 is not installed (Xcode > Settings > Components) — environment, not code",
+      "outcome": "blocked"
+    }
+  ],
+  "tests": {
+    "flutter_total": 575,
+    "flutter_before_m7": 465,
+    "flutter_added": 110,
+    "unit": 56,
+    "widget_leave": 48,
+    "attendance_integration_added": 5,
+    "rules_total": 171,
+    "rules_leave": 33,
+    "rules_leave_storage": 3,
+    "rules_contract": 1,
+    "rules_mutants_killed": "10/10"
+  },
+  "schema": {
+    "collections_added": [
+      "leaveTypes",
+      "leaveApplications",
+      "leaveHistory",
+      "leaveCalendar",
+      "leaveDayLocks",
+      "leaveBalances",
+      "leaveLedger",
+      "leaveSettings",
+      "notifications"
+    ],
+    "indexes_added": 26,
+    "indexes_total": 56,
+    "storage_path": "schools/{s}/branches/{b}/leaveDocs/{applicantUid}/{applicationId}/{file}"
+  },
+  "security_verification": [
+    "Tenant and branch isolation tested with direct reads and writes (School B, South branch).",
+    "Parent ↔ child enforced on read and create; unlinked/portal-off links refused.",
+    "Applications private: teachers, finance and other parents denied; calendar entries carry no reason/type/document.",
+    "Reviewer-only decisions; applicant and staff subject cannot decide their own; concurrent decisions: exactly one wins.",
+    "Balance moves only with its ledger entry; consume/restore ids derive from the application (no double deduction/restore).",
+    "Documents: only the applicant creates, only applicant + reviewing admins read; no overwrite/delete.",
+    "Rules mutation check: 10 mutants, all killed.",
+    "Dart↔rules contract test replays the documents the Dart code writes through the real rules."
+  ],
+  "bugs_found_and_fixed": [
+    "Approval could skip the balance move (rule tightened; mutation-checked).",
+    "Any signed-in school member could plant a notification (creator and event type now tied).",
+    "Storage allowed overwriting a leave document (create-only now).",
+    "Dart did not write decidedBy on create, so every submission would have been refused by the rules (found by the contract test).",
+    "History query could not be proven readable for applicants (subject now pinned in the query; found by the query-shape test).",
+    "Reports and leave-type dropdowns overflowed on narrow widths; apply-form document row overflowed on phones."
+  ],
+  "unresolved_issues": [
+    "Rules cannot verify countedDateKeys against the holiday calendar or monthly accrual-to-date; trusted backend needed if that matters.",
+    "No end-to-end run against a real Firebase project; the 26 new indexes are unexercised.",
+    "No pending-leave reservation; no designated approver role; staff on-behalf has no screen.",
+    "iOS build blocked by the environment.",
+    "Combined rules suite must run serially (shared emulator); package.json now does.",
+    "M4 dart format churn on pre-existing files (disclosed earlier)."
+  ],
+  "files_created": [
+    "lib/features/leave/data/firebase_leave_application_repository.dart",
+    "lib/features/leave/data/firebase_leave_attachment_store.dart",
+    "lib/features/leave/data/firebase_leave_balance_repository.dart",
+    "lib/features/leave/data/firebase_leave_support_repositories.dart",
+    "lib/features/leave/data/leave_firestore.dart",
+    "lib/features/leave/data/leave_writes.dart",
+    "lib/features/leave/domain/leave_application.dart",
+    "lib/features/leave/domain/leave_balance.dart",
+    "lib/features/leave/domain/leave_days.dart",
+    "lib/features/leave/domain/leave_enums.dart",
+    "lib/features/leave/domain/leave_repositories.dart",
+    "lib/features/leave/domain/leave_submission.dart",
+    "lib/features/leave/domain/leave_type.dart",
+    "lib/features/leave/domain/leave_units.dart",
+    "lib/features/leave/domain/leave_workflow.dart",
+    "lib/features/leave/presentation/leave_routes.dart",
+    "lib/features/leave/presentation/pages/leave_applications_page.dart",
+    "lib/features/leave/presentation/pages/leave_apply_pages.dart",
+    "lib/features/leave/presentation/pages/leave_balances_page.dart",
+    "lib/features/leave/presentation/pages/leave_calendar_page.dart",
+    "lib/features/leave/presentation/pages/leave_detail_pages.dart",
+    "lib/features/leave/presentation/pages/leave_hub_page.dart",
+    "lib/features/leave/presentation/pages/leave_notifications_page.dart",
+    "lib/features/leave/presentation/pages/leave_reports_page.dart",
+    "lib/features/leave/presentation/pages/leave_types_page.dart",
+    "lib/features/leave/presentation/pages/my_leave_page.dart",
+    "lib/features/leave/presentation/providers/leave_providers.dart",
+    "lib/features/leave/presentation/widgets/leave_apply_form.dart",
+    "lib/features/leave/presentation/widgets/leave_detail_body.dart",
+    "lib/features/leave/presentation/widgets/leave_scope.dart",
+    "lib/features/leave/presentation/widgets/leave_widgets.dart",
+    "test/leave/leave_domain_test.dart",
+    "test/leave/leave_submission_test.dart",
+    "test/leave/leave_write_contract_test.dart",
+    "docs/milestone-7-leave-management.md",
+    "firestore-tests/fixtures/leave-write-plans.json",
+    "firestore-tests/leave-contract.test.mjs",
+    "firestore-tests/leave-rules.test.mjs",
+    "firestore-tests/leave-storage-rules.test.mjs",
+    "test/support/leave_fakes.dart",
+    "test/widget/leave_ui_test.dart"
+  ],
+  "files_modified": [
+    "firestore.rules (Leave section: helpers + 9 collections)",
+    "storage.rules (leaveDocs path)",
+    "firestore.indexes.json (+26 indexes, 56 total)",
+    "firestore-tests/package.json (serial test run)",
+    "lib/core/constants/firestore_fields.dart (collection names)",
+    "lib/core/permissions/permission.dart (+7 leave permissions)",
+    "lib/core/permissions/role_permissions.dart (leave grants)",
+    "lib/core/routing/app_routes.dart (leave + my-leave routes and permissions)",
+    "lib/core/routing/app_router.dart (two shell branches)",
+    "lib/core/routing/app_shell.dart (Leave / My Leave destinations)",
+    "lib/features/attendance/presentation/widgets/attendance_sheet_rows.dart (display-only leave chip)",
+    "lib/features/attendance/presentation/widgets/register_editor.dart (leaveLabels pass-through)",
+    "lib/features/attendance/presentation/pages/student_attendance_page.dart (leave overlay)",
+    "lib/features/attendance/presentation/pages/staff_attendance_page.dart (leave overlay)",
+    "test/widget/attendance_ui_test.dart (harness override + 5 integration tests)",
+    "test/core/role_permissions_test.dart (parent set + leave matrix)",
+    "README.md, PROJECT_ARCHITECTURE.md, FIRESTORE_ARCHITECTURE.md, SECURITY_ARCHITECTURE.md, DEVELOPMENT_GUIDE.md"
+  ],
+  "next_milestone_started": false
+}

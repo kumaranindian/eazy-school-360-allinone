@@ -1,0 +1,25 @@
+{
+  "milestone": 6,
+  "name": "Fees Management, Invoices, Payments & Receipts",
+  "status": "implemented-with-documented-gaps",
+  "date": "2026-10-09",
+  "commands": {
+    "flutter analyze": "No issues found",
+    "flutter test": "465 passed, 0 failed",
+    "rules (emulator, project demo-eazy-school-360, npm test)": "134 passed, 0 failed (36 fees)",
+    "flutter build web": "success",
+    "flutter build apk --debug": "success",
+    "flutter build ios --no-codesign": "BLOCKED: iOS 26.5 platform not installed in Xcode"
+  },
+  "tests": {"dart_fees_unit": 94, "widget_fees": 61, "rules_fees": 36, "flutter_total": 465, "rules_total": 134},
+  "known_gaps": [
+    "No end-to-end run against real Firebase",
+    "Dart repositories not tested against the emulator",
+    "Rules cannot verify invoice line sums; needs trusted backend if required",
+    "Indexes not exercised by the emulator",
+    "iOS build blocked by environment",
+    "Single-invoice payments only; no draft invoices; fixed payment methods",
+    "Earlier M4 dart format touched pre-existing files"
+  ],
+  "next_milestone_started": false
+}

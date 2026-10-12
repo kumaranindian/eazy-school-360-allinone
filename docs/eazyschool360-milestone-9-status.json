@@ -1,0 +1,256 @@
+{
+  "milestone": 9,
+  "name": "Homework, Assignments & Announcements",
+  "date": "2026-10-10",
+  "status": "implemented-with-documented-gaps",
+  "features": [
+    {
+      "name": "Homework: create per class-section × subject (idempotent batch id), draft, edit, preview, publish, extend deadline, close, archive; history",
+      "status": "complete",
+      "evidence": "homework.dart, firebase_homework_repository.dart, homework_form_page.dart, homework_detail_page.dart; rules + contract + widget tests"
+    },
+    {
+      "name": "Teacher authority from ACTIVE assignment slots (not a client claim); admins on behalf of the slot's teacher",
+      "status": "complete",
+      "evidence": "homework-rules.test.mjs (creation, multi-section, mutants)"
+    },
+    {
+      "name": "Published homework: instructions/files and deadline extension only; marks, policy, audience fixed",
+      "status": "complete",
+      "evidence": "rules tests + mutants; widget test (fixed fields)"
+    },
+    {
+      "name": "Submissions: one per child, submit/resubmit, late by server clock, append-only revisions",
+      "status": "complete",
+      "evidence": "firebase_submission_repository.dart; rules + contract + widget tests"
+    },
+    {
+      "name": "Grading: marks within max, return for revision, mark reviewed, re-grade with history, reviewer attribution",
+      "status": "complete",
+      "evidence": "rules tests, widget tests"
+    },
+    {
+      "name": "Review lists: status filters, pagination, not-submitted derived from roster page by page",
+      "status": "complete",
+      "evidence": "homework_review_page.dart; widget tests"
+    },
+    {
+      "name": "Family screens: list by state/subject, detail, submission form with confirmation, feedback and marks, history",
+      "status": "complete",
+      "evidence": "my_homework_page.dart, my_homework_detail_page.dart; widget tests"
+    },
+    {
+      "name": "Eligibility: linked ACTIVE portal link, child currently in that class+section and ACTIVE; moved/left child cannot change work",
+      "status": "complete",
+      "evidence": "rules tests + mutants"
+    },
+    {
+      "name": "Announcements: audiences, draft/preview/publish/schedule/expiry/update/archive, class-teacher-limited teacher posting",
+      "status": "complete",
+      "evidence": "announcement_*.dart; rules + contract + widget tests"
+    },
+    {
+      "name": "Announcement display only when current and addressed (published, started, not expired, audience by relationships)",
+      "status": "complete (client-side; see limits)",
+      "evidence": "AnnouncementVisibility unit + widget tests"
+    },
+    {
+      "name": "In-app notifications: broadcast notices + targeted returned/graded; idempotent; no marks/feedback text",
+      "status": "complete",
+      "evidence": "rules tests (forgery, event tie), contract test"
+    },
+    {
+      "name": "File uploads: type/size validated, create-only unique tenant+record paths, Storage rules enforce, no URL stored",
+      "status": "complete (no malware scanning)",
+      "evidence": "homework-storage-rules.test.mjs; FilePolicy unit tests"
+    },
+    {
+      "name": "Timetable integration: 'taught today' quick-pick from the published timetable; timetable not required",
+      "status": "complete",
+      "evidence": "homework_form_page.dart (_quickPick)"
+    },
+    {
+      "name": "Teacher dashboard: counts, upcoming deadlines, per-homework to-review",
+      "status": "partial",
+      "evidence": "no 'recently graded' or announcements strip"
+    },
+    {
+      "name": "Admin overview: counts by status; filter by class/section/teacher/status; per-homework completion",
+      "status": "partial",
+      "evidence": "no school-wide completion percentage report"
+    },
+    {
+      "name": "Bulk grading",
+      "status": "not implemented",
+      "evidence": "deliberately omitted; each grade is individually audited"
+    },
+    {
+      "name": "Student login",
+      "status": "not applicable",
+      "evidence": "project has no student role; parent portal serves linked children"
+    },
+    {
+      "name": "Parent read access limited to child's section in rules",
+      "status": "not possible in rules",
+      "evidence": "published content is school-wide readable by parents; app filters; submissions/feedback are link-protected"
+    },
+    {
+      "name": "Hide scheduled announcement before publishAt in rules",
+      "status": "not possible in rules",
+      "evidence": "client hides; documented"
+    },
+    {
+      "name": "Scheduled/automatic reminders, per-recipient fan-out, orphan cleanup, malware scanning",
+      "status": "not implemented",
+      "evidence": "needs trusted backend; documented"
+    }
+  ],
+  "commands": [
+    {
+      "command": "dart format (changed/new files only)",
+      "result": "46 files, 0 changed after final run",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter analyze",
+      "result": "No issues found!",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter test",
+      "result": "00:42 +734: All tests passed! (669 before M9; +65)",
+      "outcome": "pass"
+    },
+    {
+      "command": "firebase emulators:exec --only firestore,storage --project demo-eazy-school-360 \"cd firestore-tests && npm test\"",
+      "result": "tests 226, pass 226, fail 0 (serial)",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter build web",
+      "result": "✓ Built build/web",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter build apk --debug",
+      "result": "✓ Built build/app/outputs/flutter-apk/app-debug.apk",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter build ios --no-codesign",
+      "result": "BLOCKED: iOS 26.5 platform not installed in Xcode",
+      "outcome": "blocked"
+    }
+  ],
+  "tests": {
+    "flutter_total": 734,
+    "flutter_before_m9": 669,
+    "flutter_added": 65,
+    "unit": 23,
+    "contract_export": 1,
+    "widget_homework": 40,
+    "permission": 1,
+    "rules_total": 226,
+    "rules_before_m9": 193,
+    "rules_homework": 27,
+    "rules_storage": 5,
+    "rules_contract": 1,
+    "rules_mutants": {
+      "applied": 34,
+      "killed": 32,
+      "equivalent": 2
+    }
+  },
+  "schema": {
+    "collections_added": [
+      "homework",
+      "homeworkHistory",
+      "homeworkSubmissions",
+      "homeworkRevisions",
+      "announcements",
+      "announcementHistory",
+      "broadcastNotices",
+      "users/{uid}/noticeReads"
+    ],
+    "indexes_added": 14,
+    "indexes_total": 75,
+    "notification_types_added": [
+      "HOMEWORK_RETURNED",
+      "HOMEWORK_GRADED",
+      "(broadcast) HOMEWORK_PUBLISHED",
+      "(broadcast) HOMEWORK_DUE_CHANGED",
+      "(broadcast) ANNOUNCEMENT_PUBLISHED",
+      "(broadcast) ANNOUNCEMENT_UPDATED"
+    ],
+    "storage_paths_added": [
+      "homework/{id}/files/*",
+      "homework/{id}/submissions/{studentId}/*",
+      "announcements/{id}/files/*"
+    ]
+  },
+  "security_verification": [
+    "Tenant and branch isolation tested with direct reads/writes (School B admin, South branch admin/teacher).",
+    "Only the ACTIVE assignment-slot teacher (or an admin on their behalf) creates/edits/publishes; other subjects, sections and invented subjects refused.",
+    "Submission only by a linked, portal-enabled, ACTIVE parent link of a PARENT account, for a child currently placed in that class+section and ACTIVE; ended link, portal off, and non-parent accounts refused.",
+    "Late status decided by the server clock; family cannot write marks, feedback or grader fields; graded work locked; moved/left child cannot resubmit.",
+    "Grades bounded by maxMarks, only by the homework's teacher or an admin, each with an append-only revision.",
+    "Announcement audiences: teachers only to their class-teacher SECTION, branch admins never ALL, parents/finance cannot create; audience immutable; archive not delete.",
+    "Notices tied to the event, revision, recipient and writer; forged and mismatched ones refused; no marks/feedback in notices.",
+    "Storage: create-only, type/size enforced, per-student paths need an ACTIVE portal link, draft files author/admin only.",
+    "Mutation check: 34 mutants, 32 killed, 2 equivalent (redundant by construction). Dart-written documents replayed through the real rules for every workflow."
+  ],
+  "bugs_found_and_fixed": [
+    "Large update rules exceeded the 1000-expression budget (restructured with let-bound helpers and profile-based checks).",
+    "Teacher revision query had to pin the homework for the rules to prove access (query now pins it; tested both shapes).",
+    "File policy accepted exactly 10 MB while Storage requires < 10 MB (aligned).",
+    "A resubmission by a child who had moved sections would have been allowed (placement check added; mutation-checked).",
+    "A weak 'not their child' test ran after the document existed (reordered; mutant now killed).",
+    "Link-status, portal, role, author and revision-skip rules were initially untested (tests added; mutants killed).",
+    "Class-teacher announcement update exhausted the budget (restructured)."
+  ],
+  "unresolved_issues": [
+    "Parents are school-wide readers of PUBLISHED homework, announcements, notices and homework files; the app filters by child. Submissions/feedback are link-protected.",
+    "Scheduled announcements cannot be hidden before publishAt by rules; the app hides them.",
+    "Teacher file reads in Storage depend on createdBy; admin-created-on-behalf homework cannot be read by that teacher through Storage.",
+    "Submission uploads are not tied to deadline/enrolment in Storage (orphan objects possible); no cleanup, no malware scanning.",
+    "dueAt uses the publisher's local timezone; device clock skew near a deadline can show a submit that the server refuses.",
+    "No backend: no reminders, fan-out, scheduled publication or cleanup.",
+    "No end-to-end run against real Firebase; 14 new indexes unexercised; iOS build blocked by the environment.",
+    "The submission update rule uses ~70–85% of the evaluation budget; further conditions need offsetting.",
+    "Teacher dashboard and admin reporting are partial (see features); no bulk grading; no student login (project has none)."
+  ],
+  "files_created": [
+    "lib/features/homework/domain/{homework_enums,file_attachment,homework,homework_submission,homework_rules,homework_repositories}.dart",
+    "lib/features/homework/data/{homework_firestore,homework_writes,firebase_homework_repository,firebase_submission_repository,firebase_homework_file_store}.dart",
+    "lib/features/homework/presentation/homework_routes.dart",
+    "lib/features/homework/presentation/providers/{homework_providers,homework_options}.dart",
+    "lib/features/homework/presentation/widgets/{homework_widgets,family_scope}.dart",
+    "lib/features/homework/presentation/pages/{homework_list_page,homework_form_page,homework_detail_page,homework_review_page,submission_review_page,my_homework_page,my_homework_detail_page}.dart",
+    "lib/features/announcements/domain/announcement.dart",
+    "lib/features/announcements/data/{announcement_writes,firebase_announcement_repository}.dart",
+    "lib/features/announcements/presentation/announcement_routes.dart",
+    "lib/features/announcements/presentation/providers/announcement_providers.dart",
+    "lib/features/announcements/presentation/widgets/current_announcements_card.dart",
+    "lib/features/announcements/presentation/pages/{announcements_page,announcement_form_page,announcement_detail_page}.dart",
+    "test/homework/{homework_domain_test,homework_write_contract_test}.dart",
+    "test/support/homework_fakes.dart",
+    "test/widget/homework_ui_test.dart",
+    "firestore-tests/{homework-rules.test.mjs,homework-storage-rules.test.mjs,homework-contract.test.mjs}",
+    "firestore-tests/fixtures/homework-write-plans.json",
+    "docs/milestone-9-homework-assignments-announcements.md",
+    "docs/eazyschool360-milestone-9-report.html",
+    "docs/eazyschool360-milestone-9-status.json"
+  ],
+  "files_modified": [
+    "firestore.rules (homework/submission/announcement/notice helpers and 7 collections + noticeReads; separate notifications match for HOMEWORK_RETURNED/GRADED)",
+    "storage.rules (homework, submission and announcement file paths)",
+    "firestore.indexes.json (+14 indexes, 75 total)",
+    "lib/core/constants/firestore_fields.dart",
+    "lib/core/permissions/permission.dart (+6 permissions)",
+    "lib/core/permissions/role_permissions.dart",
+    "lib/core/routing/{app_routes,app_shell,app_router}.dart (3 new nav destinations/branches)",
+    "test/core/role_permissions_test.dart",
+    "README.md, PROJECT_ARCHITECTURE.md, FIRESTORE_ARCHITECTURE.md, SECURITY_ARCHITECTURE.md, DEVELOPMENT_GUIDE.md"
+  ],
+  "next": "Stopped. Milestone 10 has not been started; awaiting explicit approval."
+}

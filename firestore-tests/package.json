@@ -1,0 +1,13 @@
+{
+  "name": "eazy-school-360-firestore-tests",
+  "private": true,
+  "type": "module",
+  "description": "Firestore security-rules unit tests, run against the Firestore emulator. Not part of the Flutter app's dependency tree — see DEVELOPMENT_GUIDE.md for how to run these.",
+  "scripts": {
+    "test": "node --test --test-concurrency=1"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.0.0"
+  }
+}

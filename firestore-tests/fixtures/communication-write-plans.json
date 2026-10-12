@@ -1,0 +1,507 @@
+{
+  "scenarios": [
+    {
+      "name": "teacher opt-in",
+      "batches": [
+        {
+          "as": "cc-t1",
+          "label": "teacher opts in to parent messages",
+          "ops": [
+            {
+              "op": "set",
+              "path": "messageContacts/st1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "staffId": "st1",
+                "userId": "cc-t1",
+                "name": "Teacher",
+                "enabled": true,
+                "sectionKeys": [
+                  "y1__c5__sa"
+                ],
+                "scopes": [
+                  "y1__c5__sa__math"
+                ],
+                "subjectNames": {
+                  "y1__c5__sa__math": "Maths"
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "conversation lifecycle",
+      "batches": [
+        {
+          "as": "cc-p1",
+          "label": "parent starts a conversation",
+          "ops": [
+            {
+              "op": "set",
+              "path": "conversations/cv_1/messages/m_1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "conversationId": "cv_1",
+                "senderUserId": "cc-p1",
+                "senderName": "Parent",
+                "senderRole": "PARENT",
+                "body": "Could you explain question 4?",
+                "attachments": [],
+                "createdAt": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "conversations/cv_1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "academicYearId": "y1",
+                "classId": "c5",
+                "sectionId": "sa",
+                "studentId": "cc-s1",
+                "studentName": "Anil",
+                "parentUserId": "cc-p1",
+                "parentName": "Parent",
+                "teacherUserId": "cc-t1",
+                "teacherStaffId": "st1",
+                "teacherName": "Teacher",
+                "subjectId": "math",
+                "subjectName": "Maths",
+                "title": "Homework help",
+                "participants": [
+                  "cc-p1",
+                  "cc-t1"
+                ],
+                "status": "OPEN",
+                "revision": 1,
+                "lastEvent": "OPENED",
+                "messageCount": 1,
+                "lastMessageId": "m_1",
+                "lastMessageAt": {
+                  "$serverTimestamp": true
+                },
+                "unreadForParent": 0,
+                "unreadForTeacher": 1,
+                "lastReadParentAt": {
+                  "$serverTimestamp": true
+                },
+                "lastReadTeacherAt": null,
+                "flagged": false,
+                "flagReason": null,
+                "flaggedBy": null,
+                "flaggedAt": null,
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "cc-p1",
+                "updatedBy": "cc-p1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "conversationEvents/cv_1__1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "conversationId": "cv_1",
+                "revision": 1,
+                "event": "OPENED",
+                "toStatus": "OPEN",
+                "actorId": "cc-p1",
+                "actorName": "Parent",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/msg__m_1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "cc-t1",
+                "type": "MESSAGE_RECEIVED",
+                "applicationId": null,
+                "conversationId": "cv_1",
+                "messageId": "m_1",
+                "title": "New message",
+                "body": "New message from Parent",
+                "createdBy": "cc-p1",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "cc-t1",
+          "label": "teacher reads (clears own counter)",
+          "ops": [
+            {
+              "op": "update",
+              "path": "conversations/cv_1",
+              "data": {
+                "unreadForTeacher": 0,
+                "lastReadTeacherAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "cc-t1"
+              }
+            }
+          ]
+        },
+        {
+          "as": "cc-t1",
+          "label": "teacher replies",
+          "ops": [
+            {
+              "op": "set",
+              "path": "conversations/cv_1/messages/m_2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "conversationId": "cv_1",
+                "senderUserId": "cc-t1",
+                "senderName": "Teacher",
+                "senderRole": "TEACHER",
+                "body": "Of course — see page 12.",
+                "attachments": [],
+                "createdAt": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "update",
+              "path": "conversations/cv_1",
+              "data": {
+                "messageCount": 2,
+                "lastMessageId": "m_2",
+                "lastMessageAt": {
+                  "$serverTimestamp": true
+                },
+                "unreadForParent": 1,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "cc-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/msg__m_2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "cc-p1",
+                "type": "MESSAGE_RECEIVED",
+                "applicationId": null,
+                "conversationId": "cv_1",
+                "messageId": "m_2",
+                "title": "New message",
+                "body": "New message from Teacher",
+                "createdBy": "cc-t1",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "cc-p1",
+          "label": "parent reads",
+          "ops": [
+            {
+              "op": "update",
+              "path": "conversations/cv_1",
+              "data": {
+                "unreadForParent": 0,
+                "lastReadParentAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "cc-p1"
+              }
+            }
+          ]
+        },
+        {
+          "as": "cc-p1",
+          "label": "parent replies",
+          "ops": [
+            {
+              "op": "set",
+              "path": "conversations/cv_1/messages/m_3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "conversationId": "cv_1",
+                "senderUserId": "cc-p1",
+                "senderName": "Parent",
+                "senderRole": "PARENT",
+                "body": "Thank you!",
+                "attachments": [],
+                "createdAt": {
+                  "$serverTimestamp": true
+                }
+              }
+            },
+            {
+              "op": "update",
+              "path": "conversations/cv_1",
+              "data": {
+                "messageCount": 3,
+                "lastMessageId": "m_3",
+                "lastMessageAt": {
+                  "$serverTimestamp": true
+                },
+                "unreadForTeacher": 1,
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "cc-p1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "notifications/msg__m_3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "audience": "USER",
+                "recipientUserId": "cc-t1",
+                "type": "MESSAGE_RECEIVED",
+                "applicationId": null,
+                "conversationId": "cv_1",
+                "messageId": "m_3",
+                "title": "New message",
+                "body": "New message from Parent",
+                "createdBy": "cc-p1",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "readAt": null
+              }
+            }
+          ]
+        },
+        {
+          "as": "cc-p1",
+          "label": "parent closes",
+          "ops": [
+            {
+              "op": "update",
+              "path": "conversations/cv_1",
+              "data": {
+                "status": "CLOSED",
+                "revision": 2,
+                "lastEvent": "CLOSED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "cc-p1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "conversationEvents/cv_1__2",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "conversationId": "cv_1",
+                "revision": 2,
+                "event": "CLOSED",
+                "toStatus": "CLOSED",
+                "actorId": "cc-p1",
+                "actorName": "Parent",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "cc-t1",
+          "label": "teacher reopens",
+          "ops": [
+            {
+              "op": "update",
+              "path": "conversations/cv_1",
+              "data": {
+                "status": "OPEN",
+                "revision": 3,
+                "lastEvent": "REOPENED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "cc-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "conversationEvents/cv_1__3",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "conversationId": "cv_1",
+                "revision": 3,
+                "event": "REOPENED",
+                "toStatus": "OPEN",
+                "actorId": "cc-t1",
+                "actorName": "Teacher",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "cc-p1",
+          "label": "parent reports",
+          "ops": [
+            {
+              "op": "update",
+              "path": "conversations/cv_1",
+              "data": {
+                "flagged": true,
+                "flagReason": "Inappropriate tone",
+                "flaggedBy": "cc-p1",
+                "flaggedAt": {
+                  "$serverTimestamp": true
+                },
+                "revision": 4,
+                "lastEvent": "REPORTED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "cc-p1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "conversationEvents/cv_1__4",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "conversationId": "cv_1",
+                "revision": 4,
+                "event": "REPORTED",
+                "toStatus": "OPEN",
+                "actorId": "cc-p1",
+                "actorName": "Parent",
+                "note": "Inappropriate tone",
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "cc-t1",
+          "label": "teacher closes",
+          "ops": [
+            {
+              "op": "update",
+              "path": "conversations/cv_1",
+              "data": {
+                "status": "CLOSED",
+                "revision": 5,
+                "lastEvent": "CLOSED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "cc-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "conversationEvents/cv_1__5",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "conversationId": "cv_1",
+                "revision": 5,
+                "event": "CLOSED",
+                "toStatus": "CLOSED",
+                "actorId": "cc-t1",
+                "actorName": "Teacher",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "as": "cc-t1",
+          "label": "teacher archives",
+          "ops": [
+            {
+              "op": "update",
+              "path": "conversations/cv_1",
+              "data": {
+                "status": "ARCHIVED",
+                "revision": 6,
+                "lastEvent": "ARCHIVED",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "cc-t1"
+              }
+            },
+            {
+              "op": "set",
+              "path": "conversationEvents/cv_1__6",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "north",
+                "conversationId": "cv_1",
+                "revision": 6,
+                "event": "ARCHIVED",
+                "toStatus": "ARCHIVED",
+                "actorId": "cc-t1",
+                "actorName": "Teacher",
+                "note": null,
+                "at": {
+                  "$serverTimestamp": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

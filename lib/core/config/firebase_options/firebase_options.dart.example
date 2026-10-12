@@ -1,0 +1,47 @@
+// Template only — shows the shape each `firebase_options_<env>.dart` file has
+// (dev / test / uat / prod). One block per platform, because a Firebase
+// project has a separate app registration (and appId/apiKey) for Web,
+// Android and iOS.
+//
+// Generate the values (scratch output, do NOT point --out at the env file —
+// it would replace the `<env>FirebaseOptions` constant the app imports):
+//
+//   flutterfire configure --project=YOUR_PROJECT_ID \
+//     --out=/tmp/firebase_options_<env>.dart
+//
+// then copy each platform's FirebaseOptions into the env file.
+//
+// These are public client identifiers, not secrets (access is enforced by
+// Security Rules). Whether the real files are committed or written by CI at
+// build time is the owner's choice; never share one environment's values
+// with another.
+
+import 'package:firebase_core/firebase_core.dart';
+
+import 'platform_options.dart';
+
+final exampleFirebaseOptions = selectPlatformOptions(
+  web: const FirebaseOptions(
+    apiKey: 'YOUR_WEB_API_KEY',
+    appId: 'YOUR_WEB_APP_ID',
+    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
+    projectId: 'YOUR_PROJECT_ID',
+    authDomain: 'YOUR_PROJECT_ID.firebaseapp.com',
+    storageBucket: 'YOUR_STORAGE_BUCKET',
+  ),
+  android: const FirebaseOptions(
+    apiKey: 'YOUR_ANDROID_API_KEY',
+    appId: 'YOUR_ANDROID_APP_ID',
+    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
+    projectId: 'YOUR_PROJECT_ID',
+    storageBucket: 'YOUR_STORAGE_BUCKET',
+  ),
+  ios: const FirebaseOptions(
+    apiKey: 'YOUR_IOS_API_KEY',
+    appId: 'YOUR_IOS_APP_ID',
+    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
+    projectId: 'YOUR_PROJECT_ID',
+    storageBucket: 'YOUR_STORAGE_BUCKET',
+    iosBundleId: 'com.avail404.eazyschool.eazyschool360',
+  ),
+);

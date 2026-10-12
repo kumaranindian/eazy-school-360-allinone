@@ -1,0 +1,245 @@
+{
+  "milestone": 8,
+  "name": "Timetable & Teacher Substitution Management",
+  "date": "2026-10-10",
+  "status": "implemented-with-documented-gaps",
+  "features": [
+    {
+      "name": "Bell schedules: stable slot ids, breaks/lunch/assembly, per-day schedule, overlap + invalid-time validation",
+      "status": "complete",
+      "evidence": "period_set.dart, period_sets_page.dart; unit + widget tests"
+    },
+    {
+      "name": "Versioned timetables DRAFT/PUBLISHED/ARCHIVED with effective dates, counter-assigned versions",
+      "status": "complete",
+      "evidence": "timetable.dart, repositories; rules + contract tests"
+    },
+    {
+      "name": "Editor: cell assign, copy day, copy to another section, preview, validate, discard",
+      "status": "complete",
+      "evidence": "timetable_editor_page.dart, timetable_copy.dart; widget + unit tests"
+    },
+    {
+      "name": "Conflict detection: teacher, section, room, assignment, working day, leave (warning)",
+      "status": "complete (client-verified under lock; see limits)",
+      "evidence": "timetable_validation.dart; 20+ unit tests"
+    },
+    {
+      "name": "Cross-timetable double-booking enforced by rules",
+      "status": "not possible in rules",
+      "evidence": "Needs trusted backend; documented"
+    },
+    {
+      "name": "Atomic publication under branch lock; concurrent publish refused",
+      "status": "complete",
+      "evidence": "publish transaction; rules + widget tests (exactly one wins)"
+    },
+    {
+      "name": "Replace / shorten the version in force; history preserved",
+      "status": "complete",
+      "evidence": "planSupersession; contract + rules tests"
+    },
+    {
+      "name": "Withdraw published / discard draft",
+      "status": "complete",
+      "evidence": "archive; rules + contract tests"
+    },
+    {
+      "name": "Substitutions: affected periods, eligibility with reasons, preview, confirm",
+      "status": "complete",
+      "evidence": "substitution.dart, substitution_pages.dart; unit + widget tests"
+    },
+    {
+      "name": "Suggestions are never auto-assigned",
+      "status": "complete",
+      "evidence": "widget test"
+    },
+    {
+      "name": "Duplicate cover prevention (id = date+timetable+slot) and per-date serialisation",
+      "status": "complete",
+      "evidence": "rules tests (duplicate, concurrent)"
+    },
+    {
+      "name": "Change / cancel / reinstate with history",
+      "status": "complete",
+      "evidence": "rules + contract tests; history dialog"
+    },
+    {
+      "name": "Leave integration (read-only) and re-validation of covers",
+      "status": "complete",
+      "evidence": "SubstitutionHealth; unit + widget tests"
+    },
+    {
+      "name": "Timetable views: class/section, teacher (admin), personal teacher, parent child",
+      "status": "complete",
+      "evidence": "timetable_views_pages.dart; widget tests"
+    },
+    {
+      "name": "Conflict report and publication history screens",
+      "status": "complete",
+      "evidence": "widget tests"
+    },
+    {
+      "name": "In-app notifications for publish and cover events (idempotent, no leave reason)",
+      "status": "complete",
+      "evidence": "rules tests; written with the event"
+    },
+    {
+      "name": "Room management (master data)",
+      "status": "not implemented",
+      "evidence": "No room entity exists; free-text label only"
+    },
+    {
+      "name": "Teacher availability configuration",
+      "status": "not implemented",
+      "evidence": "Only approved leave, timetable and covers are considered"
+    },
+    {
+      "name": "Parent access restricted to the child's section in rules",
+      "status": "not possible in rules",
+      "evidence": "App restricts; rules limit parents to published data"
+    }
+  ],
+  "commands": [
+    {
+      "command": "dart format (modified/new files)",
+      "result": "no changes after final run",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter analyze",
+      "result": "No issues found!",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter test",
+      "result": "00:35 +669: All tests passed! (575 before M8; +94)",
+      "outcome": "pass"
+    },
+    {
+      "command": "firebase emulators:exec --only firestore,storage --project demo-eazy-school-360 \"cd firestore-tests && npm test\"",
+      "result": "tests 193, pass 193, fail 0 (serial)",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter build web",
+      "result": "✓ Built build/web",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter build apk --debug",
+      "result": "✓ Built build/app/outputs/flutter-apk/app-debug.apk",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter build ios --no-codesign",
+      "result": "BLOCKED: iOS 26.5 platform not installed in Xcode",
+      "outcome": "blocked"
+    }
+  ],
+  "tests": {
+    "flutter_total": 669,
+    "flutter_before_m8": 575,
+    "flutter_added": 94,
+    "unit": 55,
+    "widget_timetable": 39,
+    "rules_total": 193,
+    "rules_timetable": 21,
+    "rules_contract": 1,
+    "rules_mutants_killed": "10/10"
+  },
+  "schema": {
+    "collections_added": [
+      "periodSets",
+      "timetables",
+      "timetableEntries",
+      "timetableCounters",
+      "timetableLocks",
+      "timetableHistory",
+      "substitutions",
+      "substitutionDays",
+      "substitutionHistory"
+    ],
+    "indexes_added": 5,
+    "indexes_total": 61,
+    "notification_types_added": [
+      "TIMETABLE_PUBLISHED",
+      "SUBSTITUTION_ASSIGNED",
+      "SUBSTITUTION_CHANGED",
+      "SUBSTITUTION_CANCELLED"
+    ]
+  },
+  "security_verification": [
+    "Tenant and branch isolation tested with direct reads/writes (School B admin, South branch admin).",
+    "Only managers create/edit/publish/withdraw; teachers and parents cannot write; finance has no timetable access.",
+    "Publish needs the lock bump + history + draft state; two concurrent publishes: exactly one commits.",
+    "Entries only while a draft; each cell's teacher must be the section's ACTIVE assignment holder; live flips tied to the parent's status.",
+    "Replacing another section's timetable is refused; published versions immutable; history append-only.",
+    "Substitutions: live cell of a published timetable covering the date, ACTIVE teacher ≠ original, one per slot/date, day-sequence bump, history.",
+    "Notifications tied to the event and writer; forged notices refused.",
+    "Rules mutation check: 10 mutants, all killed. Dart-written documents replayed through the real rules for every workflow."
+  ],
+  "bugs_found_and_fixed": [
+    "A draft's cells could be made live by an 'edit' (rule tightened, mutation-checked).",
+    "A new version could skip the section counter (rule tightened).",
+    "Imperative reads of auto-dispose providers could fail mid-load (readAlive helper).",
+    "A text controller was disposed while its dialog animated out (use-after-dispose).",
+    "A busy bar animated behind a confirmation dialog (busy only around real work).",
+    "Phone 'More' menu overflowed with the added destinations (now scrolls).",
+    "Week navigation overflowed on narrow screens (wraps)."
+  ],
+  "unresolved_issues": [
+    "Cross-timetable teacher/room conflict-freeness and substitute checks are verified by the client under locks, not by rules; a modified client could publish a conflict — trusted backend needed to prevent it.",
+    "Parents cannot be tied to the child's section in rules: any parent of the school can read published schedule data.",
+    "No room master data; room conflicts compare free text.",
+    "No end-to-end run against real Firebase; 5 new indexes unexercised.",
+    "iOS build blocked by the environment.",
+    "dart format lib rewrapped 3 pre-existing files (whitespace only), plus the earlier M4 format churn."
+  ],
+  "files_created": [
+    "lib/features/timetable/data/firebase_timetable_repositories.dart",
+    "lib/features/timetable/data/timetable_writes.dart",
+    "lib/features/timetable/domain/period_set.dart",
+    "lib/features/timetable/domain/substitution.dart",
+    "lib/features/timetable/domain/timetable_copy.dart",
+    "lib/features/timetable/domain/timetable_enums.dart",
+    "lib/features/timetable/domain/timetable_repositories.dart",
+    "lib/features/timetable/domain/timetable_validation.dart",
+    "lib/features/timetable/domain/timetable.dart",
+    "lib/features/timetable/presentation/pages/period_sets_page.dart",
+    "lib/features/timetable/presentation/pages/substitution_pages.dart",
+    "lib/features/timetable/presentation/pages/timetable_conflicts_page.dart",
+    "lib/features/timetable/presentation/pages/timetable_editor_page.dart",
+    "lib/features/timetable/presentation/pages/timetable_hub_page.dart",
+    "lib/features/timetable/presentation/pages/timetable_views_pages.dart",
+    "lib/features/timetable/presentation/providers/timetable_providers.dart",
+    "lib/features/timetable/presentation/timetable_routes.dart",
+    "lib/features/timetable/presentation/widgets/issue_list.dart",
+    "lib/features/timetable/presentation/widgets/timetable_format.dart",
+    "lib/features/timetable/presentation/widgets/timetable_scope.dart",
+    "lib/features/timetable/presentation/widgets/week_agenda.dart",
+    "test/timetable/timetable_copy_test.dart",
+    "test/timetable/timetable_domain_test.dart",
+    "test/timetable/timetable_write_contract_test.dart",
+    "docs/milestone-8-timetable-substitution.md",
+    "firestore-tests/fixtures/timetable-write-plans.json",
+    "firestore-tests/timetable-contract.test.mjs",
+    "firestore-tests/timetable-rules.test.mjs",
+    "test/support/timetable_fakes.dart",
+    "test/widget/timetable_ui_test.dart"
+  ],
+  "files_modified": [
+    "firestore.rules (Timetable & substitution helpers + 9 collections; notification types extended)",
+    "firestore.indexes.json (+5 indexes, 61 total)",
+    "lib/core/constants/firestore_fields.dart",
+    "lib/core/permissions/permission.dart (+5 permissions)",
+    "lib/core/permissions/role_permissions.dart",
+    "lib/core/routing/app_routes.dart, app_router.dart, app_shell.dart (Timetable / My Timetable)",
+    "lib/shared/layouts/adaptive_scaffold.dart (phone 'More' menu scrolls)",
+    "lib/features/leave/presentation/pages/leave_notifications_page.dart (generic title, timetable navigation)",
+    "lib/core/errors/app_failure.dart, lib/features/students/domain/student.dart, lib/features/students/data/firebase_parent_repository.dart (whitespace-only reformat by an over-broad dart format; one curly-brace lint fixed)",
+    "test/support/staff_fakes.dart (fetchActiveAssignments), test/core/role_permissions_test.dart",
+    "README.md, PROJECT_ARCHITECTURE.md, FIRESTORE_ARCHITECTURE.md, SECURITY_ARCHITECTURE.md, DEVELOPMENT_GUIDE.md"
+  ],
+  "next_milestone_started": false
+}

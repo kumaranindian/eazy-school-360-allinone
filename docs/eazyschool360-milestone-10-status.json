@@ -1,0 +1,247 @@
+{
+  "milestone": 10,
+  "name": "Examinations, Marks, Report Cards & Academic Performance",
+  "date": "2026-10-10",
+  "status": "implemented-with-documented-gaps",
+  "features": [
+    {
+      "name": "Examination configuration: name, type, year, class, section or all, dates, scheme, instructions; deterministic id prevents duplicates; draft/scheduled/in-progress/completed/published/withdrawn/cancelled",
+      "status": "complete",
+      "evidence": "examination.dart, exam_form_page.dart, exam_detail_page.dart; rules + contract + widget tests"
+    },
+    {
+      "name": "Subject configuration: max, passing marks, weightage, date/time, theory + practical components; validated; counter moves with it",
+      "status": "complete",
+      "evidence": "ExaminationSubject.validate; rules tests + mutants"
+    },
+    {
+      "name": "Grading schemes: bands, pass %, overall pass %, decimals, rounding, absent policy, aggregation, ranking, GPA only with grade points; overlap/gap validation",
+      "status": "complete",
+      "evidence": "grading_scheme.dart, grading_schemes_page.dart; 4 unit tests"
+    },
+    {
+      "name": "Scheme snapshot stored with finalised results; later scheme edits do not change report cards",
+      "status": "complete",
+      "evidence": "finalize writes schemeSnapshot on exam and each result; rules require it"
+    },
+    {
+      "name": "Marks entry: roster from enrolment, entered/absent/exempted/pending, zero distinct, bounds, components, remarks, search/filter, table and phone layouts, save draft, submit",
+      "status": "complete",
+      "evidence": "marks_entry_page.dart; rules + widget tests"
+    },
+    {
+      "name": "Teacher authority from assignment slots; enrolment and class/section validated in rules",
+      "status": "complete",
+      "evidence": "rules tests + mutants (slot, ACTIVE, class, section)"
+    },
+    {
+      "name": "Marks history: every entry change appends a revision; sheet and exam history append-only",
+      "status": "complete",
+      "evidence": "marksRevisions, marksSheetHistory, examHistory; rules tests"
+    },
+    {
+      "name": "Review workflow: submit, approve, return with note; submitter cannot approve (school admin excepted); counters move with sheet in same commit",
+      "status": "complete",
+      "evidence": "marks_review_page.dart; rules + widget tests"
+    },
+    {
+      "name": "Central deterministic calculator: totals, %, grade, pass/fail, weighted %, GPA (only when defined), rank (only when enabled), provisional vs finalised",
+      "status": "complete",
+      "evidence": "result_calculator.dart; 14 unit tests"
+    },
+    {
+      "name": "Finalisation: every sheet approved, complete marks required, next version, scheme + attendance snapshot, immutable create-only results",
+      "status": "complete",
+      "evidence": "exam_results_page.dart; rules + contract + widget tests"
+    },
+    {
+      "name": "Publication: results-written check, one idempotent class/section notice per version",
+      "status": "complete",
+      "evidence": "rules tests (notice tie, duplicate refused)"
+    },
+    {
+      "name": "Withdraw, reopen and corrected new version with reasons; published results never overwritten",
+      "status": "complete",
+      "evidence": "rules + contract (correction scenario) + widget tests"
+    },
+    {
+      "name": "Report card on screen and PDF (print/download) from stored result with remarks, attendance snapshot, signature placeholders",
+      "status": "complete (Latin-1 PDF text only)",
+      "evidence": "report_card_pdf.dart, exam_widgets.dart; unit + widget tests"
+    },
+    {
+      "name": "Family portal: linked child's published results and report card, remarks, progress across same-scheme examinations",
+      "status": "complete (current class only)",
+      "evidence": "my_results_pages.dart; rules + widget tests"
+    },
+    {
+      "name": "Academic performance: pass rate, average, grade distribution, subject table, support list; teachers see own subjects",
+      "status": "complete (single-examination figures)",
+      "evidence": "performance_page.dart; widget test"
+    },
+    {
+      "name": "Role dashboards with cross-examination aggregates and per-teacher pending entry summaries",
+      "status": "partial",
+      "evidence": "status counts of loaded examinations + sheet lists only"
+    },
+    {
+      "name": "Attendance summary on report card using attendance module definition",
+      "status": "complete",
+      "evidence": "AttendanceSnapshot.fromTally; unit + widget tests"
+    },
+    {
+      "name": "Arithmetic and completeness of results enforced by rules",
+      "status": "not possible in rules",
+      "evidence": "client calculator + snapshot; trusted backend needed"
+    },
+    {
+      "name": "Per-recipient notifications / push",
+      "status": "not implemented",
+      "evidence": "audience notice only; no backend"
+    },
+    {
+      "name": "Student login access to results",
+      "status": "not applicable",
+      "evidence": "project has no student role"
+    },
+    {
+      "name": "Cross-examination weighted term aggregates",
+      "status": "not implemented",
+      "evidence": "weightage is per subject within one examination"
+    },
+    {
+      "name": "Report card generation audit trail",
+      "status": "not implemented",
+      "evidence": "document access is controlled; generation is on-device"
+    }
+  ],
+  "commands": [
+    {
+      "command": "dart format (changed/new files only)",
+      "result": "0 changed after final run",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter analyze",
+      "result": "No issues found!",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter test",
+      "result": "00:47 +817: All tests passed! (734 before M10; +83)",
+      "outcome": "pass"
+    },
+    {
+      "command": "firebase emulators:exec --only firestore,storage --project demo-eazy-school-360 \"cd firestore-tests && npm test\"",
+      "result": "tests 248, pass 248, fail 0 (serial)",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter build web",
+      "result": "✓ Built build/web",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter build apk --debug",
+      "result": "✓ Built build/app/outputs/flutter-apk/app-debug.apk",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter build ios --no-codesign",
+      "result": "BLOCKED: iOS 26.5 platform not installed in Xcode",
+      "outcome": "blocked"
+    }
+  ],
+  "tests": {
+    "flutter_total": 817,
+    "flutter_before_m10": 734,
+    "flutter_added": 83,
+    "unit": 40,
+    "contract_export": 1,
+    "widget_exams": 41,
+    "permission": 1,
+    "rules_total": 248,
+    "rules_before_m10": 226,
+    "rules_exams": 21,
+    "rules_contract": 1,
+    "rules_mutants": {
+      "applied": 42,
+      "killed": 40,
+      "equivalent": 2
+    }
+  },
+  "schema": {
+    "collections_added": [
+      "gradingSchemes",
+      "examinations",
+      "examinationSubjects",
+      "examHistory",
+      "marksSheets",
+      "marksSheetHistory",
+      "marksEntries",
+      "marksRevisions",
+      "examRemarks",
+      "resultSummaries"
+    ],
+    "indexes_added": 5,
+    "indexes_total": 80,
+    "notification_types_added": [
+      "(broadcast) RESULT_PUBLISHED"
+    ],
+    "storage_changes": "none"
+  },
+  "security_verification": [
+    "Tenant and branch isolation tested with direct reads/writes (School B admin, South branch admin/teacher, finance).",
+    "Only administrators configure, review, finalise, publish, withdraw, reopen and cancel; teachers and parents cannot, even with a correct history record.",
+    "Marks only by the ACTIVE assignment-slot teacher (or an administrator), for a student ACTIVE in that year/class/section, while marks entry is open and the sheet editable; bounds, absent/exempted semantics and component sums enforced.",
+    "Approver cannot be the submitter (school admin excepted); approval and return move the exam's counter in the same commit.",
+    "Results are create-only, version-matched, never updated or deleted; marks are frozen outside marks entry for everyone.",
+    "Parents read only a linked, portal-enabled, ACTIVE child's result, only while PUBLISHED and only the version in force; never marks, sheets, remarks, history or schemes.",
+    "Publication notice tied to the publish commit and unique per version; a retry cannot duplicate it.",
+    "Mutation check: 42 mutants, 40 killed, 2 equivalent (redundant by construction). Dart-written documents replayed through the real rules for the whole lifecycle including correction."
+  ],
+  "bugs_found_and_fixed": [
+    "Calculator crashed for an entry with components but no stored total (effectiveMarks added).",
+    "A 'Result' tile overflowed on narrow screens (fixed-height tiles removed).",
+    "Subject dialog was empty when class subjects had not loaded (readAlive).",
+    "PDF used a dash glyph the built-in font lacks (ASCII-only text).",
+    "Rules: sheet changes were allowed after marks entry closed; any active user could update an examination; subject could be added without its counter; zero maximum accepted; principal remark could be written by a class teacher on first write; class of the student not checked — all found by the mutation check and fixed with tests.",
+    "Test helpers silently ignored mis-shaped overrides (caught by naming each expected denial)."
+  ],
+  "unresolved_issues": [
+    "Rules cannot verify totals, grades or result completeness: results are calculated by the administrator's client (single calculator + stored scheme snapshot). A modified administrator client could write wrong figures or publish with results missing; a trusted backend would be needed.",
+    "A teacher of the branch can read any published result of the branch; any parent of the school can read a published examination's configuration. Results, marks and remarks of a child are link-protected.",
+    "Marks batches are five entries per commit (partial drafts possible, never a partial submission).",
+    "Families see the child's current class only; earlier classes are not looked up.",
+    "No student login, no separate approver role, no per-recipient notifications, no cross-examination term aggregates, no report card generation audit, Latin-1-only PDF text, no logo.",
+    "No end-to-end run against real Firebase; 5 new indexes unexercised; iOS build blocked by the environment.",
+    "Dashboards are partial (counts of loaded examinations, performance, family page)."
+  ],
+  "files_created": [
+    "lib/features/exams/domain/{exam_enums,grading_scheme,examination,marks,result_calculator,result_summary,exam_rules,exam_repositories}.dart",
+    "lib/features/exams/data/{exam_writes,firebase_exam_repositories}.dart",
+    "lib/features/exams/presentation/exam_routes.dart",
+    "lib/features/exams/presentation/providers/exam_providers.dart",
+    "lib/features/exams/presentation/widgets/{exam_widgets,report_card_pdf,report_card_loader}.dart",
+    "lib/features/exams/presentation/pages/{exam_list_page,exam_form_page,exam_detail_page,grading_schemes_page,marks_entry_page,marks_review_page,exam_results_page,student_result_page,performance_page,exam_history_page,my_results_pages}.dart",
+    "test/exams/{exam_domain_test,exam_write_contract_test}.dart",
+    "test/support/exam_fakes.dart",
+    "test/widget/exam_ui_test.dart",
+    "firestore-tests/{exam-rules.test.mjs,exam-contract.test.mjs}",
+    "firestore-tests/fixtures/exam-write-plans.json",
+    "docs/milestone-10-examinations-results-report-cards.md",
+    "docs/eazyschool360-milestone-10-report.html",
+    "docs/eazyschool360-milestone-10-status.json"
+  ],
+  "files_modified": [
+    "firestore.rules (examination/marks/result helpers + 10 collections; RESULT_PUBLISHED branch in broadcastNotices)",
+    "firestore.indexes.json (+5 indexes, 80 total)",
+    "lib/core/constants/firestore_fields.dart",
+    "lib/core/permissions/permission.dart (+5 permissions)",
+    "lib/core/permissions/role_permissions.dart",
+    "lib/core/routing/{app_routes,app_shell,app_router}.dart (2 new destinations/branches, 13 routes)",
+    "test/core/role_permissions_test.dart",
+    "README.md, PROJECT_ARCHITECTURE.md, FIRESTORE_ARCHITECTURE.md, SECURITY_ARCHITECTURE.md, DEVELOPMENT_GUIDE.md"
+  ],
+  "next": "Stopped. Milestone 11 has not been started; awaiting explicit approval."
+}

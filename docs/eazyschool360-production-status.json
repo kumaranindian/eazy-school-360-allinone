@@ -1,0 +1,328 @@
+{
+  "milestone": 12,
+  "name": "Production Hardening & Release Readiness",
+  "date": "2026-10-10",
+  "release_recommendation": "NOT READY FOR RELEASE",
+  "summary": "No confirmed cross-school exposure or financial-integrity defect. Blockers are configuration/operations: placeholder Firebase options, no release keystore, backups/monitoring unconfigured, no staging run against real Firebase, and an owner decision on parent read scope (F-SEC-3).",
+  "modules": {
+    "authentication": "re-verified by tests; no new defects",
+    "tenant_context": "re-verified by tests; no new defects",
+    "school_setup": "re-verified by tests; no new defects",
+    "students_parents": "re-verified by tests; no new defects",
+    "staff": "re-verified by tests; no new defects",
+    "attendance": "re-verified by tests; no new defects",
+    "fees": "re-verified by tests; no new defects",
+    "leave": "re-verified by tests; no new defects",
+    "timetable": "re-verified by tests; no new defects",
+    "homework_announcements": "re-verified by tests; no new defects",
+    "examinations": "re-verified by tests; no new defects",
+    "notifications": "re-verified by tests; no new defects",
+    "communication": "re-verified by tests; no new defects"
+  },
+  "security_checks": [
+    {
+      "name": "cross-school firestore sweep (64 collections x 10 actors x 5 ops)",
+      "status": "pass"
+    },
+    {
+      "name": "storage sweep (10 paths x 7 actors)",
+      "status": "pass"
+    },
+    {
+      "name": "secrets in source",
+      "status": "pass",
+      "note": "none found; options are placeholders"
+    },
+    {
+      "name": "auth/session guards, deep links, account switch",
+      "status": "pass",
+      "note": "emulated; live Firebase untested"
+    },
+    {
+      "name": "OAuth domains / platform registration",
+      "status": "untested"
+    },
+    {
+      "name": "cross-branch firestore sweep",
+      "status": "pass",
+      "note": "only leaveTypes readable cross-branch (school configuration)"
+    },
+    {
+      "name": "parent class/section scope (F-SEC-3)",
+      "status": "pass",
+      "note": "parent-scope.test.mjs, 14/14 mutants"
+    }
+  ],
+  "financial_integrity": {
+    "rules_tests": 33,
+    "reconciler_tests": 8,
+    "status": "pass",
+    "residual": "no trusted backend"
+  },
+  "builds": [
+    {
+      "command": "dart format --output=none --set-exit-if-changed .",
+      "result": "451 files, 0 changed",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter analyze",
+      "result": "No issues found",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter test",
+      "result": "877 passed, 0 failed (863 baseline)",
+      "outcome": "pass"
+    },
+    {
+      "command": "rules suite (firestore+storage emulators, serial)",
+      "result": "281 passed, 0 failed (263 baseline)",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter build web --release",
+      "result": "built build/web",
+      "outcome": "pass"
+    },
+    {
+      "command": "flutter build apk --release",
+      "result": "built app-release.apk 68.0 MB; debug-signed",
+      "outcome": "pass-unsigned"
+    },
+    {
+      "command": "flutter build appbundle --release",
+      "result": "built app-release.aab 52.4 MB; debug-signed",
+      "outcome": "pass-unsigned"
+    },
+    {
+      "command": "flutter build ios --release --no-codesign",
+      "result": "blocked: iOS 26.5 platform not installed",
+      "outcome": "blocked"
+    }
+  ],
+  "tests": {
+    "flutter": {
+      "baseline": 877,
+      "final": 882,
+      "failed": 0
+    },
+    "rules": {
+      "baseline": 281,
+      "final": 290,
+      "failed": 0
+    }
+  },
+  "findings": [
+    {
+      "id": "F-REL-1",
+      "severity": "P1",
+      "title": "Firebase options for all environments are placeholders; UAT/prod used to start silently",
+      "affected": "lib/core/config/firebase_options/*, app/bootstrap.dart",
+      "remediation": "UAT/prod refuse to start (StartupErrorApp); operator must run flutterfire configure",
+      "status": "mitigated-open",
+      "verification": "session_and_startup_test.dart; release blocker"
+    },
+    {
+      "id": "F-REL-2",
+      "severity": "P1",
+      "title": "Android release signed with debug key",
+      "affected": "android/app/build.gradle.kts",
+      "remediation": "key.properties release signing (Gradle warning when absent; not shown in Flutter's filtered output); keystore must be supplied",
+      "status": "mitigated-open",
+      "verification": "APK/AAB built; both debug-signed; release blocker"
+    },
+    {
+      "id": "F-SEC-1",
+      "severity": "P2",
+      "title": "Previous account's shell visible/authorised while next account loads",
+      "affected": "app/app.dart, core/routing/app_router.dart",
+      "remediation": "navigator gated on uid match; router uid check",
+      "status": "fixed",
+      "verification": "session_and_startup_test.dart (2 tests)"
+    },
+    {
+      "id": "F-SEC-2",
+      "severity": "P2",
+      "title": "Staff branch selection survived account change",
+      "affected": "staff_providers.dart",
+      "remediation": "notifier watches auth uid",
+      "status": "fixed",
+      "verification": "session_and_startup_test.dart"
+    },
+    {
+      "id": "F-SEC-3",
+      "severity": "P2",
+      "title": "Parents of a school can read published homework/announcements/notices/exams and live timetable of other branches",
+      "affected": "firestore.rules (homework, announcements, broadcastNotices, examinations, substitutions, timetables)",
+      "remediation": "parentAccess index + rules by class/section; school-wide announcements preserved; admin 'Refresh parent access' backfill",
+      "status": "fixed-pending-cutover",
+      "verification": "parent-scope.test.mjs (9), tenant sweep, 14/14 mutants killed; cutover needs approval"
+    },
+    {
+      "id": "F-ERR-1",
+      "severity": "P2",
+      "title": "No global error handlers",
+      "affected": "app/bootstrap.dart",
+      "remediation": "installErrorHandlers -> AppLogger",
+      "status": "fixed",
+      "verification": "session_and_startup_test.dart"
+    },
+    {
+      "id": "F-OPS-1",
+      "severity": "P2",
+      "title": "No CI",
+      "affected": "(new) .github/workflows/ci.yml",
+      "remediation": "format/analyze/test/web build/rules workflow",
+      "status": "validated-locally",
+      "verification": "YAML valid; every CI command executed locally; 2 CI-breaking defects fixed; runner execution pending"
+    },
+    {
+      "id": "F-OPS-2",
+      "severity": "P2",
+      "title": "No hosting config/security headers",
+      "affected": "firebase.json",
+      "remediation": "hosting block with headers and SPA rewrite; CSP not added",
+      "status": "validated-locally",
+      "verification": "hosting emulator: headers, SPA rewrite, no-cache on entry/deep links; domain checks pending"
+    },
+    {
+      "id": "F-FIN-1",
+      "severity": "P2",
+      "title": "Numbering and totals rely on rules, no trusted backend",
+      "affected": "firestore.rules fees section",
+      "remediation": "architecture + threat model + phased plan in milestone-12a doc; no migration performed",
+      "status": "assessed",
+      "verification": "needs approval before any backend cutover"
+    },
+    {
+      "id": "F-DATA-1",
+      "severity": "P2",
+      "title": "Backup/PITR not configurable from repo",
+      "affected": "(operations)",
+      "remediation": "exact PITR/backup/restore commands and verification drill documented",
+      "status": "documented-not-enabled",
+      "verification": "not executed (no project, no gcloud)"
+    },
+    {
+      "id": "F-DEP-1",
+      "severity": "P2",
+      "title": "No dependency vulnerability scanner for this SDK",
+      "affected": "pubspec.yaml",
+      "remediation": "tool/osv_scan_pub.py + npm audit in CI",
+      "status": "scan-available",
+      "verification": "125 Dart packages: 0 advisories; npm: 5 high in test tooling (dev only)"
+    },
+    {
+      "id": "F-PERF-1",
+      "severity": "P3",
+      "title": "leaveTypes listener unbounded",
+      "affected": "firebase_leave_support_repositories.dart",
+      "remediation": "limit(200)",
+      "status": "fixed",
+      "verification": "analyze/tests"
+    },
+    {
+      "id": "F-P3-1",
+      "severity": "P3",
+      "title": "Kotlin metadata-version messages in APK build",
+      "affected": "android toolchain",
+      "remediation": "align Kotlin/AGP versions",
+      "status": "deferred",
+      "verification": "build succeeded"
+    },
+    {
+      "id": "F-P3-2",
+      "severity": "P3",
+      "title": "Three overlapping notifications match blocks",
+      "affected": "firestore.rules",
+      "remediation": "documented, OR-ed by design",
+      "status": "deferred",
+      "verification": "rules tests"
+    },
+    {
+      "id": "F-REL-3",
+      "severity": "P1",
+      "title": "Firebase options model could not serve web+Android+iOS and setup note would have broken the build",
+      "affected": "lib/core/config/firebase_options/*",
+      "remediation": "per-platform selectPlatformOptions blocks; corrected instructions",
+      "status": "fixed",
+      "verification": "analyze, full tests, release builds"
+    },
+    {
+      "id": "F-OPS-3",
+      "severity": "P1",
+      "title": "Firebase option files were git-ignored; a clean checkout could not compile",
+      "affected": ".gitignore",
+      "remediation": "placeholders committed; ignore rule removed",
+      "status": "fixed",
+      "verification": "git check-ignore"
+    },
+    {
+      "id": "F-SEC-4",
+      "severity": "P3",
+      "title": "Class/section-targeted announcements readable by families with a child in the same branch",
+      "affected": "firestore.rules announcements/broadcastNotices",
+      "remediation": "documented residual; would need per-child query redesign",
+      "status": "open-accepted",
+      "verification": "parent-scope.test.mjs pins branch presence"
+    }
+  ],
+  "release_blockers": [
+    "no real Firebase projects/options configured (owner)",
+    "no Android upload keystore / iOS signing (owner)",
+    "backups/PITR not enabled or rehearsed (owner)",
+    "no staging run on real Firebase: rules, indexes, OAuth, smoke tests (owner)",
+    "parent-access backfill at rules cutover (owner approval)",
+    "acceptance of F-FIN-1 rules-only finance for pilot, and F-SEC-4"
+  ],
+  "untested": [
+    "live Firebase behaviour",
+    "index build",
+    "real devices and browsers",
+    "CI execution",
+    "store submission",
+    "iOS release build",
+    "push (not implemented)",
+    "crash reporting (not configured)"
+  ],
+  "deployed": false,
+  "milestone_12a": {
+    "date": "2026-10-10",
+    "release_recommendation": "NOT READY FOR RELEASE",
+    "note": "Remaining blockers are owner/operations actions (Firebase environments, signing, backups, staging run, cutover backfill, finance/F-SEC-4 acceptance).",
+    "tests": {
+      "flutter": {
+        "before": 877,
+        "after": 882,
+        "failed": 0
+      },
+      "rules": {
+        "before": 281,
+        "after": 290,
+        "failed": 0
+      },
+      "mutants": {
+        "total": 14,
+        "killed": 14
+      }
+    },
+    "dependency_scan": {
+      "osv_pub": {
+        "checked": 125,
+        "advisories": 0
+      },
+      "npm_audit": {
+        "high": 5,
+        "critical": 0,
+        "scope": "dev test tooling only"
+      }
+    },
+    "builds": {
+      "web_release": "pass",
+      "apk_release": "pass-debug-signed",
+      "aab_release": "pass-debug-signed",
+      "ios_release": "blocked: iOS 26.5 platform not installed"
+    }
+  }
+}

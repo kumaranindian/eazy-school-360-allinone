@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "894913996276",
+    "project_id": "eazy-school-360-dev",
+    "storage_bucket": "eazy-school-360-dev.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:894913996276:android:b1f908350a1773fc2ac5a1",
+        "android_client_info": {
+          "package_name": "com.avail404.eazyschool.eazyschool360"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDoLavysY7zxTRtlnr8hLZrNRDlfJn-2ag"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
