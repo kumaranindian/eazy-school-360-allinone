@@ -159,9 +159,12 @@ class DashboardPage extends ConsumerWidget {
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 // Lazy grid: only the visible tiles are built.
                 sliver: SliverGrid.builder(
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                     maxCrossAxisExtent: 240,
-                    mainAxisExtent: 96,
+                    // A tile's height follows the user's font size: a fixed
+                    // extent clips the label and hint as soon as the system
+                    // text scale goes above 1.
+                    mainAxisExtent: _QuickTile.heightFor(context),
                     crossAxisSpacing: AppSpacing.md,
                     mainAxisSpacing: AppSpacing.md,
                   ),
@@ -207,6 +210,22 @@ class _Hero extends StatelessWidget {
 class _QuickTile extends StatelessWidget {
   final _QuickLink link;
   const _QuickTile({required this.link});
+
+  static const double _iconBox = 44;
+  static const int _hintLines = 2;
+
+  /// Tallest the tile's text can be (one label line + [_hintLines] hint
+  /// lines at the current text scale), never less than the icon box.
+  static double heightFor(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final scaler = MediaQuery.textScalerOf(context);
+    double line(TextStyle? style) =>
+        scaler.scale(style?.fontSize ?? 14) * (style?.height ?? 1.5);
+
+    final content = line(text.titleSmall) + _hintLines * line(text.bodySmall);
+    // +2 absorbs sub-pixel rounding in the text layout.
+    return (content > _iconBox ? content : _iconBox) + AppSpacing.md * 2 + 2;
+  }
 
   @override
   Widget build(BuildContext context) {
