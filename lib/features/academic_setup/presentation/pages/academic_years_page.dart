@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/permissions/permission.dart';
+import '../../../../core/routing/app_routes.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
-import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/date_formatting.dart';
 import '../../../../shared/dialogs/app_dialog.dart';
 import '../../../../shared/error/empty_view.dart';
+import '../../../../shared/layouts/hub_layout.dart';
 import '../../../../shared/layouts/responsive_data_list.dart';
+import '../../../../shared/layouts/section_page.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../domain/academic_year.dart';
 import '../../domain/academic_year_status.dart';
@@ -66,20 +68,23 @@ class AcademicYearsPage extends ConsumerWidget {
           academicYearsProvider((schoolId: schoolId, branchId: branchId)),
         );
 
-        return Scaffold(
-          floatingActionButton: canManage
-              ? FloatingActionButton.extended(
+        return SectionPage(
+          title: 'Academic years',
+          description: 'Terms and the current academic year',
+          parentRoute: AppRoutes.settings,
+          primaryAction: canManage
+              ? SectionAction(
+                  label: 'Add academic year',
+                  icon: Icons.add,
                   onPressed: () => _openForm(
                     context,
                     schoolId,
                     branchId,
                     tenant.user.userId,
                   ),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add academic year'),
                 )
               : null,
-          body: AsyncValueWidget(
+          child: AsyncValueWidget(
             value: yearsAsync,
             data: (years) => ResponsiveDataList<AcademicYear>(
               items: years,
@@ -149,20 +154,12 @@ class _StatusChip extends StatelessWidget {
   const _StatusChip({required this.status});
 
   @override
-  Widget build(BuildContext context) {
-    final color = switch (status) {
-      AcademicYearStatus.active => Theme.of(context).colorScheme.primary,
-      AcademicYearStatus.draft => Theme.of(context).colorScheme.outline,
-      AcademicYearStatus.closed => Theme.of(context).colorScheme.error,
-    };
-    return Chip(
-      label: Text(
-        status.displayName,
-        style: TextStyle(color: color, fontSize: 12),
-      ),
-      visualDensity: VisualDensity.compact,
-      side: BorderSide(color: color.withValues(alpha: 0.4)),
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-    );
-  }
+  Widget build(BuildContext context) => HubBadge(
+    label: status.displayName,
+    tone: switch (status) {
+      AcademicYearStatus.active => HubBadgeTone.success,
+      AcademicYearStatus.draft => HubBadgeTone.neutral,
+      AcademicYearStatus.closed => HubBadgeTone.warning,
+    },
+  );
 }

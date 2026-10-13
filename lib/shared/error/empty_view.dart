@@ -19,8 +19,10 @@ class EmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Scrolls: in a short panel (phone, large text) the icon, message and
+    // action can be taller than the space they are given.
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           mainAxisSize: MainAxisSize.min,

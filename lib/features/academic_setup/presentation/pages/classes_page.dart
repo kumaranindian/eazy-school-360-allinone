@@ -3,10 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/activation_status.dart';
 import '../../../../core/permissions/permission.dart';
+import '../../../../core/routing/app_routes.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/dialogs/app_dialog.dart';
 import '../../../../shared/error/empty_view.dart';
+import '../../../../shared/layouts/hub_layout.dart';
+import '../../../../shared/layouts/section_page.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../domain/school_class.dart';
 import '../providers/academic_setup_keys.dart';
@@ -138,140 +141,202 @@ class _ClassesPageState extends ConsumerState<ClassesPage> {
             );
             final classesAsync = ref.watch(classesProvider(yearKey));
 
-            return Scaffold(
-              floatingActionButton: canManage
-                  ? FloatingActionButton.extended(
-                      onPressed: () {
-                        final current =
-                            classesAsync.value ?? const <SchoolClass>[];
-                        _openForm(
-                          context,
-                          yearKey,
-                          tenant.user.userId,
-                          current.length,
-                        );
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add class'),
+            return SectionPage(
+              title: 'Classes',
+              description: 'Grades or standards offered this year',
+              parentRoute: AppRoutes.settings,
+              primaryAction: canManage
+                  ? SectionAction(
+                      label: 'Add class',
+                      icon: Icons.add,
+                      onPressed: () => _openForm(
+                        context,
+                        yearKey,
+                        tenant.user.userId,
+                        (classesAsync.value ?? const <SchoolClass>[]).length,
+                      ),
                     )
                   : null,
-              body: Column(
-                children: [
-                  Padding(
+              toolbar: ToolbarField(
+                child: AcademicYearSelector(
+                  years: years,
+                  selectedId: selectedYearId,
+                  onChanged: (id) => setState(() => _selectedYearId = id),
+                ),
+              ),
+              child: AsyncValueWidget(
+                value: classesAsync,
+                data: (classes) {
+                  if (classes.isEmpty) {
+                    return const EmptyView(
+                      icon: Icons.class_outlined,
+                      message: 'No classes yet for this academic year.',
+                    );
+                  }
+                  return ListView.separated(
                     padding: const EdgeInsets.all(AppSpacing.md),
-                    child: SizedBox(
-                      width: 280,
-                      child: AcademicYearSelector(
-                        years: years,
-                        selectedId: selectedYearId,
-                        onChanged: (id) => setState(() => _selectedYearId = id),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: AsyncValueWidget(
-                      value: classesAsync,
-                      data: (classes) {
-                        if (classes.isEmpty) {
-                          return const EmptyView(
-                            icon: Icons.class_outlined,
-                            message: 'No classes yet for this academic year.',
-                          );
-                        }
-                        return ListView.separated(
-                          padding: const EdgeInsets.all(AppSpacing.md),
-                          itemCount: classes.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: AppSpacing.xs),
-                          itemBuilder: (context, index) {
-                            final schoolClass = classes[index];
-                            return Card(
-                              child: ListTile(
-                                leading:
-                                    schoolClass.status ==
-                                        ActivationStatus.inactive
-                                    ? const Icon(Icons.visibility_off_outlined)
-                                    : const CircleAvatar(
-                                        radius: 4,
-                                        backgroundColor: Colors.transparent,
-                                      ),
-                                title: Text(schoolClass.name),
-                                subtitle:
-                                    schoolClass.code != null &&
-                                        schoolClass.code!.isNotEmpty
-                                    ? Text(schoolClass.code!)
-                                    : null,
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (canManage) ...[
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.arrow_upward,
-                                          size: 18,
-                                        ),
-                                        onPressed: index == 0
-                                            ? null
-                                            : () => _move(
-                                                classes,
-                                                index,
-                                                -1,
-                                                tenant.user.userId,
-                                              ),
-                                        tooltip: 'Move up',
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.arrow_downward,
-                                          size: 18,
-                                        ),
-                                        onPressed: index == classes.length - 1
-                                            ? null
-                                            : () => _move(
-                                                classes,
-                                                index,
-                                                1,
-                                                tenant.user.userId,
-                                              ),
-                                        tooltip: 'Move down',
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.menu_book_outlined,
-                                        ),
-                                        tooltip: 'Manage subjects',
-                                        onPressed: () => _manageSubjects(
-                                          context,
-                                          schoolClass,
-                                          tenant.user.userId,
-                                        ),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.edit_outlined),
-                                        onPressed: () => _openForm(
-                                          context,
-                                          yearKey,
-                                          tenant.user.userId,
-                                          classes.length,
-                                          existing: schoolClass,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
+                    itemCount: classes.length,
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: AppSpacing.sm),
+                    itemBuilder: (context, index) {
+                      final schoolClass = classes[index];
+                      final userId = tenant.user.userId;
+                      return _ClassCard(
+                        schoolClass: schoolClass,
+                        index: index,
+                        count: classes.length,
+                        canManage: canManage,
+                        onMove: (delta) => _move(classes, index, delta, userId),
+                        onSubjects: () =>
+                            _manageSubjects(context, schoolClass, userId),
+                        onEdit: () => _openForm(
+                          context,
+                          yearKey,
+                          userId,
+                          classes.length,
+                          existing: schoolClass,
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
             );
           },
         );
       },
+    );
+  }
+}
+
+/// One class in the list. Reorder / subjects / edit are a single "⋮" menu
+/// rather than four icon buttons competing with the name on a phone.
+class _ClassCard extends StatelessWidget {
+  final SchoolClass schoolClass;
+  final int index;
+  final int count;
+  final bool canManage;
+  final ValueChanged<int> onMove;
+  final VoidCallback onSubjects;
+  final VoidCallback onEdit;
+
+  const _ClassCard({
+    required this.schoolClass,
+    required this.index,
+    required this.count,
+    required this.canManage,
+    required this.onMove,
+    required this.onSubjects,
+    required this.onEdit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final inactive = schoolClass.status == ActivationStatus.inactive;
+    final code = schoolClass.code;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: scheme.primaryContainer,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                '${index + 1}',
+                style: text.labelLarge?.copyWith(
+                  color: scheme.onPrimaryContainer,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(schoolClass.name, style: text.titleSmall),
+                  if (code != null && code.isNotEmpty)
+                    Text(
+                      code,
+                      style: text.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  if (inactive)
+                    const Padding(
+                      padding: EdgeInsets.only(top: AppSpacing.xs),
+                      child: HubBadge(label: 'Inactive'),
+                    ),
+                ],
+              ),
+            ),
+            if (canManage)
+              PopupMenuButton<String>(
+                tooltip: 'Actions for ${schoolClass.name}',
+                icon: const Icon(Icons.more_vert),
+                onSelected: (value) {
+                  switch (value) {
+                    case 'up':
+                      onMove(-1);
+                    case 'down':
+                      onMove(1);
+                    case 'subjects':
+                      onSubjects();
+                    case 'edit':
+                      onEdit();
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: ListTile(
+                      leading: Icon(Icons.edit_outlined),
+                      title: Text('Edit'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'subjects',
+                    child: ListTile(
+                      leading: Icon(Icons.menu_book_outlined),
+                      title: Text('Manage subjects'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'up',
+                    enabled: index > 0,
+                    child: const ListTile(
+                      leading: Icon(Icons.arrow_upward),
+                      title: Text('Move up'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'down',
+                    enabled: index < count - 1,
+                    child: const ListTile(
+                      leading: Icon(Icons.arrow_downward),
+                      title: Text('Move down'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

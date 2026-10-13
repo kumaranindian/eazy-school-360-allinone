@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/permissions/permission.dart';
+import '../../../../core/routing/app_routes.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/error/empty_view.dart';
+import '../../../../shared/layouts/section_page.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../domain/weekday.dart';
 import '../../domain/working_days.dart';
@@ -71,55 +73,94 @@ class _WorkingDaysPageState extends ConsumerState<WorkingDaysPage> {
           value: workingDaysAsync,
           data: (loaded) {
             final current = _draft ?? loaded;
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Working Days',
-                        style: context.textStyles.titleLarge,
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        'Choose which days of the week this branch treats as working days.',
-                        style: context.textStyles.bodySmall,
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      for (final day in Weekday.values)
-                        SwitchListTile(
-                          title: Text(day.displayName),
-                          value: current.isWorkingDay[day] ?? false,
-                          onChanged: canManage
-                              ? (value) => setState(
-                                  () => _draft = current.copyWith(day, value),
-                                )
-                              : null,
+            final workingCount = Weekday.values
+                .where((d) => current.isWorkingDay[d] ?? false)
+                .length;
+            return SectionPage(
+              title: 'Working days',
+              description: 'Which days of the week classes run',
+              parentRoute: AppRoutes.settings,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  // A short list of switches reads badly stretched across a
+                  // wide window; keep it to a comfortable measure.
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 640),
+                    child: Card(
+                      margin: EdgeInsets.zero,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppSpacing.sm,
                         ),
-                      const SizedBox(height: AppSpacing.md),
-                      if (canManage)
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: FilledButton(
-                            onPressed: (_draft == null || isSaving)
-                                ? null
-                                : () => _save(tenant.user.userId),
-                            child: isSaving
-                                ? const SizedBox(
-                                    height: 18,
-                                    width: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.md,
+                                vertical: AppSpacing.sm,
+                              ),
+                              child: Text(
+                                '$workingCount working '
+                                '${workingCount == 1 ? 'day' : 'days'} '
+                                'per week',
+                                style: context.textStyles.titleSmall,
+                              ),
+                            ),
+                            const Divider(height: 1),
+                            for (final day in Weekday.values)
+                              SwitchListTile(
+                                title: Text(day.displayName),
+                                value: current.isWorkingDay[day] ?? false,
+                                onChanged: canManage
+                                    ? (value) => setState(
+                                        () => _draft = current.copyWith(
+                                          day,
+                                          value,
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                            if (canManage) ...[
+                              const Divider(height: 1),
+                              Padding(
+                                padding: const EdgeInsets.all(AppSpacing.md),
+                                child: OverflowBar(
+                                  alignment: MainAxisAlignment.end,
+                                  spacing: AppSpacing.sm,
+                                  overflowSpacing: AppSpacing.sm,
+                                  children: [
+                                    if (_draft != null && !isSaving)
+                                      TextButton(
+                                        onPressed: () =>
+                                            setState(() => _draft = null),
+                                        child: const Text('Discard changes'),
+                                      ),
+                                    FilledButton(
+                                      onPressed: (_draft == null || isSaving)
+                                          ? null
+                                          : () => _save(tenant.user.userId),
+                                      child: isSaving
+                                          ? const SizedBox(
+                                              height: 18,
+                                              width: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Text('Save'),
                                     ),
-                                  )
-                                : const Text('Save'),
-                          ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                    ],
+                      ),
+                    ),
                   ),
                 ),
               ),

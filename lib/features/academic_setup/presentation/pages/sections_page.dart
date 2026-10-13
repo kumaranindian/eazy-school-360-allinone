@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/permissions/permission.dart';
+import '../../../../core/routing/app_routes.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/dialogs/app_dialog.dart';
 import '../../../../shared/error/empty_view.dart';
+import '../../../../shared/layouts/section_page.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../domain/academic_year.dart';
 import '../../domain/school_class.dart';
@@ -107,95 +109,90 @@ class _SectionsPageState extends ConsumerState<SectionsPage> {
                   classId: classId,
                   classes: classes,
                   onClassChanged: (id) => setState(() => _selectedClassId = id),
-                  child: Scaffold(
-                    floatingActionButton: canManage
-                        ? FloatingActionButton.extended(
-                            onPressed: () async {
-                              final saved = await showAdaptiveAppDialog<bool>(
-                                context: context,
-                                builder: (context) => SectionFormDialog(
-                                  schoolId: schoolId,
-                                  branchId: branchId,
-                                  academicYearId: yearId,
-                                  classId: classId,
-                                  currentUserId: tenant.user.userId,
-                                ),
-                              );
-                              if (saved == true && context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Section created.'),
-                                  ),
-                                );
-                              }
-                            },
-                            icon: const Icon(Icons.add),
-                            label: const Text('Add section'),
-                          )
-                        : null,
-                    body: AsyncValueWidget(
-                      value: sectionsAsync,
-                      data: (sections) {
-                        if (sections.isEmpty) {
-                          return const EmptyView(
-                            icon: Icons.grid_view_outlined,
-                            message: 'No sections yet for this class.',
-                          );
-                        }
-                        return ListView.separated(
-                          padding: const EdgeInsets.all(AppSpacing.md),
-                          itemCount: sections.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: AppSpacing.xs),
-                          itemBuilder: (context, index) {
-                            final section = sections[index];
-                            return Card(
-                              child: ListTile(
-                                title: Text(section.name),
-                                subtitle: Text(
-                                  section.capacity != null
-                                      ? 'Capacity: ${section.capacity}'
-                                      : 'No capacity set',
-                                ),
-                                trailing: canManage
-                                    ? IconButton(
-                                        icon: const Icon(Icons.edit_outlined),
-                                        onPressed: () async {
-                                          final saved =
-                                              await showAdaptiveAppDialog<bool>(
-                                                context: context,
-                                                builder: (context) =>
-                                                    SectionFormDialog(
-                                                      schoolId: schoolId,
-                                                      branchId: branchId,
-                                                      academicYearId: yearId,
-                                                      classId: classId,
-                                                      currentUserId:
-                                                          tenant.user.userId,
-                                                      existing: section,
-                                                    ),
-                                              );
-                                          if (saved == true &&
-                                              context.mounted) {
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              const SnackBar(
-                                                content: Text(
-                                                  'Section updated.',
-                                                ),
-                                              ),
-                                            );
-                                          }
-                                        },
-                                      )
-                                    : null,
+                  primaryAction: canManage
+                      ? SectionAction(
+                          label: 'Add section',
+                          icon: Icons.add,
+                          onPressed: () async {
+                            final saved = await showAdaptiveAppDialog<bool>(
+                              context: context,
+                              builder: (context) => SectionFormDialog(
+                                schoolId: schoolId,
+                                branchId: branchId,
+                                academicYearId: yearId,
+                                classId: classId,
+                                currentUserId: tenant.user.userId,
                               ),
                             );
+                            if (saved == true && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Section created.'),
+                                ),
+                              );
+                            }
                           },
+                        )
+                      : null,
+                  child: AsyncValueWidget(
+                    value: sectionsAsync,
+                    data: (sections) {
+                      if (sections.isEmpty) {
+                        return const EmptyView(
+                          icon: Icons.grid_view_outlined,
+                          message: 'No sections yet for this class.',
                         );
-                      },
-                    ),
+                      }
+                      return ListView.separated(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        itemCount: sections.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: AppSpacing.xs),
+                        itemBuilder: (context, index) {
+                          final section = sections[index];
+                          return Card(
+                            child: ListTile(
+                              title: Text(section.name),
+                              subtitle: Text(
+                                section.capacity != null
+                                    ? 'Capacity: ${section.capacity}'
+                                    : 'No capacity set',
+                              ),
+                              trailing: canManage
+                                  ? IconButton(
+                                      icon: const Icon(Icons.edit_outlined),
+                                      onPressed: () async {
+                                        final saved =
+                                            await showAdaptiveAppDialog<bool>(
+                                              context: context,
+                                              builder: (context) =>
+                                                  SectionFormDialog(
+                                                    schoolId: schoolId,
+                                                    branchId: branchId,
+                                                    academicYearId: yearId,
+                                                    classId: classId,
+                                                    currentUserId:
+                                                        tenant.user.userId,
+                                                    existing: section,
+                                                  ),
+                                            );
+                                        if (saved == true && context.mounted) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Section updated.'),
+                                            ),
+                                          );
+                                        }
+                                      },
+                                    )
+                                  : null,
+                            ),
+                          );
+                        },
+                      );
+                    },
                   ),
                 );
               },
@@ -214,6 +211,7 @@ class _Header extends StatelessWidget {
   final String? classId;
   final List<SchoolClass> classes;
   final ValueChanged<String> onClassChanged;
+  final SectionAction? primaryAction;
   final Widget child;
 
   const _Header({
@@ -224,49 +222,46 @@ class _Header extends StatelessWidget {
     required this.classes,
     required this.onClassChanged,
     required this.child,
+    this.primaryAction,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 220,
-                child: AcademicYearSelector(
-                  years: years,
-                  selectedId: selectedYearId,
-                  onChanged: onYearChanged,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              if (classes.isNotEmpty)
-                SizedBox(
-                  width: 220,
-                  child: DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    value: classId,
-                    decoration: const InputDecoration(
-                      labelText: 'Class',
-                      isDense: true,
-                    ),
-                    items: [
-                      for (final c in classes)
-                        DropdownMenuItem(value: c.classId, child: Text(c.name)),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) onClassChanged(value);
-                    },
-                  ),
-                ),
-            ],
+    return SectionPage(
+      title: 'Sections',
+      description: 'Divisions within each class',
+      parentRoute: AppRoutes.settings,
+      primaryAction: primaryAction,
+      toolbar: SectionToolbar(
+        children: [
+          ToolbarField(
+            child: AcademicYearSelector(
+              years: years,
+              selectedId: selectedYearId,
+              onChanged: onYearChanged,
+            ),
           ),
-        ),
-        Expanded(child: child),
-      ],
+          if (classes.isNotEmpty)
+            ToolbarField(
+              child: DropdownButtonFormField<String>(
+                isExpanded: true,
+                value: classId,
+                decoration: const InputDecoration(
+                  labelText: 'Class',
+                  isDense: true,
+                ),
+                items: [
+                  for (final c in classes)
+                    DropdownMenuItem(value: c.classId, child: Text(c.name)),
+                ],
+                onChanged: (value) {
+                  if (value != null) onClassChanged(value);
+                },
+              ),
+            ),
+        ],
+      ),
+      child: child,
     );
   }
 }
