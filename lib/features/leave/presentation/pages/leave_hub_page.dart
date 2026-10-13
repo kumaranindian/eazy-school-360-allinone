@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/permissions/permission.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../shared/layouts/hub_layout.dart';
 import '../../domain/leave_enums.dart';
 import '../providers/leave_providers.dart';
 import '../widgets/leave_scope.dart';
@@ -102,11 +103,12 @@ class _Hub extends ConsumerWidget {
       );
     }
 
-    Widget link(String label, IconData icon, String path) =>
-        OutlinedButton.icon(
-          onPressed: () => context.go(path),
-          icon: Icon(icon),
-          label: Text(label),
+    Widget tile(IconData icon, String title, String description, String path) =>
+        HubTile(
+          icon: icon,
+          title: title,
+          description: description,
+          onTap: () => context.go(path),
         );
 
     final err = students.hasError
@@ -150,20 +152,46 @@ class _Hub extends ConsumerWidget {
             ),
           ),
         const SizedBox(height: AppSpacing.lg),
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: [
-            link('All applications', Icons.list_alt, '/leave/applications'),
-            link('Calendar', Icons.calendar_month_outlined, '/leave/calendar'),
-            link(
-              'Staff balances',
+        HubGroup(
+          title: 'Review and plan',
+          tiles: [
+            tile(
+              Icons.list_alt,
+              'All applications',
+              'Every leave request, with its status and history',
+              '/leave/applications',
+            ),
+            tile(
+              Icons.calendar_month_outlined,
+              'Calendar',
+              'Who is away, day by day',
+              '/leave/calendar',
+            ),
+            tile(
               Icons.account_balance_wallet_outlined,
+              'Staff balances',
+              'Entitlement, used and remaining leave per person',
               '/leave/balances',
             ),
             if (leave.tenant.can(Permission.viewLeaveReports))
-              link('Reports', Icons.assessment_outlined, '/leave/reports'),
-            link('Leave types & policy', Icons.tune, '/leave/types'),
+              tile(
+                Icons.assessment_outlined,
+                'Reports',
+                'Leave summaries and exports',
+                '/leave/reports',
+              ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        HubGroup(
+          title: 'Configure',
+          tiles: [
+            tile(
+              Icons.tune,
+              'Leave types & policy',
+              'Leave types, limits and approval rules',
+              '/leave/types',
+            ),
           ],
         ),
         const SizedBox(height: AppSpacing.lg),

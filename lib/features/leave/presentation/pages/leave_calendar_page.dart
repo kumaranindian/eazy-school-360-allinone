@@ -7,6 +7,11 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/error/error_view.dart';
 import '../../../academic_setup/presentation/providers/academic_structure_providers.dart';
 import '../../../attendance/domain/attendance_date.dart';
+import '../../../../shared/filters/filter_bar.dart';
+import '../../../../shared/filters/filter_field.dart';
+import '../../../../shared/layouts/scrollable_header.dart';
+import '../../../academic_setup/domain/school_class.dart';
+import '../../../academic_setup/domain/section.dart';
 import '../../domain/leave_application.dart';
 import '../../domain/leave_enums.dart';
 import '../providers/leave_providers.dart';
@@ -62,6 +67,33 @@ class _CalendarState extends ConsumerState<_Calendar> {
     'December',
   ];
 
+  List<FilterField> _filters(
+    List<SchoolClass> classes,
+    List<Section> sections,
+  ) => [
+    FilterField.dropdown<String>(
+      label: 'Class',
+      value: classes.any((c) => c.classId == _classId) ? _classId : null,
+      options: [(null, 'All'), for (final c in classes) (c.classId, c.name)],
+      onChanged: (v) => setState(() {
+        _classId = v;
+        _sectionId = null;
+      }),
+    ),
+    if (_classId != null)
+      FilterField.dropdown<String>(
+        label: 'Section',
+        value: sections.any((s) => s.sectionId == _sectionId)
+            ? _sectionId
+            : null,
+        options: [
+          (null, 'All'),
+          for (final s in sections) (s.sectionId, s.name),
+        ],
+        onChanged: (v) => setState(() => _sectionId = v),
+      ),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final leave = widget.leave;
@@ -73,10 +105,11 @@ class _CalendarState extends ConsumerState<_Calendar> {
     final toKey = AttendanceDate.key(
       DateTime.utc(_month.year, _month.month, daysInMonth),
     );
-    final classes = _kind == LeaveKind.student
+    final List<SchoolClass> classes = _kind == LeaveKind.student
         ? ref.watch(classesProvider(leave.yearKey)).value ?? const []
         : const [];
-    final sections = (_kind == LeaveKind.student && _classId != null)
+    final List<Section> sections =
+        (_kind == LeaveKind.student && _classId != null)
         ? ref
                   .watch(
                     sectionsProvider((
@@ -103,99 +136,70 @@ class _CalendarState extends ConsumerState<_Calendar> {
 
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Wrap(
-            spacing: AppSpacing.md,
-            runSpacing: AppSpacing.sm,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              if (canStaff)
-                SegmentedButton<LeaveKind>(
-                  segments: const [
-                    ButtonSegment(
-                      value: LeaveKind.student,
-                      label: Text('Students'),
-                    ),
-                    ButtonSegment(value: LeaveKind.staff, label: Text('Staff')),
-                  ],
-                  selected: {_kind},
-                  onSelectionChanged: (s) => setState(() {
-                    _kind = s.first;
-                    _classId = null;
-                    _sectionId = null;
-                    _selected = null;
-                  }),
-                ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    tooltip: 'Previous month',
-                    icon: const Icon(Icons.chevron_left),
-                    onPressed: () => setState(() {
-                      _month = DateTime(_month.year, _month.month - 1);
-                      _selected = null;
-                    }),
-                  ),
-                  Text(
-                    '${_months[_month.month - 1]} ${_month.year}',
-                    style: theme.textTheme.titleMedium,
-                  ),
-                  IconButton(
-                    tooltip: 'Next month',
-                    icon: const Icon(Icons.chevron_right),
-                    onPressed: () => setState(() {
-                      _month = DateTime(_month.year, _month.month + 1);
-                      _selected = null;
-                    }),
-                  ),
-                ],
-              ),
-              if (_kind == LeaveKind.student) ...[
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 180),
-                  child: DropdownButtonFormField<String?>(
-                    value: _classId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Class',
-                      isDense: true,
-                    ),
-                    items: [
-                      const DropdownMenuItem(value: null, child: Text('All')),
-                      for (final c in classes)
-                        DropdownMenuItem(value: c.classId, child: Text(c.name)),
-                    ],
-                    onChanged: (v) => setState(() {
-                      _classId = v;
-                      _sectionId = null;
-                    }),
-                  ),
-                ),
-                if (_classId != null)
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 160),
-                    child: DropdownButtonFormField<String?>(
-                      value: _sectionId,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Section',
-                        isDense: true,
-                      ),
-                      items: [
-                        const DropdownMenuItem(value: null, child: Text('All')),
-                        for (final s in sections)
-                          DropdownMenuItem(
-                            value: s.sectionId,
-                            child: Text(s.name),
+        ScrollableHeader(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: AppSpacing.md,
+                  runSpacing: AppSpacing.sm,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    if (canStaff)
+                      SegmentedButton<LeaveKind>(
+                        segments: const [
+                          ButtonSegment(
+                            value: LeaveKind.student,
+                            label: Text('Students'),
                           ),
+                          ButtonSegment(
+                            value: LeaveKind.staff,
+                            label: Text('Staff'),
+                          ),
+                        ],
+                        selected: {_kind},
+                        onSelectionChanged: (s) => setState(() {
+                          _kind = s.first;
+                          _classId = null;
+                          _sectionId = null;
+                          _selected = null;
+                        }),
+                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Previous month',
+                          icon: const Icon(Icons.chevron_left),
+                          onPressed: () => setState(() {
+                            _month = DateTime(_month.year, _month.month - 1);
+                            _selected = null;
+                          }),
+                        ),
+                        Text(
+                          '${_months[_month.month - 1]} ${_month.year}',
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        IconButton(
+                          tooltip: 'Next month',
+                          icon: const Icon(Icons.chevron_right),
+                          onPressed: () => setState(() {
+                            _month = DateTime(_month.year, _month.month + 1);
+                            _selected = null;
+                          }),
+                        ),
                       ],
-                      onChanged: (v) => setState(() => _sectionId = v),
                     ),
-                  ),
+                  ],
+                ),
+                if (_kind == LeaveKind.student) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  FilterBar(fieldsBuilder: () => _filters(classes, sections)),
+                ],
               ],
-            ],
+            ),
           ),
         ),
         Expanded(
