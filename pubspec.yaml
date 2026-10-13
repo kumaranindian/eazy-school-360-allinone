@@ -53,6 +53,9 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Faked in test/shared/image_pick_test.dart (already resolved transitively
+  # through image_picker, so this changes no version).
+  image_picker_platform_interface: ^2.11.1
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

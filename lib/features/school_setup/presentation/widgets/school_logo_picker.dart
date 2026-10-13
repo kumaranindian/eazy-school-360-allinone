@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/extensions/context_extensions.dart';
-import '../../../../core/validators/validators.dart';
+import '../../../../shared/media/image_pick.dart';
 import '../providers/school_profile_providers.dart';
 
-/// Logo preview + "Change logo" picker. Image bytes are read via
-/// [XFile.readAsBytes] (not `dart:io File`) so this works unchanged on
-/// Web, where there is no filesystem — see `Validators.imageFile`.
+/// Logo preview + "Change logo" picker. The image is picked, scaled down and
+/// validated by [pickImageForUpload], which reads bytes via
+/// [XFile.readAsBytes] (not `dart:io File`) so this works unchanged on Web.
 class SchoolLogoPicker extends ConsumerStatefulWidget {
   final String schoolId;
   final String? logoUrl;
@@ -28,29 +27,22 @@ class SchoolLogoPicker extends ConsumerStatefulWidget {
 
 class _SchoolLogoPickerState extends ConsumerState<SchoolLogoPicker> {
   Future<void> _pickAndUpload() async {
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 90,
-    );
-    if (picked == null || !mounted) return;
-
-    final bytes = await picked.readAsBytes();
-    final validationError = Validators.imageFile(
-      fileName: picked.name,
-      sizeBytes: bytes.length,
-    );
-    if (validationError != null) {
-      if (mounted) context.showSnackBar(validationError, isError: true);
+    final result = await pickImageForUpload();
+    if (!mounted) return;
+    final image = result.image;
+    if (image == null) {
+      if (result.error != null) {
+        context.showSnackBar(result.error!, isError: true);
+      }
       return;
     }
 
-    final extension = picked.name.split('.').last.toLowerCase();
     final success = await ref
         .read(schoolProfileWriteControllerProvider.notifier)
         .uploadLogo(
           schoolId: widget.schoolId,
-          fileBytes: bytes,
-          fileExtension: extension,
+          fileBytes: image.bytes,
+          fileExtension: image.extension,
           updatedBy: widget.updatedBy,
         );
 

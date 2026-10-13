@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -30,6 +31,11 @@ AppFailure mapExceptionToFailure(Object error, [StackTrace? stackTrace]) {
   }
   if (error is SocketException) {
     return const NetworkFailure();
+  }
+  if (error is TimeoutException) {
+    return const NetworkFailure(
+      'This is taking too long. Please check your connection and try again.',
+    );
   }
   if (error is AppFailure) {
     return error;
@@ -108,6 +114,8 @@ AppFailure _mapFirebaseException(FirebaseException error) {
     tag: 'ErrorMapper',
   );
 
+  if (error.plugin == 'firebase_storage') return _mapStorageException(error);
+
   switch (error.code) {
     case 'permission-denied':
       return const PermissionFailure();
@@ -132,6 +140,56 @@ AppFailure _mapFirebaseException(FirebaseException error) {
       // for debugging purposes
       return UnknownFailure(
         'Firebase error (${error.code}): ${error.message ?? "Unknown error"}',
+      );
+  }
+}
+
+/// Firebase Storage reports its own codes (`unauthorized`, `object-not-found`,
+/// ...). Left unmapped they reach the user as "Firebase error (unauthorized):
+/// ...", which does not say what to do.
+AppFailure _mapStorageException(FirebaseException error) {
+  switch (error.code) {
+    case 'unauthorized':
+    case 'unauthenticated':
+      AppLogger.warning(
+        'Storage ${error.code}. Either the signed-in user is not allowed to '
+        'write this path (see storage.rules), or the Storage rules cannot read '
+        'Firestore: the cross-service rule needs the Firebase Rules service '
+        'agent granted on the project (see DEVELOPMENT_GUIDE.md → '
+        '"Firebase Storage").',
+        tag: 'ErrorMapper',
+      );
+      return const PermissionFailure(
+        "You don't have permission to upload this file. If you should, ask "
+        'your administrator to check the storage setup.',
+      );
+    case 'bucket-not-found':
+    case 'project-not-found':
+    case 'no-default-bucket':
+      return const ConfigurationFailure(
+        "File storage isn't set up for this project yet. Please contact "
+        'support.',
+      );
+    case 'quota-exceeded':
+      return const UnknownFailure(
+        'The storage quota has been reached. Please contact support.',
+      );
+    case 'retry-limit-exceeded':
+    case 'canceled':
+      return const NetworkFailure(
+        'The upload was interrupted. Please check your connection and try '
+        'again.',
+      );
+    case 'object-not-found':
+      return const NotFoundFailure('That file could not be found.');
+    case 'invalid-checksum':
+      return const UnknownFailure(
+        'The file was damaged while uploading. Please try again.',
+      );
+    default:
+      return UnknownFailure(
+        'Upload failed (${error.code}). Please try again, or contact support '
+        'if it keeps happening.',
       );
   }
 }

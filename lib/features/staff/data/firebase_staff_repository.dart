@@ -640,6 +640,10 @@ class FirebaseStaffRepository implements StaffRepository {
   Reference _photoRef(String schoolId, String branchId, String staffId) =>
       _storage.ref('schools/$schoolId/branches/$branchId/staff/$staffId/photo');
 
+  /// Without a timeout a missing bucket or blocked rule retries for a long
+  /// time and the screen just spins.
+  static const _uploadTimeout = Duration(seconds: 30);
+
   @override
   Future<String> uploadStaffPhoto({
     required String schoolId,
@@ -651,13 +655,15 @@ class FirebaseStaffRepository implements StaffRepository {
   }) async {
     try {
       final ref = _photoRef(schoolId, branchId, staffId);
-      await ref.putData(
-        Uint8List.fromList(fileBytes),
-        SettableMetadata(
-          contentType: StaffDocument.contentTypeForExtension(fileExtension),
-        ),
-      );
-      final url = await ref.getDownloadURL();
+      await ref
+          .putData(
+            Uint8List.fromList(fileBytes),
+            SettableMetadata(
+              contentType: StaffDocument.contentTypeForExtension(fileExtension),
+            ),
+          )
+          .timeout(_uploadTimeout);
+      final url = await ref.getDownloadURL().timeout(_uploadTimeout);
       await _staffDoc(schoolId, branchId, staffId).update({
         'photoUrl': url,
         FirestoreFields.updatedAt: FieldValue.serverTimestamp(),

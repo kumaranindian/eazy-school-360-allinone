@@ -467,6 +467,10 @@ class FirebaseStudentRepository implements StudentRepository {
     }
   }
 
+  /// Without a timeout a missing bucket or blocked rule retries for a long
+  /// time and the screen just spins.
+  static const _uploadTimeout = Duration(seconds: 30);
+
   @override
   Future<String> uploadStudentPhoto({
     required String schoolId,
@@ -480,11 +484,13 @@ class FirebaseStudentRepository implements StudentRepository {
       final ref = _storage.ref(
         'schools/$schoolId/branches/$branchId/students/$studentId/photo.$fileExtension',
       );
-      await ref.putData(
-        Uint8List.fromList(fileBytes),
-        SettableMetadata(contentType: _contentTypeFor(fileExtension)),
-      );
-      final url = await ref.getDownloadURL();
+      await ref
+          .putData(
+            Uint8List.fromList(fileBytes),
+            SettableMetadata(contentType: _contentTypeFor(fileExtension)),
+          )
+          .timeout(_uploadTimeout);
+      final url = await ref.getDownloadURL().timeout(_uploadTimeout);
       await _studentDoc(schoolId, branchId, studentId).update({
         'photoUrl': url,
         FirestoreFields.updatedAt: FieldValue.serverTimestamp(),

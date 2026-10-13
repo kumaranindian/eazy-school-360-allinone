@@ -113,6 +113,8 @@ class StudentProfilePage extends ConsumerWidget {
                             isUploading: ref
                                 .watch(studentWriteControllerProvider)
                                 .isLoading,
+                            readError: () =>
+                                ref.read(studentWriteControllerProvider).error,
                             onUpload: canManage
                                 ? (bytes, extension) => ref
                                       .read(

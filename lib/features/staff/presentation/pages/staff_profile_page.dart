@@ -253,6 +253,7 @@ class _ProfileTab extends ConsumerWidget {
           PersonPhotoPicker(
             photoUrl: staff.photoUrl,
             isUploading: isSaving,
+            readError: () => ref.read(staffWriteControllerProvider).error,
             onUpload: (bytes, extension) => controller.uploadPhoto(
               staff,
               bytes,

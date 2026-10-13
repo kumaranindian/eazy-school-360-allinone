@@ -91,6 +91,8 @@ class ParentProfilePage extends ConsumerWidget {
                       isUploading: ref
                           .watch(parentWriteControllerProvider)
                           .isLoading,
+                      readError: () =>
+                          ref.read(parentWriteControllerProvider).error,
                       onUpload: canManage
                           ? (bytes, extension) => ref
                                 .read(parentWriteControllerProvider.notifier)

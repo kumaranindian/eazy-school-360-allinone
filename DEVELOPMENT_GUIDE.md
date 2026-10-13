@@ -196,6 +196,34 @@ firebase deploy --only firestore:rules,firestore:indexes,storage:rules --project
 (No `.firebaserc` is committed — pass `--project` explicitly, or create a
 local, gitignored `.firebaserc` mapping aliases to your project IDs.)
 
+## Firebase Storage — school logo and photo uploads
+
+Logos and student / parent / staff photos upload to Storage under
+`schools/{schoolId}/...`. The picker scales every image to 1024px on its
+longest side (a phone photo is 3-8 MB; `storage.rules` accepts 2 MB) and the
+upload gives up after 30 s with a message instead of spinning. If uploads still
+fail on a real project, the cause is almost always one of these:
+
+1. **Storage not enabled.** Console → Storage → Get started. Error shown:
+   "File storage isn't set up for this project yet."
+2. **Rules not deployed.** `firebase deploy --only storage:rules --project <id>`.
+3. **Cross-service access not granted.** `storage.rules` reads the caller's
+   `/users/{uid}` profile with `firestore.get()`. In production that needs the
+   Storage service agent to be allowed to read Firestore: when you deploy the
+   rules the Firebase CLI asks to grant the *Firebase Rules Firestore Service
+   Agent* role (`roles/firebaserules.firestoreServiceAgent`) — answer **yes**.
+   Without it every Storage rule evaluates to *deny* and the app shows "You
+   don't have permission to upload this file" for everyone, admins included.
+4. **Role.** Only school admins may upload the logo; school admins and the
+   branch's own branch admin may upload student / parent / staff photos.
+5. **Web only — photo uploads but does not show.** CanvasKit loads images with
+   `fetch`, so the bucket needs CORS:
+   `gsutil cors set storage.cors.json gs://<bucket>` (file is in the repo
+   root; tighten `origin` to your hosting domain for production).
+
+The log line `Storage unauthorized ...` (tag `ErrorMapper`) says which of 3 or 4
+applies; `Logo upload timed out ...` points at 1, 2 or the network.
+
 ## Google Sign-In setup (per environment, once a real Firebase project exists)
 
 Code is complete (`FirebaseAuthRepository.signInWithGoogle()`), but it

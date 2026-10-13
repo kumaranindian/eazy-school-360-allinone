@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/extensions/context_extensions.dart';
-import '../../../../core/validators/validators.dart';
+import '../../../../core/errors/error_mapper.dart';
+import '../../../../shared/media/image_pick.dart';
 
 /// Photo preview + "Upload/Replace photo" picker for a student or parent —
 /// the same shape as `SchoolLogoPicker` (Milestone 2), generalized so it
@@ -19,12 +19,17 @@ class PersonPhotoPicker extends StatefulWidget {
   /// the student/parent usages (which never offered removal) are unchanged.
   final Future<bool> Function()? onRemove;
 
+  /// Returns the error behind the last failed [onUpload] (the write
+  /// controller's state), so the user is told why rather than just "unable".
+  final Object? Function()? readError;
+
   const PersonPhotoPicker({
     super.key,
     required this.photoUrl,
     required this.isUploading,
     required this.onUpload,
     this.onRemove,
+    this.readError,
   });
 
   @override
@@ -33,31 +38,27 @@ class PersonPhotoPicker extends StatefulWidget {
 
 class _PersonPhotoPickerState extends State<PersonPhotoPicker> {
   Future<void> _pickAndUpload() async {
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 90,
-    );
-    if (picked == null || !mounted) return;
-
-    final bytes = await picked.readAsBytes();
-    final validationError = Validators.imageFile(
-      fileName: picked.name,
-      sizeBytes: bytes.length,
-    );
-    if (validationError != null) {
-      if (mounted) context.showSnackBar(validationError, isError: true);
+    final result = await pickImageForUpload();
+    if (!mounted) return;
+    final image = result.image;
+    if (image == null) {
+      if (result.error != null) {
+        context.showSnackBar(result.error!, isError: true);
+      }
       return;
     }
 
-    final extension = picked.name.split('.').last.toLowerCase();
-    final success = await widget.onUpload(bytes, extension);
+    final success = await widget.onUpload(image.bytes, image.extension);
 
     if (!mounted) return;
     if (success) {
       context.showSnackBar('Photo updated successfully.');
     } else {
+      final error = widget.readError?.call();
       context.showSnackBar(
-        'Unable to update the photo. Please try again.',
+        error == null
+            ? 'Unable to update the photo. Please try again.'
+            : userMessageFor(error),
         isError: true,
       );
     }
