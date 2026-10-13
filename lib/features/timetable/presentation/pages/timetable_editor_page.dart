@@ -10,6 +10,7 @@ import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/error/error_view.dart';
 import '../../../academic_setup/domain/weekday.dart';
 import '../../../academic_setup/presentation/providers/calendar_providers.dart';
+import '../../../../shared/layouts/scrollable_header.dart';
 import '../../domain/period_set.dart';
 import '../../domain/timetable.dart';
 import '../../domain/timetable_copy.dart';
@@ -618,118 +619,122 @@ class _EditorState extends ConsumerState<_Editor> {
 
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.xs,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text(
-                    '${t.title} · v${t.version}',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  Chip(
-                    label: Text(t.status.displayName),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  Text(ttRange(t)),
-                ],
-              ),
-              if (!t.isDraft)
-                const Padding(
-                  padding: EdgeInsets.only(top: AppSpacing.xs),
-                  child: Text(
-                    'This version is read-only. Create a new version to change it.',
-                  ),
+        ScrollableHeader(
+          maxFraction: 0.35,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.xs,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      '${t.title} · v${t.version}',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    Chip(
+                      label: Text(t.status.displayName),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    Text(ttRange(t)),
+                  ],
                 ),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.xs),
-                  child: Text(
-                    _error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+                if (!t.isDraft)
+                  const Padding(
+                    padding: EdgeInsets.only(top: AppSpacing.xs),
+                    child: Text(
+                      'This version is read-only. Create a new version to change it.',
                     ),
                   ),
-                ),
-              if (t.isDraft && tt.tenant.can(Permission.manageTimetable))
-                Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.sm),
-                  child: Wrap(
-                    spacing: AppSpacing.sm,
-                    runSpacing: AppSpacing.sm,
-                    children: [
-                      FilledButton.icon(
-                        onPressed: _busy || !_dirty
-                            ? null
-                            : () => _guard(() async {
-                                await _save(t);
-                                _snack('Draft saved.');
-                              }),
-                        icon: const Icon(Icons.save_outlined),
-                        label: const Text('Save draft'),
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.xs),
+                    child: Text(
+                      _error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
                       ),
-                      OutlinedButton.icon(
-                        onPressed: _busy
-                            ? null
-                            : () => _guard(() async {
-                                final issues = await _validate(t, sets);
-                                if (mounted) setState(() => _issues = issues);
-                              }),
-                        icon: const Icon(Icons.rule),
-                        label: const Text('Validate'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: () => setState(() => _preview = !_preview),
-                        icon: Icon(
-                          _preview
-                              ? Icons.edit_outlined
-                              : Icons.visibility_outlined,
-                        ),
-                        label: Text(_preview ? 'Back to editing' : 'Preview'),
-                      ),
-                      if (tt.tenant.can(Permission.publishTimetable))
+                    ),
+                  ),
+                if (t.isDraft && tt.tenant.can(Permission.manageTimetable))
+                  Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.sm),
+                    child: Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.sm,
+                      children: [
                         FilledButton.icon(
-                          onPressed: _busy ? null : () => _publish(t, sets),
-                          icon: const Icon(Icons.publish),
-                          label: const Text('Publish'),
+                          onPressed: _busy || !_dirty
+                              ? null
+                              : () => _guard(() async {
+                                  await _save(t);
+                                  _snack('Draft saved.');
+                                }),
+                          icon: const Icon(Icons.save_outlined),
+                          label: const Text('Save draft'),
                         ),
-                      TextButton.icon(
-                        onPressed: _busy ? null : () => _discard(t),
-                        icon: const Icon(Icons.delete_outline),
-                        label: const Text('Discard draft'),
-                      ),
-                    ],
+                        OutlinedButton.icon(
+                          onPressed: _busy
+                              ? null
+                              : () => _guard(() async {
+                                  final issues = await _validate(t, sets);
+                                  if (mounted) setState(() => _issues = issues);
+                                }),
+                          icon: const Icon(Icons.rule),
+                          label: const Text('Validate'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => setState(() => _preview = !_preview),
+                          icon: Icon(
+                            _preview
+                                ? Icons.edit_outlined
+                                : Icons.visibility_outlined,
+                          ),
+                          label: Text(_preview ? 'Back to editing' : 'Preview'),
+                        ),
+                        if (tt.tenant.can(Permission.publishTimetable))
+                          FilledButton.icon(
+                            onPressed: _busy ? null : () => _publish(t, sets),
+                            icon: const Icon(Icons.publish),
+                            label: const Text('Publish'),
+                          ),
+                        TextButton.icon(
+                          onPressed: _busy ? null : () => _discard(t),
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('Discard draft'),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              if (t.isPublished && tt.tenant.can(Permission.publishTimetable))
-                Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.sm),
-                  child: TextButton.icon(
-                    onPressed: _busy ? null : () => _discard(t),
-                    icon: const Icon(Icons.unpublished_outlined),
-                    label: const Text('Withdraw'),
+                if (t.isPublished && tt.tenant.can(Permission.publishTimetable))
+                  Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.sm),
+                    child: TextButton.icon(
+                      onPressed: _busy ? null : () => _discard(t),
+                      icon: const Icon(Icons.unpublished_outlined),
+                      label: const Text('Withdraw'),
+                    ),
                   ),
-                ),
-              if (_busy) const LinearProgressIndicator(),
-              if (_issues != null)
-                Card(
-                  margin: const EdgeInsets.only(top: AppSpacing.sm),
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    child: IssueList(issues: _issues!),
+                if (_busy) const LinearProgressIndicator(),
+                if (_issues != null)
+                  Card(
+                    margin: const EdgeInsets.only(top: AppSpacing.sm),
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      child: IssueList(issues: _issues!),
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
         if (editable && days.isNotEmpty)
           SizedBox(
-            height: 40,
+            // Grows with the text size so the chips are never clipped.
+            height: MediaQuery.textScalerOf(context).scale(40).clamp(40, 72),
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),

@@ -20,6 +20,9 @@ import '../../domain/timetable.dart';
 import '../../domain/timetable_copy.dart';
 import '../../domain/timetable_enums.dart';
 import '../../domain/timetable_repositories.dart';
+import '../../../../shared/layouts/hub_layout.dart';
+import '../../../../shared/filters/filter_field.dart';
+import '../../../../shared/filters/filter_bar.dart';
 import '../providers/timetable_providers.dart';
 import '../widgets/timetable_format.dart';
 import '../widgets/timetable_scope.dart';
@@ -78,79 +81,36 @@ class _HubState extends ConsumerState<_Hub> {
     final classes =
         ref.watch(classesProvider(tt.academicKey)).value ?? const [];
 
-    Widget link(String label, IconData icon, String path) =>
-        OutlinedButton.icon(
-          onPressed: () => context.go(path),
-          icon: Icon(icon),
-          label: Text(label),
+    Widget tile(IconData icon, String title, String description, String path) =>
+        HubTile(
+          icon: icon,
+          title: title,
+          description: description,
+          onTap: () => context.go(path),
         );
 
-    return ListView(
+    final List<FilterField> filters = [
+      FilterField.dropdown<String>(
+        label: 'Class',
+        value: classes.any((c) => c.classId == _classId) ? _classId : null,
+        options: [(null, 'All'), for (final c in classes) (c.classId, c.name)],
+        onChanged: (v) => setState(() => _classId = v),
+      ),
+      FilterField.dropdown<TimetableStatus>(
+        label: 'Status',
+        value: _status,
+        options: [
+          (null, 'All'),
+          for (final s in TimetableStatus.values) (s, s.displayName),
+        ],
+        onChanged: (v) => setState(() => _status = v),
+      ),
+    ];
+
+    final body = ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: [
-            if (canManage)
-              FilledButton.icon(
-                onPressed: () => _create(),
-                icon: const Icon(Icons.add),
-                label: const Text('New timetable'),
-              ),
-            link('Bell schedules', Icons.access_time, '/timetable/periods'),
-            link('Class timetable', Icons.grid_view, '/timetable/view'),
-            link(
-              'Teacher timetable',
-              Icons.person_outline,
-              '/timetable/teachers',
-            ),
-            link('Substitutions', Icons.swap_horiz, '/timetable/substitutions'),
-            link('Conflict report', Icons.rule, '/timetable/conflicts'),
-            link('History', Icons.history, '/timetable/history'),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Wrap(
-          spacing: AppSpacing.md,
-          runSpacing: AppSpacing.sm,
-          children: [
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 200),
-              child: DropdownButtonFormField<String?>(
-                value: _classId,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Class',
-                  isDense: true,
-                ),
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('All')),
-                  for (final c in classes)
-                    DropdownMenuItem(value: c.classId, child: Text(c.name)),
-                ],
-                onChanged: (v) => setState(() => _classId = v),
-              ),
-            ),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 200),
-              child: DropdownButtonFormField<TimetableStatus?>(
-                value: _status,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Status',
-                  isDense: true,
-                ),
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('All')),
-                  for (final s in TimetableStatus.values)
-                    DropdownMenuItem(value: s, child: Text(s.displayName)),
-                ],
-                onChanged: (v) => setState(() => _status = v),
-              ),
-            ),
-          ],
-        ),
+        FilterBar(fieldsBuilder: () => filters),
         const SizedBox(height: AppSpacing.md),
         all.when(
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -210,7 +170,67 @@ class _HubState extends ConsumerState<_Hub> {
             );
           },
         ),
+        const SizedBox(height: AppSpacing.lg),
+        HubGroup(
+          title: 'Timetable views',
+          tiles: [
+            tile(
+              Icons.grid_view,
+              'Class timetable',
+              'The week for one class and section',
+              '/timetable/view',
+            ),
+            tile(
+              Icons.person_outline,
+              'Teacher timetable',
+              'The week for one teacher',
+              '/timetable/teachers',
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        HubGroup(
+          title: 'Plan and check',
+          tiles: [
+            tile(
+              Icons.access_time,
+              'Bell schedules',
+              'Period times for each day',
+              '/timetable/periods',
+            ),
+            tile(
+              Icons.swap_horiz,
+              'Substitutions',
+              'Cover for absent teachers, by date',
+              '/timetable/substitutions',
+            ),
+            tile(
+              Icons.rule,
+              'Conflict report',
+              'Clashes between teachers, rooms and periods',
+              '/timetable/conflicts',
+            ),
+            tile(
+              Icons.history,
+              'History',
+              'Every version and who changed it',
+              '/timetable/history',
+            ),
+          ],
+        ),
       ],
+    );
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      floatingActionButton: canManage
+          ? FloatingActionButton.extended(
+              onPressed: () => _create(),
+              icon: const Icon(Icons.add),
+              label: const Text('New timetable'),
+            )
+          : null,
+      body: body,
     );
   }
 }

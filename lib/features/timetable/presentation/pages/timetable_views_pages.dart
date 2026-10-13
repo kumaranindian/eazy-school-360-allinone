@@ -20,6 +20,7 @@ import '../../../attendance/domain/attendance_date.dart';
 import '../../../fees/presentation/pages/parent_fees_page.dart'
     show linkedChildrenProvider;
 import '../../../staff/presentation/providers/staff_providers.dart';
+import '../../../../shared/layouts/scope_bar.dart';
 import '../../domain/substitution.dart';
 import '../../domain/timetable_validation.dart';
 import '../providers/timetable_providers.dart';
@@ -189,51 +190,62 @@ class _SectionState extends ConsumerState<_Section> {
       children: [
         Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
-          child: Wrap(
-            spacing: AppSpacing.md,
-            runSpacing: AppSpacing.sm,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 180),
-                child: DropdownButtonFormField<String>(
-                  value: _classId,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Class',
-                    isDense: true,
+          child: ScopeBar(
+            complete: _classId != null && _sectionId != null,
+            summary: _classId == null || _sectionId == null
+                ? 'Choose a class and section'
+                : '${classes.where((c) => c.classId == _classId).firstOrNull?.name ?? 'Class'} · '
+                      '${sections.where((x) => x.sectionId == _sectionId).firstOrNull?.name ?? ''} · '
+                      'Week of ${ttDate(_monday)}',
+            controlsBuilder: (context, narrow) => Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.sm,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SizedBox(
+                  width: narrow ? double.infinity : 180,
+                  child: DropdownButtonFormField<String>(
+                    value: _classId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Class',
+                      isDense: true,
+                    ),
+                    items: [
+                      for (final c in classes)
+                        DropdownMenuItem(value: c.classId, child: Text(c.name)),
+                    ],
+                    onChanged: (v) => setState(() {
+                      _classId = v;
+                      _sectionId = null;
+                    }),
                   ),
-                  items: [
-                    for (final c in classes)
-                      DropdownMenuItem(value: c.classId, child: Text(c.name)),
-                  ],
-                  onChanged: (v) => setState(() {
-                    _classId = v;
-                    _sectionId = null;
-                  }),
                 ),
-              ),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 160),
-                child: DropdownButtonFormField<String>(
-                  value: _sectionId,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Section',
-                    isDense: true,
+                SizedBox(
+                  width: narrow ? double.infinity : 160,
+                  child: DropdownButtonFormField<String>(
+                    value: _sectionId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Section',
+                      isDense: true,
+                    ),
+                    items: [
+                      for (final s in sections)
+                        DropdownMenuItem(
+                          value: s.sectionId,
+                          child: Text(s.name),
+                        ),
+                    ],
+                    onChanged: (v) => setState(() => _sectionId = v),
                   ),
-                  items: [
-                    for (final s in sections)
-                      DropdownMenuItem(value: s.sectionId, child: Text(s.name)),
-                  ],
-                  onChanged: (v) => setState(() => _sectionId = v),
                 ),
-              ),
-              WeekNavigator(
-                label: 'Week of ${ttDate(_monday)}',
-                onShift: _shift,
-              ),
-            ],
+                WeekNavigator(
+                  label: 'Week of ${ttDate(_monday)}',
+                  onShift: _shift,
+                ),
+              ],
+            ),
           ),
         ),
         Expanded(
@@ -502,32 +514,39 @@ class _TeacherPickState extends ConsumerState<_TeacherPick> {
       children: [
         Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
-          child: Wrap(
-            spacing: AppSpacing.md,
-            runSpacing: AppSpacing.sm,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 260),
-                child: DropdownButtonFormField<String>(
-                  value: _teacher,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Teacher',
-                    isDense: true,
+          child: ScopeBar(
+            complete: _teacher != null,
+            summary: _teacher == null
+                ? 'Choose a teacher'
+                : '${(teachers.value ?? const []).where((t) => t.staffId == _teacher).firstOrNull?.name ?? 'Teacher'} · '
+                      'Week of ${ttDate(_monday)}',
+            controlsBuilder: (context, narrow) => Wrap(
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.sm,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SizedBox(
+                  width: narrow ? double.infinity : 260,
+                  child: DropdownButtonFormField<String>(
+                    value: _teacher,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Teacher',
+                      isDense: true,
+                    ),
+                    items: [
+                      for (final t in teachers.value ?? const [])
+                        DropdownMenuItem(value: t.staffId, child: Text(t.name)),
+                    ],
+                    onChanged: (v) => setState(() => _teacher = v),
                   ),
-                  items: [
-                    for (final t in teachers.value ?? const [])
-                      DropdownMenuItem(value: t.staffId, child: Text(t.name)),
-                  ],
-                  onChanged: (v) => setState(() => _teacher = v),
                 ),
-              ),
-              WeekNavigator(
-                label: 'Week of ${ttDate(_monday)}',
-                onShift: _shift,
-              ),
-            ],
+                WeekNavigator(
+                  label: 'Week of ${ttDate(_monday)}',
+                  onShift: _shift,
+                ),
+              ],
+            ),
           ),
         ),
         Expanded(

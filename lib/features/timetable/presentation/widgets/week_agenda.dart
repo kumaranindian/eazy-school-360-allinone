@@ -81,7 +81,8 @@ class _WeekAgendaState extends State<WeekAgenda> {
         return Column(
           children: [
             SizedBox(
-              height: 52,
+              // Grows with the text size so the day chips are never clipped.
+              height: MediaQuery.textScalerOf(context).scale(52).clamp(52, 84),
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(
