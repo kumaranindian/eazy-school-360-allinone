@@ -16,6 +16,7 @@ import '../../../../shared/error/error_view.dart';
 import '../../../homework/presentation/widgets/family_scope.dart';
 import '../../../homework/presentation/widgets/homework_widgets.dart';
 import '../../../staff/presentation/widgets/staff_branch_scope.dart';
+import '../../../../shared/layouts/stat_chips.dart';
 import '../../domain/announcement.dart';
 import '../providers/announcement_providers.dart';
 import '../widgets/current_announcements_card.dart';
@@ -145,7 +146,7 @@ class _AnnouncementListState extends ConsumerState<_AnnouncementList> {
             (_manages && (a.authorId == t.user.userId || _isAdmin(t.role))))
           a,
     ];
-    final shown = switch (_view) {
+    List<Announcement> listFor(_View view) => switch (view) {
       _View.current => [
         for (final a in addressed)
           if (a.isCurrent(now)) a,
@@ -173,6 +174,7 @@ class _AnnouncementListState extends ConsumerState<_AnnouncementList> {
           if (a.status == AnnouncementStatus.archived) a,
       ],
     };
+    final shown = listFor(_view);
     shown.sort(
       (a, b) => (b.publishAt ?? b.createdAt ?? DateTime(0)).compareTo(
         a.publishAt ?? a.createdAt ?? DateTime(0),
@@ -203,15 +205,14 @@ class _AnnouncementListState extends ConsumerState<_AnnouncementList> {
             if (_manages)
               Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
-                  children: [
+                child: StatChipsBar(
+                  chips: [
                     for (final view in _View.values)
-                      ChoiceChip(
-                        label: Text(view.label),
+                      StatChip(
+                        label: view.label,
+                        count: listFor(view).length,
                         selected: _view == view,
-                        onSelected: (_) => setState(() => _view = view),
+                        onTap: () => setState(() => _view = view),
                       ),
                   ],
                 ),

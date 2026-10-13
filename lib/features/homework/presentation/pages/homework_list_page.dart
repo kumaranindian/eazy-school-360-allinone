@@ -16,6 +16,9 @@ import '../../../academic_setup/presentation/providers/academic_structure_provid
 import '../../../staff/presentation/providers/staff_providers.dart';
 import '../../../timetable/presentation/providers/timetable_providers.dart';
 import '../../../timetable/presentation/widgets/timetable_scope.dart';
+import '../../../../shared/layouts/stat_chips.dart';
+import '../../../../shared/filters/filter_field.dart';
+import '../../../../shared/filters/filter_bar.dart';
 import '../../domain/homework.dart';
 import '../../domain/homework_enums.dart';
 import '../../domain/homework_repositories.dart';
@@ -147,28 +150,19 @@ class _HomeworkListState extends ConsumerState<_HomeworkList> {
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
         children: [
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              CountTile(
-                label: 'Drafts',
-                icon: Icons.edit_outlined,
-                value: counts.value?[HomeworkStatus.draft.wireValue],
-                onTap: () => _setStatus(HomeworkStatus.draft),
-              ),
-              CountTile(
-                label: 'Published',
-                icon: Icons.public,
-                value: counts.value?[HomeworkStatus.published.wireValue],
-                onTap: () => _setStatus(HomeworkStatus.published),
-              ),
-              CountTile(
-                label: 'Closed',
-                icon: Icons.lock_outline,
-                value: counts.value?[HomeworkStatus.closed.wireValue],
-                onTap: () => _setStatus(HomeworkStatus.closed),
-              ),
+          StatChipsBar(
+            chips: [
+              for (final (label, status) in [
+                ('Drafts', HomeworkStatus.draft),
+                ('Published', HomeworkStatus.published),
+                ('Closed', HomeworkStatus.closed),
+              ])
+                StatChip(
+                  label: label,
+                  count: counts.value?[status.wireValue],
+                  selected: _status == status,
+                  onTap: () => _setStatus(status),
+                ),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
@@ -245,8 +239,37 @@ class _HomeworkListState extends ConsumerState<_HomeworkList> {
   }
 
   Widget _filters(TimetableContext tt) {
+    // Watched so this page rebuilds when the lists load; the fields below read
+    // the same providers on demand because the filter sheet asks again after
+    // every change.
+    ref.watch(
+      classesProvider((
+        schoolId: tt.schoolId,
+        branchId: tt.branchId,
+        academicYearId: tt.year.academicYearId,
+      )),
+    );
+    if (_classId != null) {
+      ref.watch(
+        sectionsProvider((
+          schoolId: tt.schoolId,
+          branchId: tt.branchId,
+          academicYearId: tt.year.academicYearId,
+          classId: _classId!,
+        )),
+      );
+    }
+    if (!_isTeacher) {
+      ref.watch(
+        activeTeachersProvider((schoolId: tt.schoolId, branchId: tt.branchId)),
+      );
+    }
+    return FilterBar(fieldsBuilder: () => _filterFields(tt));
+  }
+
+  List<FilterField> _filterFields(TimetableContext tt) {
     final classes = ref
-        .watch(
+        .read(
           classesProvider((
             schoolId: tt.schoolId,
             branchId: tt.branchId,
@@ -257,7 +280,7 @@ class _HomeworkListState extends ConsumerState<_HomeworkList> {
     final sections = _classId == null
         ? null
         : ref
-              .watch(
+              .read(
                 sectionsProvider((
                   schoolId: tt.schoolId,
                   branchId: tt.branchId,
@@ -269,108 +292,73 @@ class _HomeworkListState extends ConsumerState<_HomeworkList> {
     final teachers = _isTeacher
         ? null
         : ref
-              .watch(
+              .read(
                 activeTeachersProvider((
                   schoolId: tt.schoolId,
                   branchId: tt.branchId,
                 )),
               )
               .value;
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
-      children: [
-        SizedBox(
-          width: 170,
-          child: DropdownButtonFormField<HomeworkStatus?>(
-            value: _status,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Status',
-              isDense: true,
-            ),
-            items: [
-              const DropdownMenuItem(value: null, child: Text('All')),
-              for (final s in HomeworkStatus.values)
-                DropdownMenuItem(value: s, child: Text(s.displayName)),
-            ],
-            onChanged: (v) {
-              setState(() => _status = v);
-              _configure();
-            },
-          ),
+    return [
+      FilterField.dropdown<HomeworkStatus>(
+        label: 'Status',
+        value: _status,
+        options: [
+          (null, 'All'),
+          for (final s in HomeworkStatus.values) (s, s.displayName),
+        ],
+        onChanged: (v) {
+          setState(() => _status = v);
+          _configure();
+        },
+      ),
+      if (classes != null)
+        FilterField.dropdown<String>(
+          label: 'Class',
+          value: classes.any((c) => c.classId == _classId) ? _classId : null,
+          options: [
+            (null, 'All'),
+            for (final c in classes) (c.classId, c.name),
+          ],
+          onChanged: (v) {
+            setState(() {
+              _classId = v;
+              _sectionId = null;
+            });
+            _configure();
+          },
         ),
-        if (classes != null)
-          SizedBox(
-            width: 170,
-            child: DropdownButtonFormField<String?>(
-              value: _classId,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Class',
-                isDense: true,
-              ),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('All')),
-                for (final c in classes)
-                  DropdownMenuItem(value: c.classId, child: Text(c.name)),
-              ],
-              onChanged: (v) {
-                setState(() {
-                  _classId = v;
-                  _sectionId = null;
-                });
-                _configure();
-              },
-            ),
-          ),
-        if (sections != null)
-          SizedBox(
-            width: 170,
-            child: DropdownButtonFormField<String?>(
-              value: _sectionId,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Section',
-                isDense: true,
-              ),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('All')),
-                for (final s in sections)
-                  DropdownMenuItem(value: s.sectionId, child: Text(s.name)),
-              ],
-              onChanged: (v) {
-                setState(() => _sectionId = v);
-                _configure();
-              },
-            ),
-          ),
-        if (teachers != null)
-          SizedBox(
-            width: 220,
-            child: DropdownButtonFormField<String?>(
-              value: _teacherId,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Teacher',
-                isDense: true,
-              ),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('All')),
-                for (final t in teachers)
-                  DropdownMenuItem(
-                    value: t.staffId,
-                    child: Text(t.name, overflow: TextOverflow.ellipsis),
-                  ),
-              ],
-              onChanged: (v) {
-                setState(() => _teacherId = v);
-                _configure();
-              },
-            ),
-          ),
-      ],
-    );
+      if (sections != null)
+        FilterField.dropdown<String>(
+          label: 'Section',
+          value: sections.any((s) => s.sectionId == _sectionId)
+              ? _sectionId
+              : null,
+          options: [
+            (null, 'All'),
+            for (final s in sections) (s.sectionId, s.name),
+          ],
+          onChanged: (v) {
+            setState(() => _sectionId = v);
+            _configure();
+          },
+        ),
+      if (teachers != null)
+        FilterField.dropdown<String>(
+          label: 'Teacher',
+          value: teachers.any((t) => t.staffId == _teacherId)
+              ? _teacherId
+              : null,
+          options: [
+            (null, 'All'),
+            for (final t in teachers) (t.staffId, t.name),
+          ],
+          onChanged: (v) {
+            setState(() => _teacherId = v);
+            _configure();
+          },
+        ),
+    ];
   }
 }
 
