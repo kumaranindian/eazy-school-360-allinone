@@ -235,7 +235,15 @@ class _RowCard extends StatelessWidget {
                   style: theme.textTheme.titleSmall,
                 ),
               ),
-              Text(status, style: TextStyle(color: accent)),
+              const SizedBox(width: AppSpacing.xs),
+              Flexible(
+                child: Text(
+                  status,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: accent),
+                ),
+              ),
             ],
           ),
           if (row.details.isNotEmpty)

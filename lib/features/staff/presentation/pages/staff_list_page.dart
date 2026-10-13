@@ -15,16 +15,21 @@ import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/error/error_view.dart';
 import '../../../../shared/layouts/responsive_data_list.dart';
 import '../../../../shared/paging/paged_list_controller.dart';
+import '../../domain/department.dart';
+import '../../domain/designation.dart';
 import '../../domain/employment_type.dart';
 import '../../domain/staff.dart';
 import '../../domain/staff_search_field.dart';
 import '../../domain/staff_status.dart';
 import '../providers/staff_providers.dart';
 import '../widgets/staff_branch_scope.dart';
-import '../widgets/staff_bulk_actions.dart';
 import '../widgets/staff_section_switcher.dart';
 import '../widgets/staff_status_chip.dart';
 import '../../../../shared/layouts/scrollable_header.dart';
+import '../../../../shared/filters/filter_bar.dart';
+import '../../../../shared/filters/filter_field.dart';
+import '../../../../shared/filters/page_actions.dart';
+import '../staff_export_action.dart';
 
 /// The staff directory: desktop table / mobile cards, search by name,
 /// employee code, phone or email, filters for status / department /
@@ -165,23 +170,114 @@ class _StaffListState extends ConsumerState<_StaffList> {
     super.dispose();
   }
 
-  Widget _filterDropdown<T>({
-    required String label,
-    required T? value,
-    required List<DropdownMenuItem<T?>> items,
-    required ValueChanged<T?> onChanged,
-  }) {
-    return SizedBox(
-      width: 180,
-      child: DropdownButtonFormField<T?>(
-        value: value,
-        isExpanded: true,
-        decoration: InputDecoration(labelText: label, isDense: true),
-        items: items,
-        onChanged: _isSearching ? null : onChanged,
+  /// Secondary actions live in the page's "⋮" menu; the one primary action
+  /// (Add staff) stays as the floating button.
+  List<PageAction> _pageActions(BuildContext context) => [
+    if (widget.canManage)
+      PageAction(
+        label: 'Import (CSV)',
+        icon: Icons.upload_file_outlined,
+        onSelected: () => context.push('/staff/import'),
       ),
-    );
-  }
+    PageAction(
+      label: 'Export (CSV)',
+      icon: Icons.download_outlined,
+      onSelected: () => exportStaffCsv(
+        context,
+        ref,
+        schoolId: widget.schoolId,
+        branchId: widget.branchId,
+        teachersOnly: false,
+      ),
+    ),
+    if (widget.canManage && !_selecting)
+      PageAction(
+        label: 'Give login access',
+        icon: Icons.vpn_key_outlined,
+        onSelected: () => setState(() => _selecting = true),
+      ),
+    PageAction(
+      label: 'Departments',
+      icon: Icons.account_tree_outlined,
+      onSelected: () => context.push('/staff/departments'),
+    ),
+    PageAction(
+      label: 'Designations',
+      icon: Icons.badge_outlined,
+      onSelected: () => context.push('/staff/designations'),
+    ),
+  ];
+
+  /// "Search by: Name ▾" at the start of the search box.
+  Widget _searchByMenu() => PopupMenuButton<StaffSearchField>(
+    tooltip: 'Search by',
+    initialValue: _searchField,
+    onSelected: (v) {
+      setState(() => _searchField = v);
+      if (_isSearching) _applyQuery();
+    },
+    itemBuilder: (context) => [
+      for (final f in StaffSearchField.values)
+        PopupMenuItem(value: f, child: Text(f.label)),
+    ],
+    child: Padding(
+      padding: const EdgeInsets.only(left: 12, right: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.search),
+          const SizedBox(width: 4),
+          Text(
+            _searchField.label,
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+          const Icon(Icons.arrow_drop_down),
+        ],
+      ),
+    ),
+  );
+
+  List<FilterField> _filters(
+    List<Department> departments,
+    List<Designation> designations,
+  ) => [
+    FilterField.dropdown<StaffStatus>(
+      label: 'Status',
+      value: _status,
+      options: [
+        (null, 'All statuses'),
+        for (final s in StaffStatus.values) (s, s.displayName),
+      ],
+      onChanged: (v) => _setFilter(() => _status = v),
+    ),
+    FilterField.dropdown<String>(
+      label: 'Department',
+      value: _departmentId,
+      options: [
+        (null, 'All departments'),
+        for (final d in departments) (d.departmentId, d.name),
+      ],
+      onChanged: (v) => _setFilter(() => _departmentId = v),
+    ),
+    FilterField.dropdown<String>(
+      label: 'Designation',
+      value: _designationId,
+      options: [
+        (null, 'All designations'),
+        for (final d in designations) (d.designationId, d.name),
+      ],
+      onChanged: (v) => _setFilter(() => _designationId = v),
+    ),
+    FilterField.dropdown<EmploymentType>(
+      label: 'Employment type',
+      value: _employmentType,
+      options: [
+        (null, 'All types'),
+        for (final t in EmploymentType.values) (t, t.displayName),
+      ],
+      onChanged: (v) => _setFilter(() => _employmentType = v),
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -213,24 +309,25 @@ class _StaffListState extends ConsumerState<_StaffList> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Wrap(
-                    spacing: AppSpacing.md,
-                    runSpacing: AppSpacing.xs,
-                    crossAxisAlignment: WrapCrossAlignment.center,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const StaffSectionSwitcher(current: StaffSection.staff),
-                      StaffBulkActions(
-                        schoolId: widget.schoolId,
-                        branchId: widget.branchId,
-                        teachers: false,
-                      ),
-                      if (widget.canManage && !_selecting)
-                        IconButton(
-                          tooltip: 'Give login access',
-                          onPressed: () => setState(() => _selecting = true),
-                          icon: const Icon(Icons.vpn_key_outlined),
+                      const Flexible(
+                        child: StaffSectionSwitcher(
+                          current: StaffSection.staff,
                         ),
+                      ),
+                      PageActionsMenu(actions: _pageActions(context)),
                     ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  FilterBar(
+                    searchController: _searchController,
+                    searchHint: 'Search ${_searchField.label.toLowerCase()}',
+                    onSearchChanged: _onSearchChanged,
+                    searchPrefix: _searchByMenu(),
+                    filtersEnabled: !_isSearching,
+                    fieldsBuilder: () => _filters(departments, designations),
                   ),
                   if (_selecting)
                     Padding(
@@ -252,144 +349,6 @@ class _StaffListState extends ConsumerState<_StaffList> {
                             _selected.clear();
                           }),
                         ),
-                      ),
-                    ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Row(
-                    children: [
-                      SizedBox(
-                        width: 150,
-                        child: DropdownButtonFormField<StaffSearchField>(
-                          value: _searchField,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Search by',
-                            isDense: true,
-                          ),
-                          items: [
-                            for (final f in StaffSearchField.values)
-                              DropdownMenuItem(value: f, child: Text(f.label)),
-                          ],
-                          onChanged: (v) {
-                            setState(() => _searchField = v ?? _searchField);
-                            if (_isSearching) _applyQuery();
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          decoration: InputDecoration(
-                            prefixIcon: const Icon(Icons.search),
-                            hintText:
-                                'Search ${_searchField.label.toLowerCase()}',
-                            isDense: true,
-                            suffixIcon: _isSearching
-                                ? IconButton(
-                                    icon: const Icon(Icons.clear),
-                                    tooltip: 'Clear search',
-                                    onPressed: () {
-                                      _searchController.clear();
-                                      setState(() {});
-                                      _applyQuery();
-                                    },
-                                  )
-                                : null,
-                          ),
-                          onChanged: _onSearchChanged,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Wrap(
-                    spacing: AppSpacing.sm,
-                    runSpacing: AppSpacing.sm,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      _filterDropdown<StaffStatus>(
-                        label: 'Status',
-                        value: _status,
-                        items: [
-                          const DropdownMenuItem(
-                            value: null,
-                            child: Text('All statuses'),
-                          ),
-                          for (final s in StaffStatus.values)
-                            DropdownMenuItem(
-                              value: s,
-                              child: Text(s.displayName),
-                            ),
-                        ],
-                        onChanged: (v) => _setFilter(() => _status = v),
-                      ),
-                      _filterDropdown<String>(
-                        label: 'Department',
-                        value: _departmentId,
-                        items: [
-                          const DropdownMenuItem(
-                            value: null,
-                            child: Text('All departments'),
-                          ),
-                          for (final d in departments)
-                            DropdownMenuItem(
-                              value: d.departmentId,
-                              child: Text(d.name),
-                            ),
-                        ],
-                        onChanged: (v) => _setFilter(() => _departmentId = v),
-                      ),
-                      _filterDropdown<String>(
-                        label: 'Designation',
-                        value: _designationId,
-                        items: [
-                          const DropdownMenuItem(
-                            value: null,
-                            child: Text('All designations'),
-                          ),
-                          for (final d in designations)
-                            DropdownMenuItem(
-                              value: d.designationId,
-                              child: Text(d.name),
-                            ),
-                        ],
-                        onChanged: (v) => _setFilter(() => _designationId = v),
-                      ),
-                      _filterDropdown<EmploymentType>(
-                        label: 'Employment type',
-                        value: _employmentType,
-                        items: [
-                          const DropdownMenuItem(
-                            value: null,
-                            child: Text('All types'),
-                          ),
-                          for (final t in EmploymentType.values)
-                            DropdownMenuItem(
-                              value: t,
-                              child: Text(t.displayName),
-                            ),
-                        ],
-                        onChanged: (v) => _setFilter(() => _employmentType = v),
-                      ),
-                      TextButton.icon(
-                        onPressed: () => context.push('/staff/departments'),
-                        icon: const Icon(Icons.account_tree_outlined),
-                        label: const Text('Departments'),
-                      ),
-                      TextButton.icon(
-                        onPressed: () => context.push('/staff/designations'),
-                        icon: const Icon(Icons.badge_outlined),
-                        label: const Text('Designations'),
-                      ),
-                    ],
-                  ),
-                  if (_isSearching)
-                    Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.xs),
-                      child: Text(
-                        'Filters are paused while searching. Clear the search to use them.',
-                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ),
                 ],

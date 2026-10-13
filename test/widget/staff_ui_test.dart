@@ -295,6 +295,101 @@ void main() {
       },
     );
 
+    testWidgets(
+      'phone keeps filters out of the way: a Filters button, chips for what '
+      'is applied, and a sheet to change them',
+      (tester) async {
+        final repo = FakeStaffRepository(staff: people);
+        final world = await _pump(
+          tester,
+          role: UserRole.branchAdmin,
+          staffRepository: repo,
+          size: const Size(390, 844),
+        );
+        await world.go(tester, '/staff');
+
+        // Nothing but the search box and one button; no dropdown on the page.
+        expect(
+          find.byType(DropdownButtonFormField<StaffStatus?>),
+          findsNothing,
+        );
+        expect(find.text('Filters · 1'), findsOneWidget);
+        expect(
+          find.widgetWithText(InputChip, 'Status: Active'),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.text('Filters · 1'));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.widgetWithText(DropdownButtonFormField<StaffStatus?>, 'Active'),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('All statuses').last);
+        await tester.pumpAndSettle();
+
+        expect(repo.fetchCalls.last['status'], isNull);
+        await tester.tap(find.text('Done'));
+        await tester.pumpAndSettle();
+        expect(find.text('Arun Kumar'), findsOneWidget);
+        expect(find.byType(InputChip), findsNothing);
+        expect(find.text('Filters'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('removing a filter chip refetches without that filter', (
+      tester,
+    ) async {
+      final repo = FakeStaffRepository(staff: people);
+      final world = await _pump(
+        tester,
+        role: UserRole.branchAdmin,
+        staffRepository: repo,
+        size: const Size(390, 844),
+      );
+      await world.go(tester, '/staff');
+
+      await tester.tap(
+        find.descendant(
+          of: find.widgetWithText(InputChip, 'Status: Active'),
+          matching: find.byIcon(Icons.clear),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(repo.fetchCalls.last['status'], isNull);
+      expect(find.byType(InputChip), findsNothing);
+    });
+
+    testWidgets(
+      'secondary actions sit in the ⋮ menu; Add staff stays the one button',
+      (tester) async {
+        final world = await _pump(
+          tester,
+          role: UserRole.branchAdmin,
+          size: const Size(390, 844),
+        );
+        await world.go(tester, '/staff');
+
+        expect(find.text('Import (CSV)'), findsNothing);
+        expect(find.text('Departments'), findsNothing);
+        expect(find.text('Add staff'), findsOneWidget);
+
+        await tester.tap(find.byTooltip('More actions'));
+        await tester.pumpAndSettle();
+        for (final label in [
+          'Import (CSV)',
+          'Export (CSV)',
+          'Give login access',
+          'Departments',
+          'Designations',
+        ]) {
+          expect(find.text(label), findsOneWidget, reason: label);
+        }
+      },
+    );
+
     testWidgets('shows the empty state when nothing matches', (tester) async {
       final world = await _pump(
         tester,
