@@ -228,6 +228,8 @@ class _StaffListState extends ConsumerState<_StaffList> {
 
   /// "Search by: Name ▾" at the start of the search box.
   Widget _searchByMenu() => PopupMenuButton<StaffSearchField>(
+    // Icon only: the hint text names the field being searched, so the label
+    // does not also have to fit inside a 320px search box.
     tooltip: 'Search by',
     initialValue: _searchField,
     onSelected: (v) {
@@ -242,15 +244,7 @@ class _StaffListState extends ConsumerState<_StaffList> {
       padding: const EdgeInsets.only(left: 12, right: 4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.search),
-          const SizedBox(width: 4),
-          Text(
-            _searchField.label,
-            style: Theme.of(context).textTheme.labelLarge,
-          ),
-          const Icon(Icons.arrow_drop_down),
-        ],
+        children: [const Icon(Icons.search), const Icon(Icons.arrow_drop_down)],
       ),
     ),
   );

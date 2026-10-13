@@ -194,6 +194,22 @@ class FilterBar extends StatelessWidget {
     // The count covers every active filter, inline ones included, so the
     // button never says "no filters" while a list is filtered.
     final label = total > 0 ? 'Filters · $total' : 'Filters';
+    // On a very narrow screen, or with large text, the labelled button would
+    // squeeze the search box; an icon with a count badge keeps its width fixed.
+    final compact =
+        MediaQuery.sizeOf(context).width < 380 ||
+        MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    if (compact) {
+      return IconButton.filledTonal(
+        tooltip: label,
+        onPressed: filtersEnabled ? () => _openSheet(context) : null,
+        icon: Badge(
+          isLabelVisible: total > 0,
+          label: Text('$total'),
+          child: const Icon(Icons.tune),
+        ),
+      );
+    }
     return SizedBox(
       height: 48,
       child: FilledButton.tonalIcon(

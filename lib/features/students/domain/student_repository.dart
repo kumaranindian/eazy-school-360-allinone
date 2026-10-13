@@ -25,6 +25,14 @@ abstract class StudentRepository {
     Object? cursor,
   });
 
+  /// How many students have [status] (all of them when null), counted by
+  /// the server: one aggregate read, never a download of the documents.
+  Future<int> countStudents({
+    required String schoolId,
+    required String branchId,
+    StudentStatus? status,
+  });
+
   /// Students currently placed in a specific class (and, optionally,
   /// section) — reads the current-placement cache on [Student], not the
   /// academic-history subcollection, so this stays cheap.

@@ -152,6 +152,30 @@ class FirebaseStudentRepository implements StudentRepository {
   }
 
   @override
+  Future<int> countStudents({
+    required String schoolId,
+    required String branchId,
+    StudentStatus? status,
+  }) async {
+    try {
+      Query<Map<String, dynamic>> query = _studentsCollection(
+        schoolId,
+        branchId,
+      );
+      if (status != null) {
+        query = query.where(
+          FirestoreFields.status,
+          isEqualTo: status.wireValue,
+        );
+      }
+      final snapshot = await query.count().get();
+      return snapshot.count ?? 0;
+    } catch (error, stackTrace) {
+      throw mapExceptionToFailure(error, stackTrace);
+    }
+  }
+
+  @override
   Future<PagedResult<Student>> fetchStudentsByPlacement({
     required String schoolId,
     required String branchId,

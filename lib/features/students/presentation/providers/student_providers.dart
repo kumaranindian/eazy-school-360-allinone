@@ -202,3 +202,20 @@ final studentWriteControllerProvider =
     AsyncNotifierProvider.autoDispose<StudentWriteController, void>(
       StudentWriteController.new,
     );
+
+/// Headcount per status for the roster's stat chips, keyed by status (null =
+/// everyone). Server-side counts, recomputed each time the roster is opened.
+final studentCountsProvider = FutureProvider.autoDispose
+    .family<Map<StudentStatus?, int>, BranchKey>((ref, key) async {
+      final repository = ref.watch(studentRepositoryProvider);
+      final statuses = <StudentStatus?>[null, ...StudentStatus.values];
+      final counts = await Future.wait([
+        for (final status in statuses)
+          repository.countStudents(
+            schoolId: key.schoolId,
+            branchId: key.branchId,
+            status: status,
+          ),
+      ]);
+      return {for (var i = 0; i < statuses.length; i++) statuses[i]: counts[i]};
+    });

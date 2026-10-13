@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,7 +8,13 @@ import '../../../../core/permissions/permission.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/error/empty_view.dart';
+import '../../../../shared/filters/filter_bar.dart';
+import '../../../../shared/filters/filter_field.dart';
+import '../../../../shared/filters/page_actions.dart';
+import '../../../../shared/layouts/hub_layout.dart';
 import '../../../../shared/layouts/responsive_data_list.dart';
+import '../../../../shared/layouts/scrollable_header.dart';
+import '../../../../shared/layouts/stat_chips.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../domain/paged_result.dart';
 import '../../domain/student.dart';
@@ -14,7 +22,13 @@ import '../../domain/student_status.dart';
 import '../providers/student_providers.dart';
 import '../widgets/student_placement_label.dart';
 
-enum _SearchMode { none, byName, byAdmissionNumber }
+enum _SearchBy {
+  name('Name'),
+  admissionNumber('Admission #');
+
+  final String label;
+  const _SearchBy(this.label);
+}
 
 /// The student roster (brief §15-16): desktop table / mobile cards,
 /// status filter, name/admission-number search, and cursor pagination —
@@ -28,7 +42,8 @@ class StudentsListPage extends ConsumerStatefulWidget {
 
 class _StudentsListPageState extends ConsumerState<StudentsListPage> {
   final _searchController = TextEditingController();
-  _SearchMode _searchMode = _SearchMode.none;
+  Timer? _debounce;
+  _SearchBy _searchBy = _SearchBy.name;
   StudentStatus? _statusFilter = StudentStatus.active;
 
   List<Student> _items = [];
@@ -38,6 +53,8 @@ class _StudentsListPageState extends ConsumerState<StudentsListPage> {
   bool _loadedOnce = false;
   String? _schoolId;
   String? _branchId;
+
+  bool get _isSearching => _searchController.text.trim().isNotEmpty;
 
   Future<void> _resetAndLoad(String schoolId, String branchId) async {
     setState(() {
@@ -61,15 +78,14 @@ class _StudentsListPageState extends ConsumerState<StudentsListPage> {
     PagedResult<Student> page;
     final query = _searchController.text.trim();
 
-    if (_searchMode == _SearchMode.byName && query.isNotEmpty) {
+    if (query.isNotEmpty && _searchBy == _SearchBy.name) {
       page = await repository.searchStudentsByName(
         schoolId: schoolId,
         branchId: branchId,
         query: query,
         cursor: reset ? null : _cursor,
       );
-    } else if (_searchMode == _SearchMode.byAdmissionNumber &&
-        query.isNotEmpty) {
+    } else if (query.isNotEmpty) {
       page = await repository.searchStudentsByAdmissionNumber(
         schoolId: schoolId,
         branchId: branchId,
@@ -94,20 +110,85 @@ class _StudentsListPageState extends ConsumerState<StudentsListPage> {
     });
   }
 
-  void _onSearchChanged(String value) {
-    setState(
-      () => _searchMode = value.trim().isEmpty ? _SearchMode.none : _searchMode,
-    );
+  void _reload() {
     if (_schoolId != null && _branchId != null) {
       _resetAndLoad(_schoolId!, _branchId!);
     }
   }
 
+  /// One query per pause in typing, not one per keystroke.
+  void _onSearchChanged(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) _reload();
+    });
+    setState(() {});
+  }
+
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
+
+  /// Headline headcounts that double as quick status filters; inert while a
+  /// search is running (search ignores the status filter).
+  List<StatChip> _statChips(Map<StudentStatus?, int>? counts) {
+    StatChip chip(String label, StudentStatus? status) => StatChip(
+      label: label,
+      count: counts?[status],
+      selected: !_isSearching && _statusFilter == status,
+      onTap: _isSearching
+          ? null
+          : () {
+              setState(() => _statusFilter = status);
+              _reload();
+            },
+    );
+    return [
+      chip('All', null),
+      for (final s in StudentStatus.values) chip(s.displayName, s),
+    ];
+  }
+
+  List<FilterField> _filters() => [
+    FilterField.dropdown<StudentStatus>(
+      label: 'Status',
+      value: _statusFilter,
+      options: [
+        (null, 'All statuses'),
+        for (final s in StudentStatus.values) (s, s.displayName),
+      ],
+      onChanged: (value) {
+        setState(() => _statusFilter = value);
+        _reload();
+      },
+    ),
+  ];
+
+  /// "Search by: Name ▾" at the start of the search box.
+  Widget _searchByMenu() => PopupMenuButton<_SearchBy>(
+    // Icon only: the hint text names the field being searched, so the label
+    // does not also have to fit inside a 320px search box.
+    tooltip: 'Search by',
+    initialValue: _searchBy,
+    onSelected: (value) {
+      setState(() => _searchBy = value);
+      if (_isSearching) _reload();
+    },
+    itemBuilder: (context) => [
+      for (final by in _SearchBy.values)
+        PopupMenuItem(value: by, child: Text(by.label)),
+    ],
+    child: Padding(
+      padding: const EdgeInsets.only(left: 12, right: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [const Icon(Icons.search), const Icon(Icons.arrow_drop_down)],
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -125,6 +206,11 @@ class _StudentsListPageState extends ConsumerState<StudentsListPage> {
         final schoolId = tenant!.school!.schoolId;
         final branchId = tenant.branch!.branchId;
         final canManage = tenant.can(Permission.manageStudentData);
+        final counts = ref
+            .watch(
+              studentCountsProvider((schoolId: schoolId, branchId: branchId)),
+            )
+            .value;
 
         if (!_loadedOnce || _schoolId != schoolId || _branchId != branchId) {
           WidgetsBinding.instance.addPostFrameCallback(
@@ -133,6 +219,7 @@ class _StudentsListPageState extends ConsumerState<StudentsListPage> {
         }
 
         return Scaffold(
+          backgroundColor: Colors.transparent,
           floatingActionButton: canManage
               ? FloatingActionButton.extended(
                   onPressed: () => context.push('/students/new'),
@@ -142,77 +229,43 @@ class _StudentsListPageState extends ConsumerState<StudentsListPage> {
               : null,
           body: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Column(
-                  children: [
-                    if (canManage)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton.icon(
-                          onPressed: () => context.push('/students/import'),
-                          icon: const Icon(Icons.upload_file_outlined),
-                          label: const Text('Bulk upload (CSV)'),
-                        ),
-                      ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            decoration: const InputDecoration(
-                              prefixIcon: Icon(Icons.search),
-                              hintText: 'Search by name',
-                              isDense: true,
-                            ),
-                            onChanged: (v) {
-                              setState(
-                                () => _searchMode = v.trim().isEmpty
-                                    ? _SearchMode.none
-                                    : _SearchMode.byName,
-                              );
-                              _onSearchChanged(v);
-                            },
+              ScrollableHeader(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: StatChipsBar(chips: _statChips(counts)),
                           ),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        OutlinedButton(
-                          onPressed: () {
-                            setState(
-                              () => _searchMode =
-                                  _searchController.text.trim().isEmpty
-                                  ? _SearchMode.none
-                                  : _SearchMode.byAdmissionNumber,
-                            );
-                            _onSearchChanged(_searchController.text);
-                          },
-                          child: const Text('By admission #'),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        DropdownButton<StudentStatus?>(
-                          value: _statusFilter,
-                          hint: const Text('All statuses'),
-                          items: [
-                            const DropdownMenuItem(
-                              value: null,
-                              child: Text('All statuses'),
-                            ),
-                            for (final s in StudentStatus.values)
-                              DropdownMenuItem(
-                                value: s,
-                                child: Text(s.displayName),
-                              ),
-                          ],
-                          onChanged: (value) {
-                            setState(() => _statusFilter = value);
-                            if (_schoolId != null && _branchId != null) {
-                              _resetAndLoad(_schoolId!, _branchId!);
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
+                          PageActionsMenu(
+                            actions: [
+                              if (canManage)
+                                PageAction(
+                                  label: 'Bulk upload (CSV)',
+                                  icon: Icons.upload_file_outlined,
+                                  onSelected: () =>
+                                      context.push('/students/import'),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      FilterBar(
+                        searchController: _searchController,
+                        searchHint: _searchBy == _SearchBy.name
+                            ? 'Search by name'
+                            : 'Search by admission number',
+                        onSearchChanged: _onSearchChanged,
+                        searchPrefix: _searchByMenu(),
+                        filtersEnabled: !_isSearching,
+                        fieldsBuilder: _filters,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               Expanded(
@@ -246,6 +299,7 @@ class _StudentsListPageState extends ConsumerState<StudentsListPage> {
                           ),
                         ],
                         cardBuilder: (student) => Card(
+                          margin: EdgeInsets.zero,
                           child: ListTile(
                             title: Text(student.displayName),
                             subtitle: Text(student.admissionNumber),
@@ -286,18 +340,12 @@ class _StatusChip extends StatelessWidget {
   const _StatusChip({required this.status});
 
   @override
-  Widget build(BuildContext context) {
-    final isActive = status == StudentStatus.active;
-    final color = isActive
-        ? Theme.of(context).colorScheme.primary
-        : Theme.of(context).colorScheme.outline;
-    return Chip(
-      label: Text(
-        status.displayName,
-        style: TextStyle(color: color, fontSize: 12),
-      ),
-      visualDensity: VisualDensity.compact,
-      side: BorderSide(color: color.withValues(alpha: 0.4)),
-    );
-  }
+  Widget build(BuildContext context) => HubBadge(
+    label: status.displayName,
+    tone: switch (status) {
+      StudentStatus.active => HubBadgeTone.success,
+      StudentStatus.inactive => HubBadgeTone.neutral,
+      _ => HubBadgeTone.warning,
+    },
+  );
 }

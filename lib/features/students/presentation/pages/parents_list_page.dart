@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +10,10 @@ import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/dialogs/app_dialog.dart';
 import '../../../../shared/error/empty_view.dart';
+import '../../../../shared/filters/filter_bar.dart';
+import '../../../../shared/filters/filter_field.dart';
+import '../../../../shared/filters/page_actions.dart';
+import '../../../../shared/layouts/scrollable_header.dart';
 import '../../../../shared/layouts/responsive_data_list.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../../users/domain/login_provisioning.dart';
@@ -32,6 +38,7 @@ class ParentsListPage extends ConsumerStatefulWidget {
 
 class _ParentsListPageState extends ConsumerState<ParentsListPage> {
   final _searchController = TextEditingController();
+  Timer? _debounce;
   ActivationStatus? _statusFilter;
 
   List<Parent> _items = [];
@@ -183,8 +190,40 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
     }
   }
 
+  bool get _isSearching => _searchController.text.trim().isNotEmpty;
+
+  /// One query per pause in typing, not one per keystroke.
+  void _onSearchChanged(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      if (mounted && _schoolId != null && _branchId != null) {
+        _resetAndLoad(_schoolId!, _branchId!);
+      }
+    });
+    setState(() {});
+  }
+
+  List<FilterField> _filters() => [
+    FilterField.dropdown<ActivationStatus>(
+      label: 'Status',
+      value: _statusFilter,
+      options: [
+        (null, 'All statuses'),
+        for (final s in ActivationStatus.values)
+          (s, s == ActivationStatus.active ? 'Active' : 'Inactive'),
+      ],
+      onChanged: (value) {
+        setState(() => _statusFilter = value);
+        if (_schoolId != null && _branchId != null) {
+          _resetAndLoad(_schoolId!, _branchId!);
+        }
+      },
+    ),
+  ];
+
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -227,69 +266,45 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
               : null,
           body: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Row(
-                  children: [
-                    if (canManage && !_selecting)
-                      IconButton(
-                        tooltip: 'Give login access',
-                        icon: const Icon(Icons.vpn_key_outlined),
-                        onPressed: () => setState(() => _selecting = true),
-                      ),
-                    if (canManage)
-                      IconButton(
-                        tooltip: 'Refresh parent access',
-                        icon: const Icon(Icons.sync_lock_outlined),
-                        onPressed: () => _refreshAccess(
-                          context,
-                          schoolId,
-                          branchId,
-                          tenant.user.userId,
+              ScrollableHeader(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: FilterBar(
+                          searchController: _searchController,
+                          searchHint: 'Search parents by name',
+                          onSearchChanged: _onSearchChanged,
+                          filtersEnabled: !_isSearching,
+                          fieldsBuilder: _filters,
                         ),
                       ),
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        decoration: const InputDecoration(
-                          prefixIcon: Icon(Icons.search),
-                          hintText: 'Search parents by name',
-                          isDense: true,
-                        ),
-                        onChanged: (_) {
-                          if (_schoolId != null && _branchId != null) {
-                            _resetAndLoad(_schoolId!, _branchId!);
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    DropdownButton<ActivationStatus?>(
-                      value: _statusFilter,
-                      hint: const Text('All statuses'),
-                      items: [
-                        const DropdownMenuItem(
-                          value: null,
-                          child: Text('All statuses'),
-                        ),
-                        for (final s in ActivationStatus.values)
-                          DropdownMenuItem(
-                            value: s,
-                            child: Text(
-                              s == ActivationStatus.active
-                                  ? 'Active'
-                                  : 'Inactive',
+                      PageActionsMenu(
+                        actions: [
+                          if (canManage && !_selecting)
+                            PageAction(
+                              label: 'Give login access',
+                              icon: Icons.vpn_key_outlined,
+                              onSelected: () =>
+                                  setState(() => _selecting = true),
                             ),
-                          ),
-                      ],
-                      onChanged: (value) {
-                        setState(() => _statusFilter = value);
-                        if (_schoolId != null && _branchId != null) {
-                          _resetAndLoad(_schoolId!, _branchId!);
-                        }
-                      },
-                    ),
-                  ],
+                          if (canManage)
+                            PageAction(
+                              label: 'Refresh parent access',
+                              icon: Icons.sync_lock_outlined,
+                              onSelected: () => _refreshAccess(
+                                context,
+                                schoolId,
+                                branchId,
+                                tenant.user.userId,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
               if (_selecting)
