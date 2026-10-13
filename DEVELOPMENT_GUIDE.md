@@ -204,8 +204,20 @@ longest side (a phone photo is 3-8 MB; `storage.rules` accepts 2 MB) and the
 upload gives up after 30 s with a message instead of spinning. If uploads still
 fail on a real project, the cause is almost always one of these:
 
-1. **Storage not enabled.** Console → Storage → Get started. Error shown:
-   "File storage isn't set up for this project yet."
+1. **Storage not enabled (the bucket does not exist).** Console → Build →
+   Storage → Get started (new default buckets need the Blaze plan). The app
+   then reports `object-not-found` / "File storage isn't set up". Check from a
+   terminal, no login needed:
+
+   ```
+   curl -s -o /dev/null -w "%{http_code}\n" \
+     "https://firebasestorage.googleapis.com/v0/b/<project-id>.firebasestorage.app/o?maxResults=1"
+   ```
+
+   `404` = the bucket does not exist yet (enable Storage); `403` = it exists
+   (go on to 2-4). Use the `storageBucket` from the environment's
+   `firebase_options_<env>.dart`, which is `.firebasestorage.app` for projects
+   created since late 2024 and `.appspot.com` before that.
 2. **Rules not deployed.** `firebase deploy --only storage:rules --project <id>`.
 3. **Cross-service access not granted.** `storage.rules` reads the caller's
    `/users/{uid}` profile with `firestore.get()`. In production that needs the

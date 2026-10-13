@@ -181,7 +181,19 @@ AppFailure _mapStorageException(FirebaseException error) {
         'again.',
       );
     case 'object-not-found':
-      return const NotFoundFailure('That file could not be found.');
+      // Also what Storage answers when an upload targets a bucket that was
+      // never created, so say both rather than just "file not found".
+      AppLogger.warning(
+        'Storage object-not-found. For an upload this means the bucket does '
+        'not exist: enable Storage in the Firebase console (see '
+        'DEVELOPMENT_GUIDE.md → "Firebase Storage").',
+        tag: 'ErrorMapper',
+      );
+      return const NotFoundFailure(
+        'The file, or the storage area for this project, could not be found. '
+        'If you were uploading, file storage may not be enabled yet — please '
+        'contact your administrator.',
+      );
     case 'invalid-checksum':
       return const UnknownFailure(
         'The file was damaged while uploading. Please try again.',

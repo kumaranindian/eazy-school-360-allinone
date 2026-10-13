@@ -40,6 +40,13 @@ void main() {
     );
   });
 
+  test('object-not-found also points at storage not being enabled', () {
+    final failure = mapExceptionToFailure(_storage('object-not-found'));
+    expect(failure, isA<NotFoundFailure>());
+    expect(failure.message, contains('file storage may not be enabled'));
+    expect(failure.message, isNot(contains('object-not-found')));
+  });
+
   test('an unknown storage code still gives an actionable message', () {
     final failure = mapExceptionToFailure(_storage('something-new'));
     expect(failure, isA<UnknownFailure>());
