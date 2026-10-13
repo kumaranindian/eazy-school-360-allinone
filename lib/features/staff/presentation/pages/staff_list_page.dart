@@ -304,7 +304,15 @@ class _StaffListState extends ConsumerState<_StaffList> {
         ref.watch(departmentsProvider(branchKey)).value ?? const [];
     final designations =
         ref.watch(designationsProvider(branchKey)).value ?? const [];
-    final counts = ref.watch(staffCountsProvider(branchKey)).value;
+    final counts = ref
+        .watch(
+          staffCountsProvider((
+            schoolId: widget.schoolId,
+            branchId: widget.branchId,
+            teachersOnly: false,
+          )),
+        )
+        .value;
     final departmentNames = {
       for (final d in departments) d.departmentId: d.name,
     };

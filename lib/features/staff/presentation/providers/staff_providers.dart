@@ -332,12 +332,13 @@ final teacherAssignmentWriteControllerProvider =
 typedef StaffCounts = ({int total, int active, int onNotice, int inactive});
 
 final staffCountsProvider = FutureProvider.autoDispose
-    .family<StaffCounts, BranchKey>((ref, key) async {
+    .family<StaffCounts, StaffCountsKey>((ref, key) async {
       final repository = ref.watch(staffRepositoryProvider);
       Future<int> count([StaffStatus? status]) => repository.countStaff(
         schoolId: key.schoolId,
         branchId: key.branchId,
         status: status,
+        isTeacher: key.teachersOnly ? true : null,
       );
       final results = await Future.wait([
         count(),

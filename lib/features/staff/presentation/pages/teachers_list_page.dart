@@ -8,7 +8,12 @@ import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/error/error_view.dart';
+import '../../../../shared/filters/filter_bar.dart';
+import '../../../../shared/filters/filter_field.dart';
+import '../../../../shared/filters/page_actions.dart';
 import '../../../../shared/layouts/responsive_data_list.dart';
+import '../../../../shared/layouts/scrollable_header.dart';
+import '../../../../shared/layouts/stat_chips.dart';
 import '../../../../shared/paging/paged_list_controller.dart';
 import '../../../academic_setup/domain/academic_year.dart';
 import '../../../academic_setup/domain/academic_year_status.dart';
@@ -166,6 +171,145 @@ class _TeachersListState extends ConsumerState<_TeachersList> {
     _applyQuery();
   }
 
+  void _onSearchChanged(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      if (mounted) {
+        setState(() {});
+        _applyQuery();
+      }
+    });
+  }
+
+  /// Headline headcounts that double as quick status filters; inert while an
+  /// assignment filter or a search has taken over the query.
+  List<StatChip> _statChips(StaffCounts? counts) {
+    final paused = _hasAssignmentFilter || _isSearching;
+    StatChip chip(String label, int? count, StaffStatus? status) => StatChip(
+      label: label,
+      count: count,
+      selected: !paused && _status == status,
+      onTap: paused ? null : () => _setFilter(() => _status = status),
+    );
+    return [
+      chip('All', counts?.total, null),
+      chip('Active', counts?.active, StaffStatus.active),
+      chip('On notice', counts?.onNotice, StaffStatus.onNotice),
+      chip('Inactive', counts?.inactive, StaffStatus.inactive),
+    ];
+  }
+
+  /// Built on demand, from the page's current state, because the filter sheet
+  /// asks again after every change (e.g. new class options once the year
+  /// changes).
+  List<FilterField> _filters(List<AcademicYear> years) {
+    final yearId = _yearId;
+    final classes = yearId == null
+        ? const []
+        : (ref
+                  .read(
+                    classesProvider((
+                      schoolId: widget.schoolId,
+                      branchId: widget.branchId,
+                      academicYearId: yearId,
+                    )),
+                  )
+                  .value ??
+              const []);
+    final classKey = (yearId == null || _classId == null)
+        ? null
+        : (
+            schoolId: widget.schoolId,
+            branchId: widget.branchId,
+            academicYearId: yearId,
+            classId: _classId!,
+          );
+    final sections = classKey == null
+        ? const []
+        : (ref.read(sectionsProvider(classKey)).value ?? const []);
+    final subjectOptions = yearId == null
+        ? const <({String id, String name})>[]
+        : classKey == null
+        ? (ref
+                      .read(
+                        subjectsProvider((
+                          schoolId: widget.schoolId,
+                          branchId: widget.branchId,
+                          academicYearId: yearId,
+                        )),
+                      )
+                      .value ??
+                  const [])
+              .map((s) => (id: s.subjectId, name: s.name))
+              .toList()
+        : (ref.read(classSubjectsProvider(classKey)).value ?? const [])
+              .map((s) => (id: s.subjectId, name: s.subjectName))
+              .toList();
+
+    return [
+      FilterField.dropdown<String>(
+        label: 'Academic year',
+        value: _yearId,
+        countsAsFilter: false,
+        options: [for (final y in years) (y.academicYearId, y.name)],
+        onChanged: (v) => _setFilter(() {
+          _yearId = v ?? _yearId;
+          _classId = null;
+          _sectionId = null;
+          _subjectId = null;
+        }),
+      ),
+      FilterField.dropdown<String>(
+        label: 'Class',
+        value: _classId,
+        options: [
+          (null, 'All classes'),
+          for (final c in classes) (c.classId, c.name),
+        ],
+        onChanged: (v) => _setFilter(() {
+          _classId = v;
+          _sectionId = null;
+          _subjectId = null;
+        }),
+      ),
+      FilterField.dropdown<String>(
+        label: 'Section',
+        value: sections.any((s) => s.sectionId == _sectionId)
+            ? _sectionId
+            : null,
+        options: [
+          (null, 'All sections'),
+          for (final s in sections) (s.sectionId, s.name),
+        ],
+        onChanged: _classId == null
+            ? null
+            : (v) => _setFilter(() => _sectionId = v),
+      ),
+      FilterField.dropdown<String>(
+        label: 'Subject',
+        value: subjectOptions.any((s) => s.id == _subjectId)
+            ? _subjectId
+            : null,
+        options: [
+          (null, 'All subjects'),
+          for (final s in subjectOptions) (s.id, s.name),
+        ],
+        onChanged: (v) => _setFilter(() => _subjectId = v),
+      ),
+      FilterField.dropdown<StaffStatus>(
+        label: 'Status',
+        value: _status,
+        options: [
+          (null, 'All statuses'),
+          for (final s in StaffStatus.values) (s, s.displayName),
+        ],
+        onChanged: (_hasAssignmentFilter || _isSearching)
+            ? null
+            : (v) => _setFilter(() => _status = v),
+      ),
+    ];
+  }
+
   @override
   void dispose() {
     _debounce?.cancel();
@@ -214,44 +358,31 @@ class _TeachersListState extends ConsumerState<_TeachersList> {
       branchId: widget.branchId,
       academicYearId: _yearId!,
     );
-    final classes = ref.watch(classesProvider(yearKey)).value ?? const [];
-    final classKey = _classId == null
-        ? null
-        : (
+    // Watched so this page rebuilds when the class / section / subject lists
+    // load; [_filters] reads the same providers for the filter controls.
+    ref.watch(classesProvider(yearKey));
+    if (_classId != null) {
+      final classKey = (
+        schoolId: widget.schoolId,
+        branchId: widget.branchId,
+        academicYearId: _yearId!,
+        classId: _classId!,
+      );
+      ref.watch(sectionsProvider(classKey));
+      ref.watch(classSubjectsProvider(classKey));
+    } else {
+      ref.watch(subjectsProvider(yearKey));
+    }
+    final names = ref.watch(academicNamesProvider(yearKey)).value;
+    final counts = ref
+        .watch(
+          staffCountsProvider((
             schoolId: widget.schoolId,
             branchId: widget.branchId,
-            academicYearId: _yearId!,
-            classId: _classId!,
-          );
-    final sections = classKey == null
-        ? const []
-        : (ref.watch(sectionsProvider(classKey)).value ?? const []);
-    final subjectOptions = classKey == null
-        ? (ref.watch(subjectsProvider(yearKey)).value ?? const [])
-              .map((s) => (id: s.subjectId, name: s.name))
-              .toList()
-        : (ref.watch(classSubjectsProvider(classKey)).value ?? const [])
-              .map((s) => (id: s.subjectId, name: s.subjectName))
-              .toList();
-    final names = ref.watch(academicNamesProvider(yearKey)).value;
-
-    Widget dropdown<T>({
-      required String label,
-      required T? value,
-      required List<DropdownMenuItem<T?>> items,
-      required ValueChanged<T?>? onChanged,
-    }) {
-      return SizedBox(
-        width: 180,
-        child: DropdownButtonFormField<T?>(
-          value: value,
-          isExpanded: true,
-          decoration: InputDecoration(labelText: label, isDense: true),
-          items: items,
-          onChanged: onChanged,
-        ),
-      );
-    }
+            teachersOnly: true,
+          )),
+        )
+        .value;
 
     String list(Iterable<String> values) {
       final distinct = values.toSet().toList()..sort();
@@ -274,143 +405,46 @@ class _TeachersListState extends ConsumerState<_TeachersList> {
 
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Wrap(
-                spacing: AppSpacing.md,
-                runSpacing: AppSpacing.xs,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  const StaffSectionSwitcher(current: StaffSection.teachers),
-                  StaffBulkActions(
-                    schoolId: widget.schoolId,
-                    branchId: widget.branchId,
-                    teachers: true,
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              TextField(
-                controller: _searchController,
-                enabled: !_hasAssignmentFilter,
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search),
-                  hintText: 'Search teachers by name',
-                  isDense: true,
+        ScrollableHeader(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Flexible(
+                      child: StaffSectionSwitcher(
+                        current: StaffSection.teachers,
+                      ),
+                    ),
+                    PageActionsMenu(
+                      actions: staffBulkPageActions(
+                        context,
+                        ref,
+                        schoolId: widget.schoolId,
+                        branchId: widget.branchId,
+                        teachers: true,
+                      ),
+                    ),
+                  ],
                 ),
-                onChanged: (_) {
-                  _debounce?.cancel();
-                  _debounce = Timer(const Duration(milliseconds: 400), () {
-                    if (mounted) {
-                      setState(() {});
-                      _applyQuery();
-                    }
-                  });
-                },
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
-                children: [
-                  dropdown<String>(
-                    label: 'Academic year',
-                    value: _yearId,
-                    items: [
-                      for (final y in years)
-                        DropdownMenuItem(
-                          value: y.academicYearId,
-                          child: Text(y.name),
-                        ),
-                    ],
-                    onChanged: (v) => _setFilter(() {
-                      _yearId = v ?? _yearId;
-                      _classId = null;
-                      _sectionId = null;
-                      _subjectId = null;
-                    }),
-                  ),
-                  dropdown<String>(
-                    label: 'Class',
-                    value: _classId,
-                    items: [
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('All classes'),
-                      ),
-                      for (final c in classes)
-                        DropdownMenuItem(value: c.classId, child: Text(c.name)),
-                    ],
-                    onChanged: (v) => _setFilter(() {
-                      _classId = v;
-                      _sectionId = null;
-                      _subjectId = null;
-                    }),
-                  ),
-                  dropdown<String>(
-                    label: 'Section',
-                    value: sections.any((s) => s.sectionId == _sectionId)
-                        ? _sectionId
-                        : null,
-                    items: [
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('All sections'),
-                      ),
-                      for (final s in sections)
-                        DropdownMenuItem(
-                          value: s.sectionId,
-                          child: Text(s.name),
-                        ),
-                    ],
-                    onChanged: _classId == null
-                        ? null
-                        : (v) => _setFilter(() => _sectionId = v),
-                  ),
-                  dropdown<String>(
-                    label: 'Subject',
-                    value: subjectOptions.any((s) => s.id == _subjectId)
-                        ? _subjectId
-                        : null,
-                    items: [
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('All subjects'),
-                      ),
-                      for (final s in subjectOptions)
-                        DropdownMenuItem(value: s.id, child: Text(s.name)),
-                    ],
-                    onChanged: (v) => _setFilter(() => _subjectId = v),
-                  ),
-                  dropdown<StaffStatus>(
-                    label: 'Status',
-                    value: _status,
-                    items: [
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('All statuses'),
-                      ),
-                      for (final s in StaffStatus.values)
-                        DropdownMenuItem(value: s, child: Text(s.displayName)),
-                    ],
-                    onChanged: (_hasAssignmentFilter || _isSearching)
-                        ? null
-                        : (v) => _setFilter(() => _status = v),
-                  ),
-                ],
-              ),
-              if (_hasAssignmentFilter)
-                Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.xs),
-                  child: Text(
-                    'Showing teachers with active assignments matching the class / section / subject. Search and status are paused.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+                const SizedBox(height: AppSpacing.sm),
+                StatChipsBar(chips: _statChips(counts)),
+                const SizedBox(height: AppSpacing.sm),
+                FilterBar(
+                  searchController: _searchController,
+                  searchHint: 'Search teachers by name',
+                  onSearchChanged: _onSearchChanged,
+                  searchEnabled: !_hasAssignmentFilter,
+                  fieldsBuilder: () => _filters(years),
+                  note: _hasAssignmentFilter
+                      ? 'Showing teachers with active assignments matching the class / section / subject. Search and status are paused.'
+                      : null,
                 ),
-            ],
+              ],
+            ),
           ),
         ),
         Expanded(

@@ -32,14 +32,20 @@ class FilterField {
 
   /// A dropdown filter. A `null` option value means "not filtered": it is
   /// the default, is what [onClear] selects, and never shows as a chip.
+  ///
+  /// A null [onChanged] shows the control disabled. Set [countsAsFilter] to
+  /// false for a control that picks context rather than narrowing the list
+  /// (an academic year): it still appears, but never as a chip or in the
+  /// "Filters · n" count.
   static FilterField dropdown<T>({
     required String label,
     required T? value,
     required List<(T?, String)> options,
-    required ValueChanged<T?> onChanged,
+    required ValueChanged<T?>? onChanged,
+    bool countsAsFilter = true,
   }) {
     String? applied;
-    if (value != null) {
+    if (countsAsFilter && value != null) {
       for (final (v, text) in options) {
         if (v == value) applied = text;
       }
@@ -47,7 +53,7 @@ class FilterField {
     return FilterField(
       label: label,
       appliedLabel: applied,
-      onClear: () => onChanged(null),
+      onClear: () => onChanged?.call(null),
       controlBuilder: (context, enabled) => DropdownButtonFormField<T?>(
         isExpanded: true,
         value: value,

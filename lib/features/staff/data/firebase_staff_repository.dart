@@ -163,6 +163,7 @@ class FirebaseStaffRepository implements StaffRepository {
     required String schoolId,
     required String branchId,
     StaffStatus? status,
+    bool? isTeacher,
   }) async {
     try {
       Query<Map<String, dynamic>> query = _staffCollection(schoolId, branchId);
@@ -171,6 +172,9 @@ class FirebaseStaffRepository implements StaffRepository {
           FirestoreFields.status,
           isEqualTo: status.wireValue,
         );
+      }
+      if (isTeacher != null) {
+        query = query.where('isTeacher', isEqualTo: isTeacher);
       }
       final snapshot = await query.count().get();
       return snapshot.count ?? 0;

@@ -30,6 +30,13 @@ class FilterBar extends StatelessWidget {
   final bool filtersEnabled;
   final String pausedMessage;
 
+  /// False when the page cannot search right now (e.g. another filter has
+  /// taken over the query); the box is shown disabled.
+  final bool searchEnabled;
+
+  /// An explanatory line under the bar, shown while filters are usable.
+  final String? note;
+
   const FilterBar({
     super.key,
     required this.searchController,
@@ -38,6 +45,8 @@ class FilterBar extends StatelessWidget {
     required this.fieldsBuilder,
     this.searchPrefix,
     this.filtersEnabled = true,
+    this.searchEnabled = true,
+    this.note,
     this.pausedMessage =
         'Filters are paused while searching. Clear the search to use them.',
   });
@@ -109,7 +118,15 @@ class FilterBar extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               )
-            else if (appliedHidden.isNotEmpty)
+            else if (note != null)
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.xs),
+                child: Text(
+                  note!,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            if (filtersEnabled && appliedHidden.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.sm),
                 child: Wrap(
@@ -146,6 +163,7 @@ class FilterBar extends StatelessWidget {
       listenable: searchController,
       builder: (context, _) => TextField(
         controller: searchController,
+        enabled: searchEnabled,
         textInputAction: TextInputAction.search,
         decoration: InputDecoration(
           hintText: searchHint,

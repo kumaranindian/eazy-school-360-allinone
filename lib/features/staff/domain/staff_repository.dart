@@ -32,6 +32,7 @@ abstract class StaffRepository {
     required String schoolId,
     required String branchId,
     StaffStatus? status,
+    bool? isTeacher,
   });
 
   /// Prefix search on one [field]. Deliberately not combined with the

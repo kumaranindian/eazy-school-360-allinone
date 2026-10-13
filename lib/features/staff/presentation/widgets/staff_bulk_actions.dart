@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/permissions/permission.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
+import '../../../../shared/filters/page_actions.dart';
 import '../staff_export_action.dart';
 
 /// "Import (CSV)" and "Export (CSV)" buttons for the staff and teacher
@@ -51,4 +52,40 @@ class StaffBulkActions extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// Import / Export for the staff and teacher directories as entries of the
+/// page's "⋮" menu. Same rules as [StaffBulkActions]: export for anyone who
+/// can see the list, import only for those who can manage staff.
+List<PageAction> staffBulkPageActions(
+  BuildContext context,
+  WidgetRef ref, {
+  required String schoolId,
+  required String branchId,
+  required bool teachers,
+}) {
+  final canManage =
+      ref.read(tenantContextProvider).value?.can(Permission.manageStaff) ??
+      false;
+  return [
+    if (canManage)
+      PageAction(
+        label: 'Import (CSV)',
+        icon: Icons.upload_file_outlined,
+        onSelected: () => context.push(
+          teachers ? '/staff/import?teachers=1' : '/staff/import',
+        ),
+      ),
+    PageAction(
+      label: 'Export (CSV)',
+      icon: Icons.download_outlined,
+      onSelected: () => exportStaffCsv(
+        context,
+        ref,
+        schoolId: schoolId,
+        branchId: branchId,
+        teachersOnly: teachers,
+      ),
+    ),
+  ];
 }

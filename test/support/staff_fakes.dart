@@ -88,6 +88,13 @@ class FakeStaffRepository implements StaffRepository {
     return PagedResult(items: matching, nextCursor: null);
   }
 
+  @override
+  Future<List<Staff>> getStaffByIds(
+    String schoolId,
+    String branchId,
+    List<String> staffIds,
+  ) async => staff.where((s) => staffIds.contains(s.staffId)).toList();
+
   final List<StaffStatus?> countCalls = [];
 
   @override
@@ -95,10 +102,14 @@ class FakeStaffRepository implements StaffRepository {
     required String schoolId,
     required String branchId,
     StaffStatus? status,
+    bool? isTeacher,
   }) async {
     countCalls.add(status);
     if (error != null) throw error!;
-    return staff.where((s) => status == null || s.status == status).length;
+    return staff
+        .where((s) => status == null || s.status == status)
+        .where((s) => isTeacher == null || s.isTeacher == isTeacher)
+        .length;
   }
 
   @override
@@ -326,6 +337,19 @@ class FakeTeacherAssignmentRepository implements TeacherAssignmentRepository {
     ],
     nextCursor: null,
   );
+
+  @override
+  Future<List<TeacherAssignment>> fetchAssignmentsForTeachers({
+    required String schoolId,
+    required String branchId,
+    required String academicYearId,
+    required List<String> teacherStaffIds,
+  }) async => [
+    for (final a in existing)
+      if (a.academicYearId == academicYearId &&
+          teacherStaffIds.contains(a.teacherStaffId))
+        a,
+  ];
 
   @override
   Stream<List<TeacherAssignment>> watchTeacherAssignments(
