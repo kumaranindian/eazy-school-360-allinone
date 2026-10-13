@@ -60,6 +60,20 @@ Entry points are explicit: `lib/main_dev.dart`, `main_prod.dart` (optionally wit
 - In status-driven widget tests, don't `pumpAndSettle` while a save spinner is shown; use `pump(duration)`.
 - Theme: use `core/theme` tokens / `Theme.of(context)`, no raw colors or hex in feature code. Async state: `AsyncNotifier` + `AsyncValueWidget`, not ad hoc loading/error booleans.
 
+## Shared UI building blocks (responsive layout)
+
+List and hub pages share components in `lib/shared`; reuse them instead of hand-rolling dropdown rows and button walls:
+
+- `filters/FilterBar` + `FilterField` — search and filters for list pages. Phones get a search box and a "Filters" button (bottom sheet, removable chips); wide screens show as many filters inline as fit. `fieldsBuilder` is called again after every change, so read live state (and provider values via `ref.read`) inside it. `FilterField.dropdown` treats a `null` option as "not filtered"; `countsAsFilter: false` is for context pickers (academic year); `FilterField.picker` is for dates. `searchController` is optional (filter-only pages).
+- `filters/PageActionsMenu` — the "⋮" menu for secondary actions; keep one primary action (FAB or `SectionAction`).
+- `layouts/StatChipsBar` — scrolling headline numbers that double as quick filters. Counts come from server-side `count()` aggregates (`countStaff`, `countStudents`), never from downloading documents.
+- `layouts/SectionPage` — frame for sub-pages (title, back link, toolbar slot, primary action: header button on wide screens, FAB on phones). `SectionToolbar` / `ToolbarField` wrap pickers instead of overflowing.
+- `layouts/ScopeBar` — controls that choose *what a page is about* (year/class/section/date); folds to a one-line summary on phones once complete.
+- `layouts/HubGroup` / `HubTile` / `HubBadge` — grouped navigation tiles whose rows grow with the text size. `DetailGrid` — label-over-value read-only details.
+- `layouts/ScrollableHeader` caps and scrolls a header that sits above an `Expanded` list. `ResponsiveDataList` takes `tabletColumns` to show fewer columns on tablets.
+- The app clamps the system text scale at 1.5 and uses smaller headings on phones (`lib/app/app.dart`, `AppTypography.compact`). Don't give text containers a fixed height; size them from `MediaQuery.textScalerOf(context)` or let them grow.
+- Layout tests (`test/widget/layout_responsive_test.dart`, `settings_*_test.dart`, `*_list_test.dart`) render at phone/tablet/desktop sizes and larger text scales and fail on any overflow; add one for new pages.
+
 ## Docs map
 
 `PROJECT_ARCHITECTURE.md` (structure, known limitations), `MULTI_TENANT_GUIDE.md` (tenant/role/rules model), `FIRESTORE_ARCHITECTURE.md`, `SECURITY_ARCHITECTURE.md`, `DEVELOPMENT_GUIDE.md` (setup, rules-test details, deploy commands), `docs/milestone-*.md` (per-feature behaviour). Some top-level docs lag the latest milestones; trust the code and the newest milestone doc where they disagree. Release status: not release-ready (see `docs/milestone-12-production-readiness.md`, `milestone-12a-blocker-closure.md`).

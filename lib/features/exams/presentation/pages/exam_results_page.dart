@@ -15,6 +15,7 @@ import '../../../attendance/domain/attendance_tally.dart';
 import '../../../attendance/presentation/providers/attendance_providers.dart';
 import '../../../homework/presentation/widgets/homework_widgets.dart';
 import '../../../staff/presentation/widgets/staff_branch_scope.dart';
+import '../../../../shared/layouts/stat_chips.dart';
 import '../../domain/exam_enums.dart';
 import '../../domain/exam_repositories.dart';
 import '../../domain/exam_rules.dart';
@@ -414,33 +415,16 @@ class _ResultsState extends ConsumerState<_Results> {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              CountTile(
-                label: 'Students',
-                value: stats.students,
-                icon: Icons.groups,
-              ),
-              CountTile(
-                label: 'Passed',
-                value: stats.passed,
-                icon: Icons.check,
-              ),
-              CountTile(
-                label: 'Failed',
-                value: stats.failed,
-                icon: Icons.close,
-              ),
-              CountTile(
-                label: 'Incomplete',
-                value: d.incomplete,
-                icon: Icons.warning_amber,
-              ),
-              CountTileText(
+          StatChipsBar(
+            chips: [
+              StatChip(label: 'Students', count: stats.students),
+              StatChip(label: 'Passed', count: stats.passed),
+              StatChip(label: 'Failed', count: stats.failed),
+              StatChip(label: 'Incomplete', count: d.incomplete),
+              StatChip(
                 label: 'Average',
-                value: stats.averagePercentage == null
+                count: null,
+                valueText: stats.averagePercentage == null
                     ? '–'
                     : '${fmtNum(stats.averagePercentage)}%',
               ),

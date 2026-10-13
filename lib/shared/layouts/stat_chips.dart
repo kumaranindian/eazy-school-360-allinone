@@ -8,12 +8,17 @@ class StatChip {
 
   /// Null while the count is still loading (shown as a placeholder).
   final int? count;
+
+  /// Shown instead of [count] when the figure is not a whole number (an
+  /// average, a percentage).
+  final String? valueText;
   final bool selected;
   final VoidCallback? onTap;
 
   const StatChip({
     required this.label,
     required this.count,
+    this.valueText,
     this.selected = false,
     this.onTap,
   });
@@ -45,7 +50,7 @@ class StatChipsBar extends StatelessWidget {
 
   Widget _chip(ThemeData theme, StatChip chip) {
     final scheme = theme.colorScheme;
-    final count = chip.count?.toString() ?? '–';
+    final count = chip.valueText ?? chip.count?.toString() ?? '–';
     return Semantics(
       button: chip.onTap != null,
       selected: chip.selected,

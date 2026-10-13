@@ -14,6 +14,9 @@ import '../../../../shared/paging/paged_list_controller.dart';
 import '../../../academic_setup/presentation/providers/academic_structure_providers.dart';
 import '../../../homework/presentation/widgets/homework_widgets.dart';
 import '../../../timetable/presentation/widgets/timetable_scope.dart';
+import '../../../../shared/layouts/stat_chips.dart';
+import '../../../../shared/filters/filter_field.dart';
+import '../../../../shared/filters/filter_bar.dart';
 import '../../domain/exam_enums.dart';
 import '../../domain/examination.dart';
 import '../providers/exam_providers.dart';
@@ -92,6 +95,45 @@ class _ExamListState extends ConsumerState<_ExamList> {
     _controller.reload();
   }
 
+  List<FilterField> _filters() {
+    final classes = ref
+        .read(
+          classesProvider((
+            schoolId: widget.tt.schoolId,
+            branchId: widget.tt.branchId,
+            academicYearId: widget.tt.year.academicYearId,
+          )),
+        )
+        .value;
+    return [
+      FilterField.dropdown<ExamStatus>(
+        label: 'Status',
+        value: _status,
+        options: [
+          (null, 'All'),
+          for (final s in ExamStatus.values) (s, s.displayName),
+        ],
+        onChanged: (v) {
+          setState(() => _status = v);
+          _configure();
+        },
+      ),
+      if (classes != null)
+        FilterField.dropdown<String>(
+          label: 'Class',
+          value: classes.any((c) => c.classId == _classId) ? _classId : null,
+          options: [
+            (null, 'All'),
+            for (final c in classes) (c.classId, c.name),
+          ],
+          onChanged: (v) {
+            setState(() => _classId = v);
+            _configure();
+          },
+        ),
+    ];
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -101,87 +143,39 @@ class _ExamListState extends ConsumerState<_ExamList> {
   @override
   Widget build(BuildContext context) {
     final tt = widget.tt;
-    final classes = ref
-        .watch(
-          classesProvider((
-            schoolId: tt.schoolId,
-            branchId: tt.branchId,
-            academicYearId: tt.year.academicYearId,
-          )),
-        )
-        .value;
+    // Watched so the page rebuilds when classes load; _filters reads them.
+    ref.watch(
+      classesProvider((
+        schoolId: tt.schoolId,
+        branchId: tt.branchId,
+        academicYearId: tt.year.academicYearId,
+      )),
+    );
     final items = _controller.items;
     return PageColumn(
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
         children: [
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              SizedBox(
-                width: 190,
-                child: DropdownButtonFormField<ExamStatus?>(
-                  value: _status,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Status',
-                    isDense: true,
-                  ),
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('All')),
-                    for (final s in ExamStatus.values)
-                      DropdownMenuItem(value: s, child: Text(s.displayName)),
-                  ],
-                  onChanged: (v) {
-                    setState(() => _status = v);
-                    _configure();
-                  },
-                ),
-              ),
-              if (classes != null)
-                SizedBox(
-                  width: 190,
-                  child: DropdownButtonFormField<String?>(
-                    value: _classId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Class',
-                      isDense: true,
-                    ),
-                    items: [
-                      const DropdownMenuItem(value: null, child: Text('All')),
-                      for (final c in classes)
-                        DropdownMenuItem(value: c.classId, child: Text(c.name)),
-                    ],
-                    onChanged: (v) {
-                      setState(() => _classId = v);
-                      _configure();
-                    },
-                  ),
-                ),
-            ],
-          ),
           const SizedBox(height: AppSpacing.md),
           if (items.isNotEmpty) ...[
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                for (final (label, status, icon) in [
-                  ('Marks entry open', ExamStatus.inProgress, Icons.edit_note),
-                  (
-                    'Awaiting publication',
-                    ExamStatus.completed,
-                    Icons.fact_check_outlined,
-                  ),
-                  ('Published', ExamStatus.published, Icons.public),
-                  ('Withdrawn', ExamStatus.withdrawn, Icons.undo),
+            StatChipsBar(
+              chips: [
+                for (final (label, status) in [
+                  ('Marks entry open', ExamStatus.inProgress),
+                  ('Awaiting publication', ExamStatus.completed),
+                  ('Published', ExamStatus.published),
+                  ('Withdrawn', ExamStatus.withdrawn),
                 ])
-                  CountTile(
+                  StatChip(
                     label: label,
-                    icon: icon,
-                    value: items.where((e) => e.status == status).length,
+                    count: items.where((e) => e.status == status).length,
+                    selected: _status == status,
+                    onTap: () {
+                      setState(
+                        () => _status = _status == status ? null : status,
+                      );
+                      _configure();
+                    },
                   ),
               ],
             ),
@@ -194,6 +188,9 @@ class _ExamListState extends ConsumerState<_ExamList> {
             ),
             const SizedBox(height: AppSpacing.md),
           ],
+          const SizedBox(height: AppSpacing.sm),
+          FilterBar(fieldsBuilder: _filters),
+          const SizedBox(height: AppSpacing.md),
           if (_controller.errorMessage != null && items.isEmpty)
             ErrorView(
               message: _controller.errorMessage!,
