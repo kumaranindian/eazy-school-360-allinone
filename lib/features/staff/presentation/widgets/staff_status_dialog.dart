@@ -116,6 +116,7 @@ class _StaffStatusDialogState extends ConsumerState<StaffStatusDialog> {
         ),
         const SizedBox(height: AppSpacing.md),
         DropdownButtonFormField<StaffStatus>(
+          isExpanded: true,
           value: status,
           decoration: const InputDecoration(labelText: 'New status'),
           items: [

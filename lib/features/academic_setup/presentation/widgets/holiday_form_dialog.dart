@@ -132,6 +132,7 @@ class _HolidayFormDialogState extends ConsumerState<HolidayFormDialog> {
           ),
           const SizedBox(height: AppSpacing.sm),
           DropdownButtonFormField<HolidayType>(
+            isExpanded: true,
             value: _type,
             decoration: const InputDecoration(labelText: 'Type'),
             items: [
@@ -151,6 +152,7 @@ class _HolidayFormDialogState extends ConsumerState<HolidayFormDialog> {
           if (_isEditing) ...[
             const SizedBox(height: AppSpacing.sm),
             DropdownButtonFormField<ActivationStatus>(
+              isExpanded: true,
               value: _status,
               decoration: const InputDecoration(labelText: 'Status'),
               items: const [

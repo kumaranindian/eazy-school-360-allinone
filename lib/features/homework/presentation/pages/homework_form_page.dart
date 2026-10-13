@@ -872,13 +872,18 @@ class HomeworkPreviewScreen extends StatelessWidget {
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
-          child: Row(
+          // Wraps onto a second line when the two buttons do not fit side by
+          // side (narrow phone, large text) instead of overflowing.
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
             children: [
               OutlinedButton(
                 onPressed: () => Navigator.of(context).pop(false),
                 child: const Text('Back to edit'),
               ),
-              const Spacer(),
               FilledButton.icon(
                 onPressed: () => Navigator.of(context).pop(true),
                 icon: const Icon(Icons.public),

@@ -122,6 +122,7 @@ class _ClassFormDialogState extends ConsumerState<ClassFormDialog> {
           if (_isEditing) ...[
             const SizedBox(height: AppSpacing.sm),
             DropdownButtonFormField<ActivationStatus>(
+              isExpanded: true,
               value: _status,
               decoration: const InputDecoration(labelText: 'Status'),
               items: [

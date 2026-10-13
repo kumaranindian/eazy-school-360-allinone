@@ -524,14 +524,15 @@ class _NewTimetableFormState extends ConsumerState<NewTimetableForm> {
             ),
           ),
         const SizedBox(height: AppSpacing.md),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
+        OverflowBar(
+          alignment: MainAxisAlignment.end,
+          spacing: AppSpacing.sm,
+          overflowSpacing: AppSpacing.sm,
           children: [
             TextButton(
               onPressed: _busy ? null : () => Navigator.of(context).pop(),
               child: const Text('Cancel'),
             ),
-            const SizedBox(width: AppSpacing.sm),
             FilledButton(
               onPressed: _busy ? null : () => _submit(sets, classes, sections),
               child: const Text('Create draft'),

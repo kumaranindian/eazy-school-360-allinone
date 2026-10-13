@@ -85,6 +85,7 @@ class _StudentStatusDialogState extends ConsumerState<StudentStatusDialog> {
         Text('Change status', style: context.textStyles.titleLarge),
         const SizedBox(height: AppSpacing.md),
         DropdownButtonFormField<StudentStatus>(
+          isExpanded: true,
           value: _status,
           decoration: const InputDecoration(labelText: 'New status'),
           items: [

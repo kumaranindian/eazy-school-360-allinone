@@ -442,6 +442,7 @@ class _SchemeEditorState extends ConsumerState<SchemeEditorPage> {
                     ),
                   ),
                   DropdownButtonFormField<int>(
+                    isExpanded: true,
                     value: _decimals,
                     decoration: const InputDecoration(
                       labelText: 'Decimal places for percentages',
@@ -453,6 +454,7 @@ class _SchemeEditorState extends ConsumerState<SchemeEditorPage> {
                     onChanged: (v) => setState(() => _decimals = v!),
                   ),
                   DropdownButtonFormField<RoundingMode>(
+                    isExpanded: true,
                     value: _rounding,
                     decoration: const InputDecoration(labelText: 'Rounding'),
                     items: [
@@ -462,6 +464,7 @@ class _SchemeEditorState extends ConsumerState<SchemeEditorPage> {
                     onChanged: (v) => setState(() => _rounding = v!),
                   ),
                   DropdownButtonFormField<AbsentPolicy>(
+                    isExpanded: true,
                     value: _absent,
                     decoration: const InputDecoration(
                       labelText: 'An absent subject',
@@ -473,6 +476,7 @@ class _SchemeEditorState extends ConsumerState<SchemeEditorPage> {
                     onChanged: (v) => setState(() => _absent = v!),
                   ),
                   DropdownButtonFormField<AggregateMethod>(
+                    isExpanded: true,
                     value: _aggregate,
                     decoration: const InputDecoration(
                       labelText: 'Overall percentage',

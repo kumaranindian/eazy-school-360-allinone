@@ -27,6 +27,7 @@ class AcademicYearSelector extends StatelessWidget {
         : years.first.academicYearId;
 
     return DropdownButtonFormField<String>(
+      isExpanded: true,
       value: value,
       decoration: const InputDecoration(
         labelText: 'Academic year',

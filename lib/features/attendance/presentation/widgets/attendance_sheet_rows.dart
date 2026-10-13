@@ -234,25 +234,19 @@ class _DesktopRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Row(
+            // Wraps (rather than squeezing a chip to nothing) when the name,
+            // leave chip and "Not marked" do not fit on one line.
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 2,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Flexible(
-                  child: Text(entry.name, overflow: TextOverflow.ellipsis),
-                ),
-                if (leaveLabel != null)
-                  Flexible(
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: _LeaveChip(leaveLabel!),
-                    ),
-                  ),
+                Text(entry.name),
+                if (leaveLabel != null) _LeaveChip(leaveLabel!),
                 if (entry.status == null)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: Text(
-                      'Not marked',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
+                  Text(
+                    'Not marked',
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
               ],
             ),

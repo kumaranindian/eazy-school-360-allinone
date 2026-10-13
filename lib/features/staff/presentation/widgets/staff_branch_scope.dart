@@ -83,6 +83,7 @@ class StaffBranchScope extends ConsumerWidget {
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 320),
                     child: DropdownButtonFormField<String>(
+                      isExpanded: true,
                       value: branchId,
                       decoration: const InputDecoration(
                         labelText: 'Branch',

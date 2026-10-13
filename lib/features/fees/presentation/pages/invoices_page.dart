@@ -21,6 +21,7 @@ import '../providers/fee_providers.dart';
 import '../widgets/fee_scope.dart';
 import '../widgets/student_all_years_ledger.dart';
 import '../widgets/fee_widgets.dart';
+import '../../../../shared/layouts/scrollable_header.dart';
 
 enum _StatusFilter { all, overdue, issued, partiallyPaid, paid, voided }
 
@@ -205,153 +206,156 @@ class _InvoicesState extends ConsumerState<_Invoices> {
           ),
         if (_ledger != null)
           _LedgerSummary(future: _ledger!, currency: fee.currency),
-        Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _search,
-                      decoration: InputDecoration(
-                        prefixIcon: const Icon(Icons.search),
-                        hintText:
-                            'Search by invoice number (e.g. INV-2026-0000)',
-                        isDense: true,
-                        suffixIcon: _searching
-                            ? IconButton(
-                                icon: const Icon(Icons.clear),
-                                onPressed: () => _set(_search.clear),
-                              )
-                            : null,
+        ScrollableHeader(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _search,
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.search),
+                          hintText:
+                              'Search by invoice number (e.g. INV-2026-0000)',
+                          isDense: true,
+                          suffixIcon: _searching
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () => _set(_search.clear),
+                                )
+                              : null,
+                        ),
+                        onChanged: (_) {
+                          _debounce?.cancel();
+                          _debounce = Timer(
+                            const Duration(milliseconds: 400),
+                            () {
+                              if (mounted) _set(() {});
+                            },
+                          );
+                        },
                       ),
-                      onChanged: (_) {
-                        _debounce?.cancel();
-                        _debounce = Timer(
-                          const Duration(milliseconds: 400),
-                          () {
-                            if (mounted) _set(() {});
-                          },
-                        );
-                      },
                     ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  if (fee.tenant.can(Permission.issueInvoices))
-                    FilledButton.icon(
-                      onPressed: () => context.push('/fees/invoices/generate'),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Generate'),
-                    ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  dropdown<_StatusFilter>('Status', _status, [
-                    const DropdownMenuItem(
-                      value: _StatusFilter.all,
-                      child: Text('All statuses'),
-                    ),
-                    const DropdownMenuItem(
-                      value: _StatusFilter.overdue,
-                      child: Text('Overdue'),
-                    ),
-                    const DropdownMenuItem(
-                      value: _StatusFilter.issued,
-                      child: Text('Issued'),
-                    ),
-                    const DropdownMenuItem(
-                      value: _StatusFilter.partiallyPaid,
-                      child: Text('Partially paid'),
-                    ),
-                    const DropdownMenuItem(
-                      value: _StatusFilter.paid,
-                      child: Text('Paid'),
-                    ),
-                    const DropdownMenuItem(
-                      value: _StatusFilter.voided,
-                      child: Text('Void'),
-                    ),
-                  ], (v) => _set(() => _status = v ?? _status)),
-                  if (widget.studentId == null) ...[
-                    dropdown<String?>(
-                      'Class',
-                      classes.any((c) => c.classId == _classId)
-                          ? _classId
-                          : null,
-                      [
-                        const DropdownMenuItem(
-                          value: null,
-                          child: Text('All classes'),
-                        ),
-                        for (final c in classes)
-                          DropdownMenuItem(
-                            value: c.classId,
-                            child: Text(c.name),
-                          ),
-                      ],
-                      (v) => _set(() {
-                        _classId = v;
-                        _sectionId = null;
-                      }),
-                    ),
-                    dropdown<String?>(
-                      'Section',
-                      sections.any((s) => s.sectionId == _sectionId)
-                          ? _sectionId
-                          : null,
-                      [
-                        const DropdownMenuItem(
-                          value: null,
-                          child: Text('All sections'),
-                        ),
-                        for (final s in sections)
-                          DropdownMenuItem(
-                            value: s.sectionId,
-                            child: Text(s.name),
-                          ),
-                      ],
-                      _classId == null
-                          ? null
-                          : (v) => _set(() => _sectionId = v),
-                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    if (fee.tenant.can(Permission.issueInvoices))
+                      FilledButton.icon(
+                        onPressed: () =>
+                            context.push('/fees/invoices/generate'),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Generate'),
+                      ),
                   ],
-                  OutlinedButton(
-                    onPressed: _searching ? null : () => _pick(true),
-                    child: Text(
-                      _from == null
-                          ? 'Due from'
-                          : 'From ${FeeDates.display(_from!)}',
-                    ),
-                  ),
-                  OutlinedButton(
-                    onPressed: _searching ? null : () => _pick(false),
-                    child: Text(
-                      _to == null ? 'Due to' : 'To ${FeeDates.display(_to!)}',
-                    ),
-                  ),
-                  if (_from != null || _to != null)
-                    TextButton(
-                      onPressed: () => _set(() => _from = _to = null),
-                      child: const Text('Clear dates'),
-                    ),
-                ],
-              ),
-              if (_searching)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    'Filters are paused while searching.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
                 ),
-            ],
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    dropdown<_StatusFilter>('Status', _status, [
+                      const DropdownMenuItem(
+                        value: _StatusFilter.all,
+                        child: Text('All statuses'),
+                      ),
+                      const DropdownMenuItem(
+                        value: _StatusFilter.overdue,
+                        child: Text('Overdue'),
+                      ),
+                      const DropdownMenuItem(
+                        value: _StatusFilter.issued,
+                        child: Text('Issued'),
+                      ),
+                      const DropdownMenuItem(
+                        value: _StatusFilter.partiallyPaid,
+                        child: Text('Partially paid'),
+                      ),
+                      const DropdownMenuItem(
+                        value: _StatusFilter.paid,
+                        child: Text('Paid'),
+                      ),
+                      const DropdownMenuItem(
+                        value: _StatusFilter.voided,
+                        child: Text('Void'),
+                      ),
+                    ], (v) => _set(() => _status = v ?? _status)),
+                    if (widget.studentId == null) ...[
+                      dropdown<String?>(
+                        'Class',
+                        classes.any((c) => c.classId == _classId)
+                            ? _classId
+                            : null,
+                        [
+                          const DropdownMenuItem(
+                            value: null,
+                            child: Text('All classes'),
+                          ),
+                          for (final c in classes)
+                            DropdownMenuItem(
+                              value: c.classId,
+                              child: Text(c.name),
+                            ),
+                        ],
+                        (v) => _set(() {
+                          _classId = v;
+                          _sectionId = null;
+                        }),
+                      ),
+                      dropdown<String?>(
+                        'Section',
+                        sections.any((s) => s.sectionId == _sectionId)
+                            ? _sectionId
+                            : null,
+                        [
+                          const DropdownMenuItem(
+                            value: null,
+                            child: Text('All sections'),
+                          ),
+                          for (final s in sections)
+                            DropdownMenuItem(
+                              value: s.sectionId,
+                              child: Text(s.name),
+                            ),
+                        ],
+                        _classId == null
+                            ? null
+                            : (v) => _set(() => _sectionId = v),
+                      ),
+                    ],
+                    OutlinedButton(
+                      onPressed: _searching ? null : () => _pick(true),
+                      child: Text(
+                        _from == null
+                            ? 'Due from'
+                            : 'From ${FeeDates.display(_from!)}',
+                      ),
+                    ),
+                    OutlinedButton(
+                      onPressed: _searching ? null : () => _pick(false),
+                      child: Text(
+                        _to == null ? 'Due to' : 'To ${FeeDates.display(_to!)}',
+                      ),
+                    ),
+                    if (_from != null || _to != null)
+                      TextButton(
+                        onPressed: () => _set(() => _from = _to = null),
+                        child: const Text('Clear dates'),
+                      ),
+                  ],
+                ),
+                if (_searching)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Filters are paused while searching.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
         Expanded(

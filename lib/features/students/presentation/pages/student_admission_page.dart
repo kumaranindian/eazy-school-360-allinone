@@ -362,6 +362,7 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       DropdownButtonFormField<Gender>(
+                        isExpanded: true,
                         value: _gender,
                         decoration: const InputDecoration(labelText: 'Gender'),
                         items: [
@@ -376,6 +377,7 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       DropdownButtonFormField<BloodGroup?>(
+                        isExpanded: true,
                         value: _bloodGroup,
                         decoration: const InputDecoration(
                           labelText: 'Blood group (optional)',
@@ -512,6 +514,7 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
                     if (_parentMode != _ParentMode.skip) ...[
                       const SizedBox(height: AppSpacing.sm),
                       DropdownButtonFormField<RelationshipType>(
+                        isExpanded: true,
                         value: _relationshipType,
                         decoration: const InputDecoration(
                           labelText: 'Relationship',
@@ -562,6 +565,7 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
                         );
                         return yearsAsync.when(
                           data: (years) => DropdownButtonFormField<String>(
+                            isExpanded: true,
                             value:
                                 years.any(
                                   (y) => y.academicYearId == _academicYearId,
@@ -604,6 +608,7 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
                           );
                           return classesAsync.when(
                             data: (classes) => DropdownButtonFormField<String>(
+                              isExpanded: true,
                               value: classes.any((c) => c.classId == _classId)
                                   ? _classId
                                   : null,
@@ -642,6 +647,7 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
                           );
                           return sectionsAsync.when(
                             data: (sections) => DropdownButtonFormField<String>(
+                              isExpanded: true,
                               value:
                                   sections.any((s) => s.sectionId == _sectionId)
                                   ? _sectionId

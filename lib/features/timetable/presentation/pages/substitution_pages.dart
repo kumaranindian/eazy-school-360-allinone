@@ -955,6 +955,7 @@ class _NewState extends ConsumerState<_New> {
               ),
             const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<SubstitutionReasonKind>(
+              isExpanded: true,
               value: _kind,
               decoration: const InputDecoration(labelText: 'Reason'),
               items: [

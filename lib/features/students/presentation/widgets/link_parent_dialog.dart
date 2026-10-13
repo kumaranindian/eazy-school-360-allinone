@@ -222,6 +222,7 @@ class _LinkParentDialogState extends ConsumerState<LinkParentDialog> {
           ],
           const SizedBox(height: AppSpacing.sm),
           DropdownButtonFormField<RelationshipType>(
+            isExpanded: true,
             value: _relationshipType,
             decoration: const InputDecoration(labelText: 'Relationship'),
             items: [

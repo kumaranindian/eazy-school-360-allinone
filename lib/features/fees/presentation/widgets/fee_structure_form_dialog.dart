@@ -205,6 +205,7 @@ class _FeeStructureFormDialogState
           ),
           const SizedBox(height: AppSpacing.sm),
           DropdownButtonFormField<FeeCategory>(
+            isExpanded: true,
             value: _category,
             decoration: const InputDecoration(labelText: 'Category'),
             items: [
@@ -227,6 +228,7 @@ class _FeeStructureFormDialogState
           ],
           const SizedBox(height: AppSpacing.sm),
           DropdownButtonFormField<FeeFrequency>(
+            isExpanded: true,
             value: _frequency,
             decoration: const InputDecoration(labelText: 'Billed'),
             items: [
@@ -260,6 +262,7 @@ class _FeeStructureFormDialogState
           ),
           const SizedBox(height: AppSpacing.sm),
           DropdownButtonFormField<String?>(
+            isExpanded: true,
             value: classes.any((c) => c.classId == _classId) ? _classId : null,
             decoration: const InputDecoration(labelText: 'Class'),
             items: [
@@ -277,6 +280,7 @@ class _FeeStructureFormDialogState
           if (_classId != null) ...[
             const SizedBox(height: AppSpacing.sm),
             DropdownButtonFormField<String?>(
+              isExpanded: true,
               value: sections.any((s) => s.sectionId == _sectionId)
                   ? _sectionId
                   : null,

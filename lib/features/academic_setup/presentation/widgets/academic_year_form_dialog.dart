@@ -166,6 +166,7 @@ class _AcademicYearFormDialogState
           ),
           const SizedBox(height: AppSpacing.sm),
           DropdownButtonFormField<AcademicYearStatus>(
+            isExpanded: true,
             value: _status,
             decoration: const InputDecoration(labelText: 'Status'),
             items: [

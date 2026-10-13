@@ -341,6 +341,7 @@ class _StaffFormState extends ConsumerState<_StaffForm> {
                   initialPickerDate: DateTime(1990),
                 ),
                 DropdownButtonFormField<Gender>(
+                  isExpanded: true,
                   value: _gender,
                   decoration: const InputDecoration(labelText: 'Gender'),
                   items: [
@@ -351,6 +352,7 @@ class _StaffFormState extends ConsumerState<_StaffForm> {
                   validator: (v) => v == null ? 'Gender is required.' : null,
                 ),
                 DropdownButtonFormField<BloodGroup?>(
+                  isExpanded: true,
                   value: _bloodGroup,
                   decoration: const InputDecoration(
                     labelText: 'Blood group (optional)',
@@ -445,6 +447,7 @@ class _StaffFormState extends ConsumerState<_StaffForm> {
                   lastDate: DateTime.now().add(const Duration(days: 365)),
                 ),
                 DropdownButtonFormField<EmploymentType>(
+                  isExpanded: true,
                   value: _employmentType,
                   decoration: const InputDecoration(
                     labelText: 'Employment type',
@@ -457,6 +460,7 @@ class _StaffFormState extends ConsumerState<_StaffForm> {
                       setState(() => _employmentType = v ?? _employmentType),
                 ),
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
                   value:
                       departmentItems.any(
                         (d) => d.departmentId == _departmentId,
@@ -476,6 +480,7 @@ class _StaffFormState extends ConsumerState<_StaffForm> {
                       v == null ? 'Department is required.' : null,
                 ),
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
                   value:
                       designationItems.any(
                         (d) => d.designationId == _designationId,

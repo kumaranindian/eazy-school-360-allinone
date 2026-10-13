@@ -388,6 +388,7 @@ class _LeaveApplyFormState extends ConsumerState<LeaveApplyForm> {
         ),
         const SizedBox(height: AppSpacing.md),
         DropdownButtonFormField<String>(
+          isExpanded: true,
           value: type?.typeId,
           decoration: const InputDecoration(labelText: 'Leave type'),
           items: [
@@ -429,6 +430,7 @@ class _LeaveApplyFormState extends ConsumerState<LeaveApplyForm> {
         if (canPickHalf) ...[
           const SizedBox(height: AppSpacing.md),
           DropdownButtonFormField<HalfDay>(
+            isExpanded: true,
             value: _half,
             decoration: const InputDecoration(labelText: 'Session'),
             items: [

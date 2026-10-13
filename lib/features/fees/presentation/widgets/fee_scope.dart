@@ -125,6 +125,7 @@ class _FeeScopeState extends ConsumerState<FeeScope> {
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 260),
                     child: DropdownButtonFormField<String>(
+                      isExpanded: true,
                       value: selected.academicYearId,
                       decoration: const InputDecoration(
                         labelText: 'Academic year',

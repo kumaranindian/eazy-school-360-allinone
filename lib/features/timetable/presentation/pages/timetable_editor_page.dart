@@ -849,8 +849,10 @@ class _CellDialogState extends State<_CellDialog> {
           ),
         ),
         const SizedBox(height: AppSpacing.md),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
+        OverflowBar(
+          alignment: MainAxisAlignment.end,
+          spacing: AppSpacing.sm,
+          overflowSpacing: AppSpacing.sm,
           children: [
             if (widget.canClear)
               TextButton(

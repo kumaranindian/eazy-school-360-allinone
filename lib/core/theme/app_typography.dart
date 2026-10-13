@@ -56,4 +56,24 @@ abstract final class AppTypography {
       height: 1.4,
     ),
   );
+
+  /// Phone-sized variant of [base]: headings are a step smaller so titles
+  /// and heroes do not fill a 360px-wide screen. Body and label sizes are
+  /// left alone — they are already at the readable minimum.
+  static TextTheme compact(TextTheme base) {
+    TextStyle? scale(TextStyle? style) {
+      final size = style?.fontSize;
+      return size == null ? style : style!.copyWith(fontSize: size * 0.9);
+    }
+
+    return base.copyWith(
+      displayLarge: scale(base.displayLarge),
+      displayMedium: scale(base.displayMedium),
+      displaySmall: scale(base.displaySmall),
+      headlineLarge: scale(base.headlineLarge),
+      headlineMedium: scale(base.headlineMedium),
+      headlineSmall: scale(base.headlineSmall),
+      titleLarge: scale(base.titleLarge),
+    );
+  }
 }

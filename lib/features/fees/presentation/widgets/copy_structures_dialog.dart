@@ -222,6 +222,7 @@ class _CopyStructuresDialogState extends ConsumerState<CopyStructuresDialog> {
               const Text('There is no other academic year to copy from.')
             else
               DropdownButtonFormField<String>(
+                isExpanded: true,
                 value: _sourceYearId,
                 decoration: const InputDecoration(labelText: 'Copy from'),
                 items: [

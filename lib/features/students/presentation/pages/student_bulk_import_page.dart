@@ -612,6 +612,7 @@ class _StudentBulkImportPageState extends ConsumerState<StudentBulkImportPage> {
                     );
                     return years.when(
                       data: (list) => DropdownButtonFormField<String>(
+                        isExpanded: true,
                         value:
                             list.any((y) => y.academicYearId == _academicYearId)
                             ? _academicYearId

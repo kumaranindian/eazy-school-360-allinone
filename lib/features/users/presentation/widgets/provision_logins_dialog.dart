@@ -232,6 +232,7 @@ class _ProvisionLoginsDialogState extends ConsumerState<ProvisionLoginsDialog> {
         if (_isStaff) ...[
           const SizedBox(height: 16),
           DropdownButtonFormField<UserRole>(
+            isExpanded: true,
             value: _staffRole,
             decoration: const InputDecoration(
               labelText: 'Role for non-teaching staff',

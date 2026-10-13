@@ -5,6 +5,8 @@ import '../core/config/env_config_provider.dart';
 import '../core/routing/app_router.dart';
 import '../core/tenant/tenant_context_provider.dart';
 import '../core/theme/app_theme.dart';
+import '../core/theme/app_typography.dart';
+import '../core/utils/responsive.dart';
 import '../features/authentication/presentation/providers/auth_providers.dart';
 import '../shared/branding/brand_logo.dart';
 import '../shared/loading/loading_indicator.dart';
@@ -34,11 +36,43 @@ class App extends ConsumerWidget {
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.system,
       routerConfig: router,
-      builder: (context, child) => _BrandPrecache(
-        child: accountSwitching
-            ? const Scaffold(body: LoadingIndicator())
-            : (child ?? const SizedBox.shrink()),
+      builder: (context, child) => _AdaptiveText(
+        child: _BrandPrecache(
+          child: accountSwitching
+              ? const Scaffold(body: LoadingIndicator())
+              : (child ?? const SizedBox.shrink()),
+        ),
       ),
+    );
+  }
+}
+
+/// App-wide text policy, applied once above every route:
+///
+/// - The user's system font size is honoured up to [maxTextScale]. Beyond
+///   that no layout can be guaranteed to fit a 360px phone, so it is capped
+///   (the layouts are tested up to this limit).
+/// - On phones the headings use the compact scale ([AppTypography.compact]).
+class _AdaptiveText extends StatelessWidget {
+  final Widget child;
+  const _AdaptiveText({required this.child});
+
+  static const double maxTextScale = 1.5;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final phone = MediaQuery.sizeOf(context).width < Breakpoints.mobile;
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: maxTextScale,
+      child: phone
+          ? Theme(
+              data: theme.copyWith(
+                textTheme: AppTypography.compact(theme.textTheme),
+              ),
+              child: child,
+            )
+          : child,
     );
   }
 }

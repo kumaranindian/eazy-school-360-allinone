@@ -92,6 +92,7 @@ class _FamilyScopeState extends ConsumerState<FamilyScope> {
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 320),
                             child: DropdownButtonFormField<String>(
+                              isExpanded: true,
                               value: child.studentId,
                               decoration: const InputDecoration(
                                 labelText: 'Child',

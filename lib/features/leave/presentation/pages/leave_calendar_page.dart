@@ -280,17 +280,24 @@ class _CalendarState extends ConsumerState<_Calendar> {
                                         ),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Text('$day'),
-                                          if (n > 0)
-                                            Text(
-                                              '$n away',
-                                              style: theme.textTheme.labelSmall,
-                                            ),
-                                        ],
+                                      // Fixed-height cell: scale the two
+                                      // lines down rather than overflow at
+                                      // large text sizes.
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Text('$day'),
+                                            if (n > 0)
+                                              Text(
+                                                '$n away',
+                                                style:
+                                                    theme.textTheme.labelSmall,
+                                              ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),

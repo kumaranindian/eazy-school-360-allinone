@@ -175,6 +175,7 @@ class _BranchFormDialogState extends ConsumerState<BranchFormDialog> {
           if (_isEditing) ...[
             const SizedBox(height: AppSpacing.sm),
             DropdownButtonFormField<BranchStatus>(
+              isExpanded: true,
               value: _status,
               decoration: const InputDecoration(labelText: 'Status'),
               items: [

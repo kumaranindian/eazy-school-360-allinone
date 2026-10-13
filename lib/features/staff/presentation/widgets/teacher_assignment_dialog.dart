@@ -135,6 +135,7 @@ class _TeacherAssignmentDialogState
         ),
         const SizedBox(height: AppSpacing.md),
         DropdownButtonFormField<String>(
+          isExpanded: true,
           value: years.any((y) => y.academicYearId == _yearId) ? _yearId : null,
           decoration: const InputDecoration(labelText: 'Academic year'),
           items: [
@@ -150,6 +151,7 @@ class _TeacherAssignmentDialogState
         ),
         const SizedBox(height: AppSpacing.sm),
         DropdownButtonFormField<String>(
+          isExpanded: true,
           value: classes.any((c) => c.classId == _classId) ? _classId : null,
           decoration: const InputDecoration(labelText: 'Class'),
           items: [
@@ -166,6 +168,7 @@ class _TeacherAssignmentDialogState
         ),
         const SizedBox(height: AppSpacing.sm),
         DropdownButtonFormField<String>(
+          isExpanded: true,
           value: sections.any((s) => s.sectionId == _sectionId)
               ? _sectionId
               : null,
@@ -191,6 +194,7 @@ class _TeacherAssignmentDialogState
         ),
         if (!_isClassTeacher)
           DropdownButtonFormField<String>(
+            isExpanded: true,
             value: classSubjects.any((s) => s.subjectId == _subjectId)
                 ? _subjectId
                 : null,
@@ -217,8 +221,11 @@ class _TeacherAssignmentDialogState
           child: Text('Starts: ${formatDisplayDate(_startDate)}'),
         ),
         const SizedBox(height: AppSpacing.lg),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
+        // Stacks the buttons when they do not fit side by side.
+        OverflowBar(
+          alignment: MainAxisAlignment.end,
+          spacing: AppSpacing.sm,
+          overflowSpacing: AppSpacing.sm,
           children: [
             TextButton(
               onPressed: isSaving
@@ -226,7 +233,6 @@ class _TeacherAssignmentDialogState
                   : () => Navigator.of(context).pop(false),
               child: const Text('Cancel'),
             ),
-            const SizedBox(width: AppSpacing.sm),
             FilledButton(
               onPressed: isSaving || !canSave ? null : _submit,
               child: isSaving

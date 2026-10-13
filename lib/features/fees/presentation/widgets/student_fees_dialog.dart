@@ -179,6 +179,7 @@ class _StudentFeesDialogState extends ConsumerState<StudentFeesDialog> {
                   if (canConcede) ...[
                     const SizedBox(height: AppSpacing.sm),
                     DropdownButtonFormField<ConcessionType>(
+                      isExpanded: true,
                       value: _concession,
                       decoration: const InputDecoration(
                         labelText: 'Concession / scholarship',

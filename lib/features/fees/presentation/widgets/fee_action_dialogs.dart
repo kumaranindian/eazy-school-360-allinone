@@ -190,6 +190,7 @@ class _CollectPaymentDialogState extends ConsumerState<CollectPaymentDialog> {
           ),
           const SizedBox(height: AppSpacing.sm),
           DropdownButtonFormField<PaymentMethod>(
+            isExpanded: true,
             value: _method,
             decoration: const InputDecoration(labelText: 'Payment method'),
             items: [
@@ -354,6 +355,7 @@ class _ReasonDialogState extends State<ReasonDialog> {
           const SizedBox(height: AppSpacing.md),
           if (widget.kinds != null) ...[
             DropdownButtonFormField<ReversalKind>(
+              isExpanded: true,
               value: _kind,
               decoration: const InputDecoration(
                 labelText: 'Type',

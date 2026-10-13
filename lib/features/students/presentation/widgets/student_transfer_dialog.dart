@@ -104,6 +104,7 @@ class _StudentTransferDialogState extends ConsumerState<StudentTransferDialog> {
         const SizedBox(height: AppSpacing.md),
         yearsAsync.when(
           data: (years) => DropdownButtonFormField<String>(
+            isExpanded: true,
             value: years.any((y) => y.academicYearId == _academicYearId)
                 ? _academicYearId
                 : null,
@@ -134,6 +135,7 @@ class _StudentTransferDialogState extends ConsumerState<StudentTransferDialog> {
               );
               return classesAsync.when(
                 data: (classes) => DropdownButtonFormField<String>(
+                  isExpanded: true,
                   value: classes.any((c) => c.classId == _classId)
                       ? _classId
                       : null,
@@ -166,6 +168,7 @@ class _StudentTransferDialogState extends ConsumerState<StudentTransferDialog> {
               );
               return sectionsAsync.when(
                 data: (sections) => DropdownButtonFormField<String>(
+                  isExpanded: true,
                   value: sections.any((s) => s.sectionId == _sectionId)
                       ? _sectionId
                       : null,
@@ -190,6 +193,7 @@ class _StudentTransferDialogState extends ConsumerState<StudentTransferDialog> {
         ),
         const SizedBox(height: AppSpacing.sm),
         DropdownButtonFormField<AcademicRecordStatus>(
+          isExpanded: true,
           value: _closeOldRecordAs,
           decoration: const InputDecoration(
             labelText: 'Close previous placement as',

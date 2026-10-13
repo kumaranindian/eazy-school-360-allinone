@@ -247,6 +247,7 @@ class _Header extends StatelessWidget {
                 SizedBox(
                   width: 220,
                   child: DropdownButtonFormField<String>(
+                    isExpanded: true,
                     value: classId,
                     decoration: const InputDecoration(
                       labelText: 'Class',

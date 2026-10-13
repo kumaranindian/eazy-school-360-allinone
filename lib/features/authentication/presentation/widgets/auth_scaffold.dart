@@ -112,56 +112,63 @@ class _BrandPanel extends StatelessWidget {
     return DecoratedBox(
       decoration: const BoxDecoration(gradient: AppColors.heroGradient),
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xxl),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // The dark lockup carries its own navy backdrop, so it is shown
-              // as a deliberate badge rather than blended into the gradient.
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  border: Border.all(color: Colors.white24),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: const BrandLogo(height: 120, onDark: true),
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            padding: const EdgeInsets.all(AppSpacing.xxl),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight - AppSpacing.xxl * 2,
               ),
-              const SizedBox(height: AppSpacing.xl),
-              Text(
-                'Run your whole school from one place.',
-                style: text.headlineMedium?.copyWith(color: Colors.white),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              for (final line in const [
-                'Admissions, attendance and timetables',
-                'Fees, invoices and receipts',
-                'Homework, exams and results',
-                'Staff, leave and parent communication',
-              ])
-                Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.check_circle,
-                        size: 18,
-                        color: AppColors.gold,
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: Text(
-                          line,
-                          style: text.bodyLarge?.copyWith(
-                            color: const Color(0xFFD9EAFF),
-                          ),
-                        ),
-                      ),
-                    ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // The dark lockup carries its own navy backdrop, so it is shown
+                  // as a deliberate badge rather than blended into the gradient.
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: const BrandLogo(height: 120, onDark: true),
                   ),
-                ),
-            ],
+                  const SizedBox(height: AppSpacing.xl),
+                  Text(
+                    'Run your whole school from one place.',
+                    style: text.headlineMedium?.copyWith(color: Colors.white),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  for (final line in const [
+                    'Admissions, attendance and timetables',
+                    'Fees, invoices and receipts',
+                    'Homework, exams and results',
+                    'Staff, leave and parent communication',
+                  ])
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.check_circle,
+                            size: 18,
+                            color: AppColors.gold,
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: Text(
+                              line,
+                              style: text.bodyLarge?.copyWith(
+                                color: const Color(0xFFD9EAFF),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
