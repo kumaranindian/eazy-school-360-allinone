@@ -82,6 +82,8 @@ class FilterBar extends StatelessWidget {
                     .clamp(0, fields.length);
           }
         }
+        // A lone filter on a bar with no search needs no sheet: show it.
+        if (searchController == null && fields.length == 1) inlineCount = 1;
         final inline = fields.take(inlineCount).toList();
         final hidden = fields.skip(inlineCount).toList();
         final appliedHidden = hidden.where((f) => f.isApplied).toList();

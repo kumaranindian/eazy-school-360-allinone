@@ -9,6 +9,9 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/date_formatting.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/error/error_view.dart';
+import '../../../../shared/filters/filter_bar.dart';
+import '../../../../shared/filters/filter_field.dart';
+import '../../../../shared/layouts/hub_layout.dart';
 import '../../../academic_setup/domain/academic_year.dart';
 import '../../../academic_setup/domain/academic_year_status.dart';
 import '../../../academic_setup/domain/school_class.dart';
@@ -252,142 +255,30 @@ class _HubState extends ConsumerState<_Hub> {
                   .value ??
               const <Section>[]);
 
-    return ListView(
+    final canMark = widget.tenant.can(Permission.markStudentAttendance);
+    final canViewStaff = widget.tenant.can(Permission.viewStaffAttendance);
+
+    final body = ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: [
-            if (widget.tenant.can(Permission.markStudentAttendance))
-              FilledButton.icon(
-                onPressed: () => context.push('/attendance/students'),
-                icon: const Icon(Icons.groups_outlined),
-                label: const Text('Student attendance'),
-              ),
-            if (widget.tenant.can(Permission.viewStaffAttendance))
-              FilledButton.tonalIcon(
-                onPressed: () => context.push('/attendance/staff'),
-                icon: const Icon(Icons.badge_outlined),
-                label: Text(
-                  _isManager ? 'Staff attendance' : 'View staff attendance',
-                ),
-              ),
-            OutlinedButton.icon(
-              onPressed: () => context.push('/attendance/reports'),
-              icon: const Icon(Icons.assessment_outlined),
-              label: const Text('Reports'),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-        if (widget.tenant.can(Permission.markStudentAttendance)) ...[
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            crossAxisAlignment: WrapCrossAlignment.center,
+        if (canMark) ...[
+          Row(
             children: [
-              OutlinedButton.icon(
-                onPressed: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: _date,
-                    firstDate: DateTime(2000),
-                    lastDate: DateTime.now(),
-                  );
-                  if (picked != null) {
-                    setState(() => _date = AttendanceDate.dateOnly(picked));
-                  }
-                },
-                icon: const Icon(Icons.calendar_today_outlined),
-                label: Text(formatDisplayDate(_date)),
-              ),
-              SizedBox(
-                width: 170,
-                child: DropdownButtonFormField<String>(
-                  value: years.any((y) => y.academicYearId == _yearId)
-                      ? _yearId
-                      : null,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Academic year',
-                    isDense: true,
-                  ),
-                  items: [
-                    for (final y in years)
-                      DropdownMenuItem(
-                        value: y.academicYearId,
-                        child: Text(y.name),
-                      ),
-                  ],
-                  onChanged: (v) => setState(() {
-                    _yearId = v;
-                    _classId = null;
-                    _sectionId = null;
-                  }),
-                ),
-              ),
-              if (_isManager) ...[
-                SizedBox(
-                  width: 170,
-                  child: DropdownButtonFormField<String?>(
-                    value: classesForFilter.any((c) => c.classId == _classId)
-                        ? _classId
-                        : null,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Class',
-                      isDense: true,
-                    ),
-                    items: [
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('All classes'),
-                      ),
-                      for (final c in classesForFilter)
-                        DropdownMenuItem(value: c.classId, child: Text(c.name)),
-                    ],
-                    onChanged: (v) => setState(() {
-                      _classId = v;
-                      _sectionId = null;
-                    }),
-                  ),
-                ),
-                SizedBox(
-                  width: 170,
-                  child: DropdownButtonFormField<String?>(
-                    value:
-                        sectionsForFilter.any((s) => s.sectionId == _sectionId)
-                        ? _sectionId
-                        : null,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Section',
-                      isDense: true,
-                    ),
-                    items: [
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('All sections'),
-                      ),
-                      for (final s in sectionsForFilter)
-                        DropdownMenuItem(
-                          value: s.sectionId,
-                          child: Text(s.name),
-                        ),
-                    ],
-                    onChanged: _classId == null
-                        ? null
-                        : (v) => setState(() => _sectionId = v),
-                  ),
-                ),
-              ],
+              Expanded(child: _dateStepper(context)),
               IconButton(
                 tooltip: 'Refresh',
                 onPressed: _loading ? null : () => _load(scope),
                 icon: const Icon(Icons.refresh),
               ),
             ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          FilterBar(
+            fieldsBuilder: () => _filters(
+              years: years,
+              classes: classesForFilter,
+              sections: sectionsForFilter,
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
         ],
@@ -403,9 +294,150 @@ class _HubState extends ConsumerState<_Hub> {
           )
         else if (_data != null)
           ..._content(context, _data!),
+        const SizedBox(height: AppSpacing.lg),
+        HubGroup(
+          title: 'Go to',
+          tiles: [
+            if (canMark)
+              HubTile(
+                icon: Icons.groups_outlined,
+                title: 'Student attendance',
+                description: 'Mark and review class registers',
+                onTap: () => context.push('/attendance/students'),
+              ),
+            if (canViewStaff)
+              HubTile(
+                icon: Icons.badge_outlined,
+                title: _isManager
+                    ? 'Staff attendance'
+                    : 'View staff attendance',
+                description: 'Daily staff register',
+                onTap: () => context.push('/attendance/staff'),
+              ),
+            HubTile(
+              icon: Icons.assessment_outlined,
+              title: 'Reports',
+              description: 'Attendance summaries and exports',
+              onTap: () => context.push('/attendance/reports'),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      floatingActionButton: canMark
+          ? FloatingActionButton.extended(
+              onPressed: () => context.push('/attendance/students'),
+              icon: const Icon(Icons.fact_check_outlined),
+              label: const Text('Mark attendance'),
+            )
+          : null,
+      body: body,
+    );
+  }
+
+  /// ‹ date › : step a day at a time, or tap the date to pick one. Attendance
+  /// cannot be marked in the future, so "next" stops at today.
+  Widget _dateStepper(BuildContext context) {
+    final today = AttendanceDate.dateOnly(DateTime.now());
+    final isToday = !_date.isBefore(today);
+    return Row(
+      children: [
+        IconButton(
+          tooltip: 'Previous day',
+          icon: const Icon(Icons.chevron_left),
+          onPressed: () => setState(
+            () => _date = AttendanceDate.dateOnly(
+              _date.subtract(const Duration(days: 1)),
+            ),
+          ),
+        ),
+        Flexible(
+          child: OutlinedButton.icon(
+            onPressed: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _date,
+                firstDate: DateTime(2000),
+                lastDate: DateTime.now(),
+              );
+              if (picked != null) {
+                setState(() => _date = AttendanceDate.dateOnly(picked));
+              }
+            },
+            icon: const Icon(Icons.calendar_today_outlined, size: 18),
+            label: Text(
+              formatDisplayDate(_date),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+        IconButton(
+          tooltip: 'Next day',
+          icon: const Icon(Icons.chevron_right),
+          onPressed: isToday
+              ? null
+              : () => setState(
+                  () => _date = AttendanceDate.dateOnly(
+                    _date.add(const Duration(days: 1)),
+                  ),
+                ),
+        ),
+        if (!isToday)
+          TextButton(
+            onPressed: () => setState(() => _date = today),
+            child: const Text('Today'),
+          ),
       ],
     );
   }
+
+  List<FilterField> _filters({
+    required List<AcademicYear> years,
+    required List<SchoolClass> classes,
+    required List<Section> sections,
+  }) => [
+    FilterField.dropdown<String>(
+      label: 'Academic year',
+      value: years.any((y) => y.academicYearId == _yearId) ? _yearId : null,
+      countsAsFilter: false,
+      options: [for (final y in years) (y.academicYearId, y.name)],
+      onChanged: (v) => setState(() {
+        _yearId = v;
+        _classId = null;
+        _sectionId = null;
+      }),
+    ),
+    if (_isManager) ...[
+      FilterField.dropdown<String>(
+        label: 'Class',
+        value: classes.any((c) => c.classId == _classId) ? _classId : null,
+        options: [
+          (null, 'All classes'),
+          for (final c in classes) (c.classId, c.name),
+        ],
+        onChanged: (v) => setState(() {
+          _classId = v;
+          _sectionId = null;
+        }),
+      ),
+      FilterField.dropdown<String>(
+        label: 'Section',
+        value: sections.any((s) => s.sectionId == _sectionId)
+            ? _sectionId
+            : null,
+        options: [
+          (null, 'All sections'),
+          for (final s in sections) (s.sectionId, s.name),
+        ],
+        onChanged: _classId == null
+            ? null
+            : (v) => setState(() => _sectionId = v),
+      ),
+    ],
+  ];
 
   String? _lastSignature;
 

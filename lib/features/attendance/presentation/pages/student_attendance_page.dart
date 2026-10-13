@@ -11,6 +11,7 @@ import '../../../../core/tenant/tenant_context.dart';
 import '../../../../core/utils/date_formatting.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/error/error_view.dart';
+import '../../../../shared/layouts/scope_bar.dart';
 import '../../../academic_setup/domain/academic_year.dart';
 import '../../../academic_setup/domain/academic_year_status.dart';
 import '../../../academic_setup/presentation/providers/academic_structure_providers.dart';
@@ -269,10 +270,11 @@ class _StudentAttendanceState extends ConsumerState<_StudentAttendance> {
       String label,
       String? value,
       List<DropdownMenuItem<String>> items,
-      ValueChanged<String?>? onChanged,
-    ) {
+      ValueChanged<String?>? onChanged, {
+      bool narrow = false,
+    }) {
       return SizedBox(
-        width: 190,
+        width: narrow ? double.infinity : 190,
         child: DropdownButtonFormField<String>(
           value: items.any((i) => i.value == value) ? value : null,
           isExpanded: true,
@@ -296,67 +298,80 @@ class _StudentAttendanceState extends ConsumerState<_StudentAttendance> {
       children: [
         Padding(
           padding: const EdgeInsets.all(AppSpacing.md),
-          child: Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              dropdown(
-                'Academic year',
-                _yearId,
-                [
-                  for (final y in years)
-                    DropdownMenuItem(
-                      value: y.academicYearId,
-                      child: Text(y.name),
-                    ),
-                ],
-                (v) {
-                  setState(() {
-                    _yearId = v;
-                    _classId = null;
-                    _sectionId = null;
-                    _register = null;
-                    _sheet = null;
-                  });
-                },
-              ),
-              dropdown(
-                'Class',
-                _classId,
-                [
-                  for (final c in classes)
-                    DropdownMenuItem(value: c.classId, child: Text(c.name)),
-                ],
-                (v) {
-                  setState(() {
-                    _classId = v;
-                    _sectionId = null;
-                    _register = null;
-                    _sheet = null;
-                  });
-                },
-              ),
-              dropdown(
-                'Section',
-                _sectionId,
-                [
-                  for (final s in sections)
-                    DropdownMenuItem(value: s.sectionId, child: Text(s.name)),
-                ],
-                _classId == null
-                    ? null
-                    : (v) {
-                        setState(() => _sectionId = v);
-                        _load();
-                      },
-              ),
-              OutlinedButton.icon(
-                onPressed: _pickDate,
-                icon: const Icon(Icons.calendar_today_outlined),
-                label: Text(formatDisplayDate(_date)),
-              ),
-            ],
+          child: ScopeBar(
+            complete: _complete,
+            summary: _complete
+                ? '${className ?? 'Class'} · Section ${sectionName ?? ''} · '
+                      '${formatDisplayDate(_date)}'
+                : 'Choose a register',
+            controlsBuilder: (context, narrow) => Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                dropdown(
+                  'Academic year',
+                  _yearId,
+                  [
+                    for (final y in years)
+                      DropdownMenuItem(
+                        value: y.academicYearId,
+                        child: Text(y.name),
+                      ),
+                  ],
+                  (v) {
+                    setState(() {
+                      _yearId = v;
+                      _classId = null;
+                      _sectionId = null;
+                      _register = null;
+                      _sheet = null;
+                    });
+                  },
+                  narrow: narrow,
+                ),
+                dropdown(
+                  'Class',
+                  _classId,
+                  [
+                    for (final c in classes)
+                      DropdownMenuItem(value: c.classId, child: Text(c.name)),
+                  ],
+                  (v) {
+                    setState(() {
+                      _classId = v;
+                      _sectionId = null;
+                      _register = null;
+                      _sheet = null;
+                    });
+                  },
+                  narrow: narrow,
+                ),
+                dropdown(
+                  'Section',
+                  _sectionId,
+                  [
+                    for (final s in sections)
+                      DropdownMenuItem(value: s.sectionId, child: Text(s.name)),
+                  ],
+                  _classId == null
+                      ? null
+                      : (v) {
+                          setState(() => _sectionId = v);
+                          _load();
+                        },
+                  narrow: narrow,
+                ),
+                SizedBox(
+                  width: narrow ? double.infinity : null,
+                  child: OutlinedButton.icon(
+                    onPressed: _pickDate,
+                    icon: const Icon(Icons.calendar_today_outlined),
+                    label: Text(formatDisplayDate(_date)),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         const Divider(height: 1),
