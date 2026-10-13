@@ -8,9 +8,13 @@ import '../../../../core/permissions/permission.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/error/error_view.dart';
+import '../../../../shared/filters/filter_bar.dart';
+import '../../../../shared/filters/filter_field.dart';
 import '../../../../shared/layouts/responsive_data_list.dart';
 import '../../../../shared/paging/paged_list_controller.dart';
 import '../../../academic_setup/presentation/providers/academic_structure_providers.dart';
+import '../../../academic_setup/domain/school_class.dart';
+import '../../../academic_setup/domain/section.dart';
 import '../../domain/fee_dates.dart';
 import '../../domain/fee_enums.dart';
 import '../../domain/fee_planners.dart';
@@ -159,13 +163,70 @@ class _InvoicesState extends ConsumerState<_Invoices> {
     super.dispose();
   }
 
+  /// Built on demand: the filter sheet asks again after every change.
+  List<FilterField> _filters(
+    List<SchoolClass> classes,
+    List<Section> sections,
+  ) => [
+    FilterField.dropdown<_StatusFilter>(
+      label: 'Status',
+      value: _status == _StatusFilter.all ? null : _status,
+      options: const [
+        (null, 'All statuses'),
+        (_StatusFilter.overdue, 'Overdue'),
+        (_StatusFilter.issued, 'Issued'),
+        (_StatusFilter.partiallyPaid, 'Partially paid'),
+        (_StatusFilter.paid, 'Paid'),
+        (_StatusFilter.voided, 'Void'),
+      ],
+      onChanged: (v) => _set(() => _status = v ?? _StatusFilter.all),
+    ),
+    if (widget.studentId == null) ...[
+      FilterField.dropdown<String>(
+        label: 'Class',
+        value: classes.any((c) => c.classId == _classId) ? _classId : null,
+        options: [
+          (null, 'All classes'),
+          for (final c in classes) (c.classId, c.name),
+        ],
+        onChanged: (v) => _set(() {
+          _classId = v;
+          _sectionId = null;
+        }),
+      ),
+      FilterField.dropdown<String>(
+        label: 'Section',
+        value: sections.any((s) => s.sectionId == _sectionId)
+            ? _sectionId
+            : null,
+        options: [
+          (null, 'All sections'),
+          for (final s in sections) (s.sectionId, s.name),
+        ],
+        onChanged: _classId == null ? null : (v) => _set(() => _sectionId = v),
+      ),
+    ],
+    FilterField.picker(
+      label: 'Due from',
+      value: _from == null ? null : FeeDates.display(_from!),
+      onPick: () => _pick(true),
+      onClear: () => _set(() => _from = null),
+    ),
+    FilterField.picker(
+      label: 'Due to',
+      value: _to == null ? null : FeeDates.display(_to!),
+      onPick: () => _pick(false),
+      onClear: () => _set(() => _to = null),
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final fee = widget.fee;
     final classes = (ref.watch(classesProvider(fee.yearKey)).value ?? const [])
         .where((c) => c.status.wireValue == 'ACTIVE')
         .toList();
-    final sections = _classId == null
+    final List<Section> sections = _classId == null
         ? const []
         : (ref
                   .watch(
@@ -180,298 +241,168 @@ class _InvoicesState extends ConsumerState<_Invoices> {
               const []);
     final today = FeeDates.todayKey();
 
-    Widget dropdown<T>(
-      String label,
-      T value,
-      List<DropdownMenuItem<T>> items,
-      ValueChanged<T?>? onChanged,
-    ) => SizedBox(
-      width: 170,
-      child: DropdownButtonFormField<T>(
-        value: value,
-        isExpanded: true,
-        decoration: InputDecoration(labelText: label, isDense: true),
-        items: items,
-        onChanged: _searching ? null : onChanged,
-      ),
-    );
-
-    return Column(
-      children: [
-        if (_allYears != null)
-          StudentAllYearsLedger(
-            future: _allYears!,
-            currency: fee.currency,
-            selectedYearId: fee.year.academicYearId,
-          ),
-        if (_ledger != null)
-          _LedgerSummary(future: _ledger!, currency: fee.currency),
-        ScrollableHeader(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _search,
-                        decoration: InputDecoration(
-                          prefixIcon: const Icon(Icons.search),
-                          hintText:
-                              'Search by invoice number (e.g. INV-2026-0000)',
-                          isDense: true,
-                          suffixIcon: _searching
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear),
-                                  onPressed: () => _set(_search.clear),
-                                )
-                              : null,
-                        ),
-                        onChanged: (_) {
-                          _debounce?.cancel();
-                          _debounce = Timer(
-                            const Duration(milliseconds: 400),
-                            () {
-                              if (mounted) _set(() {});
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    if (fee.tenant.can(Permission.issueInvoices))
-                      FilledButton.icon(
-                        onPressed: () =>
-                            context.push('/fees/invoices/generate'),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Generate'),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    dropdown<_StatusFilter>('Status', _status, [
-                      const DropdownMenuItem(
-                        value: _StatusFilter.all,
-                        child: Text('All statuses'),
-                      ),
-                      const DropdownMenuItem(
-                        value: _StatusFilter.overdue,
-                        child: Text('Overdue'),
-                      ),
-                      const DropdownMenuItem(
-                        value: _StatusFilter.issued,
-                        child: Text('Issued'),
-                      ),
-                      const DropdownMenuItem(
-                        value: _StatusFilter.partiallyPaid,
-                        child: Text('Partially paid'),
-                      ),
-                      const DropdownMenuItem(
-                        value: _StatusFilter.paid,
-                        child: Text('Paid'),
-                      ),
-                      const DropdownMenuItem(
-                        value: _StatusFilter.voided,
-                        child: Text('Void'),
-                      ),
-                    ], (v) => _set(() => _status = v ?? _status)),
-                    if (widget.studentId == null) ...[
-                      dropdown<String?>(
-                        'Class',
-                        classes.any((c) => c.classId == _classId)
-                            ? _classId
-                            : null,
-                        [
-                          const DropdownMenuItem(
-                            value: null,
-                            child: Text('All classes'),
-                          ),
-                          for (final c in classes)
-                            DropdownMenuItem(
-                              value: c.classId,
-                              child: Text(c.name),
-                            ),
-                        ],
-                        (v) => _set(() {
-                          _classId = v;
-                          _sectionId = null;
-                        }),
-                      ),
-                      dropdown<String?>(
-                        'Section',
-                        sections.any((s) => s.sectionId == _sectionId)
-                            ? _sectionId
-                            : null,
-                        [
-                          const DropdownMenuItem(
-                            value: null,
-                            child: Text('All sections'),
-                          ),
-                          for (final s in sections)
-                            DropdownMenuItem(
-                              value: s.sectionId,
-                              child: Text(s.name),
-                            ),
-                        ],
-                        _classId == null
-                            ? null
-                            : (v) => _set(() => _sectionId = v),
-                      ),
-                    ],
-                    OutlinedButton(
-                      onPressed: _searching ? null : () => _pick(true),
-                      child: Text(
-                        _from == null
-                            ? 'Due from'
-                            : 'From ${FeeDates.display(_from!)}',
-                      ),
-                    ),
-                    OutlinedButton(
-                      onPressed: _searching ? null : () => _pick(false),
-                      child: Text(
-                        _to == null ? 'Due to' : 'To ${FeeDates.display(_to!)}',
-                      ),
-                    ),
-                    if (_from != null || _to != null)
-                      TextButton(
-                        onPressed: () => _set(() => _from = _to = null),
-                        child: const Text('Clear dates'),
-                      ),
-                  ],
-                ),
-                if (_searching)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      'Filters are paused while searching.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-              ],
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      floatingActionButton: fee.tenant.can(Permission.issueInvoices)
+          ? FloatingActionButton.extended(
+              onPressed: () => context.push('/fees/invoices/generate'),
+              icon: const Icon(Icons.playlist_add),
+              label: const Text('Generate invoices'),
+            )
+          : null,
+      body: Column(
+        children: [
+          if (_allYears != null)
+            StudentAllYearsLedger(
+              future: _allYears!,
+              currency: fee.currency,
+              selectedYearId: fee.year.academicYearId,
+            ),
+          if (_ledger != null)
+            _LedgerSummary(future: _ledger!, currency: fee.currency),
+          ScrollableHeader(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: FilterBar(
+                searchController: _search,
+                searchHint: 'Search invoice number',
+                onSearchChanged: (_) {
+                  _debounce?.cancel();
+                  _debounce = Timer(const Duration(milliseconds: 400), () {
+                    if (mounted) _set(() {});
+                  });
+                  setState(() {});
+                },
+                filtersEnabled: !_searching,
+                fieldsBuilder: () => _filters(classes, sections),
+              ),
             ),
           ),
-        ),
-        Expanded(
-          child: ListenableBuilder(
-            listenable: _controller,
-            builder: (context, _) {
-              if (_controller.errorMessage != null &&
-                  _controller.items.isEmpty) {
-                return ErrorView(
-                  message: _controller.errorMessage!,
-                  onRetry: _controller.reload,
+          Expanded(
+            child: ListenableBuilder(
+              listenable: _controller,
+              builder: (context, _) {
+                if (_controller.errorMessage != null &&
+                    _controller.items.isEmpty) {
+                  return ErrorView(
+                    message: _controller.errorMessage!,
+                    onRetry: _controller.reload,
+                  );
+                }
+                if (!_controller.hasLoaded) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return Column(
+                  children: [
+                    Expanded(
+                      child: ResponsiveDataList<Invoice>(
+                        items: _controller.items,
+                        columnHeaders: const [
+                          'Invoice',
+                          'Student',
+                          'Class',
+                          'Period',
+                          'Due',
+                          'Payable',
+                          'Paid',
+                          'Balance',
+                          'Status',
+                        ],
+                        emptyState: const EmptyView(
+                          icon: Icons.receipt_long_outlined,
+                          message: 'No invoices found.',
+                        ),
+                        cellsBuilder: (i) => [
+                          DataCell(
+                            Text(i.invoiceNumber),
+                            onTap: () =>
+                                context.push('/fees/invoices/${i.invoiceId}'),
+                          ),
+                          DataCell(Text(i.studentName)),
+                          DataCell(
+                            Text('${i.className} ${i.sectionName}'.trim()),
+                          ),
+                          DataCell(Text(i.periodLabel)),
+                          DataCell(Text(FeeDates.display(i.dueDateKey))),
+                          DataCell(
+                            Text(
+                              Money.format(
+                                i.payableMinor,
+                                currency: i.currency,
+                              ),
+                            ),
+                          ),
+                          DataCell(
+                            Text(
+                              Money.format(i.paidMinor, currency: i.currency),
+                            ),
+                          ),
+                          DataCell(
+                            Text(
+                              Money.format(
+                                i.balanceMinor,
+                                currency: i.currency,
+                              ),
+                            ),
+                          ),
+                          DataCell(
+                            InvoiceStatusChip(invoice: i, todayKey: today),
+                          ),
+                        ],
+                        cardBuilder: (i) => Card(
+                          child: ListTile(
+                            title: Text(
+                              '${i.invoiceNumber} · ${i.studentName}',
+                            ),
+                            subtitle: Text(
+                              '${i.periodLabel} · due ${FeeDates.display(i.dueDateKey)}\nBalance ${Money.format(i.balanceMinor, currency: i.currency)} of ${Money.format(i.payableMinor, currency: i.currency)}',
+                            ),
+                            isThreeLine: true,
+                            trailing: InvoiceStatusChip(
+                              invoice: i,
+                              todayKey: today,
+                            ),
+                            onTap: () =>
+                                context.push('/fees/invoices/${i.invoiceId}'),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_controller.errorMessage != null)
+                      Padding(
+                        padding: const EdgeInsets.all(AppSpacing.sm),
+                        child: Text(
+                          _controller.errorMessage!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    if (_controller.hasMore)
+                      Padding(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        child: OutlinedButton(
+                          onPressed: _controller.isLoading
+                              ? null
+                              : _controller.loadMore,
+                          child: _controller.isLoading
+                              ? const SizedBox(
+                                  height: 16,
+                                  width: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Load more'),
+                        ),
+                      ),
+                  ],
                 );
-              }
-              if (!_controller.hasLoaded) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              return Column(
-                children: [
-                  Expanded(
-                    child: ResponsiveDataList<Invoice>(
-                      items: _controller.items,
-                      columnHeaders: const [
-                        'Invoice',
-                        'Student',
-                        'Class',
-                        'Period',
-                        'Due',
-                        'Payable',
-                        'Paid',
-                        'Balance',
-                        'Status',
-                      ],
-                      emptyState: const EmptyView(
-                        icon: Icons.receipt_long_outlined,
-                        message: 'No invoices found.',
-                      ),
-                      cellsBuilder: (i) => [
-                        DataCell(
-                          Text(i.invoiceNumber),
-                          onTap: () =>
-                              context.push('/fees/invoices/${i.invoiceId}'),
-                        ),
-                        DataCell(Text(i.studentName)),
-                        DataCell(
-                          Text('${i.className} ${i.sectionName}'.trim()),
-                        ),
-                        DataCell(Text(i.periodLabel)),
-                        DataCell(Text(FeeDates.display(i.dueDateKey))),
-                        DataCell(
-                          Text(
-                            Money.format(i.payableMinor, currency: i.currency),
-                          ),
-                        ),
-                        DataCell(
-                          Text(Money.format(i.paidMinor, currency: i.currency)),
-                        ),
-                        DataCell(
-                          Text(
-                            Money.format(i.balanceMinor, currency: i.currency),
-                          ),
-                        ),
-                        DataCell(
-                          InvoiceStatusChip(invoice: i, todayKey: today),
-                        ),
-                      ],
-                      cardBuilder: (i) => Card(
-                        child: ListTile(
-                          title: Text('${i.invoiceNumber} · ${i.studentName}'),
-                          subtitle: Text(
-                            '${i.periodLabel} · due ${FeeDates.display(i.dueDateKey)}\nBalance ${Money.format(i.balanceMinor, currency: i.currency)} of ${Money.format(i.payableMinor, currency: i.currency)}',
-                          ),
-                          isThreeLine: true,
-                          trailing: InvoiceStatusChip(
-                            invoice: i,
-                            todayKey: today,
-                          ),
-                          onTap: () =>
-                              context.push('/fees/invoices/${i.invoiceId}'),
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (_controller.errorMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      child: Text(
-                        _controller.errorMessage!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                    ),
-                  if (_controller.hasMore)
-                    Padding(
-                      padding: const EdgeInsets.all(AppSpacing.md),
-                      child: OutlinedButton(
-                        onPressed: _controller.isLoading
-                            ? null
-                            : _controller.loadMore,
-                        child: _controller.isLoading
-                            ? const SizedBox(
-                                height: 16,
-                                width: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Load more'),
-                      ),
-                    ),
-                ],
-              );
-            },
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

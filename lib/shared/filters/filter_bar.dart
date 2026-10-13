@@ -15,9 +15,10 @@ import 'filter_field.dart';
 /// [fieldsBuilder] is called again each time the page rebuilds *and* each
 /// time the sheet changes a value, so it must read the page's current state.
 class FilterBar extends StatelessWidget {
-  final TextEditingController searchController;
+  /// Null for a filter-only bar (pages with nothing to search by).
+  final TextEditingController? searchController;
   final String searchHint;
-  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<String>? onSearchChanged;
 
   /// Optional control shown at the start of the search box, e.g. a
   /// "search by field" picker.
@@ -39,10 +40,10 @@ class FilterBar extends StatelessWidget {
 
   const FilterBar({
     super.key,
-    required this.searchController,
-    required this.searchHint,
-    required this.onSearchChanged,
     required this.fieldsBuilder,
+    this.searchController,
+    this.searchHint = 'Search',
+    this.onSearchChanged,
     this.searchPrefix,
     this.filtersEnabled = true,
     this.searchEnabled = true,
@@ -64,9 +65,10 @@ class FilterBar extends StatelessWidget {
 
         // How many filters fit beside the search box on one row. Phones get
         // none: the search box takes the row and filters open in a sheet.
+        final minSearch = searchController == null ? 0.0 : _minSearchWidth;
         var inlineCount = 0;
         if (width >= 600) {
-          final room = width - _minSearchWidth - _filtersButtonWidth;
+          final room = width - minSearch - _filtersButtonWidth;
           inlineCount = (room / (_inlineFieldWidth + AppSpacing.sm))
               .floor()
               .clamp(0, fields.length);
@@ -75,8 +77,7 @@ class FilterBar extends StatelessWidget {
             // keep the button
           } else {
             inlineCount =
-                ((width - _minSearchWidth) /
-                        (_inlineFieldWidth + AppSpacing.sm))
+                ((width - minSearch) / (_inlineFieldWidth + AppSpacing.sm))
                     .floor()
                     .clamp(0, fields.length);
           }
@@ -92,7 +93,11 @@ class FilterBar extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Expanded(child: _searchField(context)),
+                Expanded(
+                  child: searchController == null
+                      ? const SizedBox.shrink()
+                      : _searchField(context),
+                ),
                 for (final f in inline) ...[
                   const SizedBox(width: AppSpacing.sm),
                   SizedBox(
@@ -159,10 +164,11 @@ class FilterBar extends StatelessWidget {
   }
 
   Widget _searchField(BuildContext context) {
+    final controller = searchController!;
     return ListenableBuilder(
-      listenable: searchController,
+      listenable: controller,
       builder: (context, _) => TextField(
-        controller: searchController,
+        controller: controller,
         enabled: searchEnabled,
         textInputAction: TextInputAction.search,
         decoration: InputDecoration(
@@ -170,14 +176,14 @@ class FilterBar extends StatelessWidget {
           isDense: true,
           prefixIcon:
               searchPrefix ?? const Icon(Icons.search, semanticLabel: 'Search'),
-          suffixIcon: searchController.text.isEmpty
+          suffixIcon: controller.text.isEmpty
               ? null
               : IconButton(
                   icon: const Icon(Icons.clear),
                   tooltip: 'Clear search',
                   onPressed: () {
-                    searchController.clear();
-                    onSearchChanged('');
+                    controller.clear();
+                    onSearchChanged?.call('');
                   },
                 ),
         ),

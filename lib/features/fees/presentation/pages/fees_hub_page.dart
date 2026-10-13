@@ -9,6 +9,7 @@ import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/permissions/permission.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/error/error_view.dart';
+import '../../../../shared/layouts/hub_layout.dart';
 import '../../domain/fee_dates.dart';
 import '../../domain/fee_summary.dart';
 import '../../domain/money.dart';
@@ -45,51 +46,23 @@ class _Hub extends ConsumerWidget {
         : null;
     final c = fee.currency;
 
+    Widget tile(
+      IconData icon,
+      String title,
+      String description,
+      String route,
+    ) => HubTile(
+      icon: icon,
+      title: title,
+      description: description,
+      onTap: () => context.push(route),
+    );
+
+    final can = fee.tenant.can;
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: [
-            if (fee.tenant.can(Permission.collectPayments) ||
-                fee.tenant.can(Permission.viewFees))
-              FilledButton.icon(
-                onPressed: () => context.push('/fees/invoices'),
-                icon: const Icon(Icons.receipt_long_outlined),
-                label: const Text('Invoices'),
-              ),
-            if (fee.tenant.can(Permission.issueInvoices))
-              FilledButton.tonalIcon(
-                onPressed: () => context.push('/fees/invoices/generate'),
-                icon: const Icon(Icons.playlist_add),
-                label: const Text('Generate invoices'),
-              ),
-            if (fee.tenant.can(Permission.assignFees))
-              OutlinedButton.icon(
-                onPressed: () => context.push('/fees/assign'),
-                icon: const Icon(Icons.group_add_outlined),
-                label: const Text('Assign fees'),
-              ),
-            OutlinedButton.icon(
-              onPressed: () => context.push('/fees/structures'),
-              icon: const Icon(Icons.sell_outlined),
-              label: const Text('Fee structures'),
-            ),
-            OutlinedButton.icon(
-              onPressed: () => context.push('/fees/payments'),
-              icon: const Icon(Icons.payments_outlined),
-              label: const Text('Payments & receipts'),
-            ),
-            if (fee.tenant.can(Permission.viewFeeReports))
-              OutlinedButton.icon(
-                onPressed: () => context.push('/fees/reports'),
-                icon: const Icon(Icons.assessment_outlined),
-                label: const Text('Reports'),
-              ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.lg),
+        // The numbers first: they are what most visits are for.
         if (summary == null)
           const Text(
             'Fee totals are available to roles with fee reporting access.',
@@ -114,6 +87,67 @@ class _Hub extends ConsumerWidget {
               onRefresh: () => ref.invalidate(feeSummaryProvider(key)),
             ),
           ),
+        const SizedBox(height: AppSpacing.lg),
+        HubGroup(
+          title: 'Collect',
+          subtitle: 'Bills, payments and receipts',
+          tiles: [
+            if (can(Permission.collectPayments) || can(Permission.viewFees))
+              tile(
+                Icons.receipt_long_outlined,
+                'Invoices',
+                'Find an invoice, check its balance, record a payment',
+                '/fees/invoices',
+              ),
+            tile(
+              Icons.payments_outlined,
+              'Payments & receipts',
+              'Every payment taken, with its receipt',
+              '/fees/payments',
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        HubGroup(
+          title: 'Set up billing',
+          subtitle: 'What is charged, to whom, and when',
+          tiles: [
+            tile(
+              Icons.sell_outlined,
+              'Fee structures',
+              'Fee heads and amounts for each class',
+              '/fees/structures',
+            ),
+            if (can(Permission.assignFees))
+              tile(
+                Icons.group_add_outlined,
+                'Assign fees',
+                'Attach a fee structure to students',
+                '/fees/assign',
+              ),
+            if (can(Permission.issueInvoices))
+              tile(
+                Icons.playlist_add,
+                'Generate invoices',
+                'Create invoices for a billing period',
+                '/fees/invoices/generate',
+              ),
+          ],
+        ),
+        if (can(Permission.viewFeeReports)) ...[
+          const SizedBox(height: AppSpacing.lg),
+          HubGroup(
+            title: 'Insights',
+            tiles: [
+              tile(
+                Icons.assessment_outlined,
+                'Reports',
+                'Collection, dues and defaulters',
+                '/fees/reports',
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }

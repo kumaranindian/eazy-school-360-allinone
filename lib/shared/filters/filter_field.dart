@@ -69,4 +69,39 @@ class FilterField {
       ),
     );
   }
+
+  /// A filter chosen with a picker (a date, usually). [value] is the display
+  /// text of the chosen value, or null when none is chosen; [onPick] opens the
+  /// picker.
+  static FilterField picker({
+    required String label,
+    required String? value,
+    required VoidCallback onPick,
+    required VoidCallback onClear,
+    IconData icon = Icons.calendar_today_outlined,
+  }) {
+    return FilterField(
+      label: label,
+      appliedLabel: value,
+      onClear: onClear,
+      controlBuilder: (context, enabled) => InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: enabled ? onPick : null,
+        child: InputDecorator(
+          isEmpty: false,
+          decoration: InputDecoration(
+            labelText: label,
+            isDense: true,
+            enabled: enabled,
+            suffixIcon: Icon(icon, size: 18),
+          ),
+          child: Text(
+            value ?? 'Any',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ),
+    );
+  }
 }

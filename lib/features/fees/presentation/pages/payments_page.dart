@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/error/error_view.dart';
+import '../../../../shared/filters/filter_bar.dart';
+import '../../../../shared/filters/filter_field.dart';
+import '../../../../shared/layouts/scrollable_header.dart';
 import '../../../../shared/layouts/responsive_data_list.dart';
 import '../../../../shared/paging/paged_list_controller.dart';
 import '../../domain/fee_dates.dart';
@@ -90,6 +93,39 @@ class _PaymentsState extends ConsumerState<_Payments> {
     }
   }
 
+  List<FilterField> _filters() => [
+    FilterField.dropdown<PaymentStatus>(
+      label: 'Status',
+      value: _status,
+      options: [
+        (null, 'All'),
+        for (final s in PaymentStatus.values) (s, s.displayName),
+      ],
+      onChanged: (v) => _set(() => _status = v),
+    ),
+    FilterField.dropdown<PaymentMethod>(
+      label: 'Method',
+      value: _method,
+      options: [
+        (null, 'All methods'),
+        for (final m in PaymentMethod.values) (m, m.displayName),
+      ],
+      onChanged: (v) => _set(() => _method = v),
+    ),
+    FilterField.picker(
+      label: 'From',
+      value: _from == null ? null : FeeDates.display(_from!),
+      onPick: () => _pick(true),
+      onClear: () => _set(() => _from = null),
+    ),
+    FilterField.picker(
+      label: 'To',
+      value: _to == null ? null : FeeDates.display(_to!),
+      onPick: () => _pick(false),
+      onClear: () => _set(() => _to = null),
+    ),
+  ];
+
   @override
   void dispose() {
     _controller.dispose();
@@ -101,68 +137,10 @@ class _PaymentsState extends ConsumerState<_Payments> {
     final fee = widget.fee;
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              SizedBox(
-                width: 170,
-                child: DropdownButtonFormField<PaymentStatus?>(
-                  value: _status,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Status',
-                    isDense: true,
-                  ),
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('All')),
-                    for (final s in PaymentStatus.values)
-                      DropdownMenuItem(value: s, child: Text(s.displayName)),
-                  ],
-                  onChanged: (v) => _set(() => _status = v),
-                ),
-              ),
-              SizedBox(
-                width: 170,
-                child: DropdownButtonFormField<PaymentMethod?>(
-                  value: _method,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Method',
-                    isDense: true,
-                  ),
-                  items: [
-                    const DropdownMenuItem(
-                      value: null,
-                      child: Text('All methods'),
-                    ),
-                    for (final m in PaymentMethod.values)
-                      DropdownMenuItem(value: m, child: Text(m.displayName)),
-                  ],
-                  onChanged: (v) => _set(() => _method = v),
-                ),
-              ),
-              OutlinedButton(
-                onPressed: () => _pick(true),
-                child: Text(
-                  _from == null ? 'From' : 'From ${FeeDates.display(_from!)}',
-                ),
-              ),
-              OutlinedButton(
-                onPressed: () => _pick(false),
-                child: Text(
-                  _to == null ? 'To' : 'To ${FeeDates.display(_to!)}',
-                ),
-              ),
-              if (_from != null || _to != null)
-                TextButton(
-                  onPressed: () => _set(() => _from = _to = null),
-                  child: const Text('Clear dates'),
-                ),
-            ],
+        ScrollableHeader(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: FilterBar(fieldsBuilder: _filters),
           ),
         ),
         Expanded(
