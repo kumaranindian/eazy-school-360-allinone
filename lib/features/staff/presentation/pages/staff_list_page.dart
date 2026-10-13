@@ -29,6 +29,7 @@ import '../../../../shared/layouts/scrollable_header.dart';
 import '../../../../shared/filters/filter_bar.dart';
 import '../../../../shared/filters/filter_field.dart';
 import '../../../../shared/filters/page_actions.dart';
+import '../../../../shared/layouts/stat_chips.dart';
 import '../staff_export_action.dart';
 
 /// The staff directory: desktop table / mobile cards, search by name,
@@ -208,6 +209,23 @@ class _StaffListState extends ConsumerState<_StaffList> {
     ),
   ];
 
+  /// Headline numbers that double as quick status filters. Searching pauses
+  /// the filters, so the chips are inert (not selected) while it is on.
+  List<StatChip> _statChips(StaffCounts? counts) {
+    StatChip chip(String label, int? count, StaffStatus? status) => StatChip(
+      label: label,
+      count: count,
+      selected: !_isSearching && _status == status,
+      onTap: _isSearching ? null : () => _setFilter(() => _status = status),
+    );
+    return [
+      chip('All', counts?.total, null),
+      chip('Active', counts?.active, StaffStatus.active),
+      chip('On notice', counts?.onNotice, StaffStatus.onNotice),
+      chip('Inactive', counts?.inactive, StaffStatus.inactive),
+    ];
+  }
+
   /// "Search by: Name ▾" at the start of the search box.
   Widget _searchByMenu() => PopupMenuButton<StaffSearchField>(
     tooltip: 'Search by',
@@ -286,6 +304,7 @@ class _StaffListState extends ConsumerState<_StaffList> {
         ref.watch(departmentsProvider(branchKey)).value ?? const [];
     final designations =
         ref.watch(designationsProvider(branchKey)).value ?? const [];
+    final counts = ref.watch(staffCountsProvider(branchKey)).value;
     final departmentNames = {
       for (final d in departments) d.departmentId: d.name,
     };
@@ -320,6 +339,8 @@ class _StaffListState extends ConsumerState<_StaffList> {
                       PageActionsMenu(actions: _pageActions(context)),
                     ],
                   ),
+                  const SizedBox(height: AppSpacing.sm),
+                  StatChipsBar(chips: _statChips(counts)),
                   const SizedBox(height: AppSpacing.sm),
                   FilterBar(
                     searchController: _searchController,
@@ -386,6 +407,11 @@ class _StaffListState extends ConsumerState<_StaffList> {
                           'Login',
                           'Actions',
                         ],
+                        // Tablet keeps the columns needed to identify and open a
+                        // person; desktop shows everything.
+                        tabletColumns: _selecting
+                            ? const [0, 1, 2, 4, 7, 9]
+                            : const [0, 1, 3, 6, 8],
                         emptyState: const EmptyView(
                           icon: Icons.badge_outlined,
                           message: 'No staff found.',

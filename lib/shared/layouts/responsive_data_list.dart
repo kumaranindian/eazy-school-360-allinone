@@ -15,6 +15,11 @@ class ResponsiveDataList<T> extends StatelessWidget {
   final Widget Function(T item) cardBuilder;
   final Widget emptyState;
 
+  /// Indexes into [columnHeaders] / [cellsBuilder] to keep on a tablet
+  /// (narrower than the desktop breakpoint); desktop shows every column. When
+  /// null the table keeps all columns and scrolls sideways if it must.
+  final List<int>? tabletColumns;
+
   const ResponsiveDataList({
     super.key,
     required this.items,
@@ -22,6 +27,7 @@ class ResponsiveDataList<T> extends StatelessWidget {
     required this.cellsBuilder,
     required this.cardBuilder,
     required this.emptyState,
+    this.tabletColumns,
   });
 
   @override
@@ -39,36 +45,50 @@ class ResponsiveDataList<T> extends StatelessWidget {
           );
         }
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minWidth:
-                    MediaQuery.sizeOf(context).width - (AppSpacing.md * 2) - 32,
-              ),
-              // A bordered, rounded surface so the table reads as one object
-              // rather than loose rows on the page background.
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
+        // Tablet-width tables keep only the key columns; desktop shows all.
+        final keep = screenSize.isTablet && tabletColumns != null
+            ? tabletColumns!
+            : List<int>.generate(columnHeaders.length, (i) => i);
+
+        return LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                // Fill the width this panel actually has (not the window's:
+                // the navigation sidebar takes some of it), so the table only
+                // scrolls sideways when its columns really do not fit.
+                constraints: BoxConstraints(
+                  minWidth: constraints.maxWidth - AppSpacing.md * 2,
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  child: DataTable(
-                    columns: [
-                      for (final header in columnHeaders)
-                        DataColumn(label: Text(header)),
-                    ],
-                    rows: [
-                      for (final item in items)
-                        DataRow(cells: cellsBuilder(item)),
-                    ],
+                // A bordered, rounded surface so the table reads as one
+                // object rather than loose rows on the page background.
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    child: DataTable(
+                      columns: [
+                        for (final i in keep)
+                          DataColumn(label: Text(columnHeaders[i])),
+                      ],
+                      rows: [
+                        for (final item in items)
+                          DataRow(
+                            cells: () {
+                              final cells = cellsBuilder(item);
+                              return [for (final i in keep) cells[i]];
+                            }(),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),

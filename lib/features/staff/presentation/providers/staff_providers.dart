@@ -326,3 +326,29 @@ final teacherAssignmentWriteControllerProvider =
     AsyncNotifierProvider.autoDispose<TeacherAssignmentWriteController, void>(
       TeacherAssignmentWriteController.new,
     );
+
+/// Headcount per status for the directory's stat chips. Server-side counts
+/// (four aggregate reads), recomputed each time the directory is opened.
+typedef StaffCounts = ({int total, int active, int onNotice, int inactive});
+
+final staffCountsProvider = FutureProvider.autoDispose
+    .family<StaffCounts, BranchKey>((ref, key) async {
+      final repository = ref.watch(staffRepositoryProvider);
+      Future<int> count([StaffStatus? status]) => repository.countStaff(
+        schoolId: key.schoolId,
+        branchId: key.branchId,
+        status: status,
+      );
+      final results = await Future.wait([
+        count(),
+        count(StaffStatus.active),
+        count(StaffStatus.onNotice),
+        count(StaffStatus.inactive),
+      ]);
+      return (
+        total: results[0],
+        active: results[1],
+        onNotice: results[2],
+        inactive: results[3],
+      );
+    });

@@ -26,6 +26,14 @@ abstract class StaffRepository {
     Object? cursor,
   });
 
+  /// How many staff match [status] (all of them when null), counted by the
+  /// server — one aggregate read, never a download of the documents.
+  Future<int> countStaff({
+    required String schoolId,
+    required String branchId,
+    StaffStatus? status,
+  });
+
   /// Prefix search on one [field]. Deliberately not combined with the
   /// browse filters — see `docs/milestone-4-staff-teacher-management.md`
   /// → "Queries and indexes". The one exception is [isTeacher] with

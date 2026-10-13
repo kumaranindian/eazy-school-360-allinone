@@ -88,6 +88,19 @@ class FakeStaffRepository implements StaffRepository {
     return PagedResult(items: matching, nextCursor: null);
   }
 
+  final List<StaffStatus?> countCalls = [];
+
+  @override
+  Future<int> countStaff({
+    required String schoolId,
+    required String branchId,
+    StaffStatus? status,
+  }) async {
+    countCalls.add(status);
+    if (error != null) throw error!;
+    return staff.where((s) => status == null || s.status == status).length;
+  }
+
   @override
   Future<PagedResult<Staff>> searchStaff({
     required String schoolId,

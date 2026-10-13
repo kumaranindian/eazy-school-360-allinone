@@ -159,6 +159,27 @@ class FirebaseStaffRepository implements StaffRepository {
   }
 
   @override
+  Future<int> countStaff({
+    required String schoolId,
+    required String branchId,
+    StaffStatus? status,
+  }) async {
+    try {
+      Query<Map<String, dynamic>> query = _staffCollection(schoolId, branchId);
+      if (status != null) {
+        query = query.where(
+          FirestoreFields.status,
+          isEqualTo: status.wireValue,
+        );
+      }
+      final snapshot = await query.count().get();
+      return snapshot.count ?? 0;
+    } catch (error, stackTrace) {
+      throw mapExceptionToFailure(error, stackTrace);
+    }
+  }
+
+  @override
   Future<PagedResult<Staff>> searchStaff({
     required String schoolId,
     required String branchId,

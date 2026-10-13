@@ -390,6 +390,80 @@ void main() {
       },
     );
 
+    testWidgets(
+      'stat chips show server-side headcounts and act as quick status filters',
+      (tester) async {
+        final repo = FakeStaffRepository(staff: people);
+        final world = await _pump(
+          tester,
+          role: UserRole.branchAdmin,
+          staffRepository: repo,
+          size: const Size(390, 844),
+        );
+        await world.go(tester, '/staff');
+
+        // Counted, not downloaded: the headline numbers come from count calls.
+        expect(
+          repo.countCalls,
+          containsAll(<StaffStatus?>[
+            null,
+            StaffStatus.active,
+            StaffStatus.onNotice,
+            StaffStatus.inactive,
+          ]),
+        );
+        expect(find.bySemanticsLabel('All: 2'), findsOneWidget);
+        expect(find.bySemanticsLabel('Active: 1'), findsOneWidget);
+        expect(find.bySemanticsLabel('On notice: 1'), findsOneWidget);
+
+        await tester.tap(find.bySemanticsLabel('On notice: 1'));
+        await tester.pumpAndSettle();
+        expect(repo.fetchCalls.last['status'], StaffStatus.onNotice);
+        expect(find.text('Arun Kumar'), findsOneWidget);
+        expect(find.text('Priya Sharma'), findsNothing);
+
+        await tester.tap(find.bySemanticsLabel('All: 2'));
+        await tester.pumpAndSettle();
+        expect(repo.fetchCalls.last['status'], isNull);
+        expect(find.text('Priya Sharma'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('tablet keeps the key columns of the table', (tester) async {
+      final repo = FakeStaffRepository(staff: [people.first]);
+      final world = await _pump(
+        tester,
+        role: UserRole.branchAdmin,
+        staffRepository: repo,
+        size: const Size(900, 1000),
+      );
+      await world.go(tester, '/staff');
+      final table = tester.widget<DataTable>(find.byType(DataTable));
+      expect(table.columns.map((c) => (c.label as Text).data), [
+        'Employee Code',
+        'Staff Name',
+        'Designation',
+        'Status',
+        'Actions',
+      ]);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a wide desktop shows every column', (tester) async {
+      final repo = FakeStaffRepository(staff: [people.first]);
+      final world = await _pump(
+        tester,
+        role: UserRole.branchAdmin,
+        staffRepository: repo,
+        size: const Size(1700, 1000),
+      );
+      await world.go(tester, '/staff');
+      final table = tester.widget<DataTable>(find.byType(DataTable));
+      expect(table.columns, hasLength(9));
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('shows the empty state when nothing matches', (tester) async {
       final world = await _pump(
         tester,
