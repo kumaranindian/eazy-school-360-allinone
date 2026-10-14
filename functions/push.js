@@ -4,10 +4,11 @@ const { allowsPush, categoryFor } = require('./categories');
 const { chunk } = require('./recipients');
 
 const MAX_RECIPIENTS = 2000;
+// Only errors that mean "this token is dead". `invalid-argument` is NOT here:
+// FCM also returns it for a bad payload, which would wipe every device's token.
 const STALE = new Set([
   'messaging/registration-token-not-registered',
   'messaging/invalid-registration-token',
-  'messaging/invalid-argument',
 ]);
 
 // Sends one notification to the devices of [userIds] who allow it. Returns
@@ -66,4 +67,4 @@ async function pushToUsers({ db, messaging, userIds, exclude, type, title, body,
   return sent;
 }
 
-module.exports = { pushToUsers };
+module.exports = { pushToUsers, STALE };
