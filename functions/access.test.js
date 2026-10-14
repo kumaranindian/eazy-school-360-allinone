@@ -173,3 +173,33 @@ test('ensureAuthUser replaces the password of an unclaimed pre-registered accoun
   const phoneOnly = await ensureAuthUser(auth, db, { email: null, name: 'P' });
   assert.ok(phoneOnly.created);
 });
+
+test('a new parent login enables portal access to their children', async () => {
+  const { db, ctx } = mk(
+    {
+      [`${B}/students/st1`]: { status: 'ACTIVE', currentClassId: 'c1', currentSectionId: 'sa' },
+      [`${B}/students/st1/parentLinks/l1`]: { schoolId: 's1', branchId: 'b1', parentId: 'p2', studentId: 'st1', status: 'ACTIVE', canAccessPortal: false },
+    },
+    ['PASSWORD', 'PHONE_OTP'],
+  );
+  const r = await a.setLoginAccess(
+    { ...ctx, enablePortalLinks: require('./provision').enablePortalLinks },
+    'admin',
+    TOKEN,
+    { schoolId: 's1', branchId: 'b1', kind: 'PARENT', id: 'p2', enabled: true, methods: ['PHONE_OTP'] },
+  );
+  assert.ok(r.result.created, JSON.stringify(r));
+  assert.strictEqual(db.store.get(`${B}/students/st1/parentLinks/l1`).canAccessPortal, true);
+  assert.deepStrictEqual(db.store.get(`${B}/parentAccess/p2`).classKeys, ['c1']);
+  assert.strictEqual(db.store.get(`users/${r.result.uid}`).role, 'PARENT');
+  assert.strictEqual(db.store.get(`users/${r.result.uid}`).linkedParentId, 'p2');
+});
+
+test('re-enabling an account never creates a second one', async () => {
+  const { auth, ctx } = mk({}, ['PASSWORD']);
+  const before = Object.keys(auth.users).length;
+  await set(ctx, {});
+  await set(ctx, { enabled: false, methods: [] });
+  await set(ctx, {});
+  assert.strictEqual(Object.keys(auth.users).length, before);
+});

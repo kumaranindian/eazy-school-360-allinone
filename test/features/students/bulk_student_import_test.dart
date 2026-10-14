@@ -5,6 +5,7 @@ import 'package:eazy_school_360/features/students/domain/parent_repository.dart'
 import 'package:eazy_school_360/features/students/domain/relationship_type.dart';
 import 'package:eazy_school_360/features/students/domain/student.dart';
 import 'package:eazy_school_360/features/students/domain/student_repository.dart';
+import 'package:eazy_school_360/features/users/domain/email_lookup.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _placements = PlacementLookup({
@@ -32,6 +33,75 @@ const _good =
     'ADM-1,Asha,,Kumar,2015-06-30,Female,O+,,,,,2026-06-01,Grade 1,A,1,Ravi,Kumar,98765 43210,Father';
 
 void main() {
+  group('parent / student email', () {
+    test('is lowercased and validated strictly', () {
+      final r = _parse('$_good,  Dad@Example.COM ');
+      expect(r.rows.single.isValid, isTrue);
+      expect(r.rows.single.data!.parent!.email, 'dad@example.com');
+      for (final bad in ['nope', 'a@b', 'a@b.c', 'x y@z.com']) {
+        final x = _parse('$_good,$bad');
+        expect(x.rows.single.errors.single.column, 'parent_email', reason: bad);
+      }
+    });
+
+    test('is optional', () {
+      final r = _parse(_good);
+      expect(r.rows.single.isValid, isTrue);
+      expect(r.rows.single.data!.parent!.email, isNull);
+    });
+
+    test('siblings of one parent (same phone) may repeat the email', () {
+      final r = _parse(
+        [
+          '$_good,dad@example.com',
+          '${_good.replaceFirst('ADM-1', 'ADM-2')},DAD@example.com',
+        ].join('\n'),
+      );
+      expect(r.rows.map((x) => x.isValid), [true, true]);
+    });
+
+    test('a different parent reusing an email is flagged, not merged', () {
+      final r = _parse(
+        [
+          '$_good,dad@example.com',
+          '${_good.replaceFirst('ADM-1', 'ADM-2').replaceFirst('98765 43210', '90000 11111')},dad@example.com',
+        ].join('\n'),
+      );
+      expect(r.rows.map((x) => x.isValid), [true, false]);
+      expect(r.rows[1].errors.single.message, contains('line 2'));
+    });
+
+    test('an email already on a parent in the branch is flagged', () async {
+      final importer = BulkStudentImporter(
+        _FakeStudents(),
+        _FakeParents(),
+        _Emails({'dad@example.com'}),
+      );
+      final rows = _parse(
+        [
+          '$_good,dad@example.com',
+          '${_good.replaceFirst('ADM-1', 'ADM-2').replaceFirst('98765 43210', '90000 11111')},new@example.com',
+        ].join('\n'),
+      ).rows;
+      final checked = await importer.flagExistingParentEmails(
+        schoolId: 's',
+        branchId: 'b',
+        rows: rows,
+      );
+      expect(checked.map((r) => r.isValid), [false, true]);
+      expect(
+        checked[0].errors.single.fix,
+        contains('link the existing parent'),
+      );
+    });
+
+    test('the student sheet email is normalised too', () {
+      final r = _parse(_good.replaceFirst('O+,,', 'O+,Kid@School.ORG,'));
+      expect(r.rows.single.isValid, isTrue);
+      expect(r.rows.single.data!.email, 'kid@school.org');
+    });
+  });
+
   group('csv codec', () {
     test('round-trips quotes, commas, newlines and BOM', () {
       final rows = [
@@ -382,4 +452,16 @@ class _FakeParents implements ParentRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+class _Emails implements EmailLookup {
+  final Set<String> parents;
+  _Emails(this.parents);
+
+  @override
+  Future<bool> staffEmailInUse(String s, String b, String email) async => false;
+
+  @override
+  Future<bool> parentEmailInUse(String s, String b, String email) async =>
+      parents.contains(email);
 }

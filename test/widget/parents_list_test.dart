@@ -163,7 +163,10 @@ void main() {
     await _pump(tester);
     expect(find.text('Lakshmi Nair'), findsOneWidget);
     expect(find.byType(DropdownButton<ActivationStatus?>), findsNothing);
-    expect(find.byIcon(Icons.vpn_key_outlined), findsNothing);
+    // One Login access key per row (opens the per-person manager); the bulk
+    // "Give login access" action lives in the menu only.
+    expect(find.byTooltip('Login access'), findsWidgets);
+    expect(find.text('Give login access'), findsNothing);
 
     await tester.tap(find.byTooltip('More actions'));
     await tester.pumpAndSettle();

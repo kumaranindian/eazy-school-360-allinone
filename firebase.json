@@ -5,7 +5,8 @@
     "ignore": [
       "node_modules",
       ".git",
-      "*.test.js"
+      "*.test.js",
+      "test_support.js"
     ]
   },
   "firestore": {

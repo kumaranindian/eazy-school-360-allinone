@@ -19,6 +19,7 @@ import '../../../students/domain/bulk_student_import.dart'
     show BulkCellError, editCsvCells, normName;
 import '../../domain/department.dart';
 import '../../domain/designation.dart';
+import '../../../users/presentation/providers/login_access_providers.dart';
 import '../providers/staff_providers.dart';
 import '../widgets/staff_branch_scope.dart';
 
@@ -79,13 +80,16 @@ class _BodyState extends ConsumerState<_Body> {
   List<BulkStaffRow> _rows = const [];
   List<BulkStaffRowResult>? _results;
   final Map<String, bool> _codeAvailability = {};
+  final Map<String, bool> _emailInUse = {};
   bool _checking = false;
   bool _importing = false;
   int _done = 0;
   int _total = 0;
 
-  BulkStaffImporter get _importer =>
-      BulkStaffImporter(ref.read(staffRepositoryProvider));
+  BulkStaffImporter get _importer => BulkStaffImporter(
+    ref.read(staffRepositoryProvider),
+    ref.read(emailLookupProvider),
+  );
 
   Future<void> _save(String fileName, String content) async {
     try {
@@ -126,6 +130,7 @@ class _BodyState extends ConsumerState<_Body> {
       _rows = const [];
       _results = null;
       _codeAvailability.clear();
+      _emailInUse.clear();
     });
   }
 
@@ -306,6 +311,12 @@ class _BodyState extends ConsumerState<_Body> {
               _total = t;
             });
           },
+        );
+        rows = await _importer.flagExistingEmails(
+          schoolId: widget.schoolId,
+          branchId: widget.branchId,
+          rows: rows,
+          cache: _emailInUse,
         );
       }
       AppLogger.debug(

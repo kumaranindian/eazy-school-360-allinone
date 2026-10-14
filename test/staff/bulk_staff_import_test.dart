@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:eazy_school_360/features/staff/data/bulk_staff_importer.dart';
 import 'package:eazy_school_360/features/staff/domain/bulk_staff_import.dart';
+import 'package:eazy_school_360/features/users/domain/email_lookup.dart';
 import 'package:eazy_school_360/features/staff/domain/employment_type.dart';
 import 'package:eazy_school_360/features/staff/domain/staff.dart';
 import 'package:eazy_school_360/features/staff/domain/staff_repository.dart';
@@ -36,6 +37,85 @@ const _good =
     'EMP-1,Meena,,Iyer,1988-04-12,Female,B+,9876500001,,m@x.com,,,,,,2024-06-01,Part time,Academics,Teacher,Yes';
 
 void main() {
+  group('email', () {
+    test('is normalised to lowercase and validated strictly', () {
+      final r = _parse(_good.replaceFirst('m@x.com', '  Meena@School.ORG '));
+      expect(r.rows.single.isValid, isTrue);
+      expect(r.rows.single.data!.email, 'meena@school.org');
+      for (final bad in ['nope', 'a@b', 'a@b.c', 'a b@c.com', '@x.com']) {
+        final x = _parse(_good.replaceFirst('m@x.com', bad));
+        expect(x.rows.single.errors.single.column, 'email', reason: bad);
+      }
+    });
+
+    test('is optional; blank is stored as no email', () {
+      final r = _parse(_good.replaceFirst('m@x.com', ''));
+      expect(r.rows.single.isValid, isTrue);
+      expect(r.rows.single.data!.email, isNull);
+    });
+
+    test('a repeat inside the file is flagged, in any letter case', () {
+      final r = _parse(
+        [
+          _good,
+          _good
+              .replaceFirst('EMP-1', 'EMP-2')
+              .replaceFirst('m@x.com', 'M@X.com'),
+          _good
+              .replaceFirst('EMP-1', 'EMP-3')
+              .replaceFirst('m@x.com', 'other@x.com'),
+        ].join('\n'),
+      );
+      expect(r.rows.map((x) => x.isValid), [true, false, true]);
+      expect(
+        r.rows[1].errors.single.message,
+        contains('already used on line 2'),
+      );
+    });
+
+    test(
+      'rows already holding an email in the branch are flagged, not merged',
+      () async {
+        final importer = BulkStaffImporter(_FakeStaff(), _Emails({'m@x.com'}));
+        final rows = _parse(
+          [
+            _good,
+            _good
+                .replaceFirst('EMP-1', 'EMP-2')
+                .replaceFirst('m@x.com', 'new@x.com'),
+          ].join('\n'),
+        ).rows;
+        final checked = await importer.flagExistingEmails(
+          schoolId: 's',
+          branchId: 'b',
+          rows: rows,
+        );
+        expect(checked.map((r) => r.isValid), [false, true]);
+        expect(checked[0].errors.single.message, contains('already belongs'));
+      },
+    );
+
+    test(
+      'the same file twice: every email is reported, nothing is imported blindly',
+      () async {
+        final importer = BulkStaffImporter(_FakeStaff(), _Emails({'m@x.com'}));
+        final rows = _parse(_good).rows;
+        final checked = await importer.flagExistingEmails(
+          schoolId: 's',
+          branchId: 'b',
+          rows: rows,
+        );
+        final results = await importer.import(
+          schoolId: 's',
+          branchId: 'b',
+          createdBy: 'u',
+          rows: checked,
+        );
+        expect(results, isEmpty);
+      },
+    );
+  });
+
   group('template', () {
     test('its own example row is valid', () {
       final r = parseBulkStaffCsv(
@@ -169,7 +249,7 @@ void main() {
     test('editCsvCells fixes one line or every matching value', () {
       final csv =
           '$_header\n${_good.replaceFirst('Academics', 'Academc')}\n'
-          '${_good.replaceFirst('EMP-1', 'EMP-2').replaceFirst('Academics', 'Academc')}';
+          '${_good.replaceFirst('EMP-1', 'EMP-2').replaceFirst('m@x.com', 'm2@x.com').replaceFirst('Academics', 'Academc')}';
       final one = editCsvCells(
         csv,
         columnKey: 'department',
@@ -248,8 +328,8 @@ void main() {
       final rows = _parse(
         [
           _good,
-          _good.replaceFirst('EMP-1', 'EMP-2'),
-          _good.replaceFirst('EMP-1', 'EMP-3'),
+          _good.replaceFirst('EMP-1', 'EMP-2').replaceFirst('m@x', 'm2@x'),
+          _good.replaceFirst('EMP-1', 'EMP-3').replaceFirst('m@x', 'm3@x'),
         ].join('\n'),
       ).rows;
       final importer = BulkStaffImporter(repo);
@@ -322,4 +402,17 @@ class _FakeStaff implements StaffRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+class _Emails implements EmailLookup {
+  final Set<String> staff;
+  _Emails(this.staff);
+
+  @override
+  Future<bool> staffEmailInUse(String s, String b, String email) async =>
+      staff.contains(email);
+
+  @override
+  Future<bool> parentEmailInUse(String s, String b, String email) async =>
+      false;
 }

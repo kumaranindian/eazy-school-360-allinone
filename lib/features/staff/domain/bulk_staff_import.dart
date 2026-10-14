@@ -3,6 +3,7 @@ import '../../students/domain/bulk_student_import.dart'
     show
         BulkCellError,
         encodeCsv,
+        isValidImportEmail,
         joinForHint,
         normName,
         parseCsv,
@@ -49,7 +50,7 @@ const List<BulkStaffColumn> bulkStaffColumns = [
   BulkStaffColumn('blood_group', 'Blood group', 'B+'),
   BulkStaffColumn('phone', 'Phone', '9876500001', required: true),
   BulkStaffColumn('alternate_phone', 'Alternate phone', ''),
-  BulkStaffColumn('email', 'Email', ''),
+  BulkStaffColumn('email', 'Email', 'meena.iyer@example.com'),
   BulkStaffColumn('address', 'Address', ''),
   BulkStaffColumn('city', 'City', ''),
   BulkStaffColumn('state', 'State', ''),
@@ -71,7 +72,10 @@ const String bulkStaffHelp =
     'Employment type: Full time, Part time, Contract, Temporary, Intern, '
     'Other (blank = Full time). Department and designation must match a '
     'name or code set up under Staff → Departments / Designations. '
-    'Is teacher: Yes or No.';
+    'Is teacher: Yes or No. '
+    'Email is optional; it is saved in lowercase and used for the person\'s '
+    'login, so each email can appear only once (in the file and in the '
+    'branch).';
 
 String bulkStaffTemplateCsv({bool teachers = false}) =>
     '﻿${encodeCsv([
@@ -184,7 +188,6 @@ class BulkStaffParseResult {
 String _norm(String s) =>
     s.trim().toLowerCase().replaceAll(RegExp(r'[\s\-]+'), '_');
 
-final RegExp _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 final RegExp _phonePattern = RegExp(r'^[0-9+\-\s()]{7,20}$');
 
 Gender? _gender(String v) {
@@ -290,7 +293,8 @@ BulkStaffParseResult parseBulkStaffCsv(
     String get(String key) {
       final idx = header.indexOf(key);
       if (idx < 0 || idx >= cells.length) return '';
-      return cells[idx].trim();
+      final v = cells[idx].trim();
+      return key == 'email' ? v.toLowerCase() : v;
     }
 
     final errors = <BulkCellError>[];
@@ -415,7 +419,7 @@ BulkStaffParseResult parseBulkStaffCsv(
         'Use 7–20 digits — or leave it blank.',
       );
     }
-    if (get('email').isNotEmpty && !_emailPattern.hasMatch(get('email'))) {
+    if (get('email').isNotEmpty && !isValidImportEmail(get('email'))) {
       err(
         'email',
         '"${get('email')}" is not a valid email address.',
@@ -552,7 +556,40 @@ BulkStaffParseResult parseBulkStaffCsv(
       ),
     );
   }
-  return BulkStaffParseResult(header: header, rows: rows);
+  return BulkStaffParseResult(
+    header: header,
+    rows: flagDuplicateStaffEmails(rows),
+  );
+}
+
+/// An email can belong to one staff member: later rows that repeat an email
+/// already used earlier in the file are flagged, not silently skipped.
+List<BulkStaffRow> flagDuplicateStaffEmails(List<BulkStaffRow> rows) {
+  final firstLine = <String, int>{};
+  return [
+    for (final r in rows)
+      if (!r.isValid || r.data!.email == null)
+        r
+      else
+        () {
+          final email = r.data!.email!;
+          final first = firstLine[email];
+          if (first == null) {
+            firstLine[email] = r.line;
+            return r;
+          }
+          return r.withErrors([
+            BulkCellError(
+              column: 'email',
+              label: 'Email',
+              value: email,
+              message: '"$email" is already used on line $first.',
+              fix:
+                  'Each staff member needs their own email to sign in. Change it, or leave it blank.',
+            ),
+          ]);
+        }(),
+  ];
 }
 
 /// CSV of rows that did not import, with an `error` column.

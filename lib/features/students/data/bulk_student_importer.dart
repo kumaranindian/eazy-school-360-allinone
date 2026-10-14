@@ -2,6 +2,7 @@ import '../../../core/constants/activation_status.dart';
 import '../../../core/errors/error_mapper.dart';
 import '../../../core/logging/app_logger.dart';
 import '../domain/bulk_student_import.dart';
+import '../../users/domain/email_lookup.dart';
 import '../domain/parent.dart';
 import '../domain/parent_repository.dart';
 import '../domain/student.dart';
@@ -26,7 +27,65 @@ class BulkStudentImporter {
   final StudentRepository _students;
   final ParentRepository _parents;
 
-  BulkStudentImporter(this._students, this._parents);
+  final EmailLookup? _emails;
+
+  BulkStudentImporter(this._students, this._parents, [this._emails]);
+
+  /// Preview-time check: a parent email that already belongs to a parent
+  /// record is flagged instead of silently creating a second record for the
+  /// same login. (Link the existing parent from the student's profile.)
+  Future<List<BulkStudentRow>> flagExistingParentEmails({
+    required String schoolId,
+    required String branchId,
+    required List<BulkStudentRow> rows,
+    Map<String, bool>? cache,
+  }) async {
+    final lookup = _emails;
+    if (lookup == null) return rows;
+    final out = <BulkStudentRow>[];
+    for (final r in rows) {
+      final email = r.isValid ? r.data!.parent?.email : null;
+      if (email == null) {
+        out.add(r);
+        continue;
+      }
+      try {
+        final used =
+            cache?[email] ??
+            await lookup.parentEmailInUse(schoolId, branchId, email);
+        cache?[email] = used;
+        out.add(
+          !used
+              ? r
+              : r.withErrors([
+                  BulkCellError(
+                    column: 'parent_email',
+                    label: 'Parent email',
+                    value: email,
+                    message:
+                        '"$email" already belongs to a parent in this branch.',
+                    fix:
+                        'Clear the parent columns for this row and link the existing parent from the student profile, or use a different email.',
+                  ),
+                ]),
+        );
+      } catch (error) {
+        out.add(
+          r.withErrors([
+            BulkCellError(
+              column: 'parent_email',
+              label: 'Parent email',
+              value: email,
+              message: 'could not be checked against existing parents.',
+              fix:
+                  'Check your connection and upload again (${userMessageFor(error)}).',
+            ),
+          ]),
+        );
+      }
+    }
+    return out;
+  }
 
   /// Preview-time check: marks valid rows whose admission number already
   /// exists in the branch. Returns the same rows with extra errors.

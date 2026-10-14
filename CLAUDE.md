@@ -49,6 +49,8 @@ Entry points are explicit: `lib/main_dev.dart`, `main_prod.dart` (optionally wit
 
 **Write paths are modeled as "write plans"** (`*Writes` classes such as `HomeworkWrites`, `ExamWrites`) so the exact documents the app writes can be exported as fixtures and replayed against the real rules in the contract tests. If you change what a repository writes, update the plan, rerun the Dart contract test, and rerun the rules tests.
 
+**Login access**: `/users/{uid}.login` (server-written) + school `authSettings` gate sign-in per method; enforced in `firestore.rules`/`storage.rules` (`loginAllowed()`) and Cloud Functions (`functions/access.js`, `otp.js`, `whatsapp.js`). Phone OTP goes through Meta WhatsApp; see `docs/authentication-access-management.md` before touching auth.
+
 **Notifications**: the app writes `broadcastNotices` / `notifications` docs; Cloud Functions in `functions/` fan these out to FCM (`docs/push-notifications.md`). Despite older text in `PROJECT_ARCHITECTURE.md` saying Cloud Functions weren't added, they now exist for push. Web push is not supported.
 
 **Routing**: `go_router` with `StatefulShellRoute.indexedStack`; per-feature route files (e.g. `fees_routes.dart`) plug into `lib/core/routing`.

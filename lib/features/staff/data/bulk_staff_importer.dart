@@ -1,6 +1,7 @@
 import '../../../core/errors/error_mapper.dart';
 import '../../../core/logging/app_logger.dart';
 import '../../students/domain/bulk_student_import.dart' show BulkCellError;
+import '../../users/domain/email_lookup.dart';
 import '../domain/bulk_staff_import.dart';
 import '../domain/staff.dart';
 import '../domain/staff_repository.dart';
@@ -21,8 +22,72 @@ class BulkStaffRowResult {
 /// rule apply unchanged. A failing row never blocks or half-writes another.
 class BulkStaffImporter {
   final StaffRepository _staff;
+  final EmailLookup? _emails;
 
-  BulkStaffImporter(this._staff);
+  BulkStaffImporter(this._staff, [this._emails]);
+
+  /// Preview-time check: flags valid rows whose email is already on another
+  /// staff record of the branch. Rows are never merged or overwritten.
+  Future<List<BulkStaffRow>> flagExistingEmails({
+    required String schoolId,
+    required String branchId,
+    required List<BulkStaffRow> rows,
+
+    /// email -> in use?, kept by the caller across re-checks.
+    Map<String, bool>? cache,
+  }) async {
+    final lookup = _emails;
+    if (lookup == null) return rows;
+    final out = <BulkStaffRow>[];
+    for (final r in rows) {
+      final email = r.isValid ? r.data!.email : null;
+      if (email == null) {
+        out.add(r);
+        continue;
+      }
+      try {
+        final used =
+            cache?[email] ??
+            await lookup.staffEmailInUse(schoolId, branchId, email);
+        cache?[email] = used;
+        out.add(
+          !used
+              ? r
+              : r.withErrors([
+                  BulkCellError(
+                    column: 'email',
+                    label: 'Email',
+                    value: email,
+                    message:
+                        '"$email" already belongs to a staff member in this branch.',
+                    fix:
+                        'Use a different email, or delete this row if the person is already added.',
+                  ),
+                ]),
+        );
+      } catch (error, stackTrace) {
+        AppLogger.error(
+          'Bulk staff: email check failed (line ${r.line})',
+          tag: 'BulkImport',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        out.add(
+          r.withErrors([
+            BulkCellError(
+              column: 'email',
+              label: 'Email',
+              value: email,
+              message: 'could not be checked against existing staff.',
+              fix:
+                  'Check your connection and upload again (${userMessageFor(error)}).',
+            ),
+          ]),
+        );
+      }
+    }
+    return out;
+  }
 
   /// Preview-time check: flags valid rows whose employee code is taken.
   Future<List<BulkStaffRow>> flagExistingCodes({

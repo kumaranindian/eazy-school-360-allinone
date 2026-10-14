@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../../../users/presentation/providers/login_access_providers.dart';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -43,6 +44,7 @@ class _StudentBulkImportPageState extends ConsumerState<StudentBulkImportPage> {
   List<BulkStudentRow> _rows = const [];
   List<BulkImportRowResult>? _results;
   final Map<String, bool> _availability = {};
+  final Map<String, bool> _parentEmailInUse = {};
 
   bool _checking = false;
   bool _importing = false;
@@ -117,6 +119,7 @@ class _StudentBulkImportPageState extends ConsumerState<StudentBulkImportPage> {
       _rows = const [];
       _results = null;
       _availability.clear();
+      _parentEmailInUse.clear();
     });
   }
 
@@ -185,6 +188,12 @@ class _StudentBulkImportPageState extends ConsumerState<StudentBulkImportPage> {
             });
           },
         );
+        rows = await _importer().flagExistingParentEmails(
+          schoolId: schoolId,
+          branchId: branchId,
+          rows: rows,
+          cache: _parentEmailInUse,
+        );
       }
       AppLogger.debug(
         'Bulk import: preview rows=${rows.length} '
@@ -212,6 +221,7 @@ class _StudentBulkImportPageState extends ConsumerState<StudentBulkImportPage> {
   BulkStudentImporter _importer() => BulkStudentImporter(
     ref.read(studentRepositoryProvider),
     ref.read(parentRepositoryProvider),
+    ref.read(emailLookupProvider),
   );
 
   Future<void> _runImport(

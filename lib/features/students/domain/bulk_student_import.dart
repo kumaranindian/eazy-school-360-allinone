@@ -121,7 +121,7 @@ const List<BulkStudentColumn> bulkStudentColumns = [
     'parent_email',
     'Parent email',
     'ravi@example.com',
-    'Optional; needed later to give the parent a login',
+    'Optional; saved in lowercase, used for the parent\'s login; one email per parent',
   ),
 ];
 
@@ -386,7 +386,14 @@ class BulkStudentParseResult {
 String _norm(String s) =>
     s.trim().toLowerCase().replaceAll(RegExp(r'[\s\-]+'), '_');
 
-final RegExp _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+final RegExp _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$');
+
+/// Emails are compared and stored trimmed and lowercase, so `Asha@X.com` and
+/// `asha@x.com` are the same login.
+String normalizeImportEmail(String raw) => raw.trim().toLowerCase();
+
+bool isValidImportEmail(String normalized) =>
+    _emailPattern.hasMatch(normalized);
 final RegExp _phonePattern = RegExp(r'^[0-9+\-\s()]{7,20}$');
 
 /// Accepts `YYYY-MM-DD` and day-first `DD/MM/YYYY` / `DD-MM-YYYY` (the
@@ -544,7 +551,8 @@ BulkStudentParseResult parseBulkStudentCsv(
     String get(String key) {
       final idx = header.indexOf(key);
       if (idx < 0 || idx >= cells.length) return '';
-      return cells[idx].trim();
+      final v = cells[idx].trim();
+      return key == 'email' || key == 'parent_email' ? v.toLowerCase() : v;
     }
 
     final errors = <BulkCellError>[];
@@ -805,7 +813,45 @@ BulkStudentParseResult parseBulkStudentCsv(
     );
   }
 
-  return BulkStudentParseResult(header: header, rows: rows);
+  return BulkStudentParseResult(
+    header: header,
+    rows: flagDuplicateParentEmails(rows),
+  );
+}
+
+/// One email can sign in only one parent. Rows that reuse an email already
+/// given to a *different* parent (different phone) earlier in the file are
+/// flagged — never silently merged or dropped. The same parent repeated for
+/// siblings (same phone) is fine.
+List<BulkStudentRow> flagDuplicateParentEmails(List<BulkStudentRow> rows) {
+  final owner = <String, ({String phoneKey, int line})>{};
+  return [
+    for (final r in rows)
+      if (!r.isValid || r.data!.parent?.email == null)
+        r
+      else
+        () {
+          final p = r.data!.parent!;
+          final email = p.email!;
+          final first = owner[email];
+          if (first == null) {
+            owner[email] = (phoneKey: p.key, line: r.line);
+            return r;
+          }
+          if (first.phoneKey == p.key) return r;
+          return r.withErrors([
+            BulkCellError(
+              column: 'parent_email',
+              label: 'Parent email',
+              value: email,
+              message:
+                  '"$email" is already used on line ${first.line} by a parent with a different phone number.',
+              fix:
+                  'Each parent needs their own email to sign in. Change it, or leave it blank.',
+            ),
+          ]);
+        }(),
+  ];
 }
 
 /// CSV of the rows that did not import, with an `error` column, ready to be
