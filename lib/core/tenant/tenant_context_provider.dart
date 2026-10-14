@@ -47,6 +47,29 @@ class TenantContextNotifier extends AsyncNotifier<TenantContext?> {
       throw AccountInactiveException(profile.status);
     }
 
+    // Login access is switched off by an administrator, or this session
+    // used a method the account is not permitted. Legacy profiles (no
+    // `login` map) are unaffected. firestore.rules enforces the same.
+    final login = profile.login;
+    if (login != null) {
+      if (!login.enabled) {
+        throw AccountInactiveException(
+          profile.status,
+          cause: InactiveCause.loginDisabled,
+        );
+      }
+      final method = await ref
+          .read(authRepositoryProvider)
+          .currentSignInMethod();
+      if (!login.allows(method)) {
+        throw AccountInactiveException(
+          profile.status,
+          cause: InactiveCause.methodNotPermitted,
+          permitted: login.effective,
+        );
+      }
+    }
+
     final schoolRepository = ref.watch(schoolRepositoryProvider);
     final school = profile.schoolId == null
         ? null

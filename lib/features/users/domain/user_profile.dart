@@ -2,12 +2,42 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/constants/firestore_fields.dart';
 import '../../../core/permissions/user_role.dart';
+import '../../authentication/domain/login_method.dart';
 import 'user_status.dart';
 
 /// The `/users/{uid}` document. `schoolId`/`branchId` are nullable because
 /// [UserRole.platformAdmin] is not scoped to any single school, and
 /// [UserRole.schoolAdmin] is not scoped to any single branch — see
 /// `UserRole.isSchoolScoped`/`.isBranchScoped`.
+/// The server-written `login` map on `/users/{uid}` (see functions/access.js).
+/// Absent on legacy accounts, which keep working as before.
+class LoginState {
+  final bool enabled;
+  final List<LoginMethod> methods;
+
+  /// Permitted methods ∩ the school's enabled methods — what firestore.rules
+  /// checks the current sign-in against.
+  final List<LoginMethod> effective;
+
+  const LoginState({
+    required this.enabled,
+    required this.methods,
+    required this.effective,
+  });
+
+  static LoginState? fromData(Object? raw) {
+    if (raw is! Map) return null;
+    return LoginState(
+      enabled: raw['enabled'] == true,
+      methods: LoginMethod.listFromWire(raw['methods']),
+      effective: LoginMethod.listFromWire(raw['effective']),
+    );
+  }
+
+  bool allows(LoginMethod? method) =>
+      enabled && method != null && effective.contains(method);
+}
+
 class UserProfile {
   final String userId;
   final String? schoolId;
@@ -26,6 +56,9 @@ class UserProfile {
   /// whose contact record exists but has no login account yet.
   final String? linkedParentId;
 
+  /// Null for legacy accounts (no restriction beyond [status]).
+  final LoginState? login;
+
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final String? createdBy;
@@ -42,6 +75,7 @@ class UserProfile {
     required this.role,
     required this.status,
     this.linkedParentId,
+    this.login,
     this.createdAt,
     this.updatedAt,
     this.createdBy,
@@ -62,6 +96,7 @@ class UserProfile {
       role: UserRole.fromWireValue(data[FirestoreFields.role] as String),
       status: UserStatus.fromWireValue(data[FirestoreFields.status] as String),
       linkedParentId: data['linkedParentId'] as String?,
+      login: LoginState.fromData(data['login']),
       createdAt: (data[FirestoreFields.createdAt] as Timestamp?)?.toDate(),
       updatedAt: (data[FirestoreFields.updatedAt] as Timestamp?)?.toDate(),
       createdBy: data[FirestoreFields.createdBy] as String?,

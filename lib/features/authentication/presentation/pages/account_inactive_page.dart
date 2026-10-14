@@ -17,15 +17,37 @@ class AccountInactivePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final error = ref.watch(tenantContextProvider).error;
+    final cause = error is AccountInactiveException
+        ? error.cause
+        : InactiveCause.status;
     final isInvited =
-        error is AccountInactiveException && error.status == UserStatus.invited;
+        error is AccountInactiveException &&
+        cause == InactiveCause.status &&
+        error.status == UserStatus.invited;
 
-    final title = isInvited
-        ? "Your account isn't active yet"
-        : 'Your account has been disabled';
-    final message = isInvited
-        ? 'Your school administrator has invited you, but your account has not been activated yet.'
-        : 'Contact your school administrator if you believe this is a mistake.';
+    final String title;
+    final String message;
+    if (cause == InactiveCause.loginDisabled) {
+      title = 'Login access is turned off';
+      message =
+          'Your school administrator has turned off login for your account. '
+          'Contact them if you believe this is a mistake.';
+    } else if (cause == InactiveCause.methodNotPermitted) {
+      final permitted = (error as AccountInactiveException).permitted;
+      title = "This sign-in method isn't allowed";
+      message = permitted.isEmpty
+          ? 'None of the sign-in methods are currently allowed for your account. '
+                'Contact your school administrator.'
+          : 'Sign out and use: ${permitted.map((m) => m.label).join(', ')}.';
+    } else if (isInvited) {
+      title = "Your account isn't active yet";
+      message =
+          'Your school administrator has invited you, but your account has not been activated yet.';
+    } else {
+      title = 'Your account has been disabled';
+      message =
+          'Contact your school administrator if you believe this is a mistake.';
+    }
 
     return AuthScaffold(
       title: title,

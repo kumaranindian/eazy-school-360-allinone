@@ -66,3 +66,18 @@ final class UnknownFailure extends AppFailure {
     super.message = 'Something went wrong. Please try again.',
   ]);
 }
+
+/// The login-access / phone-OTP backend refused a request. [reason] is the
+/// stable code from the Cloud Function (see functions/index.js `fail`), never
+/// shown to users — [message] is.
+final class AccessPolicyFailure extends AppFailure {
+  final String reason;
+  final int? retryAfterSec;
+  final int? attemptsLeft;
+  const AccessPolicyFailure(
+    super.message, {
+    required this.reason,
+    this.retryAfterSec,
+    this.attemptsLeft,
+  });
+}

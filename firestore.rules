@@ -59,7 +59,37 @@ service cloud.firestore {
     // and DISABLED accounts are denied everything except reading (and
     // nothing else on) their own profile.
     function isActiveCaller() {
-      return hasProfile() && callerProfile().status == 'ACTIVE';
+      return hasProfile() && callerProfile().status == 'ACTIVE' && loginAllowed();
+    }
+
+    // ---- Login access (authentication feature) ----------------------------
+    // /users/{uid}.login is written only by Cloud Functions (admin SDK):
+    //   { enabled, methods[], effective[], phone?, ... }
+    // `effective` = the user's permitted methods ∩ the school's enabled
+    // methods. A profile WITHOUT `login` is a legacy account and keeps working
+    // exactly as before. The sign-in provider of the current token must be in
+    // `effective`, so a disabled user or a disabled method is refused on every
+    // read/write immediately, even though the Firebase Auth account (and any
+    // unexpired ID token) still exists.
+    function signInMethod() {
+      let p = request.auth.token.firebase.sign_in_provider;
+      return p == 'password' ? 'PASSWORD'
+        : p == 'google.com' ? 'GOOGLE'
+        : (p == 'custom' && request.auth.token.get('via', '') == 'PHONE_OTP') ? 'PHONE_OTP'
+        : 'OTHER';
+    }
+
+    function loginAllowed() {
+      let l = callerProfile().get('login', null);
+      return l == null || (
+        l.enabled == true
+        && signInMethod() in l.effective
+        // A Google sign-in is only accepted for the Google account whose
+        // verified email is the one registered on the profile.
+        && (signInMethod() != 'GOOGLE'
+          || (request.auth.token.get('email_verified', false) == true
+            && request.auth.token.get('email', '').lower() == callerProfile().get('email', '')))
+      );
     }
 
     function isPlatformAdmin() {
@@ -1328,7 +1358,8 @@ service cloud.firestore {
         ))
       );
 
-      allow create: if isSignedIn() && validCreateAudit() && (
+      allow create: if isSignedIn() && validCreateAudit()
+        && !('login' in request.resource.data) && (
         // (a) Self-signup: own profile, SCHOOL_ADMIN of the brand-new school
         //     being created in this same batch — never an existing school.
         (request.auth.uid == userId
@@ -1405,6 +1436,18 @@ service cloud.firestore {
       );
 
       allow delete: if false;
+
+      // Which sign-in methods the school enables, and the security audit
+      // trail. Both are written ONLY by Cloud Functions (updateSchoolAuthSettings,
+      // setLoginAccess); school admins may read them.
+      match /authSettings/{docId} {
+        allow read: if isSchoolAdminOrAbove(schoolId);
+        allow write: if false;
+      }
+      match /authAudit/{eventId} {
+        allow read: if isSchoolAdminOrAbove(schoolId);
+        allow write: if false;
+      }
 
       // ---- /schools/{schoolId}/branches/{branchId} ---------------------
       match /branches/{branchId} {

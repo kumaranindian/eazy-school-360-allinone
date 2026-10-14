@@ -19,7 +19,30 @@ service firebase.storage {
     function isActiveCaller() {
       return request.auth != null
         && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
-        && callerProfile().status == 'ACTIVE';
+        && callerProfile().status == 'ACTIVE'
+        && loginAllowed();
+    }
+
+    // Mirrors firestore.rules' loginAllowed(): see "Login access" there.
+    function signInMethod() {
+      let p = request.auth.token.firebase.sign_in_provider;
+      return p == 'password' ? 'PASSWORD'
+        : p == 'google.com' ? 'GOOGLE'
+        : (p == 'custom' && request.auth.token.get('via', '') == 'PHONE_OTP') ? 'PHONE_OTP'
+        : 'OTHER';
+    }
+
+    function loginAllowed() {
+      let l = callerProfile().get('login', null);
+      return l == null || (
+        l.enabled == true
+        && signInMethod() in l.effective
+        // A Google sign-in is only accepted for the Google account whose
+        // verified email is the one registered on the profile.
+        && (signInMethod() != 'GOOGLE'
+          || (request.auth.token.get('email_verified', false) == true
+            && request.auth.token.get('email', '').lower() == callerProfile().get('email', '')))
+      );
     }
 
     function isSameSchool(schoolId) {

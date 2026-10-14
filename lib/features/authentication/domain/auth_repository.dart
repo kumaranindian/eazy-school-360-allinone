@@ -1,4 +1,6 @@
 import 'app_user.dart';
+import 'login_method.dart';
+import 'phone_otp.dart';
 
 /// Boundary between the authentication feature and whatever actually
 /// authenticates users (Firebase Auth today). The presentation layer talks
@@ -33,6 +35,23 @@ abstract class AuthRepository {
     required String email,
     required String password,
   });
+
+  /// Asks the server to send a one-time code by WhatsApp to [phone]. The
+  /// answer is identical for numbers that are not registered (no account
+  /// enumeration). Throws an [AccessPolicyFailure] when refused (cooldown,
+  /// rate limit, provider down, ...).
+  Future<OtpChallenge> requestPhoneOtp(String phone);
+
+  /// Verifies [code] on the server and, only if it is correct, signs in with
+  /// the session the server mints. The client never decides success.
+  Future<AppUser> verifyPhoneOtp({
+    required String challengeId,
+    required String code,
+  });
+
+  /// How the current session was established, or null when signed out /
+  /// unknown. Used to check it against the user's permitted methods.
+  Future<LoginMethod?> currentSignInMethod();
 
   Future<void> signOut();
 }

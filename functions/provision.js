@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const { schoolMethods, intersect, LEGACY_METHODS, loginAllowed } = require('./access');
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const STAFF_ROLES = ['TEACHER', 'FINANCE', 'BRANCH_ADMIN'];
@@ -10,38 +11,48 @@ const branchRef = (db, s, b) => db.collection('schools').doc(s).collection('bran
 
 // Who may provision: an ACTIVE school admin of the school, or branch admin of
 // the branch. Mirrors canManageStaff in firestore.rules.
-async function assertAdmin(db, uid, schoolId, branchId) {
+async function assertAdmin(db, uid, schoolId, branchId, token) {
   const snap = await db.collection('users').doc(uid).get();
   const u = snap.data();
-  if (!u || u.status !== 'ACTIVE' || u.schoolId !== schoolId) return null;
+  // Same gate as the rules: a disabled login or method cannot administer.
+  if (!u || u.schoolId !== schoolId || !loginAllowed(u, token)) return null;
   if (u.role === 'SCHOOL_ADMIN') return u;
   if (u.role === 'BRANCH_ADMIN' && u.branchId === branchId) return u;
   return null;
 }
 
 // Finds or creates the Authentication account for [email]. Returns
-// { uid, created } or { problem }.
-async function ensureAuthUser(auth, db, { email, name, schoolId }) {
-  try {
-    const existing = await auth.getUserByEmail(email);
-    const profile = await db.collection('users').doc(existing.uid).get();
-    // An email that already belongs to a profile is never re-used: it would
-    // silently merge two people (or two schools).
-    if (profile.exists) return { problem: 'EMAIL_IN_USE' };
-    return { uid: existing.uid, created: false };
-  } catch (e) {
-    if (e.code !== 'auth/user-not-found') throw e;
+// { uid, created } or { problem }. [email] may be null for a phone-only login
+// (the account is then reachable only through the verified phone OTP flow).
+async function ensureAuthUser(auth, db, { email, name }) {
+  if (email) {
+    try {
+      const existing = await auth.getUserByEmail(email);
+      const profile = await db.collection('users').doc(existing.uid).get();
+      // An email that already belongs to a profile is never re-used: it would
+      // silently merge two people (or two schools).
+      if (profile.exists) return { problem: 'EMAIL_IN_USE' };
+      // An Auth account with this email but no profile was created outside
+      // the app (e.g. someone pre-registered the address). Whoever set its
+      // password is not known to be the mailbox owner, so the password is
+      // replaced and all sessions revoked before we adopt it. The real owner
+      // then sets their own via password reset or signs in with Google.
+      await auth.updateUser(existing.uid, { password: crypto.randomBytes(24).toString('base64url') });
+      await auth.revokeRefreshTokens(existing.uid);
+      return { uid: existing.uid, created: false };
+    } catch (e) {
+      if (e.code !== 'auth/user-not-found') throw e;
+    }
   }
   const created = await auth.createUser({
-    email,
+    ...(email ? { email, password: crypto.randomBytes(24).toString('base64url') } : {}),
     displayName: name,
-    password: crypto.randomBytes(24).toString('base64url'),
     emailVerified: false,
   });
   return { uid: created.uid, created: true };
 }
 
-function profileDoc({ schoolId, branchId, name, email, phone, role, linkedParentId, by, now }) {
+function profileDoc({ schoolId, branchId, name, email, phone, role, linkedParentId, login, by, now }) {
   return {
     schoolId,
     branchId,
@@ -52,11 +63,20 @@ function profileDoc({ schoolId, branchId, name, email, phone, role, linkedParent
     role,
     status: 'ACTIVE',
     linkedParentId: linkedParentId || null,
+    login,
     createdAt: now,
     updatedAt: now,
     createdBy: by,
     updatedBy: by,
   };
+}
+
+// Bulk-provisioned accounts get the same email+Google access they always had,
+// limited to what the school enables.
+async function defaultLogin(ctx) {
+  const school = await schoolMethods(ctx.db, ctx.schoolId);
+  const eff = intersect(LEGACY_METHODS, school);
+  return { enabled: eff.length > 0, methods: [...LEGACY_METHODS], effective: eff, phone: null, updatedAt: ctx.now, updatedBy: ctx.by };
 }
 
 async function provisionStaff(ctx, id, opts) {
@@ -77,7 +97,7 @@ async function provisionStaff(ctx, id, opts) {
   const batch = db.batch();
   batch.set(
     db.collection('users').doc(a.uid),
-    profileDoc({ schoolId, branchId, name, email, phone: s.phone, role, by, now }),
+    profileDoc({ schoolId, branchId, name, email, phone: s.phone, role, login: await defaultLogin(ctx), by, now }),
   );
   batch.update(ref, { userId: a.uid, ...(s.email ? {} : { email }), updatedAt: now, updatedBy: by });
   await batch.commit();
@@ -160,6 +180,7 @@ async function provisionParent(ctx, id, opts) {
       phone: p.phone,
       role: 'PARENT',
       linkedParentId: id,
+      login: await defaultLogin(ctx),
       by,
       now,
     }),
@@ -172,14 +193,14 @@ async function provisionParent(ctx, id, opts) {
 
 // Core of the callable, separated from the Firebase wrapper so it can be
 // tested with fakes. Never throws for one bad record: each gets an outcome.
-async function provisionLogins({ db, auth, now }, callerUid, data) {
+async function provisionLogins({ db, auth, now }, callerUid, data, token) {
   const { schoolId, branchId, kind, ids } = data || {};
   if (typeof schoolId !== 'string' || typeof branchId !== 'string') return { error: 'INVALID_ARGUMENT' };
   if (kind !== 'STAFF' && kind !== 'PARENT') return { error: 'INVALID_ARGUMENT' };
   if (!Array.isArray(ids) || ids.length === 0 || ids.length > MAX_BATCH || ids.some((i) => typeof i !== 'string')) {
     return { error: 'INVALID_ARGUMENT' };
   }
-  const caller = await assertAdmin(db, callerUid, schoolId, branchId);
+  const caller = await assertAdmin(db, callerUid, schoolId, branchId, token);
   if (!caller) return { error: 'PERMISSION_DENIED' };
 
   let role = 'FINANCE';
@@ -210,4 +231,4 @@ async function provisionLogins({ db, auth, now }, callerUid, data) {
   return { results };
 }
 
-module.exports = { provisionLogins, MAX_BATCH };
+module.exports = { provisionLogins, ensureAuthUser, MAX_BATCH };

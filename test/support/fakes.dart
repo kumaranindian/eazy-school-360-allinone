@@ -1,5 +1,7 @@
 import 'package:eazy_school_360/features/authentication/domain/app_user.dart';
 import 'package:eazy_school_360/features/authentication/domain/auth_repository.dart';
+import 'package:eazy_school_360/features/authentication/domain/login_method.dart';
+import 'package:eazy_school_360/features/authentication/domain/phone_otp.dart';
 import 'package:eazy_school_360/features/school_setup/domain/branch.dart';
 import 'package:eazy_school_360/features/school_setup/domain/school.dart';
 import 'package:eazy_school_360/features/school_setup/domain/school_repository.dart';
@@ -48,6 +50,26 @@ class FakeAuthRepository implements AuthRepository {
     _current = AppUser(uid: 'fake-uid', email: email);
     return _current!;
   }
+
+  @override
+  Future<OtpChallenge> requestPhoneOtp(String phone) async =>
+      const OtpChallenge(
+        challengeId: 'fake-challenge',
+        expiresIn: Duration(minutes: 5),
+        resendAfter: Duration(seconds: 60),
+      );
+
+  @override
+  Future<AppUser> verifyPhoneOtp({
+    required String challengeId,
+    required String code,
+  }) async {
+    _current = const AppUser(uid: 'fake-phone-uid', email: null);
+    return _current!;
+  }
+
+  @override
+  Future<LoginMethod?> currentSignInMethod() async => LoginMethod.password;
 
   @override
   Future<void> signOut() async {

@@ -1,3 +1,4 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
@@ -7,6 +8,10 @@ import '../../../core/logging/app_logger.dart';
 import '../domain/app_user.dart';
 import '../domain/auth_repository.dart';
 import '../domain/google_sign_in_cancelled.dart';
+import '../domain/login_method.dart';
+import '../domain/phone_otp.dart';
+import '../domain/access_messages.dart';
+import '../../../core/errors/app_failure.dart';
 
 AppUser _toAppUser(fb.User user) =>
     AppUser(uid: user.uid, email: user.email, displayName: user.displayName);
@@ -14,9 +19,11 @@ AppUser _toAppUser(fb.User user) =>
 /// [AuthRepository] implementation backed by Firebase Authentication.
 class FirebaseAuthRepository implements AuthRepository {
   final fb.FirebaseAuth _firebaseAuth;
+  final FirebaseFunctions _functions;
   bool _googleSignInInitialized = false;
 
-  FirebaseAuthRepository(this._firebaseAuth);
+  FirebaseAuthRepository(this._firebaseAuth, [FirebaseFunctions? functions])
+    : _functions = functions ?? FirebaseFunctions.instance;
 
   Future<void> _ensureGoogleSignInInitialized() async {
     if (_googleSignInInitialized) return;
@@ -176,4 +183,98 @@ class FirebaseAuthRepository implements AuthRepository {
       }
     }
   }
+
+  @override
+  Future<OtpChallenge> requestPhoneOtp(String phone) async {
+    try {
+      final res = await _functions.httpsCallable('requestPhoneOtp').call({
+        'phone': phone.trim(),
+      });
+      final m = Map<String, dynamic>.from(res.data as Map);
+      return OtpChallenge(
+        challengeId: m['challengeId'] as String,
+        expiresIn: Duration(seconds: (m['expiresInSec'] as num).toInt()),
+        resendAfter: Duration(seconds: (m['resendAfterSec'] as num).toInt()),
+      );
+    } on FirebaseFunctionsException catch (error) {
+      throw accessFailureFrom(error);
+    } catch (error, stackTrace) {
+      throw mapExceptionToFailure(error, stackTrace);
+    }
+  }
+
+  @override
+  Future<AppUser> verifyPhoneOtp({
+    required String challengeId,
+    required String code,
+  }) async {
+    try {
+      final res = await _functions.httpsCallable('verifyPhoneOtp').call({
+        'challengeId': challengeId,
+        'code': code.trim(),
+      });
+      final token = (res.data as Map)['token'] as String;
+      final credential = await _firebaseAuth.signInWithCustomToken(token);
+      final user = credential.user;
+      if (user == null) {
+        throw fb.FirebaseAuthException(code: 'user-not-found');
+      }
+      return _toAppUser(user);
+    } on FirebaseFunctionsException catch (error) {
+      throw accessFailureFrom(error);
+    } catch (error, stackTrace) {
+      throw mapExceptionToFailure(error, stackTrace);
+    }
+  }
+
+  @override
+  Future<LoginMethod?> currentSignInMethod() async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) return null;
+    try {
+      final result = await user.getIdTokenResult();
+      switch (result.signInProvider) {
+        case 'password':
+          return LoginMethod.password;
+        case 'google.com':
+          return LoginMethod.google;
+        case 'custom':
+          return result.claims?['via'] == 'PHONE_OTP'
+              ? LoginMethod.phoneOtp
+              : null;
+        default:
+          return null;
+      }
+    } catch (_) {
+      return null;
+    }
+  }
 }
+
+/// Maps a callable's error to an [AccessPolicyFailure] with user-facing text.
+AccessPolicyFailure accessFailureFrom(FirebaseFunctionsException error) {
+  final details = error.details is Map
+      ? Map<String, dynamic>.from(error.details as Map)
+      : const <String, dynamic>{};
+  final reason = (details['reason'] as String?) ?? _byCode(error.code);
+  final retry = (details['retryAfterSec'] as num?)?.toInt();
+  return AccessPolicyFailure(
+    accessMessageFor(
+      reason,
+      cause: details['cause'] as String?,
+      retryAfterSec: retry,
+    ),
+    reason: reason,
+    retryAfterSec: retry,
+    attemptsLeft: (details['attemptsLeft'] as num?)?.toInt(),
+  );
+}
+
+String _byCode(String code) => switch (code) {
+  'permission-denied' => 'PERMISSION_DENIED',
+  'not-found' => 'NOT_FOUND',
+  'invalid-argument' => 'INVALID_ARGUMENT',
+  'resource-exhausted' => 'RATE_LIMITED',
+  'unavailable' || 'deadline-exceeded' => 'DELIVERY_FAILED',
+  _ => 'UNKNOWN',
+};
