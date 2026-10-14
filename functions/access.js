@@ -329,6 +329,10 @@ async function createAccountFor(ctx, { rec, kind, schoolId, branchId, callerUid,
   });
   batch.update(rec.ref, { [kind === 'STAFF' ? 'userId' : 'linkedUserId']: a.uid, updatedAt: now, updatedBy: callerUid });
   await batch.commit();
+  // A parent's portal shows nothing until their children's links allow it.
+  if (kind === 'PARENT' && data.enablePortal !== false && ctx.enablePortalLinks) {
+    await ctx.enablePortalLinks({ db, schoolId, branchId, by: callerUid, now }, rec.ref.id);
+  }
   return { uid: a.uid };
 }
 

@@ -8,6 +8,7 @@ import '../../../../core/permissions/permission.dart';
 import '../../../../core/permissions/user_role.dart';
 import '../../../../shared/dialogs/app_dialog.dart';
 import '../../../users/domain/login_provisioning.dart';
+import '../../../users/presentation/widgets/login_access_dialog.dart';
 import '../../../users/presentation/widgets/login_selection_bar.dart';
 import '../../../users/presentation/widgets/provision_logins_dialog.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -86,6 +87,18 @@ class _StaffListState extends ConsumerState<_StaffList> {
 
   Iterable<Staff> get _selectable =>
       _controller.items.where((s) => s.userId == null);
+
+  Future<void> _manageAccess(Staff s) async {
+    final changed = await showLoginAccessDialog(
+      context: context,
+      schoolId: widget.schoolId,
+      branchId: widget.branchId,
+      kind: LoginKind.staff,
+      id: s.staffId,
+      fallbackName: s.displayName,
+    );
+    if (changed == true && mounted) _controller.reload();
+  }
 
   Future<void> _giveLogins() async {
     final chosen = _controller.items.where(
@@ -447,10 +460,21 @@ class _StaffListState extends ConsumerState<_StaffList> {
                             Text(staff.userId != null ? 'Has login' : '—'),
                           ),
                           DataCell(
-                            TextButton(
-                              onPressed: () =>
-                                  context.push('/staff/${staff.staffId}'),
-                              child: const Text('View'),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (widget.canManage)
+                                  IconButton(
+                                    icon: const Icon(Icons.vpn_key_outlined),
+                                    tooltip: 'Login access',
+                                    onPressed: () => _manageAccess(staff),
+                                  ),
+                                TextButton(
+                                  onPressed: () =>
+                                      context.push('/staff/${staff.staffId}'),
+                                  child: const Text('View'),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -475,7 +499,18 @@ class _StaffListState extends ConsumerState<_StaffList> {
                               '${staff.employeeCode} · ${designationNames[staff.designationId] ?? '—'}'
                               '${staff.userId != null ? ' · Has login' : ''}',
                             ),
-                            trailing: StaffStatusChip(status: staff.status),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                StaffStatusChip(status: staff.status),
+                                if (widget.canManage)
+                                  IconButton(
+                                    icon: const Icon(Icons.vpn_key_outlined),
+                                    tooltip: 'Login access',
+                                    onPressed: () => _manageAccess(staff),
+                                  ),
+                              ],
+                            ),
                             onTap: () =>
                                 context.push('/staff/${staff.staffId}'),
                           ),

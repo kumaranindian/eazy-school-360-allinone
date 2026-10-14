@@ -17,6 +17,7 @@ import '../../../../shared/layouts/scrollable_header.dart';
 import '../../../../shared/layouts/responsive_data_list.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../../users/domain/login_provisioning.dart';
+import '../../../users/presentation/widgets/login_access_dialog.dart';
 import '../../../users/presentation/widgets/login_selection_bar.dart';
 import '../../../users/presentation/widgets/provision_logins_dialog.dart';
 import '../../domain/paged_result.dart';
@@ -54,6 +55,22 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
   final _selected = <String>{};
 
   Iterable<Parent> get _selectable => _items.where((p) => !p.hasPortalAccess);
+
+  Future<void> _manageAccess(
+    String schoolId,
+    String branchId,
+    Parent parent,
+  ) async {
+    final changed = await showLoginAccessDialog(
+      context: context,
+      schoolId: schoolId,
+      branchId: branchId,
+      kind: LoginKind.parent,
+      id: parent.parentId,
+      fallbackName: parent.displayName,
+    );
+    if (changed == true && mounted) _resetAndLoad(schoolId, branchId);
+  }
 
   Future<void> _giveLogins(String schoolId, String branchId) async {
     final done = await showAdaptiveAppDialog<bool>(
@@ -367,10 +384,26 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
                             Text(parent.hasPortalAccess ? 'Has login' : '—'),
                           ),
                           DataCell(
-                            TextButton(
-                              onPressed: () =>
-                                  context.push('/parents/${parent.parentId}'),
-                              child: const Text('View'),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (canManage)
+                                  IconButton(
+                                    icon: const Icon(Icons.vpn_key_outlined),
+                                    tooltip: 'Login access',
+                                    onPressed: () => _manageAccess(
+                                      schoolId,
+                                      branchId,
+                                      parent,
+                                    ),
+                                  ),
+                                TextButton(
+                                  onPressed: () => context.push(
+                                    '/parents/${parent.parentId}',
+                                  ),
+                                  child: const Text('View'),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -395,6 +428,17 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
                               '${parent.phone}'
                               '${parent.hasPortalAccess ? ' · Has login' : ''}',
                             ),
+                            trailing: canManage
+                                ? IconButton(
+                                    icon: const Icon(Icons.vpn_key_outlined),
+                                    tooltip: 'Login access',
+                                    onPressed: () => _manageAccess(
+                                      schoolId,
+                                      branchId,
+                                      parent,
+                                    ),
+                                  )
+                                : null,
                             onTap: () =>
                                 context.push('/parents/${parent.parentId}'),
                           ),

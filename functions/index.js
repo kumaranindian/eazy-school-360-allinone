@@ -13,7 +13,7 @@ const logger = require('firebase-functions/logger');
 const { broadcastRecipients, targetedRecipients } = require('./recipients');
 const { pushToUsers } = require('./push');
 const { defineSecret, defineString } = require('firebase-functions/params');
-const { provisionLogins, ensureAuthUser } = require('./provision');
+const { provisionLogins, ensureAuthUser, enablePortalLinks } = require('./provision');
 const access = require('./access');
 const { requestOtp, verifyOtp } = require('./otp');
 const { createWhatsAppSender } = require('./whatsapp');
@@ -136,6 +136,7 @@ const adminCtx = () => ({
   auth: getAuth(),
   now: FieldValue.serverTimestamp(),
   ensureAuthUser,
+  enablePortalLinks,
   configured: { phoneOtp: phoneOtpConfigured() },
 });
 

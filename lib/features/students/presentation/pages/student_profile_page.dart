@@ -10,7 +10,7 @@ import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../domain/academic_record_status.dart';
 import '../../../users/domain/login_provisioning.dart';
-import '../../../users/presentation/widgets/provision_logins_dialog.dart';
+import '../../../users/presentation/widgets/login_access_dialog.dart';
 import '../../domain/parent_student_link.dart';
 import '../../domain/student.dart';
 import '../providers/parent_providers.dart';
@@ -337,32 +337,23 @@ class _ParentLinkTile extends ConsumerWidget {
                 ? Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (!parent.hasPortalAccess)
-                        IconButton(
-                          icon: const Icon(Icons.vpn_key_outlined),
-                          tooltip: 'Give login access',
-                          onPressed: () async {
-                            final done = await showAdaptiveAppDialog<bool>(
-                              context: context,
-                              barrierDismissible: false,
-                              builder: (context) => ProvisionLoginsDialog(
-                                schoolId: link.schoolId,
-                                branchId: link.branchId,
-                                kind: LoginKind.parent,
-                                people: [
-                                  (
-                                    id: parent.parentId,
-                                    name: parent.displayName,
-                                    email: parent.email,
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (done == true) {
-                              ref.invalidate(parentProvider(parentKey));
-                            }
-                          },
-                        ),
+                      IconButton(
+                        icon: const Icon(Icons.vpn_key_outlined),
+                        tooltip: 'Login access',
+                        onPressed: () async {
+                          final changed = await showLoginAccessDialog(
+                            context: context,
+                            schoolId: link.schoolId,
+                            branchId: link.branchId,
+                            kind: LoginKind.parent,
+                            id: parent.parentId,
+                            fallbackName: parent.displayName,
+                          );
+                          if (changed == true) {
+                            ref.invalidate(parentProvider(parentKey));
+                          }
+                        },
+                      ),
                       IconButton(
                         icon: const Icon(Icons.edit_outlined),
                         tooltip: 'Edit link',

@@ -13,7 +13,18 @@ import 'package:eazy_school_360/features/users/domain/user_repository.dart';
 class FakeAuthRepository implements AuthRepository {
   AppUser? _current;
 
-  FakeAuthRepository({AppUser? signedInAs}) : _current = signedInAs;
+  /// How the fake session was "established" (checked against `login`).
+  LoginMethod? signInMethod;
+
+  /// When set, phone OTP calls throw it; [verifiedCodes] records good codes.
+  Object? otpError;
+  final List<String> requestedPhones = [];
+  final List<String> verifiedCodes = [];
+
+  FakeAuthRepository({
+    AppUser? signedInAs,
+    this.signInMethod = LoginMethod.password,
+  }) : _current = signedInAs;
 
   @override
   Stream<AppUser?> authStateChanges() => Stream.value(_current);
@@ -52,24 +63,30 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<OtpChallenge> requestPhoneOtp(String phone) async =>
-      const OtpChallenge(
-        challengeId: 'fake-challenge',
-        expiresIn: Duration(minutes: 5),
-        resendAfter: Duration(seconds: 60),
-      );
+  Future<OtpChallenge> requestPhoneOtp(String phone) async {
+    if (otpError != null) throw otpError!;
+    requestedPhones.add(phone);
+    return const OtpChallenge(
+      challengeId: 'fake-challenge',
+      expiresIn: Duration(minutes: 5),
+      resendAfter: Duration(seconds: 60),
+    );
+  }
 
   @override
   Future<AppUser> verifyPhoneOtp({
     required String challengeId,
     required String code,
   }) async {
+    if (otpError != null) throw otpError!;
+    verifiedCodes.add(code);
     _current = const AppUser(uid: 'fake-phone-uid', email: null);
+    signInMethod = LoginMethod.phoneOtp;
     return _current!;
   }
 
   @override
-  Future<LoginMethod?> currentSignInMethod() async => LoginMethod.password;
+  Future<LoginMethod?> currentSignInMethod() async => signInMethod;
 
   @override
   Future<void> signOut() async {

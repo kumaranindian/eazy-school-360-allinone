@@ -8,6 +8,7 @@ import '../../../../core/routing/app_routes.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/validators/validators.dart';
 import '../providers/auth_providers.dart';
+import 'phone_otp_form.dart';
 
 class LoginForm extends ConsumerStatefulWidget {
   const LoginForm({super.key});
@@ -21,6 +22,7 @@ class _LoginFormState extends ConsumerState<LoginForm> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _phoneMode = false;
 
   @override
   void dispose() {
@@ -61,6 +63,10 @@ class _LoginFormState extends ConsumerState<LoginForm> {
     final signInState = ref.watch(signInControllerProvider);
     final googleSignInState = ref.watch(googleSignInControllerProvider);
     final isSubmitting = signInState.isLoading || googleSignInState.isLoading;
+
+    if (_phoneMode) {
+      return PhoneOtpForm(onBack: () => setState(() => _phoneMode = false));
+    }
 
     return Form(
       key: _formKey,
@@ -145,6 +151,14 @@ class _LoginFormState extends ConsumerState<LoginForm> {
                   )
                 : const Icon(Icons.g_mobiledata),
             label: const Text('Sign in with Google'),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          OutlinedButton.icon(
+            onPressed: isSubmitting
+                ? null
+                : () => setState(() => _phoneMode = true),
+            icon: const Icon(Icons.phone_outlined),
+            label: const Text('Sign in with phone (WhatsApp code)'),
           ),
           const SizedBox(height: AppSpacing.lg),
           Center(

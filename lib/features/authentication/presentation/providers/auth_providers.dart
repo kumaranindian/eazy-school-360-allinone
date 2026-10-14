@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/firebase_auth_repository.dart';
 import '../../domain/app_user.dart';
 import '../../domain/auth_repository.dart';
+import '../../../../core/errors/app_failure.dart';
+import '../../../../core/errors/error_mapper.dart';
 import '../../domain/google_sign_in_cancelled.dart';
 
 final firebaseAuthProvider = Provider<fb.FirebaseAuth>(
@@ -102,3 +104,100 @@ class SignUpController extends AsyncNotifier<void> {
 final signUpControllerProvider = AsyncNotifierProvider<SignUpController, void>(
   SignUpController.new,
 );
+
+enum OtpStep { enterPhone, enterCode }
+
+class PhoneOtpState {
+  final OtpStep step;
+  final String phone;
+  final String? challengeId;
+  final DateTime? resendAt;
+  final DateTime? expiresAt;
+  final bool busy;
+  final String? error;
+
+  const PhoneOtpState({
+    this.step = OtpStep.enterPhone,
+    this.phone = '',
+    this.challengeId,
+    this.resendAt,
+    this.expiresAt,
+    this.busy = false,
+    this.error,
+  });
+
+  PhoneOtpState copyWith({
+    OtpStep? step,
+    String? phone,
+    String? challengeId,
+    DateTime? resendAt,
+    DateTime? expiresAt,
+    bool? busy,
+    String? error,
+    bool clearError = false,
+  }) => PhoneOtpState(
+    step: step ?? this.step,
+    phone: phone ?? this.phone,
+    challengeId: challengeId ?? this.challengeId,
+    resendAt: resendAt ?? this.resendAt,
+    expiresAt: expiresAt ?? this.expiresAt,
+    busy: busy ?? this.busy,
+    error: clearError ? null : (error ?? this.error),
+  );
+}
+
+/// Phone + WhatsApp one-time-code sign-in. The server generates, delivers
+/// and verifies the code; this only relays what the user typed and signs in
+/// with the session the server returns after a correct code.
+class PhoneOtpController extends Notifier<PhoneOtpState> {
+  @override
+  PhoneOtpState build() => const PhoneOtpState();
+
+  /// Sends (or re-sends) the code. Ignored while a request is in flight.
+  Future<void> requestCode(String phone) async {
+    if (state.busy) return;
+    state = state.copyWith(busy: true, phone: phone, clearError: true);
+    try {
+      final c = await ref.read(authRepositoryProvider).requestPhoneOtp(phone);
+      final now = DateTime.now();
+      state = state.copyWith(
+        step: OtpStep.enterCode,
+        challengeId: c.challengeId,
+        resendAt: now.add(c.resendAfter),
+        expiresAt: now.add(c.expiresIn),
+        busy: false,
+      );
+    } catch (e) {
+      state = state.copyWith(busy: false, error: userMessageFor(e));
+    }
+  }
+
+  Future<void> verify(String code) async {
+    final id = state.challengeId;
+    if (state.busy || id == null) return;
+    state = state.copyWith(busy: true, clearError: true);
+    try {
+      await ref
+          .read(authRepositoryProvider)
+          .verifyPhoneOtp(challengeId: id, code: code);
+      state = state.copyWith(busy: false);
+    } catch (e) {
+      // A locked or expired code cannot be retried: go back to resend.
+      final terminal =
+          e is AccessPolicyFailure &&
+          (e.reason == 'OTP_LOCKED' || e.reason == 'OTP_EXPIRED');
+      state = state.copyWith(
+        busy: false,
+        error: userMessageFor(e),
+        resendAt: terminal ? DateTime.now() : null,
+      );
+    }
+  }
+
+  void changeNumber() => state = const PhoneOtpState();
+}
+
+final phoneOtpControllerProvider =
+    NotifierProvider.autoDispose<PhoneOtpController, PhoneOtpState>(
+      PhoneOtpController.new,
+    );

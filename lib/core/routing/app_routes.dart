@@ -26,6 +26,7 @@ abstract final class AppRoutes {
   static const String settingsSubjects = '/settings/subjects';
   static const String settingsWorkingDays = '/settings/working-days';
   static const String settingsHolidays = '/settings/holidays';
+  static const String settingsAuthentication = '/settings/authentication';
 
   /// Student + Parent management (Milestone 3). `:studentId`/`:parentId`
   /// are the route *templates* (see note on [requiredPermissions] below),
@@ -169,6 +170,7 @@ abstract final class AppRoutes {
     settingsSubjects: Permission.viewAcademicSetup,
     settingsWorkingDays: Permission.viewAcademicSetup,
     settingsHolidays: Permission.viewAcademicSetup,
+    settingsAuthentication: Permission.manageSchool,
     students: Permission.viewStudentData,
     newStudent: Permission.manageStudentData,
     studentProfile: Permission.viewStudentData,

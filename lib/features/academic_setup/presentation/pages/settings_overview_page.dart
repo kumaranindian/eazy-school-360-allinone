@@ -119,6 +119,16 @@ class SettingsOverviewPage extends ConsumerWidget {
         setupLabel: 'Holiday Calendar',
       ),
     ]),
+    _Group('Security', 'Who can sign in, and how', [
+      _Section(
+        label: 'Authentication',
+        description: 'Email, Google and phone sign-in for your school',
+        icon: Icons.admin_panel_settings_outlined,
+        route: AppRoutes.settingsAuthentication,
+        permission: Permission.manageSchool,
+        setupLabel: 'Authentication',
+      ),
+    ]),
   ];
 
   static _Section? _sectionFor(String setupLabel) {
