@@ -95,6 +95,14 @@ class HubTile extends StatelessWidget {
   final String? badge;
   final HubBadgeTone badgeTone;
 
+  /// Tints the icon tile (a module's own colour) instead of the default
+  /// primary container.
+  final Color? accent;
+
+  /// A module that is planned but not built yet: shown dimmed with a
+  /// "Coming soon" badge and no chevron. [onTap] still runs (to say so).
+  final bool comingSoon;
+
   const HubTile({
     super.key,
     required this.icon,
@@ -103,12 +111,15 @@ class HubTile extends StatelessWidget {
     this.description,
     this.badge,
     this.badgeTone = HubBadgeTone.neutral,
+    this.accent,
+    this.comingSoon = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final tint = comingSoon ? scheme.outline : accent;
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
@@ -123,17 +134,24 @@ class HubTile extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: scheme.primaryContainer,
+                  color: tint != null
+                      ? tint.withValues(alpha: 0.14)
+                      : scheme.primaryContainer,
                   borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
-                child: Icon(icon, color: scheme.onPrimaryContainer),
+                child: Icon(icon, color: tint ?? scheme.onPrimaryContainer),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: theme.textTheme.titleSmall),
+                    Text(
+                      title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: comingSoon ? scheme.onSurfaceVariant : null,
+                      ),
+                    ),
                     if (description != null) ...[
                       const SizedBox(height: 2),
                       Text(
@@ -143,18 +161,26 @@ class HubTile extends StatelessWidget {
                         ),
                       ),
                     ],
-                    if (badge != null) ...[
+                    if (comingSoon) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      const HubBadge(
+                        label: 'Coming soon',
+                        icon: Icons.hourglass_top,
+                      ),
+                    ] else if (badge != null) ...[
                       const SizedBox(height: AppSpacing.sm),
                       HubBadge(label: badge!, tone: badgeTone),
                     ],
                   ],
                 ),
               ),
-              const SizedBox(width: AppSpacing.xs),
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Icon(Icons.chevron_right, color: scheme.outline),
-              ),
+              if (!comingSoon) ...[
+                const SizedBox(width: AppSpacing.xs),
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Icon(Icons.chevron_right, color: scheme.outline),
+                ),
+              ],
             ],
           ),
         ),
@@ -167,11 +193,13 @@ class HubTile extends StatelessWidget {
 class HubBadge extends StatelessWidget {
   final String label;
   final HubBadgeTone tone;
+  final IconData? icon;
 
   const HubBadge({
     super.key,
     required this.label,
     this.tone = HubBadgeTone.neutral,
+    this.icon,
   });
 
   @override
@@ -192,12 +220,23 @@ class HubBadge extends StatelessWidget {
         color: accent.withValues(alpha: dark ? 0.2 : 0.12),
         borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: foreground,
-          fontWeight: FontWeight.w600,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: foreground),
+            const SizedBox(width: 4),
+          ],
+          Flexible(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: foreground,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
