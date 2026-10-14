@@ -3,7 +3,7 @@
   "private": true,
   "description": "Push notification delivery for EazySchool 360",
   "main": "index.js",
-  "engines": { "node": "20" },
+  "engines": { "node": "22" },
   "scripts": {
     "test": "node --test"
   },
