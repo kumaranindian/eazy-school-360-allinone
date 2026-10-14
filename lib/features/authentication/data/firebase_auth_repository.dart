@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../../../core/config/functions_region.dart';
 import '../../../core/errors/error_mapper.dart';
 import '../../../core/logging/app_logger.dart';
 import '../domain/app_user.dart';
@@ -23,7 +24,7 @@ class FirebaseAuthRepository implements AuthRepository {
   bool _googleSignInInitialized = false;
 
   FirebaseAuthRepository(this._firebaseAuth, [FirebaseFunctions? functions])
-    : _functions = functions ?? FirebaseFunctions.instance;
+    : _functions = functions ?? appFunctions();
 
   Future<void> _ensureGoogleSignInInitialized() async {
     if (_googleSignInInitialized) return;

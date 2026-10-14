@@ -1,4 +1,4 @@
-import 'package:cloud_functions/cloud_functions.dart';
+import '../../../../core/config/functions_region.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,7 +9,7 @@ import '../../domain/email_lookup.dart';
 import '../../domain/login_access.dart';
 
 final loginAccessRepositoryProvider = Provider<LoginAccessRepository>(
-  (ref) => FirebaseLoginAccessRepository(FirebaseFunctions.instance),
+  (ref) => FirebaseLoginAccessRepository(appFunctions()),
   retry: (retryCount, error) => null,
 );
 

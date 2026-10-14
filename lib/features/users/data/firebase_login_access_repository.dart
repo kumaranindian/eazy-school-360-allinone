@@ -1,5 +1,6 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
+import '../../../core/config/functions_region.dart';
 import '../../../core/errors/error_mapper.dart';
 import '../../authentication/data/firebase_auth_repository.dart'
     show accessFailureFrom;
@@ -12,7 +13,7 @@ import '../domain/login_provisioning.dart';
 class FirebaseLoginAccessRepository implements LoginAccessRepository {
   final FirebaseFunctions _functions;
   FirebaseLoginAccessRepository([FirebaseFunctions? functions])
-    : _functions = functions ?? FirebaseFunctions.instance;
+    : _functions = functions ?? appFunctions();
 
   Future<Map<String, dynamic>> _call(
     String name,
