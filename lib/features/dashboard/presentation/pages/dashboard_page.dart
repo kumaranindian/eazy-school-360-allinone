@@ -8,7 +8,7 @@ import '../../../../core/tenant/tenant_context.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../shared/branding/brand_logo.dart';
+import '../../../../shared/branding/school_brand_logo.dart';
 import '../../../../shared/branding/page_hero.dart';
 import '../../../../shared/layouts/hub_layout.dart';
 import '../../../../shared/loading/async_value_widget.dart';
@@ -357,7 +357,7 @@ class _Hero extends StatelessWidget {
         HeroPill(tenant.role.displayName, filled: true),
         if (place.isNotEmpty) HeroPill(place),
       ],
-      trailing: const BrandMark(size: 56, onDark: true),
+      trailing: const SchoolAndProductMarks(size: 56, onDark: true),
     );
   }
 }

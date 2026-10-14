@@ -1,3 +1,4 @@
+import 'package:flutter/painting.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/tenant/tenant_context_provider.dart';
@@ -26,16 +27,19 @@ class SchoolProfileWriteController extends AsyncNotifier<void> {
     required List<int> fileBytes,
     required String fileExtension,
     required String updatedBy,
-  }) => _run(
-    () => ref
+  }) => _run(() async {
+    final url = await ref
         .read(schoolRepositoryProvider)
         .uploadSchoolLogo(
           schoolId: schoolId,
           fileBytes: fileBytes,
           fileExtension: fileExtension,
           updatedBy: updatedBy,
-        ),
-  );
+        );
+    // The logo lives at a fixed path, so a replacement may be served from
+    // the same URL: drop the decoded copy so every shared logo repaints.
+    PaintingBinding.instance.imageCache.evict(NetworkImage(url));
+  });
 
   Future<bool> createBranch(Branch branch, {required String createdBy}) => _run(
     () => ref

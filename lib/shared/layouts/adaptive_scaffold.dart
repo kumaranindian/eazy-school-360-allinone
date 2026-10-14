@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/responsive.dart';
-import '../branding/brand_logo.dart';
+import '../branding/school_brand_logo.dart';
+import '../branding/school_branding.dart';
 import '../widgets/app_version_footer.dart';
 import 'hero_scope.dart';
 
@@ -230,21 +232,26 @@ class AdaptiveScaffold extends StatelessWidget {
   }
 }
 
-/// App-bar title: the brand mark beside the product name.
-class _BrandTitle extends StatelessWidget {
+/// App-bar title: the school's logo and the EazySchool mark side by side,
+/// then the school's name (or the product name before a school is known).
+class _BrandTitle extends ConsumerWidget {
   final String title;
   const _BrandTitle(this.title);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final branding = ref.watch(schoolBrandingProvider);
+    final name = branding != null && branding.name.isNotEmpty
+        ? branding.name
+        : title;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const BrandMark(size: 32),
+        const SchoolAndProductMarks(size: 32),
         const SizedBox(width: 12),
         Flexible(
           child: Text(
-            title,
+            name,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: Theme.of(context).colorScheme.onSurface,

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/extensions/context_extensions.dart';
+import '../../../../shared/branding/school_brand_logo.dart';
 import '../../../../shared/media/image_pick.dart';
 import '../providers/school_profile_providers.dart';
 
@@ -68,20 +69,7 @@ class _SchoolLogoPickerState extends ConsumerState<SchoolLogoPicker> {
 
     return Row(
       children: [
-        CircleAvatar(
-          radius: 36,
-          backgroundColor: context.colors.surfaceContainerHighest,
-          backgroundImage: widget.logoUrl != null
-              ? NetworkImage(widget.logoUrl!)
-              : null,
-          child: widget.logoUrl == null
-              ? Icon(
-                  Icons.school_outlined,
-                  size: 32,
-                  color: context.colors.outline,
-                )
-              : null,
-        ),
+        SchoolLogoImage(url: widget.logoUrl, label: 'School logo', size: 72),
         const SizedBox(width: 16),
         OutlinedButton.icon(
           onPressed: isUploading ? null : _pickAndUpload,

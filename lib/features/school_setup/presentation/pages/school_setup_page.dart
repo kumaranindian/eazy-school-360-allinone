@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/permissions/permission.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../shared/branding/school_brand_logo.dart';
 import '../../../../shared/layouts/detail_grid.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/loading/async_value_widget.dart';
@@ -85,9 +86,10 @@ class _SchoolSetupPageState extends ConsumerState<SchoolSetupPage> {
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       if (school.logoUrl != null) ...[
-                        CircleAvatar(
-                          radius: 28,
-                          backgroundImage: NetworkImage(school.logoUrl!),
+                        SchoolLogoImage(
+                          url: school.logoUrl,
+                          label: school.name,
+                          size: 56,
                         ),
                         const SizedBox(width: AppSpacing.md),
                       ],

@@ -1277,7 +1277,16 @@ void main() {
       await w.go(tester, '/exams/results/${r.exam.examId}/s1');
       expect(find.text('Report card'), findsOneWidget);
       expect(find.textContaining('Provisional'), findsWidgets);
-      expect(find.text('Rosewood High'), findsOneWidget);
+      // The school name is on the report card and, as the tenant's branding,
+      // in the shell's app bar: exactly one of each.
+      expect(find.text('Rosewood High'), findsNWidgets(2));
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text('Rosewood High'),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('120 / 150'), findsOneWidget);
       expect(find.text('80%'), findsOneWidget);
       expect(find.text('Print'), findsOneWidget);
