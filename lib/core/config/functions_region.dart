@@ -1,4 +1,5 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 /// Region the Cloud Functions are deployed to. Must equal `FUNCTIONS_REGION`
 /// in `functions/.env` (which must match the Firestore database region).
@@ -8,5 +9,15 @@ const String functionsRegion = String.fromEnvironment(
   defaultValue: 'asia-south1',
 );
 
-FirebaseFunctions appFunctions() =>
-    FirebaseFunctions.instanceFor(region: functionsRegion);
+FirebaseFunctions appFunctions() {
+  try {
+    return FirebaseFunctions.instanceFor(region: functionsRegion);
+  } catch (error, stackTrace) {
+    // Printed in release too: this failing means no callable can be made.
+    debugPrint(
+      '[functions] could not create instance for region=$functionsRegion: '
+      '${error.runtimeType}: $error\n$stackTrace',
+    );
+    rethrow;
+  }
+}

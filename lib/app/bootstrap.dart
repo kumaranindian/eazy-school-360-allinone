@@ -92,6 +92,10 @@ Future<void> bootstrap(
 
   runApp(
     ProviderScope(
+      // Riverpod 3 retries a failed provider with backoff and reports it as
+      // "loading" meanwhile, so a permission-denied read looked like an
+      // endless spinner. Fail fast and let the screen show its error/retry.
+      retry: (retryCount, error) => null,
       overrides: [envConfigProvider.overrideWithValue(envConfig)],
       child: const App(),
     ),

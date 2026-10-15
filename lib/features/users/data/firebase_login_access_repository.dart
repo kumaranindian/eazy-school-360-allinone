@@ -1,4 +1,5 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../../../core/config/functions_region.dart';
 import '../../../core/errors/error_mapper.dart';
@@ -23,8 +24,18 @@ class FirebaseLoginAccessRepository implements LoginAccessRepository {
       final res = await _functions.httpsCallable(name).call(data);
       return Map<String, dynamic>.from(res.data as Map);
     } on FirebaseFunctionsException catch (error) {
+      // Printed in release builds too, so a "Something went wrong" can be
+      // diagnosed from the browser console. No payload or token is logged.
+      debugPrint(
+        '[loginAccess] $name region=$functionsRegion failed: '
+        'code=${error.code} message=${error.message} details=${error.details}',
+      );
       throw accessFailureFrom(error);
     } catch (error, stackTrace) {
+      debugPrint(
+        '[loginAccess] $name region=$functionsRegion failed before/while '
+        'calling: ${error.runtimeType}: $error\n$stackTrace',
+      );
       throw mapExceptionToFailure(error, stackTrace);
     }
   }

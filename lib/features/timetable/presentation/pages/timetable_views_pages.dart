@@ -772,19 +772,15 @@ class _ParentTimetableState extends ConsumerState<_ParentTimetable> {
             message: 'Your child has not been placed in a class yet.',
           );
         }
-        final years =
-            ref
-                .watch(
-                  academicYearsProvider((
-                    schoolId: widget.schoolId,
-                    branchId: child.branchId,
-                  )),
-                )
-                .value ??
-            const <AcademicYear>[];
-        final year = _activeYear(years, child.currentAcademicYearId);
-        if (year == null) {
-          return const Center(child: CircularProgressIndicator());
+        // Families cannot read the academic-year list (staff-only rule); the
+        // child's own placement already names the year, so use that. The old
+        // `.value ?? []` turned a permission error into an endless spinner.
+        final yearId = child.currentAcademicYearId;
+        if (yearId == null) {
+          return const EmptyView(
+            icon: Icons.schedule_outlined,
+            message: 'Your child has not been placed in a class yet.',
+          );
         }
         return Column(
           children: [
@@ -819,7 +815,7 @@ class _ParentTimetableState extends ConsumerState<_ParentTimetable> {
               child: SectionWeek(
                 schoolId: widget.schoolId,
                 branchId: child.branchId,
-                academicYearId: year.academicYearId,
+                academicYearId: yearId,
                 classId: child.currentClassId!,
                 sectionId: child.currentSectionId!,
                 mondayKey: _monday,
