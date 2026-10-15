@@ -690,10 +690,6 @@ service cloud.firestore {
     // homework/announcements/notices (that needs a lookup by child), or hide a
     // scheduled announcement before its publish time. See
     // docs/milestone-9-homework-assignments-announcements.md §10.
-    function isHomeworkTeacherOrAdmin(schoolId, branchId, teacherStaffId) {
-      return canManageStaff(schoolId, branchId) || isOwnLeaveStaff(schoolId, branchId, teacherStaffId);
-    }
-
     function profileOwnsStaff(p, schoolId, branchId, staffId) {
       let path = staffPath(schoolId, branchId, staffId);
       return p.status == 'ACTIVE' && p.schoolId == schoolId && p.branchId == branchId
