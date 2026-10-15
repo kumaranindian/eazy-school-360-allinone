@@ -12,7 +12,7 @@
 
 ## One-time setup
 - Firebase project on the **Blaze** plan; `cd functions && npm install`; `firebase deploy --only functions,firestore:rules`.
-- Set `FUNCTIONS_REGION` to the Firestore database region if it is not `us-central1`.
+- Set `FUNCTIONS_REGION` to the Firestore database region if it is not `asia-south1` (the default, which matches the app).
 - Android: nothing more (POST_NOTIFICATIONS is declared; Android 13+ prompts at first sign-in).
 - iOS: in Xcode enable the **Push Notifications** capability and **Background Modes → Remote notifications**,
   and upload an APNs auth key in Firebase console → Project settings → Cloud Messaging.

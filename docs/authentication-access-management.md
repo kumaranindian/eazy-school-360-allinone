@@ -111,7 +111,7 @@ Until configured, Phone stays off; Email and Google behave as before.
 ## Imports
 
 Email columns already existed; now: trimmed + lowercased, stricter format, row-level errors,
-duplicates **within the file** (staff email; parent email on different parents — siblings of the same parent may repeat it) and **against existing staff / parent records of the branch** are flagged in the preview (never merged or overwritten). Valid rows can still be imported after the existing confirm dialog; the errors CSV lists the rest. Emails already used by an Auth account outside those records are reported per person (`EMAIL_IN_USE`) when the login is created. Student `email` is normalised/validated but is not a login.
+duplicates **within the file** (staff email; parent email on different parents — siblings of the same parent may repeat it) and **against existing staff / parent records of the branch** are flagged in the preview (never merged or overwritten). Valid rows can still be imported after the existing confirm dialog; the errors CSV lists the rest. When a login is created and the email already has an Auth account **and** a `/users` profile, that profile is *mapped* to the staff/parent record (role and status kept, `userId` / `linkedUserId` / `linkedParentId` set) provided it is in the same school and branch, has a role the record may hold, and is not linked to another record. Anything else is reported per person as `EMAIL_IN_USE` and never merged. Student `email` is normalised/validated but is not a login.
 
 ## Migration / rollout
 
@@ -133,3 +133,16 @@ duplicates **within the file** (staff email; parent email on different parents �
 * A non-matching Google account signs in to Firebase but has no profile → no data access (existing self-signup route still lets it create a *new* school, unchanged).
 * Custom tokens cannot be rate-limited per device; App Check recommended.
 * ID tokens already issued stay cryptographically valid up to 1 h, but rules deny them as soon as access changes.
+
+## Deploying Cloud Functions (dev rollout notes)
+
+Learned deploying to `eazy-school-360-dev`:
+
+* **Region.** Functions default to `asia-south1` (`FUNCTIONS_REGION`, matching the app's `FUNCTIONS_REGION` define). Firestore triggers (`pushNotification`, `pushBroadcastNotice`) must be in the **same region as the Firestore database** or they never fire. Check with `firebase firestore:databases:get "(default)" --project <id>`. Older deploys were in `us-central1`; the first deploy after this change deletes those copies and recreates them in the new region (`firebase deploy --only functions --force` is needed non-interactively).
+* **Secrets are required to deploy**, even for phone-OTP-off projects, because the functions bind them. Set both before deploying (the CLI enables Secret Manager if needed; allow a minute to propagate):
+  ```
+  openssl rand -base64 48 | firebase functions:secrets:set OTP_PEPPER --project <id> --data-file -
+  printf 'placeholder' | firebase functions:secrets:set META_WA_ACCESS_TOKEN --project <id> --data-file -   # real token when enabling phone OTP
+  ```
+* **`functions/.env` is required** for non-interactive deploys (copy `functions/env.example`; it is gitignored). Empty `META_WA_PHONE_NUMBER_ID` / `META_WA_TEMPLATE_NAME` keep phone sign-in off.
+* Deploy: `firebase deploy --only functions --force --project <id>`, then `--only hosting` after `flutter build web --release -t lib/main_<env>.dart --dart-define=APP_ENV=<env>`.
