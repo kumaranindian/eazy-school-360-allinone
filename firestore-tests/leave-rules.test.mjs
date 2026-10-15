@@ -194,6 +194,8 @@ async function seedWorld() {
     for (const [sid, uid] of [['staff-t', 'lv-teacher'], ['staff-t2', 'lv-teacher2'], ['staff-f', 'lv-fin']]) {
       await setDoc(doc(db, ...n, 'staff', sid), { schoolId: A, branchId: NORTH, userId: uid, status: 'ACTIVE', ...audit('seed') });
     }
+    // teacherAccess (server-written in production): lv-teacher teaches Class 5-A, lv-teacher2 nothing.
+    await setDoc(doc(db, ...n, 'teacherAccess', 'lv-teacher'), { schoolId: A, branchId: NORTH, staffId: 'staff-t', userId: 'lv-teacher', sectionKeys: ['c5__sa'], scopes: [], updatedAt: serverTimestamp() });
     const t = (id, d) => setDoc(ref(db, 'leaveTypes', id), d);
     await t('STUDENT__sick', typeDoc({ kind: 'STUDENT', code: 'SICK', name: 'Sick leave', payType: 'NA' }));
     await t('STUDENT__medical', typeDoc({ kind: 'STUDENT', code: 'MEDICAL', name: 'Medical', payType: 'NA', requiresDocument: true }));
@@ -364,7 +366,11 @@ test('Calendar entries are minimal: teachers read student entries (no reason), n
   await assertSucceeds(decideBatch(asUser('lv-admin'), 'lv-admin', { id: 'l-1', to: 'APPROVED' }).commit());
   const cal = (await getDoc(ref(asUser('lv-teacher'), 'leaveCalendar', 'l-1'))).data();
   assert_no_sensitive(cal);
-  await assertSucceeds(getDocs(query(col(asUser('lv-teacher'), 'leaveCalendar'), where('subjectKind', '==', 'STUDENT'))));
+  // A teacher reads student entries only for a section they teach (class + section pinned).
+  await assertSucceeds(getDoc(ref(asUser('lv-teacher'), 'leaveCalendar', 'l-1')));
+  await assertSucceeds(getDocs(query(col(asUser('lv-teacher'), 'leaveCalendar'), where('subjectKind', '==', 'STUDENT'), where('classId', '==', 'c5'), where('sectionId', '==', 'sa'))));
+  await assertFails(getDocs(query(col(asUser('lv-teacher'), 'leaveCalendar'), where('subjectKind', '==', 'STUDENT'))));
+  await assertFails(getDoc(ref(asUser('lv-teacher2'), 'leaveCalendar', 'l-1')));
   await assertSucceeds(getDoc(ref(asUser('lv-parent'), 'leaveCalendar', 'l-1')));
   await assertFails(getDoc(ref(asUser('lv-parent2'), 'leaveCalendar', 'l-1')));
   await assertFails(getDoc(ref(asUser('lv-admin-b'), 'leaveCalendar', 'l-1')));
@@ -742,7 +748,10 @@ test('The queries the app uses work for the right person and fail for everyone e
 
   // a teacher's calendar window (students only) and a parent's own child
   await assertSucceeds(decideBatch(asUser('lv-admin'), 'lv-admin', { id: 'stu-q', to: 'APPROVED', dates: ['2026-09-14'], units: 2 }).commit());
-  await assertSucceeds(getDocs(query(col(asUser('lv-teacher'), 'leaveCalendar'), where('subjectKind', '==', 'STUDENT'), where('endDateKey', '>=', '2026-09-01'))));
+  await assertSucceeds(getDocs(query(col(asUser('lv-teacher'), 'leaveCalendar'), where('subjectKind', '==', 'STUDENT'), where('classId', '==', 'c5'), where('sectionId', '==', 'sa'), where('endDateKey', '>=', '2026-09-01'))));
+  // a teacher's window must name a section they teach; the branch-wide window is refused
+  await assertFails(getDocs(query(col(asUser('lv-teacher'), 'leaveCalendar'), where('subjectKind', '==', 'STUDENT'), where('endDateKey', '>=', '2026-09-01'))));
+  await assertFails(getDocs(query(col(asUser('lv-teacher2'), 'leaveCalendar'), where('subjectKind', '==', 'STUDENT'), where('classId', '==', 'c5'), where('sectionId', '==', 'sa'), where('endDateKey', '>=', '2026-09-01'))));
   await assertFails(getDocs(query(col(asUser('lv-teacher'), 'leaveCalendar'), where('subjectKind', '==', 'STAFF'), where('endDateKey', '>=', '2026-09-01'))));
   await assertSucceeds(getDocs(query(col(asUser('lv-parent'), 'leaveCalendar'), where('subjectKind', '==', 'STUDENT'), where('subjectId', '==', 'stu-1'), where('endDateKey', '>=', '2026-09-01'))));
   await assertFails(getDocs(query(col(asUser('lv-parent'), 'leaveCalendar'), where('subjectKind', '==', 'STUDENT'), where('endDateKey', '>=', '2026-09-01'))));

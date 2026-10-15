@@ -4,10 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/errors/error_mapper.dart';
+import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/permissions/permission.dart';
 import '../../../../core/permissions/user_role.dart';
 import '../../../../shared/dialogs/app_dialog.dart';
 import '../../../users/domain/login_provisioning.dart';
+import '../../../users/presentation/providers/login_access_providers.dart';
 import '../../../users/presentation/widgets/login_access_dialog.dart';
 import '../../../users/presentation/widgets/login_selection_bar.dart';
 import '../../../users/presentation/widgets/provision_logins_dialog.dart';
@@ -87,6 +90,25 @@ class _StaffListState extends ConsumerState<_StaffList> {
 
   Iterable<Staff> get _selectable =>
       _controller.items.where((s) => s.userId == null);
+
+  /// Rebuilds the teachers' class-access index (used by the security rules).
+  /// Normally automatic on every assignment change; this is the repair/backfill.
+  Future<void> _refreshTeacherAccess() async {
+    try {
+      final r = await ref
+          .read(loginAccessRepositoryProvider)
+          .refreshTeacherAccess(
+            schoolId: widget.schoolId,
+            branchId: widget.branchId,
+          );
+      if (!mounted) return;
+      context.showSnackBar(
+        'Teacher access refreshed (${r.written} of ${r.teachers} teachers).',
+      );
+    } catch (e) {
+      if (mounted) context.showSnackBar(userMessageFor(e), isError: true);
+    }
+  }
 
   Future<void> _manageAccess(Staff s) async {
     final changed = await showLoginAccessDialog(
@@ -209,6 +231,12 @@ class _StaffListState extends ConsumerState<_StaffList> {
         label: 'Give login access',
         icon: Icons.vpn_key_outlined,
         onSelected: () => setState(() => _selecting = true),
+      ),
+    if (widget.canManage)
+      PageAction(
+        label: 'Refresh teacher access',
+        icon: Icons.sync_outlined,
+        onSelected: _refreshTeacherAccess,
       ),
     PageAction(
       label: 'Departments',

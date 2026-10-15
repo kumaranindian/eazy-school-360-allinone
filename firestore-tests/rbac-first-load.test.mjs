@@ -27,7 +27,7 @@ const base = { createdAt: serverTimestamp(), updatedAt: serverTimestamp(), creat
 const nb = (s = A, b = N) => ['schools', s, 'branches', b];
 const as = (uid) => env.authenticatedContext(uid, { firebase: { sign_in_provider: 'password' } }).firestore();
 const col = (d, name, s = A) => collection(d, ...nb(s), name);
-const AUD = ['ALL', 'BRANCH', 'PARENTS', 'CLASS', 'SECTION']; // AnnouncementRepository._parentAudiences
+const AUD = ['ALL', 'BRANCH', 'PARENTS']; // general audiences; CLASS/SECTION are queried pinned to the parent's own class/section
 
 async function seed() {
   await env.withSecurityRulesDisabled(async (c) => {
@@ -52,6 +52,7 @@ async function seed() {
     }
     const n = nb();
     await setDoc(doc(d, ...n, 'staff', 'st1'), { schoolId: A, branchId: N, userId: 'rb-t-ok', status: 'ACTIVE', isTeacher: true, ...base });
+    await setDoc(doc(d, ...n, 'teacherAccess', 'rb-t-ok'), { schoolId: A, branchId: N, staffId: 'st1', userId: 'rb-t-ok', sectionKeys: ['c5__sa'], scopes: [], updatedAt: serverTimestamp() });
     await setDoc(doc(d, ...n, 'staff', 'st2'), { schoolId: A, branchId: N, userId: 'rb-t2', status: 'ACTIVE', isTeacher: true, ...base });
     for (const [id, st] of [['as1', 'st1'], ['as2', 'st2']]) {
       await setDoc(doc(d, ...n, 'teacherAssignments', id), {
@@ -85,6 +86,10 @@ const parentAnnouncements = (d, aud = AUD) =>
   getDocs(query(col(d, 'announcements'), where('status', '==', 'PUBLISHED'), where('audienceKind', 'in', aud), orderBy('publishAt', 'desc'), limit(100)));
 const parentNotices = (d, aud = AUD) =>
   getDocs(query(col(d, 'broadcastNotices'), where('audienceKind', 'in', aud), orderBy('createdAt', 'desc'), limit(30)));
+const parentClassAnnouncements = (d, classId = 'c5') =>
+  getDocs(query(col(d, 'announcements'), where('status', '==', 'PUBLISHED'), where('audienceKind', '==', 'CLASS'), where('classId', '==', classId), orderBy('publishAt', 'desc'), limit(100)));
+const parentSectionNotices = (d, classId = 'c5', sectionId = 'sa') =>
+  getDocs(query(col(d, 'broadcastNotices'), where('audienceKind', '==', 'SECTION'), where('classId', '==', classId), where('sectionId', '==', sectionId), orderBy('createdAt', 'desc'), limit(30)));
 
 // ---------------------------------------------------------------- teacher
 test('teacher (healthy data): login → dashboard → class screens all succeed', async () => {
@@ -96,7 +101,9 @@ test('teacher (healthy data): login → dashboard → class screens all succeed'
   await assertSucceeds(getDocs(query(col(d, 'teacherAssignments'), where('teacherStaffId', '==', 'st1'), where('status', '==', 'ACTIVE'))));
   await assertSucceeds(staffAnnouncements(d));
   await assertSucceeds(getDocs(query(col(d, 'broadcastNotices'), orderBy('createdAt', 'desc'), limit(30))));
-  await assertSucceeds(getDocs(query(col(d, 'students'), limit(50))));
+  // students: only the pinned section the teacher is assigned to
+  await assertSucceeds(getDocs(query(col(d, 'students'), where('currentClassId', '==', 'c5'), where('currentSectionId', '==', 'sa'), limit(50))));
+  await assertFails(getDocs(query(col(d, 'students'), limit(50))));
 });
 
 test('teacher: a profile with no branchId is denied every branch read (DATA root cause)', async () => {
@@ -145,6 +152,13 @@ test('parent (healthy data): profile, own record, linked child, announcements', 
   await assertSucceeds(getDoc(doc(d, ...nb(), 'students', 'stu1')));
   await assertSucceeds(parentAnnouncements(d));
   await assertSucceeds(parentNotices(d));
+  await assertSucceeds(parentClassAnnouncements(d));
+  await assertSucceeds(parentSectionNotices(d));
+  // another class's / section's content is refused
+  await assertFails(parentClassAnnouncements(d, 'c9'));
+  await assertFails(parentSectionNotices(d, 'c5', 'sz'));
+  // the old single 5-kind query is no longer provable
+  await assertFails(parentAnnouncements(d, ['ALL', 'BRANCH', 'PARENTS', 'CLASS', 'SECTION']));
 });
 
 test('parent cannot read an unrelated student, another parent, or list students', async () => {
@@ -166,6 +180,7 @@ test('CONFIRMED: a parent with no parentAccess index is denied the whole announc
   await assertFails(parentAnnouncements(d));
   await assertFails(parentNotices(d));
   // …but school-wide ("ALL") announcements are still readable when asked for alone.
+  await assertFails(parentClassAnnouncements(d));
   await assertSucceeds(parentAnnouncements(d, ['ALL']));
   await assertSucceeds(parentNotices(d, ['ALL']));
 });
@@ -213,10 +228,10 @@ test('T2: a teacher still cannot list colleagues\' staff records', async () => {
   await assertFails(getDocs(query(col(as('rb-t-ok'), 'staff'), where('status', '==', 'ACTIVE'), where('isTeacher', '==', true), limit(100))));
 });
 
-test('T3: a teacher can list a parent\'s links only when the query is pinned to their branch', async () => {
+test('T3: a teacher cannot list a parent\'s links (parents are reached only through their own students)', async () => {
   const d = as('rb-t-ok');
   await assertFails(getDocs(query(collectionGroup(d, 'parentLinks'), where('schoolId', '==', A), where('parentId', '==', 'pr-ok'))));
-  await assertSucceeds(getDocs(query(collectionGroup(d, 'parentLinks'), where('schoolId', '==', A), where('branchId', '==', N), where('parentId', '==', 'pr-ok'))));
+  await assertFails(getDocs(query(collectionGroup(d, 'parentLinks'), where('schoolId', '==', A), where('branchId', '==', N), where('parentId', '==', 'pr-ok'))));
 });
 
 test('P4: a parent reads an invoice\'s payments only when the query is pinned to their child', async () => {

@@ -308,7 +308,10 @@ class FakeLeaveBalanceRepository implements LeaveBalanceRepository {
 
 class FakeLeaveCalendarRepository implements LeaveCalendarRepository {
   List<LeaveCalendarEntry> entries;
-  final List<({LeaveKind kind, String? sectionId, String from})> queries = [];
+  final List<
+    ({LeaveKind kind, String? classId, String? sectionId, String from})
+  >
+  queries = [];
   Object? error;
 
   FakeLeaveCalendarRepository({this.entries = const []});
@@ -324,7 +327,12 @@ class FakeLeaveCalendarRepository implements LeaveCalendarRepository {
     String? sectionId,
     String? subjectId,
   }) async {
-    queries.add((kind: kind, sectionId: sectionId, from: fromKey));
+    queries.add((
+      kind: kind,
+      classId: classId,
+      sectionId: sectionId,
+      from: fromKey,
+    ));
     if (error != null) throw error!;
     return [
       for (final e in entries)

@@ -84,7 +84,7 @@ async function seedAll() {
         authorId: 'ps-admin', title: kind, ...base,
       });
       await setDoc(doc(d, ...n, 'broadcastNotices', `bn-${kind}`), {
-        schoolId: A, branchId: N, audienceKind: kind, classId: 'c5', sectionId: null, type: 'ANNOUNCEMENT_PUBLISHED', title: kind, ...base,
+        schoolId: A, branchId: N, audienceKind: kind, classId: 'c5', sectionId: kind === 'SECTION' ? 'sa' : null, type: 'ANNOUNCEMENT_PUBLISHED', title: kind, ...base,
       });
     }
   });
@@ -164,16 +164,36 @@ test('announcements: school-wide stays school-wide; branch-targeted ones need a 
     await ok(getDoc(ref(db(uid), 'broadcastNotices', 'bn-ALL')));
   }
   await no(getDoc(ref(db('ps-p-b'), 'announcements', 'an-ALL'))); // other school
-  // BRANCH / PARENTS / CLASS / SECTION: the family must have a child in this branch
+  // BRANCH / PARENTS: the family must have a child in this branch;
+  // CLASS: a child in THAT class; SECTION: a child in THAT section.
   for (const kind of ['BRANCH', 'PARENTS', 'CLASS', 'SECTION']) {
     await ok(getDoc(ref(db('ps-p-sa'), 'announcements', `an-${kind}`)));
     await ok(getDoc(ref(db('ps-p-sa'), 'broadcastNotices', `bn-${kind}`)));
     await no(getDoc(ref(db('ps-p-south'), 'announcements', `an-${kind}`)));
+    await no(getDoc(ref(db('ps-p-none'), 'announcements', `an-${kind}`)));
   }
-  // the lists the app runs are provable for a family that has the index
-  const list = (uid, name, order) => getDocs(query(col(db(uid), name), where('audienceKind', 'in', ['ALL', 'BRANCH', 'PARENTS', 'CLASS', 'SECTION'])));
-  await ok(list('ps-p-sa', 'broadcastNotices'));
-  await no(list('ps-p-south', 'broadcastNotices'));
+  // same class, different section: the class notice yes, the section notice no
+  await ok(getDoc(ref(db('ps-p-sb'), 'announcements', 'an-CLASS')));
+  await no(getDoc(ref(db('ps-p-sb'), 'announcements', 'an-SECTION')));
+  await no(getDoc(ref(db('ps-p-sb'), 'broadcastNotices', 'bn-SECTION')));
+  // another class's family: nothing class/section-scoped
+  await no(getDoc(ref(db('ps-p-south'), 'announcements', 'an-CLASS')));
+  // the lists the app runs: one pinned query per audience scope, provable for a family with the index
+  // announcements are listed as PUBLISHED only (the rule needs the status to prove the query)
+  const st = (name) => (name === 'announcements' ? [where('status', '==', 'PUBLISHED')] : []);
+  const pinned = (uid, name, kind, extra = []) => getDocs(query(col(db(uid), name), ...st(name), where('audienceKind', '==', kind), ...extra));
+  const general = (uid, name) => getDocs(query(col(db(uid), name), ...st(name), where('audienceKind', 'in', ['ALL', 'BRANCH', 'PARENTS'])));
+  for (const name of ['announcements', 'broadcastNotices']) {
+    await ok(general('ps-p-sa', name));
+    await ok(pinned('ps-p-sa', name, 'CLASS', [where('classId', '==', 'c5')]));
+    await ok(pinned('ps-p-sa', name, 'SECTION', [where('classId', '==', 'c5'), where('sectionId', '==', 'sa')]));
+    // not their section / class, or not pinned at all: refused
+    await no(pinned('ps-p-sa', name, 'SECTION', [where('classId', '==', 'c5'), where('sectionId', '==', 'sb')]));
+    await no(pinned('ps-p-sa', name, 'CLASS', [where('classId', '==', 'c9')]));
+    await no(pinned('ps-p-sa', name, 'CLASS'));
+    await no(getDocs(query(col(db('ps-p-sa'), name), ...st(name), where('audienceKind', 'in', ['ALL', 'BRANCH', 'PARENTS', 'CLASS', 'SECTION']))));
+    await no(general('ps-p-south', name));
+  }
 });
 
 test('the index: only staff who manage student data write it; families read only their own', async () => {

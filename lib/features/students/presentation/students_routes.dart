@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'pages/student_admission_page.dart';
 import 'pages/student_bulk_import_page.dart';
 import 'pages/student_profile_page.dart';
-import 'pages/students_list_page.dart';
+import 'pages/students_entry_page.dart';
 
 /// `/students` and its children — kept out of `app_router.dart`, same
 /// pattern as `academic_setup_routes.dart`. `new` and `import` are listed
@@ -11,7 +11,7 @@ import 'pages/students_list_page.dart';
 List<RouteBase> studentsRoutes() => [
   GoRoute(
     path: '/students',
-    builder: (context, state) => const StudentsListPage(),
+    builder: (context, state) => const StudentsEntryPage(),
     routes: [
       GoRoute(
         path: 'new',

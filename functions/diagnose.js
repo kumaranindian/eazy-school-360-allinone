@@ -52,6 +52,20 @@ async function teacherChecks(db, c, { uid, schoolId, branchId }) {
     return;
   }
   c.ok('ASSIGNMENTS', `${active.length} active assignment(s).`);
+
+  // The rules decide which students a teacher may read from teacherAccess/{uid}
+  // (rebuilt by functions on every assignment change). Missing or stale ⇒ the
+  // teacher's student/roster screens are denied even though assignments exist.
+  const want = [...new Set(active.filter((x) => x.classId && x.sectionId).map((x) => `${x.classId}__${x.sectionId}`))];
+  const ta = await branchRef(db, schoolId, branchId).collection('teacherAccess').doc(uid).get();
+  const have = ta.exists ? ta.data().sectionKeys || [] : null;
+  if (have === null) {
+    c.bad('TEACHER_ACCESS', 'HIGH', 'The teacherAccess index document is missing, so the teacher is denied every student and roster screen.',
+      'Run "Refresh teacher access" (callable refreshTeacherAccess) for the branch, or re-save an assignment.');
+  } else if (want.some((k) => !have.includes(k))) {
+    c.bad('TEACHER_ACCESS', 'HIGH', `teacherAccess is stale: missing ${want.filter((k) => !have.includes(k)).join(', ')}.`,
+      'Run "Refresh teacher access" for the branch.');
+  } else c.ok('TEACHER_ACCESS', 'teacherAccess index matches the assignments.');
   // Attendance (class teacher) and marks entry (subject teacher) are judged by
   // the assignmentSlots document the assignment should have written.
   for (const a of active) {

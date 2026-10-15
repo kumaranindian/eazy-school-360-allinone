@@ -105,6 +105,7 @@ class _AnnouncementListState extends ConsumerState<_AnnouncementList> {
       branchIds: widget.branchIds.join(','),
       role: role,
       userId: t.user.userId,
+      parentId: t.user.linkedParentId,
       includeDrafts: _manages,
     );
     final list = ref.watch(visibleAnnouncementsProvider(vKey));
@@ -122,6 +123,7 @@ class _AnnouncementListState extends ConsumerState<_AnnouncementList> {
         schoolId: widget.schoolId,
         branchIds: widget.branchIds.join(','),
         role: role,
+        parentId: t.user.linkedParentId,
       )),
     );
     if (list.isLoading || viewer.isLoading) {

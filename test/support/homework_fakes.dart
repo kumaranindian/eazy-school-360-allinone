@@ -605,6 +605,7 @@ class FakeAnnouncementRepository implements AnnouncementRepository {
     required String branchId,
     required String viewerRole,
     String? viewerUserId,
+    String? viewerParentId,
     bool includeDrafts = false,
     int limit = 100,
   }) async {
@@ -627,6 +628,7 @@ class FakeAnnouncementRepository implements AnnouncementRepository {
     required String schoolId,
     required String branchId,
     required String viewerRole,
+    String? viewerParentId,
     int limit = 50,
   }) async => notices;
 
@@ -635,6 +637,7 @@ class FakeAnnouncementRepository implements AnnouncementRepository {
     required String schoolId,
     required String branchId,
     required String viewerRole,
+    String? viewerParentId,
     int limit = 30,
   }) => Stream.value(notices);
 }

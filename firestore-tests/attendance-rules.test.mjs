@@ -98,6 +98,8 @@ async function seedWorld() {
     });
     await setDoc(doc(db, ...n, 'staff', 'staff-ct'), staff('att-teacher-ct'));
     await setDoc(doc(db, ...n, 'staff', 'staff-other'), staff('att-teacher-other'));
+    // teacherAccess (server-written in production): the class teacher is assigned to class5/section A only.
+    await setDoc(doc(db, ...n, 'teacherAccess', 'att-teacher-ct'), { schoolId: A, branchId: NORTH, staffId: 'staff-ct', userId: 'att-teacher-ct', sectionKeys: [`${CLASS5}__${SEC_A}`], scopes: [], updatedAt: serverTimestamp() });
     // staff-ct is the class teacher of Class 5-A only.
     await setDoc(doc(db, ...n, 'assignmentSlots', [YEAR, CLASS5, SEC_A, 'CLASS_TEACHER'].join('__')), {
       schoolId: A, branchId: NORTH, assignmentId: 'asg-1', teacherStaffId: 'staff-ct', createdAt: serverTimestamp(), createdBy: 'seed',
@@ -442,4 +444,5 @@ test('Roster query: staff of the branch can query enrollment for their own schoo
   await assertSucceeds(roster(asUser('att-admin'), A));
   await assertFails(roster(asUser('att-admin-b'), A)); // another school
   await assertFails(roster(asUser('att-parent'), A)); // no student-data permission
+  await assertFails(roster(asUser('att-teacher-other'), A)); // a teacher not assigned to this section
 });

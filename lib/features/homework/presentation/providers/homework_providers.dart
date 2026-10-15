@@ -63,9 +63,15 @@ typedef AnnouncementsKey = ({
   String branchId,
   String role,
   String userId,
+  String? parentId,
   bool includeDrafts,
 });
-typedef NoticesKey = ({String schoolId, String branchId, String role});
+typedef NoticesKey = ({
+  String schoolId,
+  String branchId,
+  String role,
+  String? parentId,
+});
 typedef CountsKey = ({
   String schoolId,
   String branchId,
@@ -154,6 +160,7 @@ final announcementsProvider = FutureProvider.autoDispose
             branchId: key.branchId,
             viewerRole: key.role,
             viewerUserId: key.userId,
+            viewerParentId: key.parentId,
             includeDrafts: key.includeDrafts,
           );
     });
@@ -168,6 +175,7 @@ final noticesProvider = StreamProvider.autoDispose
             schoolId: key.schoolId,
             branchId: key.branchId,
             viewerRole: key.role,
+            viewerParentId: key.parentId,
           );
     });
 

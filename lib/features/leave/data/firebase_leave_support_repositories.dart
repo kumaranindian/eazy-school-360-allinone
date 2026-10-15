@@ -126,10 +126,11 @@ class FirebaseLeaveCalendarRepository implements LeaveCalendarRepository {
       ).calendar.where('subjectKind', isEqualTo: kind.wireValue);
       if (subjectId != null) {
         q = q.where('subjectId', isEqualTo: subjectId);
-      } else if (sectionId != null) {
-        q = q.where('sectionId', isEqualTo: sectionId);
-      } else if (classId != null) {
-        q = q.where('classId', isEqualTo: classId);
+      } else {
+        // Both pins when both are known: a teacher is allowed a section's
+        // entries only when the query names the class AND the section.
+        if (classId != null) q = q.where('classId', isEqualTo: classId);
+        if (sectionId != null) q = q.where('sectionId', isEqualTo: sectionId);
       }
       final snapshot = await q
           .where('endDateKey', isGreaterThanOrEqualTo: fromKey)

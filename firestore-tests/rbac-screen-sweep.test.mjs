@@ -45,6 +45,7 @@ async function seed() {
     }
     const n = nb();
     await setDoc(doc(d, ...n, 'staff', 'st1'), { schoolId: A, branchId: N, userId: 'sw-t', status: 'ACTIVE', isTeacher: true, ...base });
+    await setDoc(doc(d, ...n, 'teacherAccess', 'sw-t'), { schoolId: A, branchId: N, staffId: 'st1', userId: 'sw-t', sectionKeys: [`${C}__${S}`], scopes: [{ academicYearId: Y, classId: C, sectionId: S }], updatedAt: serverTimestamp() });
     await setDoc(doc(d, ...n, 'staff', 'st2'), { schoolId: A, branchId: N, userId: 'sw-t2', status: 'ACTIVE', isTeacher: true, ...base });
     await setDoc(doc(d, ...n, 'teacherAssignments', 'as1'), { schoolId: A, branchId: N, teacherStaffId: 'st1', status: 'ACTIVE', academicYearId: Y, classId: C, sectionId: S, subjectId: null, isClassTeacher: true, startDate: new Date(), ...base });
     await setDoc(doc(d, ...n, 'assignmentSlots', `${Y}__${C}__${S}__CLASS_TEACHER`), { schoolId: A, branchId: N, teacherStaffId: 'st1', ...base });
@@ -74,8 +75,8 @@ for (const [role, who] of [['sw-t', 'teacher'], ['sw-p', 'parent']]) {
   const nr = (d) => query(col(d, 'notifications'), where('audience', '==', 'USER'), where('recipientUserId', '==', role), orderBy('createdAt', 'desc'), limit(30));
   T(`${who}: own profile, school, branch`, async (d) => { await getDoc(doc(d, 'users', role)); await getDoc(doc(d, 'schools', A)); await getDoc(doc(d, ...nb())); }, role);
   T(`${who}: my notifications (feed + bell count)`, async (d) => { await getDocs(nr(d)); await getCountFromServer(query(col(d, 'notifications'), where('audience', '==', 'USER'), where('recipientUserId', '==', role), where('readAt', '==', null))); }, role);
-  T(`${who}: announcements (school-wide, published)`, (d) => getDocs(query(col(d, 'announcements'), where('status', '==', 'PUBLISHED'), ...(role === 'sw-p' ? [where('audienceKind', 'in', ['ALL', 'BRANCH', 'PARENTS', 'CLASS', 'SECTION'])] : []), orderBy('publishAt', 'desc'), limit(100))), role);
-  T(`${who}: broadcast notices`, (d) => getDocs(query(col(d, 'broadcastNotices'), ...(role === 'sw-p' ? [where('audienceKind', 'in', ['ALL', 'BRANCH', 'PARENTS', 'CLASS', 'SECTION'])] : []), orderBy('createdAt', 'desc'), limit(30))), role);
+  T(`${who}: announcements (school-wide, published)`, (d) => getDocs(query(col(d, 'announcements'), where('status', '==', 'PUBLISHED'), ...(role === 'sw-p' ? [where('audienceKind', 'in', ['ALL', 'BRANCH', 'PARENTS'])] : []), orderBy('publishAt', 'desc'), limit(100))), role);
+  T(`${who}: broadcast notices`, (d) => getDocs(query(col(d, 'broadcastNotices'), ...(role === 'sw-p' ? [where('audienceKind', 'in', ['ALL', 'BRANCH', 'PARENTS'])] : []), orderBy('createdAt', 'desc'), limit(30))), role);
   T(`${who}: conversations list + thread`, async (d) => { await getDocs(query(col(d, 'conversations'), where('participants', 'array-contains', role), orderBy('lastMessageAt', 'desc'), limit(50))); await getDocs(query(collection(d, ...nb(), 'conversations', 'conv1', 'messages'), orderBy('createdAt'))); }, role);
 }
 T('teacher: notice reads + preferences', async (d) => { await getDoc(doc(d, 'users', 'sw-t', 'noticeReads', 'state')); await getDoc(doc(d, 'users', 'sw-t', 'preferences', 'notifications')); });
@@ -89,18 +90,14 @@ T('teacher: academic structure (years, classes, sections, subjects, holidays, se
   await getDocs(collection(d, ...nb(), 'academicYears', Y, 'holidays'));
   await getDocs(collection(d, ...nb(), 'settings'));
 });
-T('teacher: students directory (status, placement, search, count) + child collections', async (d) => {
-  await getDocs(query(col(d, 'students'), where('status', '==', 'ACTIVE'), orderBy('displayNameLower'), limit(26)));
+T('teacher: my class roster (assigned section pinned), count, student profile panels', async (d) => {
   await getDocs(query(col(d, 'students'), where('currentAcademicYearId', '==', Y), where('currentClassId', '==', C), where('currentSectionId', '==', S), orderBy('displayNameLower')));
-  await getCountFromServer(query(col(d, 'students'), where('status', '==', 'ACTIVE')));
+  await getCountFromServer(query(col(d, 'students'), where('currentClassId', '==', C), where('currentSectionId', '==', S)));
+  await getDoc(bdoc(d, 'students', 'stu1'));
   await getDocs(collection(d, ...nb(), 'students', 'stu1', 'academicRecords'));
   await getDocs(collection(d, ...nb(), 'students', 'stu1', 'parentLinks'));
 });
-T('teacher: parents list + parent profile + children panel', async (d) => {
-  await getDocs(query(col(d, 'parents'), orderBy('displayNameLower'), limit(26)));
-  await getDoc(bdoc(d, 'parents', 'pr1'));
-  await getDocs(query(collectionGroup(d, 'parentLinks'), where('schoolId', '==', A), where('branchId', '==', N), where('parentId', '==', 'pr1')));
-});
+T('teacher: a parent of my student (profile panel, single document)', async (d) => { await getDoc(bdoc(d, 'parents', 'pr1')); });
 T('teacher: my staff profile + assignments + departments/designations', async (d) => {
   await getDocs(query(col(d, 'staff'), where('userId', '==', 'sw-t'), limit(1)));
   await getDocs(col(d, 'departments')); await getDocs(col(d, 'designations'));
@@ -118,7 +115,7 @@ T('teacher: my leave (applications, balances, types, history, student calendar)'
   await getDocs(query(col(d, 'leaveBalances'), where('staffId', '==', 'st1'), where('academicYearId', '==', Y)));
   await getDocs(query(col(d, 'leaveTypes'), where('kind', '==', 'STAFF'), limit(200)));
   await getDocs(query(col(d, 'leaveHistory'), where('subjectKind', '==', 'STAFF'), where('subjectId', '==', 'st1'), where('applicationId', '==', 'la9'), orderBy('revision')));
-  await getDocs(query(col(d, 'leaveCalendar'), where('subjectKind', '==', 'STUDENT'), where('classId', '==', C), where('endDateKey', '>=', '2026-10-01'), orderBy('endDateKey'), limit(300)));
+  await getDocs(query(col(d, 'leaveCalendar'), where('subjectKind', '==', 'STUDENT'), where('classId', '==', C), where('sectionId', '==', S), where('endDateKey', '>=', '2026-10-01'), orderBy('endDateKey'), limit(300)));
 });
 T('teacher: my timetable (entries, timetable docs, substitutions)', async (d) => {
   await getDocs(query(col(d, 'timetableEntries'), where('academicYearId', '==', Y), where('teacherStaffId', '==', 'st1'), where('live', '==', true)));
@@ -222,4 +219,46 @@ test('negative: a teacher of nowhere / unrelated parent get none of the above', 
 test('negative: a teacher cannot list all marks sheets of an exam', async () => {
   await assertFails(getDocs(query(col(as('sw-t'), 'marksSheets'), where('examId', '==', 'ex1'))));
   await assertSucceeds(getDocs(query(col(as('sw-admin'), 'marksSheets'), where('examId', '==', 'ex1'))));
+});
+
+// ---- teacher scope (assigned sections only) -----------------------------------
+test('negative: a teacher is refused every branch-wide student/parent read', async () => {
+  const d = as('sw-t');
+  await assertFails(getDocs(query(col(d, 'students'), where('status', '==', 'ACTIVE'), orderBy('displayNameLower'), limit(26))));
+  await assertFails(getCountFromServer(query(col(d, 'students'), where('status', '==', 'ACTIVE'))));
+  await assertFails(getDocs(query(col(d, 'students'), where('currentClassId', '==', C)))); // class without section
+  await assertFails(getDocs(query(col(d, 'students'), where('currentClassId', '==', 'c9'), where('currentSectionId', '==', 'sz')))); // not assigned
+  await assertFails(getDocs(query(col(d, 'parents'), orderBy('displayNameLower'), limit(26))));
+  await assertFails(getDocs(query(collectionGroup(d, 'parentLinks'), where('schoolId', '==', A), where('branchId', '==', N), where('parentId', '==', 'pr1'))));
+  await assertFails(getDocs(query(collectionGroup(d, 'academicRecords'), where('schoolId', '==', A), where('branchId', '==', N), where('academicYearId', '==', Y))));
+  await assertFails(getDocs(query(col(d, 'leaveCalendar'), where('subjectKind', '==', 'STUDENT'), where('endDateKey', '>=', '2026-10-01'))));
+  await assertFails(getDocs(col(d, 'parentAccess')));
+});
+
+test('negative: another teacher (no assignment, or another section) reads none of my students', async () => {
+  const d = as('sw-t2'); // has a staff record but no teacherAccess
+  await assertFails(getDoc(bdoc(d, 'students', 'stu1')));
+  await assertFails(getDocs(query(col(d, 'students'), where('currentClassId', '==', C), where('currentSectionId', '==', S))));
+  await assertFails(getDoc(bdoc(d, 'parents', 'pr1')));
+  await assertFails(getDocs(collection(d, ...nb(), 'students', 'stu1', 'parentLinks')));
+  await assertFails(getDoc(bdoc(d, 'teacherAccess', 'sw-t'))); // not someone else's index
+});
+
+test('a teacher cannot write their own teacherAccess (server only), nor can an admin client', async () => {
+  const body = { schoolId: A, branchId: N, staffId: 'st1', userId: 'sw-t', sectionKeys: [`${C}__${S}`, 'c9__sz'], scopes: [], updatedAt: serverTimestamp() };
+  await assertFails(setDoc(bdoc(as('sw-t'), 'teacherAccess', 'sw-t'), body));
+  await assertFails(setDoc(bdoc(as('sw-admin'), 'teacherAccess', 'sw-t'), body));
+  await assertSucceeds(getDoc(bdoc(as('sw-t'), 'teacherAccess', 'sw-t'))); // own index is readable
+  await assertSucceeds(getDoc(bdoc(as('sw-admin'), 'teacherAccess', 'sw-t')));
+});
+
+test('finance and admins keep branch-wide student/parent reads', async () => {
+  await env.withSecurityRulesDisabled(async (c) => {
+    await setDoc(doc(c.firestore(), 'users', 'sw-fin'), { schoolId: A, branchId: N, name: 'F', email: 'f@x.com', role: 'FINANCE', status: 'ACTIVE', linkedParentId: null, ...base });
+  });
+  for (const uid of ['sw-admin', 'sw-fin']) {
+    const d = as(uid);
+    await assertSucceeds(getDocs(query(col(d, 'students'), where('status', '==', 'ACTIVE'), orderBy('displayNameLower'), limit(26))));
+    await assertSucceeds(getDocs(query(col(d, 'parents'), orderBy('displayNameLower'), limit(26))));
+  }
 });

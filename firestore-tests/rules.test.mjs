@@ -855,18 +855,27 @@ test('School A admin can create a student in their own school; School B admin is
   await assertFails(getDoc(doc(adminB, 'schools', SCHOOL_A, 'branches', MAIN, 'students', 'student-1')));
 });
 
-test('a teacher can READ a student in their own branch but cannot create or update one', async () => {
+test('a teacher can READ a student of a section they are assigned to, cannot create or update one, and cannot read other students', async () => {
   await seed(async (db) => {
     await seedFullStructure(db, { schoolId: SCHOOL_A, branchId: MAIN, adminUid: 'admin-a' });
     await setDoc(doc(db, 'users', 'teacher-a'), userDoc({ schoolId: SCHOOL_A, branchId: MAIN, role: 'TEACHER' }));
+    await setDoc(doc(db, 'users', 'teacher-nobody'), userDoc({ schoolId: SCHOOL_A, branchId: MAIN, role: 'TEACHER' }));
+    // teacherAccess is server-written; teacher-a teaches section s1 of class c1, teacher-nobody nothing.
+    await setDoc(doc(db, 'schools', SCHOOL_A, 'branches', MAIN, 'teacherAccess', 'teacher-a'), { schoolId: SCHOOL_A, branchId: MAIN, userId: 'teacher-a', staffId: 'st', sectionKeys: ['c1__s1'], scopes: [], updatedAt: serverTimestamp() });
     await setDoc(
       doc(db, 'schools', SCHOOL_A, 'branches', MAIN, 'students', 'student-1'),
-      studentDoc({ schoolId: SCHOOL_A, branchId: MAIN, createdBy: 'admin-a' }),
+      { ...studentDoc({ schoolId: SCHOOL_A, branchId: MAIN, createdBy: 'admin-a' }), currentClassId: 'c1', currentSectionId: 's1' },
+    );
+    await setDoc(
+      doc(db, 'schools', SCHOOL_A, 'branches', MAIN, 'students', 'student-elsewhere'),
+      { ...studentDoc({ schoolId: SCHOOL_A, branchId: MAIN, createdBy: 'admin-a' }), currentClassId: 'c2', currentSectionId: 's9' },
     );
   });
 
   const teacherA = asUser('teacher-a');
   await assertSucceeds(getDoc(doc(teacherA, 'schools', SCHOOL_A, 'branches', MAIN, 'students', 'student-1')));
+  await assertFails(getDoc(doc(teacherA, 'schools', SCHOOL_A, 'branches', MAIN, 'students', 'student-elsewhere')));
+  await assertFails(getDoc(doc(asUser('teacher-nobody'), 'schools', SCHOOL_A, 'branches', MAIN, 'students', 'student-1')));
   await assertFails(
     setDoc(
       doc(teacherA, 'schools', SCHOOL_A, 'branches', MAIN, 'students', 'student-2'),

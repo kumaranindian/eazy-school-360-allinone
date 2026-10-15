@@ -82,6 +82,17 @@ class FakeLoginAccessRepository implements LoginAccessRepository {
     required String uid,
   }) async => diagnosis;
 
+  int teacherAccessRefreshes = 0;
+
+  @override
+  Future<({int teachers, int written})> refreshTeacherAccess({
+    required String schoolId,
+    required String branchId,
+  }) async {
+    teacherAccessRefreshes++;
+    return (teachers: 3, written: 2);
+  }
+
   @override
   Future<SchoolAuthSettings> getSchoolSettings(String schoolId) async =>
       settings;

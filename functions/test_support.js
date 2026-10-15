@@ -26,6 +26,7 @@ function fakeDb(seed = {}) {
     id: path.split('/').pop(),
     get: async () => snap(path),
     set: async (d) => void store.set(path, structuredClone(d)),
+    delete: async () => void store.delete(path),
     update: async (d) => {
       if (!store.has(path)) throw new Error(`no doc ${path}`);
       const cur = structuredClone(store.get(path));

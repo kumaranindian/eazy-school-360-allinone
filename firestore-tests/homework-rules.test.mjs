@@ -613,7 +613,8 @@ test('Announcement visibility: drafts for author/admins; published to the right 
   // other branch's staff / other tenants
   for (const uid of ['hw-t-south', 'hw-admin-b']) await assertFails(getDoc(ref(asUser(uid), 'announcements', 'all')));
   // the parent's list query
-  await assertSucceeds(getDocs(query(col(asUser('hw-p1'), 'announcements'), where('status', '==', 'PUBLISHED'), where('audienceKind', 'in', ['ALL', 'BRANCH', 'PARENTS', 'CLASS', 'SECTION']))));
+  await assertSucceeds(getDocs(query(col(asUser('hw-p1'), 'announcements'), where('status', '==', 'PUBLISHED'), where('audienceKind', 'in', ['ALL', 'BRANCH', 'PARENTS']))));
+  await assertFails(getDocs(query(col(asUser('hw-p1'), 'announcements'), where('status', '==', 'PUBLISHED'), where('audienceKind', 'in', ['ALL', 'BRANCH', 'PARENTS', 'CLASS', 'SECTION']))));
   await assertFails(getDocs(query(col(asUser('hw-p1'), 'announcements'), where('status', '==', 'PUBLISHED'))));
 });
 
@@ -718,11 +719,13 @@ test('Announcement and notice queries the app issues', async () => {
   await assertSucceeds(createAnn(admin, 'hw-admin', { id: 'q1', kind: 'PARENTS' }).commit());
   await assertSucceeds(publishAnn(admin, 'hw-admin', { id: 'q1', kind: 'PARENTS' }).commit());
   await assertSucceeds(createAnn(asUser('hw-t2'), 'hw-t2', { id: 'q2', kind: 'SECTION', section: 'sa' }).commit());
-  const audiences = ['ALL', 'BRANCH', 'PARENTS', 'CLASS', 'SECTION'];
+  const audiences = ['ALL', 'BRANCH', 'PARENTS'];
   // manager: everything of the branch
   await assertSucceeds(getDocs(query(col(asUser('hw-br-north'), 'announcements'), orderBy('createdAt', 'desc'), limit(100))));
-  // parent: published and parent-addressable only
+  // parent: published and parent-addressable only; class/section audiences are asked for one scope at a time
   await assertSucceeds(getDocs(query(col(asUser('hw-p1'), 'announcements'), where('status', '==', 'PUBLISHED'), where('audienceKind', 'in', audiences), orderBy('publishAt', 'desc'), limit(100))));
+  await assertSucceeds(getDocs(query(col(asUser('hw-p1'), 'announcements'), where('status', '==', 'PUBLISHED'), where('audienceKind', '==', 'SECTION'), where('classId', '==', 'c5'), where('sectionId', '==', 'sa'), orderBy('publishAt', 'desc'), limit(100))));
+  await assertSucceeds(getDocs(query(col(asUser('hw-p1'), 'announcements'), where('status', '==', 'PUBLISHED'), where('audienceKind', '==', 'CLASS'), where('classId', '==', 'c5'), orderBy('publishAt', 'desc'), limit(100))));
   // teacher: published ones, plus their own drafts by author
   await assertSucceeds(getDocs(query(col(asUser('hw-t1'), 'announcements'), where('status', '==', 'PUBLISHED'), orderBy('publishAt', 'desc'), limit(100))));
   await assertSucceeds(getDocs(query(col(asUser('hw-t2'), 'announcements'), where('authorId', '==', 'hw-t2'), orderBy('createdAt', 'desc'), limit(100))));

@@ -4,7 +4,7 @@ const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 const { setGlobalOptions } = require('firebase-functions/v2');
-const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { getAuth } = require('firebase-admin/auth');
 const { FieldValue } = require('firebase-admin/firestore');
@@ -16,6 +16,7 @@ const { defineSecret, defineString } = require('firebase-functions/params');
 const { provisionLogins, ensureAuthUser, enablePortalLinks } = require('./provision');
 const access = require('./access');
 const { diagnoseAccess } = require('./diagnose');
+const teacherAccess = require('./teacher_access');
 const { requestOtp, verifyOtp } = require('./otp');
 const { createWhatsAppSender } = require('./whatsapp');
 
@@ -215,4 +216,58 @@ exports.verifyPhoneOtp = onCall({ secrets: [OTP_PEPPER] }, async (request) => {
     'login.lastOtpLoginAt': FieldValue.serverTimestamp(),
   });
   return { token };
+});
+
+// ---- teacherAccess index (see teacher_access.js) ---------------------------
+// Rebuilt whenever an assignment changes or a staff record's login link /
+// status changes, so the rules' view of "which sections is this teacher
+// assigned to" follows the data without any client having to maintain it.
+const accessCtx = () => ({ db, now: FieldValue.serverTimestamp() });
+
+exports.teacherAssignmentChanged = onDocumentWritten(
+  'schools/{schoolId}/branches/{branchId}/teacherAssignments/{assignmentId}',
+  async (event) => {
+    const { schoolId, branchId } = event.params;
+    const ids = new Set();
+    for (const snap of [event.data && event.data.before, event.data && event.data.after]) {
+      if (snap && snap.exists && snap.data().teacherStaffId) ids.add(snap.data().teacherStaffId);
+    }
+    for (const staffId of ids) {
+      try {
+        await teacherAccess.refreshStaffAccess(accessCtx(), schoolId, branchId, staffId);
+      } catch (e) {
+        logger.error('teacherAccess refresh failed', { schoolId, branchId, staffId, error: String(e) });
+        throw e; // let the platform retry
+      }
+    }
+  },
+);
+
+exports.teacherStaffChanged = onDocumentWritten(
+  'schools/{schoolId}/branches/{branchId}/staff/{staffId}',
+  async (event) => {
+    const { schoolId, branchId, staffId } = event.params;
+    const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+    const relevant = (s) => (s ? [s.userId, s.status, s.isTeacher] : null);
+    if (JSON.stringify(relevant(before)) === JSON.stringify(relevant(after))) return; // unrelated edit
+    if (before && before.userId && (!after || after.userId !== before.userId)) {
+      await teacherAccess.removeAccessFor(db, schoolId, branchId, before.userId, staffId);
+    }
+    if (after) await teacherAccess.refreshStaffAccess(accessCtx(), schoolId, branchId, staffId);
+  },
+);
+
+// Backfill / repair: rebuilds every teacher's access document in a branch.
+// Run once after deploying (before the rules that require it), and any time
+// "Check access" reports a missing or stale teacherAccess.
+exports.refreshTeacherAccess = onCall(async (request) => {
+  const a = signedIn(request);
+  const { schoolId, branchId } = request.data || {};
+  if ([schoolId, branchId].some((v) => typeof v !== 'string' || !v)) fail({ error: 'INVALID_ARGUMENT' });
+  const caller = await access.assertAdmin(db, a.uid, schoolId, branchId, a.token);
+  if (!caller) fail({ error: 'PERMISSION_DENIED' });
+  const out = await teacherAccess.refreshBranchAccess(accessCtx(), schoolId, branchId);
+  logger.info('refreshTeacherAccess', { by: a.uid, ...out });
+  return out;
 });

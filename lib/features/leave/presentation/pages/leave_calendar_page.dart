@@ -3,6 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/permissions/permission.dart';
+import '../../../../core/permissions/user_role.dart';
+import '../../../../shared/error/empty_view.dart';
+import '../../../staff/domain/teacher_scope.dart';
+import '../../../staff/presentation/providers/teacher_scope_providers.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/error/error_view.dart';
 import '../../../academic_setup/presentation/providers/academic_structure_providers.dart';
@@ -51,6 +55,7 @@ class _CalendarState extends ConsumerState<_Calendar> {
   String? _classId;
   String? _sectionId;
   String? _selected;
+  TeacherSection? _teacherSection;
 
   static const _months = [
     'January',
@@ -99,6 +104,30 @@ class _CalendarState extends ConsumerState<_Calendar> {
     final leave = widget.leave;
     final theme = Theme.of(context);
     final canStaff = leave.tenant.can(Permission.viewLeave);
+    // A teacher sees students' leave only for a section they are assigned to
+    // (the rules refuse a branch-wide window), so the page works on one of
+    // their sections instead of the "All classes" view.
+    final teacherMode = !canStaff && leave.tenant.role == UserRole.teacher;
+    TeacherSection? mySection;
+    if (teacherMode) {
+      final scope = ref.watch(teacherScopeProvider);
+      if (scope.isLoading && !scope.hasValue) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      final sections = scope.value?.sections ?? const <TeacherSection>[];
+      if (sections.isEmpty) {
+        return EmptyView(
+          icon: Icons.event_busy_outlined,
+          message: scope.value == null
+              ? "Your class access isn't set up yet. Ask your school "
+                    'administrator to check your teaching assignments.'
+              : 'You have no class assigned yet.',
+        );
+      }
+      mySection = sections.contains(_teacherSection)
+          ? _teacherSection
+          : sections.first;
+    }
     final first = DateTime.utc(_month.year, _month.month, 1);
     final daysInMonth = DateTime.utc(_month.year, _month.month + 1, 0).day;
     final fromKey = AttendanceDate.key(first);
@@ -128,8 +157,8 @@ class _CalendarState extends ConsumerState<_Calendar> {
       kind: _kind,
       fromKey: fromKey,
       toKey: toKey,
-      classId: _classId,
-      sectionId: _sectionId,
+      classId: mySection?.classId ?? _classId,
+      sectionId: mySection?.sectionId ?? _sectionId,
       subjectId: null,
     );
     final entries = ref.watch(leaveCalendarProvider(key));
@@ -194,7 +223,44 @@ class _CalendarState extends ConsumerState<_Calendar> {
                     ),
                   ],
                 ),
-                if (_kind == LeaveKind.student) ...[
+                if (_kind == LeaveKind.student && mySection != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 320),
+                    child: DropdownButtonFormField<TeacherSection>(
+                      isExpanded: true,
+                      value: mySection,
+                      decoration: const InputDecoration(
+                        labelText: 'My class',
+                        isDense: true,
+                      ),
+                      items: [
+                        for (final s
+                            in ref
+                                    .watch(teacherScopeProvider)
+                                    .value
+                                    ?.sections ??
+                                const <TeacherSection>[])
+                          DropdownMenuItem(
+                            value: s,
+                            child: Text(
+                              ref.watch(
+                                teacherSectionLabelProvider((
+                                  schoolId: leave.schoolId,
+                                  branchId: leave.branchId,
+                                  section: s,
+                                )),
+                              ),
+                            ),
+                          ),
+                      ],
+                      onChanged: (v) => setState(() {
+                        _teacherSection = v;
+                        _selected = null;
+                      }),
+                    ),
+                  ),
+                ] else if (_kind == LeaveKind.student) ...[
                   const SizedBox(height: AppSpacing.sm),
                   FilterBar(fieldsBuilder: () => _filters(classes, sections)),
                 ],

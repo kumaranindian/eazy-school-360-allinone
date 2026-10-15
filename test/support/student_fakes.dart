@@ -10,6 +10,9 @@ Student fakeStudent(
   String last = 'Nair',
   String admission = 'ADM-001',
   StudentStatus status = StudentStatus.active,
+  String? yearId,
+  String? classId,
+  String? sectionId,
 }) => Student(
   studentId: id,
   schoolId: 'school-1',
@@ -22,6 +25,9 @@ Student fakeStudent(
   gender: Gender.female,
   admissionDate: DateTime(2024, 6, 1),
   status: status,
+  currentAcademicYearId: yearId,
+  currentClassId: classId,
+  currentSectionId: sectionId,
 );
 
 /// The student roster for list-page tests: browse by status, search by name or
@@ -85,6 +91,38 @@ class FakeStudentListRepository implements StudentRepository {
           .where(
             (s) =>
                 s.admissionNumber.toLowerCase().startsWith(query.toLowerCase()),
+          )
+          .toList(),
+      nextCursor: null,
+    );
+  }
+
+  /// Every placement query the UI made: (year, class, section).
+  final List<({String year, String classId, String? sectionId})>
+  placementCalls = [];
+
+  @override
+  Future<PagedResult<Student>> fetchStudentsByPlacement({
+    required String schoolId,
+    required String branchId,
+    required String academicYearId,
+    required String classId,
+    String? sectionId,
+    int pageSize = 25,
+    Object? cursor,
+  }) async {
+    placementCalls.add((
+      year: academicYearId,
+      classId: classId,
+      sectionId: sectionId,
+    ));
+    return PagedResult(
+      items: students
+          .where(
+            (s) =>
+                s.currentAcademicYearId == academicYearId &&
+                s.currentClassId == classId &&
+                (sectionId == null || s.currentSectionId == sectionId),
           )
           .toList(),
       nextCursor: null,

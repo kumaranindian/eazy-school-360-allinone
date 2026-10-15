@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/errors/app_failure.dart';
@@ -33,6 +35,50 @@ class FirebaseAnnouncementRepository implements AnnouncementRepository {
     run: run,
     isDenied: _denied,
   );
+
+  /// The class / section queries this family may issue, from its
+  /// `parentAccess/{parentId}` index. No id, no document, or a refused read
+  /// all mean "none": content is withheld, never widened.
+  Future<List<ScopedAudienceQuery>> _scopedQueries(
+    String schoolId,
+    String branchId,
+    String? parentId,
+  ) async {
+    if (parentId == null || parentId.isEmpty) return const [];
+    try {
+      final snap = await _firestore
+          .collection('schools')
+          .doc(schoolId)
+          .collection('branches')
+          .doc(branchId)
+          .collection('parentAccess')
+          .doc(parentId)
+          .get();
+      final data = snap.data();
+      if (!snap.exists || data == null) return const [];
+      List<String> keys(String f) => [
+        for (final k in (data[f] as List?) ?? const []) k.toString(),
+      ];
+      return planScopedParentQueries(
+        classKeys: keys('classKeys'),
+        sectionKeys: keys('sectionKeys'),
+      );
+    } catch (e) {
+      if (_denied(e)) return const [];
+      rethrow;
+    }
+  }
+
+  Query<Map<String, dynamic>> _pinned(
+    Query<Map<String, dynamic>> q,
+    ScopedAudienceQuery s,
+  ) {
+    q = q
+        .where('audienceKind', isEqualTo: s.kind)
+        .where('classId', isEqualTo: s.classId);
+    if (s.sectionId != null) q = q.where('sectionId', isEqualTo: s.sectionId);
+    return q;
+  }
 
   Future<Announcement?> _read(HomeworkCollections c, String id) async {
     final snap = await c.announcements.doc(id).get();
@@ -286,6 +332,7 @@ class FirebaseAnnouncementRepository implements AnnouncementRepository {
     required String branchId,
     required String viewerRole,
     String? viewerUserId,
+    String? viewerParentId,
     bool includeDrafts = false,
     int limit = 100,
   }) async {
@@ -301,19 +348,46 @@ class FirebaseAnnouncementRepository implements AnnouncementRepository {
           for (final d in snap.docs) Announcement.fromFirestore(d.data(), d.id),
         ]);
       } else {
-        final snap = await _withParentFallback(viewerRole, (audiences) {
-          Query<Map<String, dynamic>> q = c.announcements.where(
-            'status',
-            isEqualTo: AnnouncementStatus.published.wireValue,
+        Query<Map<String, dynamic>> published() => c.announcements.where(
+          'status',
+          isEqualTo: AnnouncementStatus.published.wireValue,
+        );
+        Future<QuerySnapshot<Map<String, dynamic>>> run(
+          Query<Map<String, dynamic>> q,
+        ) => q.orderBy('publishAt', descending: true).limit(limit).get();
+        final parts = <List<Announcement>>[];
+        List<Announcement> parse(QuerySnapshot<Map<String, dynamic>> s) => [
+          for (final d in s.docs) Announcement.fromFirestore(d.data(), d.id),
+        ];
+        if (viewerRole == 'PARENT') {
+          final snap = await _withParentFallback(
+            viewerRole,
+            (audiences) =>
+                run(published().where('audienceKind', whereIn: audiences)),
           );
-          if (audiences.isNotEmpty) {
-            q = q.where('audienceKind', whereIn: audiences);
+          parts.add(parse(snap));
+          for (final sq in await _scopedQueries(
+            schoolId,
+            branchId,
+            viewerParentId,
+          )) {
+            try {
+              parts.add(parse(await run(_pinned(published(), sq))));
+            } catch (e) {
+              if (!_denied(e)) rethrow; // a stale key withholds, never widens
+            }
           }
-          return q.orderBy('publishAt', descending: true).limit(limit).get();
-        });
-        list.addAll([
-          for (final d in snap.docs) Announcement.fromFirestore(d.data(), d.id),
-        ]);
+        } else {
+          parts.add(parse(await run(published())));
+        }
+        list.addAll(
+          mergeNewestFirst<Announcement>(
+            parts,
+            idOf: (a) => a.announcementId,
+            instantOf: (a) => a.publishAt ?? a.createdAt,
+            limit: limit,
+          ),
+        );
         if (includeDrafts && viewerUserId != null) {
           final own = await c.announcements
               .where('authorId', isEqualTo: viewerUserId)
@@ -339,37 +413,100 @@ class FirebaseAnnouncementRepository implements AnnouncementRepository {
     required String schoolId,
     required String branchId,
     required String viewerRole,
+    String? viewerParentId,
     int limit = 30,
-  }) async* {
-    Stream<List<BroadcastNotice>> watch(List<String> audiences) {
-      Query<Map<String, dynamic>> q = _c(schoolId, branchId).notices;
-      if (audiences.isNotEmpty) {
-        q = q.where('audienceKind', whereIn: audiences);
-      }
-      return q
-          .orderBy('createdAt', descending: true)
-          .limit(limit)
-          .snapshots()
-          .map(
-            (snap) => [
-              for (final d in snap.docs)
-                BroadcastNotice.fromFirestore(d.data(), d.id),
-            ],
-          );
-    }
+  }) {
+    Stream<List<BroadcastNotice>> watch(Query<Map<String, dynamic>> q) => q
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map(
+          (snap) => [
+            for (final d in snap.docs)
+              BroadcastNotice.fromFirestore(d.data(), d.id),
+          ],
+        );
+    final notices = _c(schoolId, branchId).notices;
+    if (viewerRole != 'PARENT') return watch(notices);
 
-    if (viewerRole != 'PARENT') {
-      yield* watch(const []);
-      return;
-    }
-    try {
-      await for (final x in watch(parentAudiences)) {
-        yield x;
-      }
-    } catch (e) {
-      if (!_denied(e)) rethrow;
-      yield* watch(schoolWideAudience);
-    }
+    late final StreamController<List<BroadcastNotice>> out;
+    final subs = <StreamSubscription<List<BroadcastNotice>>>[];
+    out = StreamController<List<BroadcastNotice>>(
+      onListen: () async {
+        try {
+          final scoped = await _scopedQueries(
+            schoolId,
+            branchId,
+            viewerParentId,
+          );
+          final streams = <Stream<List<BroadcastNotice>>>[
+            watch(notices.where('audienceKind', whereIn: parentAudiences)),
+            for (final sq in scoped) watch(_pinned(notices, sq)),
+          ];
+          final latest = List<List<BroadcastNotice>?>.filled(
+            streams.length,
+            null,
+          );
+          void emit() {
+            if (latest.any((l) => l == null) || out.isClosed) return;
+            out.add(
+              mergeNewestFirst<BroadcastNotice>(
+                latest.cast<List<BroadcastNotice>>(),
+                idOf: (n) => n.noticeId,
+                instantOf: (n) => n.createdAt,
+                limit: limit,
+              ),
+            );
+          }
+
+          for (var i = 0; i < streams.length; i++) {
+            subs.add(
+              streams[i].listen(
+                (x) {
+                  latest[i] = x;
+                  emit();
+                },
+                onError: (Object e, StackTrace st) {
+                  if (i == 0) {
+                    // General query refused (e.g. no parentAccess / not in
+                    // the branch): fall back to school-wide only.
+                    if (_denied(e)) {
+                      latest[i] = const [];
+                      subs.add(
+                        watch(
+                          notices.where(
+                            'audienceKind',
+                            whereIn: schoolWideAudience,
+                          ),
+                        ).listen((y) {
+                          latest[0] = y;
+                          emit();
+                        }, onError: out.addError),
+                      );
+                      return;
+                    }
+                    out.addError(e, st);
+                  } else if (_denied(e)) {
+                    latest[i] = const []; // stale scoped key: withhold
+                    emit();
+                  } else {
+                    out.addError(e, st);
+                  }
+                },
+              ),
+            );
+          }
+        } catch (e, st) {
+          out.addError(e, st);
+        }
+      },
+      onCancel: () async {
+        for (final s in subs) {
+          await s.cancel();
+        }
+      },
+    );
+    return out.stream;
   }
 
   @override
@@ -377,20 +514,46 @@ class FirebaseAnnouncementRepository implements AnnouncementRepository {
     required String schoolId,
     required String branchId,
     required String viewerRole,
+    String? viewerParentId,
     int limit = 50,
   }) async {
     try {
-      final snap = await _withParentFallback(viewerRole, (audiences) {
-        Query<Map<String, dynamic>> q = _c(schoolId, branchId).notices;
-        if (audiences.isNotEmpty) {
-          q = q.where('audienceKind', whereIn: audiences);
-        }
-        return q.orderBy('createdAt', descending: true).limit(limit).get();
-      });
-      return [
-        for (final d in snap.docs)
-          BroadcastNotice.fromFirestore(d.data(), d.id),
+      final notices = _c(schoolId, branchId).notices;
+      Future<List<BroadcastNotice>> run(Query<Map<String, dynamic>> q) async {
+        final snap = await q
+            .orderBy('createdAt', descending: true)
+            .limit(limit)
+            .get();
+        return [
+          for (final d in snap.docs)
+            BroadcastNotice.fromFirestore(d.data(), d.id),
+        ];
+      }
+
+      if (viewerRole != 'PARENT') return await run(notices);
+      final parts = <List<BroadcastNotice>>[
+        await _withParentFallback(
+          viewerRole,
+          (audiences) => run(notices.where('audienceKind', whereIn: audiences)),
+        ),
       ];
+      for (final sq in await _scopedQueries(
+        schoolId,
+        branchId,
+        viewerParentId,
+      )) {
+        try {
+          parts.add(await run(_pinned(notices, sq)));
+        } catch (e) {
+          if (!_denied(e)) rethrow;
+        }
+      }
+      return mergeNewestFirst<BroadcastNotice>(
+        parts,
+        idOf: (n) => n.noticeId,
+        instantOf: (n) => n.createdAt,
+        limit: limit,
+      );
     } catch (error, stackTrace) {
       throw mapExceptionToFailure(error, stackTrace);
     }

@@ -231,6 +231,14 @@ abstract class LoginAccessRepository {
     required String uid,
   });
 
+  /// Rebuilds every teacher's `teacherAccess` index in the branch (what the
+  /// rules use to decide which students a teacher may read). Returns
+  /// (teachers found, indexes written).
+  Future<({int teachers, int written})> refreshTeacherAccess({
+    required String schoolId,
+    required String branchId,
+  });
+
   Future<SchoolAuthSettings> getSchoolSettings(String schoolId);
 
   /// Returns the number of users whose effective methods changed.

@@ -94,6 +94,7 @@ typedef VisibleKey = ({
   String branchIds,
   String role,
   String userId,
+  String? parentId,
   bool includeDrafts,
 });
 
@@ -110,6 +111,7 @@ final visibleAnnouncementsProvider = FutureProvider.autoDispose
             branchId: branchId,
             role: key.role,
             userId: key.userId,
+            parentId: key.parentId,
             includeDrafts: key.includeDrafts,
           )).future,
         );
@@ -120,7 +122,12 @@ final visibleAnnouncementsProvider = FutureProvider.autoDispose
       return merged.values.toList();
     });
 
-typedef VisibleNoticesKey = ({String schoolId, String branchIds, String role});
+typedef VisibleNoticesKey = ({
+  String schoolId,
+  String branchIds,
+  String role,
+  String? parentId,
+});
 
 final visibleNoticesProvider = FutureProvider.autoDispose
     .family<List<BroadcastNotice>, VisibleNoticesKey>((ref, key) async {
@@ -132,6 +139,7 @@ final visibleNoticesProvider = FutureProvider.autoDispose
               schoolId: key.schoolId,
               branchId: branchId,
               role: key.role,
+              parentId: key.parentId,
             )).future,
           ),
         );

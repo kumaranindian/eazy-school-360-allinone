@@ -104,6 +104,21 @@ class FirebaseLoginAccessRepository implements LoginAccessRepository {
   }
 
   @override
+  Future<({int teachers, int written})> refreshTeacherAccess({
+    required String schoolId,
+    required String branchId,
+  }) async {
+    final m = await _call('refreshTeacherAccess', {
+      'schoolId': schoolId,
+      'branchId': branchId,
+    });
+    return (
+      teachers: (m['teachers'] as num?)?.toInt() ?? 0,
+      written: (m['written'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  @override
   Future<SchoolAuthSettings> getSchoolSettings(String schoolId) async {
     final m = await _call('getSchoolAuthSettings', {'schoolId': schoolId});
     final configured = Map<String, dynamic>.from(

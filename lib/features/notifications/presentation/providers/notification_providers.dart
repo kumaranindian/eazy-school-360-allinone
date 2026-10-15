@@ -136,6 +136,7 @@ final sharedFeedProvider = FutureProvider.autoDispose<List<FeedItem>>((
       schoolId: scope.schoolId,
       branchIds: scope.branchKey,
       role: role,
+      parentId: scope.parentId,
     )).future,
   );
   for (final n in notices) {

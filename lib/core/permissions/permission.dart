@@ -34,6 +34,12 @@ enum Permission {
   /// general permission, so a parent can never browse the full roster.
   viewStudentData,
 
+  /// The branch-wide parent/guardian directory (list + profile pages) —
+  /// administrators and finance. Deliberately NOT a teacher permission: a
+  /// teacher reaches a parent only through their own student's profile
+  /// (`firestore.rules` → `teacherOfParent`), never by browsing the branch.
+  viewParents,
+
   /// Create/edit staff, departments, designations, lifecycle status,
   /// teacher assignments, staff photos and documents (Milestone 4).
   manageStaff,

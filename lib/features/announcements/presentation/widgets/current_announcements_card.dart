@@ -44,6 +44,7 @@ class CurrentAnnouncementsCard extends ConsumerWidget {
         branchIds: branches.join(','),
         role: tenant.role.wireValue,
         userId: tenant.user.userId,
+        parentId: tenant.user.linkedParentId,
         includeDrafts: false,
       )),
     );

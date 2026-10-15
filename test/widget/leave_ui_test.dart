@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:eazy_school_360/features/staff/domain/teacher_scope.dart';
+import 'package:eazy_school_360/features/staff/presentation/providers/teacher_scope_providers.dart';
 import 'package:eazy_school_360/app/app.dart';
 import 'package:eazy_school_360/core/config/app_environment.dart';
 import 'package:eazy_school_360/core/config/env_config.dart';
@@ -248,6 +250,17 @@ Future<_World> _pump(
               status: ActivationStatus.active,
             ),
           ],
+        ),
+      ),
+      teacherScopeRepositoryProvider.overrideWithValue(
+        FakeTeacherScopeRepository(
+          const TeacherScope([
+            TeacherSection(
+              academicYearId: 'y1',
+              classId: 'c5',
+              sectionId: 'sa',
+            ),
+          ]),
         ),
       ),
       academicSettingsRepositoryProvider.overrideWithValue(_FakeSettings()),
@@ -1274,6 +1287,10 @@ void main() {
       await w.go(tester, '/leave/calendar');
       expect(find.byType(SegmentedButton<LeaveKind>), findsNothing);
       expect(w.calendar.queries.last.kind, LeaveKind.student);
+      // …for a section they teach, class AND section pinned (the rules refuse
+      // anything wider).
+      expect(w.calendar.queries.last.classId, 'c5');
+      expect(w.calendar.queries.last.sectionId, 'sa');
     });
 
     testWidgets('a failure is friendly with retry', (tester) async {

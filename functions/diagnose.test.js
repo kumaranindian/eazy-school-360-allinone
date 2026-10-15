@@ -33,6 +33,7 @@ test('teacher: healthy when linked, active and assigned', async () => {
     [`${B}/staff/st1`]: { userId: 't', status: 'ACTIVE', isTeacher: true },
     [`${B}/teacherAssignments/a1`]: { teacherStaffId: 'st1', status: 'ACTIVE', isClassTeacher: true, academicYearId: 'y', classId: 'c', sectionId: 's' },
     [`${B}/assignmentSlots/y__c__s__CLASS_TEACHER`]: { teacherStaffId: 'st1' },
+    [`${B}/teacherAccess/t`]: { sectionKeys: ['c__s'] },
   }, 't');
   assert.strictEqual(r.result.healthy, true, JSON.stringify(failing(r)));
 });
@@ -44,10 +45,18 @@ test('teacher: unlinked staff, no assignments and a broken class-teacher slot ar
     [`${B}/staff/st1`]: { userId: 't', status: 'ACTIVE', isTeacher: true },
   }, 't');
   assert.deepStrictEqual(failing(noAssign), ['ASSIGNMENTS']);
+  const noIndex = await run({
+    'users/t': { schoolId: 's1', branchId: 'b1', role: 'TEACHER', status: 'ACTIVE' },
+    [`${B}/staff/st1`]: { userId: 't', status: 'ACTIVE', isTeacher: true },
+    [`${B}/teacherAssignments/a1`]: { teacherStaffId: 'st1', status: 'ACTIVE', isClassTeacher: true, academicYearId: 'y', classId: 'c', sectionId: 's' },
+    [`${B}/assignmentSlots/y__c__s__CLASS_TEACHER`]: { teacherStaffId: 'st1' },
+  }, 't');
+  assert.deepStrictEqual(failing(noIndex), ['TEACHER_ACCESS']);
   const slot = await run({
     'users/t': { schoolId: 's1', branchId: 'b1', role: 'TEACHER', status: 'ACTIVE' },
     [`${B}/staff/st1`]: { userId: 't', status: 'ACTIVE', isTeacher: true },
     [`${B}/teacherAssignments/a1`]: { teacherStaffId: 'st1', status: 'ACTIVE', isClassTeacher: true, academicYearId: 'y', classId: 'c', sectionId: 's' },
+    [`${B}/teacherAccess/t`]: { sectionKeys: ['c__s'] },
   }, 't');
   assert.deepStrictEqual(failing(slot), ['ASSIGNMENT_SLOT']);
 });
@@ -66,6 +75,7 @@ test('teacher: a subject assignment without its slot is reported too', async () 
     'users/t': { schoolId: 's1', branchId: 'b1', role: 'TEACHER', status: 'ACTIVE' },
     [`${B}/staff/st1`]: { userId: 't', status: 'ACTIVE', isTeacher: true },
     [`${B}/teacherAssignments/a1`]: { teacherStaffId: 'st1', status: 'ACTIVE', isClassTeacher: false, subjectId: 'math', academicYearId: 'y', classId: 'c', sectionId: 's' },
+    [`${B}/teacherAccess/t`]: { sectionKeys: ['c__s'] },
   }, 't');
   assert.deepStrictEqual(failing(r), ['ASSIGNMENT_SLOT']);
 });

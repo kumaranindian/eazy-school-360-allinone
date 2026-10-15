@@ -263,6 +263,7 @@ abstract class AnnouncementRepository {
     required String branchId,
     required String viewerRole,
     String? viewerUserId,
+    String? viewerParentId,
     bool includeDrafts = false,
     int limit = 100,
   });
@@ -271,6 +272,7 @@ abstract class AnnouncementRepository {
     required String schoolId,
     required String branchId,
     required String viewerRole,
+    String? viewerParentId,
     int limit = 50,
   });
 
@@ -280,6 +282,7 @@ abstract class AnnouncementRepository {
     required String schoolId,
     required String branchId,
     required String viewerRole,
+    String? viewerParentId,
     int limit = 30,
   });
 }

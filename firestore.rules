@@ -178,8 +178,52 @@ service cloud.firestore {
       return staffScope(schoolId, branchId, ['BRANCH_ADMIN']);
     }
 
+    // Branch-wide view of students/parents: admins and finance. A TEACHER is
+    // deliberately absent: a teacher reads only the students of the sections
+    // they are ASSIGNED to (teacherHasSection / teacherOfStudent below),
+    // never the whole branch.
     function canViewStudentData(schoolId, branchId) {
-      return staffScope(schoolId, branchId, ['BRANCH_ADMIN', 'TEACHER', 'FINANCE']);
+      return staffScope(schoolId, branchId, ['BRANCH_ADMIN', 'FINANCE']);
+    }
+
+    // ---- Teacher scope (teacherAccess) ------------------------------------
+    // teacherAccess/{uid} is written only by Cloud Functions from the
+    // teacher's ACTIVE teacherAssignments (functions/teacher_access.js):
+    //   sectionKeys: ['classId__sectionId', ...]
+    // Rules cannot query assignments, so this index is the trusted summary.
+    // Missing document ⇒ no access (never a fallback to branch-wide).
+    function teacherAccessPath(schoolId, branchId) {
+      return /databases/$(database)/documents/schools/$(schoolId)/branches/$(branchId)
+        /teacherAccess/$(request.auth.uid);
+    }
+
+    // The caller is an ACTIVE teacher of this school+branch assigned to the
+    // section. Judged on the record's own class/section (list queries must pin
+    // both equalities).
+    function teacherHasSection(schoolId, branchId, classId, sectionId) {
+      return isActiveCaller() && callerRole() == 'TEACHER'
+        && callerSchoolId() == schoolId && callerBranchId() == branchId
+        && classId is string && sectionId is string
+        && exists(teacherAccessPath(schoolId, branchId))
+        && (classId + '__' + sectionId) in get(teacherAccessPath(schoolId, branchId)).data.sectionKeys;
+    }
+
+    // The student is currently placed in a section the caller teaches.
+    function teacherOfStudent(schoolId, branchId, studentId) {
+      let st = get(/databases/$(database)/documents/schools/$(schoolId)/branches/$(branchId)
+        /students/$(studentId)).data;
+      return teacherHasSection(schoolId, branchId, st.get('currentClassId', null), st.get('currentSectionId', null));
+    }
+
+    // The parent has a child in a section the caller teaches (parentAccess is
+    // the rules-readable list of the family's section keys).
+    function teacherOfParent(schoolId, branchId, parentId) {
+      let pa = /databases/$(database)/documents/schools/$(schoolId)/branches/$(branchId)
+        /parentAccess/$(parentId);
+      return isActiveCaller() && callerRole() == 'TEACHER'
+        && callerSchoolId() == schoolId && callerBranchId() == branchId
+        && exists(teacherAccessPath(schoolId, branchId)) && exists(pa)
+        && get(pa).data.sectionKeys.hasAny(get(teacherAccessPath(schoolId, branchId)).data.sectionKeys);
     }
 
     function parentLinkPath(schoolId, branchId, studentId, parentId) {
@@ -589,6 +633,21 @@ service cloud.firestore {
     function parentHasSection(schoolId, branchId, classId, sectionId) {
       return isFamilyCaller(schoolId) && exists(parentAccessPath(schoolId, branchId))
         && (classId + '__' + sectionId) in get(parentAccessPath(schoolId, branchId)).data.sectionKeys;
+    }
+
+    // Which audiences of a notice/announcement a PARENT may read:
+    //   ALL                  every active parent of the school;
+    //   BRANCH, PARENTS      a family with a child in the branch (parentAccess);
+    //   CLASS                only a family with a child in THAT class;
+    //   SECTION              only a family with a child in THAT section;
+    //   STAFF (anything else) never.
+    // A query must therefore name the audience (and class/section) it asks for.
+    function parentMayReadAudience(schoolId, branchId, d) {
+      return d.audienceKind == 'ALL'
+        || (d.audienceKind in ['BRANCH', 'PARENTS'] && parentInBranch(schoolId, branchId))
+        || (d.audienceKind == 'CLASS' && parentHasClass(schoolId, branchId, d.get('classId', null)))
+        || (d.audienceKind == 'SECTION'
+            && parentHasSection(schoolId, branchId, d.get('classId', null), d.get('sectionId', null)));
     }
 
     // A published/live schedule-or-homework document of one section: teachers
@@ -1645,7 +1704,8 @@ service cloud.firestore {
         // docs/milestone-3-student-parent-management.md → "Why students
         // aren't nested under academicYears".
         match /students/{studentId} {
-          allow read: if canViewStudentData(schoolId, branchId) || canAccessAsParent(schoolId, branchId, studentId);
+          allow read: if canViewStudentData(schoolId, branchId) || canAccessAsParent(schoolId, branchId, studentId)
+            || teacherHasSection(schoolId, branchId, resource.data.currentClassId, resource.data.currentSectionId);
 
           allow create: if canManageStudentData(schoolId, branchId) && validCreateAudit()
             && request.resource.data.schoolId == schoolId
@@ -1668,7 +1728,8 @@ service cloud.firestore {
           // correcting the roll number; a placement change always creates
           // a new record instead (brief §6: "never overwrite history").
           match /academicRecords/{recordId} {
-            allow read: if canViewStudentData(schoolId, branchId) || canAccessAsParent(schoolId, branchId, studentId);
+            allow read: if canViewStudentData(schoolId, branchId) || canAccessAsParent(schoolId, branchId, studentId)
+              || teacherOfStudent(schoolId, branchId, studentId);
             allow create: if canManageStudentData(schoolId, branchId) && validCreateAudit()
               && request.resource.data.schoolId == schoolId
               && request.resource.data.branchId == branchId
@@ -1684,7 +1745,7 @@ service cloud.firestore {
             allow read: if canViewStudentData(schoolId, branchId) || (
               isActiveCaller() && callerRole() == 'PARENT' && callerSchoolId() == schoolId
                 && callerProfile().linkedParentId == parentId
-            );
+            ) || teacherOfStudent(schoolId, branchId, studentId);
             allow create: if canManageStudentData(schoolId, branchId) && validCreateAudit()
               && request.resource.data.schoolId == schoolId
               && request.resource.data.branchId == branchId
@@ -1694,6 +1755,15 @@ service cloud.firestore {
               && changedOnly(['relationshipType', 'isPrimary', 'isEmergencyContact', 'canAccessPortal', 'status', 'updatedAt', 'updatedBy']);
             allow delete: if false;
           }
+        }
+
+        // ---- teacherAccess/{uid} ----------------------------------------
+        // Which sections a teacher is assigned to (see teacherHasSection).
+        // Written only by Cloud Functions; a teacher may read their own, an
+        // administrator may read any (support / "Check access").
+        match /teacherAccess/{uid} {
+          allow read: if request.auth.uid == uid || canManageStaff(schoolId, branchId);
+          allow write: if false;
         }
 
         // ---- parentAccess/{parentId} (Milestone 12A) --------------------
@@ -1716,10 +1786,16 @@ service cloud.firestore {
 
         // ---- parents/{parentId} (Milestone 3) ---------------------------
         match /parents/{parentId} {
-          allow read: if canViewStudentData(schoolId, branchId) || (
+          allow list: if canViewStudentData(schoolId, branchId) || (
             isActiveCaller() && callerRole() == 'PARENT' && callerSchoolId() == schoolId
               && callerProfile().linkedParentId == parentId
           );
+          // A teacher can open one parent (shown on their student's profile),
+          // only when that family has a child in a section they teach.
+          allow get: if canViewStudentData(schoolId, branchId) || (
+            isActiveCaller() && callerRole() == 'PARENT' && callerSchoolId() == schoolId
+              && callerProfile().linkedParentId == parentId
+          ) || teacherOfParent(schoolId, branchId, parentId);
 
           allow create: if canManageStudentData(schoolId, branchId) && validCreateAudit()
             && request.resource.data.schoolId == schoolId
@@ -2588,6 +2664,8 @@ service cloud.firestore {
           allow read: if canReviewLeave(schoolId, branchId)
             || (resource.data.subjectKind == 'STUDENT' && canViewStudentData(schoolId, branchId))
             || (resource.data.subjectKind == 'STUDENT'
+              && teacherHasSection(schoolId, branchId, resource.data.get('classId', null), resource.data.get('sectionId', null)))
+            || (resource.data.subjectKind == 'STUDENT'
               && canAccessAsParent(schoolId, branchId, resource.data.subjectId))
             || (resource.data.subjectKind == 'STAFF'
               && isOwnLeaveStaff(schoolId, branchId, resource.data.subjectId));
@@ -3293,10 +3371,7 @@ service cloud.firestore {
           allow read: if isAnnouncementAuthorOrManager(schoolId, branchId, resource.data.authorId)
             || (resource.data.status == 'PUBLISHED' && isActiveCaller() && callerSchoolId() == schoolId
                 && ((callerRole() in ['TEACHER', 'FINANCE'] && callerBranchId() == branchId)
-                    || (callerRole() == 'PARENT'
-                        && (resource.data.audienceKind == 'ALL'
-                            || (resource.data.audienceKind in ['BRANCH', 'PARENTS', 'CLASS', 'SECTION']
-                                && parentInBranch(schoolId, branchId))))));
+                    || (callerRole() == 'PARENT' && parentMayReadAudience(schoolId, branchId, resource.data))));
 
           allow create: if isActiveCaller() && validCreateAudit()
             && request.resource.data.schoolId == schoolId
@@ -3347,10 +3422,7 @@ service cloud.firestore {
           allow read: if isActiveCaller() && callerSchoolId() == schoolId
             && (canManageStaff(schoolId, branchId)
                 || (callerRole() in ['TEACHER', 'FINANCE'] && callerBranchId() == branchId)
-                || (callerRole() == 'PARENT'
-                    && (resource.data.audienceKind == 'ALL'
-                        || (resource.data.audienceKind in ['BRANCH', 'PARENTS', 'CLASS', 'SECTION']
-                            && parentInBranch(schoolId, branchId)))));
+                || (callerRole() == 'PARENT' && parentMayReadAudience(schoolId, branchId, resource.data)));
           allow create: if isActiveCaller()
             && request.resource.data.schoolId == schoolId
             && request.resource.data.branchId == branchId
@@ -3840,7 +3912,9 @@ service cloud.firestore {
     // rule as the nested path (viewStudentData), judged on the record's own
     // schoolId/branchId so it cannot cross a tenant.
     match /{path=**}/academicRecords/{recordId} {
-      allow read: if canViewStudentData(resource.data.schoolId, resource.data.branchId);
+      allow read: if canViewStudentData(resource.data.schoolId, resource.data.branchId)
+        // A teacher's roster query pins school, branch, class and section.
+        || teacherHasSection(resource.data.schoolId, resource.data.branchId, resource.data.classId, resource.data.sectionId);
     }
 
     // Parent -> children lookup (ParentRepository.getChildrenForParent): a

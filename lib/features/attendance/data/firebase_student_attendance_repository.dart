@@ -170,29 +170,38 @@ class FirebaseStudentAttendanceRepository
     return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
   }
 
+  /// The students named by the section's enrolment/attendance records, read
+  /// one document at a time. (A `whereIn documentId` list cannot be proven
+  /// readable for a teacher — rules are not filters — whereas each `get` is
+  /// judged on that student's own placement.) A student the caller may no
+  /// longer read (moved to a section they do not teach) is skipped, so one
+  /// unreadable student never fails the whole register.
   Future<List<Student>> _studentsByIds(
     String schoolId,
     String branchId,
     Set<String> ids,
   ) async {
-    final list = ids.toList();
-    final result = <Student>[];
-    for (var i = 0; i < list.length; i += 30) {
-      final chunk = list.sublist(
-        i,
-        i + 30 > list.length ? list.length : i + 30,
-      );
-      final snapshot = await _branch(schoolId, branchId)
-          .collection(FirestoreFields.studentsCollection)
-          .where(FieldPath.documentId, whereIn: chunk)
-          .get();
-      result.addAll(
-        snapshot.docs.map(
-          (d) => Student.fromFirestore(schoolId, branchId, d.id, d.data()),
-        ),
-      );
-    }
-    return result;
+    final students = _branch(
+      schoolId,
+      branchId,
+    ).collection(FirestoreFields.studentsCollection);
+    final fetched = await Future.wait(
+      ids.map((id) async {
+        try {
+          final snap = await students.doc(id).get();
+          return snap.exists
+              ? Student.fromFirestore(schoolId, branchId, snap.id, snap.data()!)
+              : null;
+        } on FirebaseException catch (error) {
+          if (error.code == 'permission-denied') return null;
+          rethrow;
+        }
+      }),
+    );
+    return [
+      for (final s in fetched)
+        if (s != null) s,
+    ];
   }
 
   @override

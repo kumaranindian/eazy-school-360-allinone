@@ -30,8 +30,8 @@ See `role-permission-matrix.md` (data access table) and the generated inventory 
 
 ## Not done / pending decisions (each changes product behaviour)
 
-1. **Teacher scope by assignment (audit M9).** Today a teacher can read every student/parent of their *branch*; the brief asks for assigned classes/sections only. Needs a `teacherAccess/{staffId}` index (class/section keys, maintained like `parentAccess`), rules that require it, and a redesign of the teacher Students/Parents screens (class-pinned queries; no branch-wide search). Roster screens (attendance, marks, homework review) already query by section and would keep working.
-2. **Class-scoped notices for parents (M8).** Parents with any child in the branch can read `CLASS`/`SECTION` notices (titles of other classes' homework/result notices). Fix = one pinned query per child class/section + rule change + merged notice stream.
+1. **Teacher scope by assignment (audit M9) — DONE.** Teachers read a student only when its `classId__sectionId` is in their `teacherAccess/{uid}.sectionKeys` (server-written by Cloud Functions from ACTIVE `teacherAssignments`; clients cannot write it). The teacher Students screen lists the teacher's own sections with section-pinned queries. Parents are visible to a teacher only through `parents/{id}` `get` when the parent's `parentAccess.sectionKeys` intersects the teacher's; the teacher parents directory was removed. **Rollout order:** deploy functions → run *Refresh teacher access* (callable `refreshTeacherAccess`, backfills existing assignments) → deploy rules. Known limits: students of a section the teacher no longer holds (historical) are unreadable; non-portal-linked parents are not visible to teachers; Storage student photos remain branch-readable.
+2. **Class-scoped notices for parents (M8) — DONE.** `broadcastNotices` / `announcements` for `CLASS` / `SECTION` audiences are readable only when the parent's `parentAccess` contains that class / section (`parentMayReadAudience`). The client issues one general query (`ALL, BRANCH, PARENTS`) plus one pinned query per class / section key in the family's `parentAccess` and merges them (`planScopedParentQueries`, `mergeNewestFirst`; live merged stream for notices). Four new composite indexes — deploy them before the rules.
 3. **Platform Admin breadth (H1).** Blanket access to every school's data; the fix needs an audited support-access workflow.
 4. **Dev deployment.** Not executed — no Firebase credentials in this environment (`firebase projects:list` → "Failed to authenticate"). The rules compile and load in the emulator (all suites). Commands, run from your machine:
    ```
@@ -48,6 +48,8 @@ See `role-permission-matrix.md` (data access table) and the generated inventory 
 
 | Check | Result |
 |---|---|
-| Firestore + Storage rules emulator suite (`--project demo-eazy-school-360`) | 361 / 361 pass |
-| `functions` `npm test` | 47 / 47 pass |
-| `flutter analyze` / `dart format` / `flutter test` | clean / clean / 1182 pass |
+| Firestore + Storage rules emulator suite (`--project demo-eazy-school-360`) | 365 / 365 pass |
+| `functions` `npm test` | 52 / 52 pass |
+| `flutter analyze` / `dart format` / `flutter test` | clean / clean / 1199 pass |
+
+Note: in this sandbox the emulators must be run with the proxy variables unset (`env -u HTTPS_PROXY -u https_proxy -u JAVA_TOOL_OPTIONS ...`); otherwise Storage→Firestore lookups are blocked by the egress proxy and Storage tests fail spuriously.

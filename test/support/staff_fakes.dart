@@ -1,4 +1,5 @@
 import 'package:eazy_school_360/core/constants/activation_status.dart';
+import 'package:eazy_school_360/features/staff/domain/teacher_scope.dart';
 import 'package:eazy_school_360/features/academic_setup/domain/academic_structure_repository.dart';
 import 'package:eazy_school_360/features/academic_setup/domain/academic_year.dart';
 import 'package:eazy_school_360/features/academic_setup/domain/class_subject_link.dart';
@@ -370,4 +371,17 @@ class FakeTeacherAssignmentRepository implements TeacherAssignmentRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// Serves a canned [TeacherScope] (null = no `teacherAccess` document yet).
+class FakeTeacherScopeRepository implements TeacherScopeRepository {
+  TeacherScope? scope;
+  FakeTeacherScopeRepository([this.scope]);
+
+  @override
+  Stream<TeacherScope?> watchScope({
+    required String schoolId,
+    required String branchId,
+    required String userId,
+  }) => Stream.value(scope);
 }
