@@ -1,4 +1,5 @@
 import 'package:eazy_school_360/app/app.dart';
+import 'package:eazy_school_360/shared/branding/school_branding_header.dart';
 import 'package:eazy_school_360/core/config/app_environment.dart';
 import 'package:eazy_school_360/core/config/env_config.dart';
 import 'package:eazy_school_360/core/config/env_config_provider.dart';
@@ -1278,13 +1279,14 @@ void main() {
       await w.go(tester, '/exams/results/${r.exam.examId}/s1');
       expect(find.text('Report card'), findsOneWidget);
       expect(find.textContaining('Provisional'), findsWidgets);
-      // The school name is on the report card and, as the tenant's branding,
-      // in the shell's app bar: exactly one of each.
-      expect(find.text('Rosewood High'), findsNWidgets(2));
+      // The school name is on the report card; the shell's branding bar shows
+      // the module title there (the school is identified by its logo), so the
+      // name is not repeated.
+      expect(find.text('Rosewood High'), findsOneWidget);
       expect(
         find.descendant(
-          of: find.byType(AppBar),
-          matching: find.text('Rosewood High'),
+          of: find.byType(SchoolBrandingAppBar),
+          matching: find.text('Exams'),
         ),
         findsOneWidget,
       );

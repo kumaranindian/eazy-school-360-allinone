@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/responsive.dart';
-import '../branding/school_brand_logo.dart';
-import '../branding/school_branding.dart';
+import '../branding/school_branding_header.dart';
 import '../widgets/app_version_footer.dart';
 import 'hero_scope.dart';
 
@@ -30,6 +28,10 @@ class NavDestination {
 /// itself doesn't need to change.
 class AdaptiveScaffold extends StatelessWidget {
   final String title;
+
+  /// Centre text of the branding header for the current screen. Null shows
+  /// the school's name (the dashboard).
+  final String? screenTitle;
   final List<NavDestination> destinations;
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
@@ -42,6 +44,7 @@ class AdaptiveScaffold extends StatelessWidget {
   const AdaptiveScaffold({
     super.key,
     required this.title,
+    this.screenTitle,
     required this.destinations,
     required this.selectedIndex,
     required this.onDestinationSelected,
@@ -50,20 +53,16 @@ class AdaptiveScaffold extends StatelessWidget {
     this.header,
   });
 
-  /// The shell's top bar stays light (logo + product name) while inner
-  /// screens use the navy bar from the theme, so the two read as layers.
-  PreferredSizeWidget _shellBar(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return AppBar(
-      backgroundColor: scheme.surface,
-      foregroundColor: scheme.onSurface,
-      iconTheme: IconThemeData(color: scheme.onSurface),
-      actionsIconTheme: IconThemeData(color: scheme.onSurface),
-      shape: Border(bottom: BorderSide(color: scheme.outlineVariant)),
-      title: _BrandTitle(title),
-      actions: actions,
-    );
-  }
+  /// The shell's top bar stays light and carries the branding header —
+  /// school logo left, screen title centred, EazySchool mark right, then the
+  /// shell actions — while inner screens use the navy bar from the theme, so
+  /// the two read as layers. Every routed screen sits inside this shell, so
+  /// this one bar brands the whole signed-in area.
+  PreferredSizeWidget _shellBar(BuildContext context) => SchoolBrandingAppBar(
+    screenTitle: screenTitle,
+    fallbackTitle: title,
+    actions: actions ?? const [],
+  );
 
   /// Every routed screen gets the version line under its content.
   Widget _withFooter(Widget content) => Column(
@@ -228,37 +227,6 @@ class AdaptiveScaffold extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-/// App-bar title: the school's logo and the EazySchool mark side by side,
-/// then the school's name (or the product name before a school is known).
-class _BrandTitle extends ConsumerWidget {
-  final String title;
-  const _BrandTitle(this.title);
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final branding = ref.watch(schoolBrandingProvider);
-    final name = branding != null && branding.name.isNotEmpty
-        ? branding.name
-        : title;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const SchoolAndProductMarks(size: 32),
-        const SizedBox(width: 12),
-        Flexible(
-          child: Text(
-            name,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

@@ -129,6 +129,28 @@ class SchoolAndProductMarks extends ConsumerWidget {
   }
 }
 
+/// The signed-in school's identity on its own — its logo, or its initial when
+/// it has none — for emblems that stand for the *school* (the dashboard
+/// hero). The product mark is not repeated here: it lives in the header's
+/// right corner and the footer, so the school reads as primary.
+class SchoolEmblem extends ConsumerWidget {
+  final double size;
+  const SchoolEmblem({super.key, this.size = 56});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final branding = ref.watch(schoolBrandingProvider);
+    if (branding == null) return BrandMark(size: size, onDark: true);
+    return SchoolLogoImage(
+      url: branding.logoUrl,
+      label: branding.name,
+      size: size,
+      onDark: true,
+      fallbackChild: SchoolInitialBadge(name: branding.name, size: size),
+    );
+  }
+}
+
 /// A school-specific placeholder (its first letter) for when the logo cannot
 /// be shown, so the slot is still recognisably the school's, not the product's.
 class SchoolInitialBadge extends StatelessWidget {

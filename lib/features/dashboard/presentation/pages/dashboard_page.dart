@@ -357,7 +357,7 @@ class _Hero extends StatelessWidget {
         HeroPill(tenant.role.displayName, filled: true),
         if (place.isNotEmpty) HeroPill(place),
       ],
-      trailing: const SchoolAndProductMarks(size: 56, onDark: true),
+      trailing: const SchoolEmblem(size: 56),
     );
   }
 }
