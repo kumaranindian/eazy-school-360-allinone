@@ -57,3 +57,16 @@ jobs:
         working-directory: firestore-tests
       - name: Firestore and Storage rules (serial, emulator)
         run: firebase emulators:exec --only firestore,storage --project demo-eazy-school-360 "cd firestore-tests && npm test"
+
+  functions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+        working-directory: functions
+      - name: Cloud Functions tests
+        run: npm test
+        working-directory: functions

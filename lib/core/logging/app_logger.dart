@@ -15,6 +15,11 @@ enum LogLevel { debug, warning, error }
 /// payment details, or any other sensitive personal data. Prefer logging
 /// stable identifiers (uid, document id) over raw payloads.
 abstract final class AppLogger {
+  /// Receives every error-level entry (attached by crash reporting at start-up;
+  /// null in tests and debug builds). A failing sink never affects the caller.
+  static void Function(String message, Object? error, StackTrace? stackTrace)?
+  errorSink;
+
   static void debug(String message, {String? tag}) {
     _log(LogLevel.debug, message, tag: tag);
   }
@@ -52,6 +57,11 @@ abstract final class AppLogger {
         '[${level.name.toUpperCase()}][${tag ?? 'EazySchool360'}] $message'
         '${error != null ? '\n  error: ${error.runtimeType}: $error' : ''}',
       );
+    }
+    if (level == LogLevel.error) {
+      try {
+        errorSink?.call(message, error, stackTrace);
+      } catch (_) {}
     }
     developer.log(
       message,

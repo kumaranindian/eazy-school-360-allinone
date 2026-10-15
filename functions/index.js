@@ -19,6 +19,7 @@ const { diagnoseAccess } = require('./diagnose');
 const teacherAccess = require('./teacher_access');
 const { requestOtp, verifyOtp } = require('./otp');
 const { createWhatsAppSender } = require('./whatsapp');
+const { callOptions } = require('./call_options');
 
 initializeApp();
 // Must match the Firestore database region (Firestore triggers are regional).
@@ -66,7 +67,7 @@ exports.pushNotification = onDocumentCreated(
 
 // Creates sign-in accounts for existing staff / parent records and links them.
 // Callable by school/branch admins only (checked server-side).
-exports.provisionLogins = onCall(async (request) => {
+exports.provisionLogins = onCall(callOptions(), async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
   const out = await provisionLogins(
     { db, auth: getAuth(), now: FieldValue.serverTimestamp() },
@@ -142,7 +143,7 @@ const adminCtx = () => ({
   configured: { phoneOtp: phoneOtpConfigured() },
 });
 
-exports.getLoginAccess = onCall(async (request) => {
+exports.getLoginAccess = onCall(callOptions(), async (request) => {
   const a = signedIn(request);
   const out = await access.getLoginAccess(adminCtx(), a.uid, a.token, request.data);
   if (out.error) fail(out);
@@ -150,14 +151,14 @@ exports.getLoginAccess = onCall(async (request) => {
 });
 
 // Read-only: names the missing prerequisite behind a user's permission-denied.
-exports.diagnoseAccess = onCall(async (request) => {
+exports.diagnoseAccess = onCall(callOptions(), async (request) => {
   const a = signedIn(request);
   const out = await diagnoseAccess({ db }, a.uid, a.token, request.data);
   if (out.error) fail(out);
   return out.result;
 });
 
-exports.setLoginAccess = onCall(async (request) => {
+exports.setLoginAccess = onCall(callOptions(), async (request) => {
   const a = signedIn(request);
   const out = await access.setLoginAccess(adminCtx(), a.uid, a.token, request.data);
   if (out.error) fail(out);
@@ -165,14 +166,14 @@ exports.setLoginAccess = onCall(async (request) => {
   return out.result;
 });
 
-exports.getSchoolAuthSettings = onCall({ secrets: [META_WA_ACCESS_TOKEN, OTP_PEPPER] }, async (request) => {
+exports.getSchoolAuthSettings = onCall(callOptions({ secrets: [META_WA_ACCESS_TOKEN, OTP_PEPPER] }), async (request) => {
   const a = signedIn(request);
   const out = await access.getSchoolAuthSettings(adminCtx(), a.uid, a.token, request.data);
   if (out.error) fail(out);
   return out.result;
 });
 
-exports.updateSchoolAuthSettings = onCall({ secrets: [META_WA_ACCESS_TOKEN, OTP_PEPPER] }, async (request) => {
+exports.updateSchoolAuthSettings = onCall(callOptions({ secrets: [META_WA_ACCESS_TOKEN, OTP_PEPPER] }), async (request) => {
   const a = signedIn(request);
   const out = await access.updateSchoolAuthSettings(adminCtx(), a.uid, a.token, request.data);
   if (out.error) fail(out);
@@ -190,7 +191,7 @@ const otpCtx = () => ({
   newId: access.newId,
 });
 
-exports.requestPhoneOtp = onCall({ secrets: [META_WA_ACCESS_TOKEN, OTP_PEPPER] }, async (request) => {
+exports.requestPhoneOtp = onCall(callOptions({ secrets: [META_WA_ACCESS_TOKEN, OTP_PEPPER] }), async (request) => {
   if (!OTP_PEPPER.value()) throw new HttpsError('failed-precondition', 'OTP_UNAVAILABLE', { reason: 'OTP_UNAVAILABLE' });
   const d = request.data || {};
   const out = await requestOtp(otpCtx(), { phone: d.phone, ip: request.rawRequest && request.rawRequest.ip });
@@ -201,7 +202,7 @@ exports.requestPhoneOtp = onCall({ secrets: [META_WA_ACCESS_TOKEN, OTP_PEPPER] }
   return out;
 });
 
-exports.verifyPhoneOtp = onCall({ secrets: [OTP_PEPPER] }, async (request) => {
+exports.verifyPhoneOtp = onCall(callOptions({ secrets: [OTP_PEPPER] }), async (request) => {
   const d = request.data || {};
   const out = await verifyOtp(otpCtx(), { challengeId: d.challengeId, code: d.code });
   if (out.error) {
@@ -261,7 +262,7 @@ exports.teacherStaffChanged = onDocumentWritten(
 // Backfill / repair: rebuilds every teacher's access document in a branch.
 // Run once after deploying (before the rules that require it), and any time
 // "Check access" reports a missing or stale teacherAccess.
-exports.refreshTeacherAccess = onCall(async (request) => {
+exports.refreshTeacherAccess = onCall(callOptions(), async (request) => {
   const a = signedIn(request);
   const { schoolId, branchId } = request.data || {};
   if ([schoolId, branchId].some((v) => typeof v !== 'string' || !v)) fail({ error: 'INVALID_ARGUMENT' });

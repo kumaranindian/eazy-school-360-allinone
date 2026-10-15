@@ -10,6 +10,7 @@ import '../core/config/env_config.dart';
 import '../core/config/env_config_provider.dart';
 import '../core/config/firebase_initializer.dart';
 import '../core/logging/app_logger.dart';
+import '../core/monitoring/monitoring_setup.dart';
 import 'app.dart';
 import 'startup_error_app.dart';
 
@@ -69,6 +70,7 @@ Future<void> bootstrap(
   EnvConfig envConfig, {
   String appEnvDefine = const String.fromEnvironment('APP_ENV'),
   FirebaseInitializer initializer = const FirebaseInitializer(),
+  Future<void> Function() monitoring = setUpMonitoring,
 }) async {
   WidgetsFlutterBinding.ensureInitialized();
   installErrorHandlers();
@@ -89,6 +91,8 @@ Future<void> bootstrap(
     runApp(StartupErrorApp(appName: envConfig.appName, code: result.errorCode));
     return;
   }
+
+  await monitoring();
 
   runApp(
     ProviderScope(
