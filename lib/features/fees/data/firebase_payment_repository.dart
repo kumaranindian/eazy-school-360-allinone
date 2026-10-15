@@ -316,10 +316,15 @@ class FirebasePaymentRepository implements PaymentRepository {
   Stream<List<Payment>> watchInvoicePayments(
     String schoolId,
     String branchId,
-    String invoiceId,
-  ) {
-    return _paths(schoolId, branchId).payments
-        .where('invoiceId', isEqualTo: invoiceId)
+    String invoiceId, {
+    String? studentId,
+  }) {
+    var q = _paths(
+      schoolId,
+      branchId,
+    ).payments.where('invoiceId', isEqualTo: invoiceId);
+    if (studentId != null) q = q.where('studentId', isEqualTo: studentId);
+    return q
         .snapshots()
         .map(
           (s) =>

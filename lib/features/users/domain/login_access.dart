@@ -19,6 +19,9 @@ enum LoginActivation {
 /// One staff or parent record's login access, as reported by the server.
 class LoginAccess {
   final String id;
+
+  /// The Firebase Auth uid of the linked login, or null when none exists.
+  final String? uid;
   final LoginKind kind;
   final String name;
 
@@ -46,6 +49,7 @@ class LoginAccess {
 
   const LoginAccess({
     required this.id,
+    this.uid,
     required this.kind,
     required this.name,
     required this.userType,
@@ -67,6 +71,7 @@ class LoginAccess {
   factory LoginAccess.fromMap(Map<dynamic, dynamic> m, LoginKind kind) =>
       LoginAccess(
         id: m['id'] as String? ?? '',
+        uid: m['uid'] as String?,
         kind: kind,
         name: m['name'] as String? ?? '',
         userType: m['userType'] as String? ?? 'STAFF',
@@ -92,6 +97,42 @@ class LoginAccess {
     'TEACHER' => 'Teacher',
     _ => 'Staff',
   };
+}
+
+/// One prerequisite the Firestore rules / app rely on for this person, as
+/// checked by the `diagnoseAccess` function.
+class AccessCheck {
+  final String id;
+  final bool ok;
+  final String severity;
+  final String message;
+  final String? fix;
+  const AccessCheck({
+    required this.id,
+    required this.ok,
+    required this.severity,
+    required this.message,
+    this.fix,
+  });
+
+  factory AccessCheck.fromMap(Map<dynamic, dynamic> m) => AccessCheck(
+    id: m['id'] as String? ?? '',
+    ok: m['ok'] == true,
+    severity: m['severity'] as String? ?? 'OK',
+    message: m['message'] as String? ?? '',
+    fix: m['fix'] as String?,
+  );
+}
+
+class AccessDiagnosis {
+  final bool healthy;
+  final List<AccessCheck> checks;
+  const AccessDiagnosis({required this.healthy, required this.checks});
+
+  List<AccessCheck> get problems => [
+    for (final c in checks)
+      if (!c.ok) c,
+  ];
 }
 
 class LoginAccessResult {
@@ -181,6 +222,13 @@ abstract class LoginAccessRepository {
     required bool enabled,
     required List<LoginMethod> methods,
     bool revokeSessions = false,
+  });
+
+  /// Read-only: names the missing prerequisite behind a permission error.
+  Future<AccessDiagnosis> diagnose({
+    required String schoolId,
+    required String branchId,
+    required String uid,
   });
 
   Future<SchoolAuthSettings> getSchoolSettings(String schoolId);

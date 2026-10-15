@@ -79,3 +79,17 @@ final academicStructureWriteControllerProvider =
     AsyncNotifierProvider.autoDispose<AcademicStructureWriteController, void>(
       AcademicStructureWriteController.new,
     );
+
+/// One academic year by id. Families may read only this single document (never
+/// the list) — see the `academicYears` rule — so screens that run for a parent
+/// use the child's own `currentAcademicYearId` with this, not
+/// [academicYearsProvider].
+final academicYearProvider = FutureProvider.autoDispose
+    .family<
+      AcademicYear?,
+      ({String schoolId, String branchId, String academicYearId})
+    >((ref, key) {
+      return ref
+          .watch(academicStructureRepositoryProvider)
+          .getAcademicYear(key.schoolId, key.branchId, key.academicYearId);
+    });

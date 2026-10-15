@@ -585,7 +585,7 @@ test('Year-aware history: the same teacher can hold different classes in differe
   assert(both.size >= 2);
 });
 
-test('A teacher reads their OWN assignments (by teacherStaffId) but not a colleague\'s', async () => {
+test('A teacher reads their OWN assignments (any status) and colleagues\' ACTIVE ones only (who teaches what, no personal data)', async () => {
   await seedWorld();
   const admin = asUser('stf-bradmin-north');
   await assertSucceeds(assign(admin, { assignmentId: 'r-priya', uid: 'stf-bradmin-north' }));
@@ -594,8 +594,12 @@ test('A teacher reads their OWN assignments (by teacherStaffId) but not a collea
   const priya = asUser('stf-teacher-priya');
   await assertSucceeds(getDoc(doc(priya, ...branch(A, NORTH), 'teacherAssignments', 'r-priya')));
   await assertSucceeds(getDocs(query(collection(priya, ...branch(A, NORTH), 'teacherAssignments'), where('teacherStaffId', '==', 'staff-priya'))));
-  await assertFails(getDoc(doc(priya, ...branch(A, NORTH), 'teacherAssignments', 'r-arun')));
+  // A colleague's ACTIVE assignment is readable (the app loads the year's ACTIVE list for every teacher)…
+  await assertSucceeds(getDoc(doc(priya, ...branch(A, NORTH), 'teacherAssignments', 'r-arun')));
+  await assertSucceeds(getDocs(query(collection(priya, ...branch(A, NORTH), 'teacherAssignments'), where('status', '==', 'ACTIVE'))));
+  // …but a colleague's list is not provable without the ACTIVE pin, and their staff record stays private.
   await assertFails(getDocs(query(collection(priya, ...branch(A, NORTH), 'teacherAssignments'), where('teacherStaffId', '==', 'staff-arun'))));
+  await assertFails(getDoc(doc(priya, ...branch(A, NORTH), 'staff', 'staff-arun')));
   await assertFails(getDocs(collection(priya, ...branch(A, NORTH), 'teacherAssignments'))); // unfiltered list
   // And never writes.
   await assertFails(updateDoc(doc(priya, ...branch(A, NORTH), 'teacherAssignments', 'r-priya'), { status: 'ENDED', endDate: new Date(), updatedAt: serverTimestamp(), updatedBy: 'stf-teacher-priya' }));

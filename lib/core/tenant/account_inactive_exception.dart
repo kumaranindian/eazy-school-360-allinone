@@ -11,6 +11,9 @@ enum InactiveCause {
 
   /// The account is allowed, but not with the method used for this session.
   methodNotPermitted,
+
+  /// The profile exists but its role/status is missing or unknown.
+  invalidProfile,
 }
 
 /// Thrown by [TenantContextNotifier] when the signed-in user's profile

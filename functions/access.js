@@ -154,6 +154,7 @@ async function getLoginAccess({ db, auth }, callerUid, token, data) {
     registeredEmail: rec.email,
     registeredPhone: rec.phone,
     schoolMethods: school,
+    uid: rec.uid || null,
     hasAccount: false,
     enabled: false,
     methods: [],

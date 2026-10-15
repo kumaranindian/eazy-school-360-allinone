@@ -82,6 +82,8 @@ class _LoginAccessDialogState extends ConsumerState<LoginAccessDialog> {
   bool _changed = false;
   String? _error;
   String? _notice;
+  AccessDiagnosis? _diagnosis;
+  bool _checking = false;
 
   @override
   void initState() {
@@ -238,6 +240,35 @@ class _LoginAccessDialogState extends ConsumerState<LoginAccessDialog> {
       if (!mounted) return;
       setState(() {
         _saving = false;
+        _error = userMessageFor(e);
+      });
+    }
+  }
+
+  Future<void> _check() async {
+    final uid = _access?.uid;
+    if (uid == null || _checking) return;
+    setState(() {
+      _checking = true;
+      _error = null;
+    });
+    try {
+      final d = await ref
+          .read(loginAccessRepositoryProvider)
+          .diagnose(
+            schoolId: widget.schoolId,
+            branchId: widget.branchId,
+            uid: uid,
+          );
+      if (!mounted) return;
+      setState(() {
+        _diagnosis = d;
+        _checking = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _checking = false;
         _error = userMessageFor(e);
       });
     }
@@ -437,6 +468,17 @@ class _LoginAccessDialogState extends ConsumerState<LoginAccessDialog> {
                         : 'Send password setup email',
                   ),
                 ),
+              OutlinedButton.icon(
+                onPressed: _saving || _checking ? null : _check,
+                icon: _checking
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.fact_check_outlined),
+                label: const Text('Check access'),
+              ),
               if (a.enabled)
                 OutlinedButton.icon(
                   onPressed: _saving
@@ -459,6 +501,11 @@ class _LoginAccessDialogState extends ConsumerState<LoginAccessDialog> {
           ),
         ],
       ],
+      if (_diagnosis != null)
+        Padding(
+          padding: const EdgeInsets.only(top: AppSpacing.md),
+          child: _DiagnosisView(diagnosis: _diagnosis!),
+        ),
       if (_error != null)
         Padding(
           padding: const EdgeInsets.only(top: AppSpacing.md),
@@ -523,6 +570,68 @@ class _ErrorBox extends StatelessWidget {
           Expanded(
             child: Text(message, style: TextStyle(color: scheme.error)),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Result of "Check access": either all clear, or each missing prerequisite
+/// with how to fix it.
+class _DiagnosisView extends StatelessWidget {
+  final AccessDiagnosis diagnosis;
+  const _DiagnosisView({required this.diagnosis});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (diagnosis.healthy) {
+      return Semantics(
+        liveRegion: true,
+        child: Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: theme.colorScheme.primary),
+            const SizedBox(width: AppSpacing.sm),
+            const Expanded(
+              child: Text('Everything this account needs is in place.'),
+            ),
+          ],
+        ),
+      );
+    }
+    return Semantics(
+      liveRegion: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Needs attention', style: theme.textTheme.titleSmall),
+          for (final c in diagnosis.problems)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.sm),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: theme.colorScheme.error,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(c.message),
+                        if (c.fix != null)
+                          Text(
+                            'Fix: ${c.fix}',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );

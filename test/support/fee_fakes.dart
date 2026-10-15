@@ -275,8 +275,9 @@ class FakePaymentRepository implements PaymentRepository {
   Stream<List<Payment>> watchInvoicePayments(
     String schoolId,
     String branchId,
-    String invoiceId,
-  ) => Stream.value(payments.where((p) => p.invoiceId == invoiceId).toList());
+    String invoiceId, {
+    String? studentId,
+  }) => Stream.value(payments.where((p) => p.invoiceId == invoiceId).toList());
 
   @override
   Future<PagedResult<Payment>> fetchPayments({

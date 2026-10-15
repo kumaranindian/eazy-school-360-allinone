@@ -27,7 +27,12 @@ class AccountInactivePage extends ConsumerWidget {
 
     final String title;
     final String message;
-    if (cause == InactiveCause.loginDisabled) {
+    if (cause == InactiveCause.invalidProfile) {
+      title = "Your account isn't set up correctly";
+      message =
+          'Your profile is missing a valid role. Ask your school administrator '
+          'to check your account.';
+    } else if (cause == InactiveCause.loginDisabled) {
       title = 'Login access is turned off';
       message =
           'Your school administrator has turned off login for your account. '

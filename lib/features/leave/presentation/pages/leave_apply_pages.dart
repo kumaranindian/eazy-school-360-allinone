@@ -162,14 +162,26 @@ class _StudentForm extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // A family may read only its child's own academic-year document, not the
+    // staff-only list — the child's placement names the year.
+    final yearId = student.currentAcademicYearId;
+    if (yearId == null) {
+      return const EmptyView(
+        icon: Icons.event_outlined,
+        message: 'Your child has not been placed in a class yet.',
+      );
+    }
     final years = ref.watch(
-      academicYearsProvider((schoolId: schoolId, branchId: student.branchId)),
+      academicYearProvider((
+        schoolId: schoolId,
+        branchId: student.branchId,
+        academicYearId: yearId,
+      )),
     );
     return years.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => ErrorView(message: userMessageFor(e)),
-      data: (list) {
-        final year = _pickYear(list, student.currentAcademicYearId);
+      data: (year) {
         if (year == null) {
           return const EmptyView(
             icon: Icons.event_outlined,

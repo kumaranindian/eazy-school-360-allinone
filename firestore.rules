@@ -1209,6 +1209,52 @@ service cloud.firestore {
         && exam.status == 'PUBLISHED' && exam.resultVersion == d.version;
     }
 
+    // ---- Reading documents that may not exist yet -----------------------
+    //
+    // The app reads a register, marks sheet, submission or result with get()
+    // and treats "missing" as "not started". `resource` is null for a missing
+    // document, and dereferencing it is an error that denies everyone except
+    // the admin short-circuit. These helpers rebuild the fields the read rule
+    // needs from the document id (the same ids the create rules enforce), so a
+    // missing document is a normal miss for exactly the people who could
+    // create it — and stays denied for everyone else.
+    function sessionKeyData(sessionId) {
+      let p = sessionId.split('__');
+      return {'academicYearId': p[1], 'classId': p[2], 'sectionId': p[3]};
+    }
+
+    function sheetKeyData(schoolId, branchId, sheetId) {
+      let p = sheetId.split('__');
+      let exam = get(ttDoc(schoolId, branchId, 'examinations', p[0])).data;
+      return {'academicYearId': exam.academicYearId, 'classId': exam.classId,
+              'sectionId': p[2], 'subjectId': p[1]};
+    }
+
+    function submissionKeyData(submissionId) {
+      let p = submissionId.split('__');
+      return {'homeworkId': p[0], 'studentId': p[1]};
+    }
+
+    function submissionReadable(schoolId, branchId, d) {
+      return canManageStaff(schoolId, branchId)
+        || isOwnLeaveStaff(schoolId, branchId,
+             get(ttDoc(schoolId, branchId, 'homework', d.homeworkId)).data.teacherStaffId)
+        || canAccessAsParent(schoolId, branchId, d.studentId);
+    }
+
+    function resultKeyData(resultId) {
+      let p = resultId.split('__');
+      return {'examId': p[0], 'studentId': p[1], 'version': int(p[2][1:])};
+    }
+
+    function resultReadable(schoolId, branchId, d) {
+      return canManageStaff(schoolId, branchId)
+        || (isActiveCaller() && callerSchoolId() == schoolId && callerBranchId() == branchId
+            && callerRole() == 'TEACHER'
+            && get(ttDoc(schoolId, branchId, 'examinations', d.examId)).data.status == 'PUBLISHED')
+        || parentMayReadResult(schoolId, branchId, d);
+    }
+
     // ---- Notifications & parent–teacher communication (Milestone 11) ----
     //
     // A conversation exists between ONE linked parent and ONE teacher about
@@ -1510,7 +1556,11 @@ service cloud.firestore {
         // that's the real document path every repository/Dart model in
         // this feature writes to — see FIRESTORE_ARCHITECTURE.md.
         match /academicYears/{academicYearId} {
-          allow read: if canViewAcademicSetup(schoolId, branchId);
+          // Staff read the list and documents. A family may read a single
+          // year document (name, dates — the leave form needs the dates) in a
+          // branch where it has a child, never list the years.
+          allow get: if canViewAcademicSetup(schoolId, branchId) || parentInBranch(schoolId, branchId);
+          allow list: if canViewAcademicSetup(schoolId, branchId);
           allow create: if canManageAcademicSetup(schoolId, branchId) && validCreateAudit()
             && request.resource.data.schoolId == schoolId
             && request.resource.data.branchId == branchId;
@@ -1817,9 +1867,18 @@ service cloud.firestore {
         // teacher the row belongs to (resolved through the staff record's
         // userId link) — never by other teachers.
         match /teacherAssignments/{assignmentId} {
+          // Staff managers; the owner (any status — their own history); and,
+          // for ACTIVE assignments only, any teacher of the branch. An
+          // ACTIVE assignment is "who teaches what" — no personal data, and
+          // already visible through the live timetable. The app reads the
+          // year's ACTIVE list for every teacher (announcement audience,
+          // homework options, marks sheets); this is what lets that query be
+          // proven by `status == 'ACTIVE'`. Colleagues' staff records stay
+          // private (see /staff).
           allow read: if canViewStaff(schoolId, branchId) || (
             isActiveCaller() && callerSchoolId() == schoolId && callerBranchId() == branchId
-              && get(staffPath(schoolId, branchId, resource.data.teacherStaffId)).data.userId == request.auth.uid
+              && (resource.data.status == 'ACTIVE' && callerRole() == 'TEACHER'
+                  || get(staffPath(schoolId, branchId, resource.data.teacherStaffId)).data.userId == request.auth.uid)
           );
 
           // Every reference is verified here — the client's IDs are not
@@ -1886,7 +1945,11 @@ service cloud.firestore {
         // One register per section per date: DRAFT / FINALIZED + maintained
         // counts. The finalized flag is what locks the student records below.
         match /attendanceSessions/{sessionId} {
-          allow read: if canMarkStudentAttendance(schoolId, branchId, resource.data);
+          // A register that has not been started yet does not exist, and the
+          // app reads it with get(): judge a missing one by the section its
+          // id names (dateKey__year__class__section), as the create rule does.
+          allow read: if canMarkStudentAttendance(schoolId, branchId,
+            resource != null ? resource.data : sessionKeyData(sessionId));
 
           allow create: if validCreateAudit()
             && request.resource.data.schoolId == schoolId
@@ -3175,10 +3238,11 @@ service cloud.firestore {
         // One submission per student per homework, by id. The current state
         // is here; every change also appends a revision.
         match /homeworkSubmissions/{submissionId} {
-          allow read: if canManageStaff(schoolId, branchId)
-            || isOwnLeaveStaff(schoolId, branchId,
-                 get(ttDoc(schoolId, branchId, 'homework', resource.data.homeworkId)).data.teacherStaffId)
-            || canAccessAsParent(schoolId, branchId, resource.data.studentId);
+          // A child who has not submitted yet has no document and the app
+          // reads it with get(): judge a missing one by the homework and
+          // student its id names (homeworkId__studentId).
+          allow read: if submissionReadable(schoolId, branchId,
+            resource != null ? resource.data : submissionKeyData(submissionId));
 
           // a linked parent submits for a child placed in the homework's
           // class and section, before the deadline or (if allowed) late —
@@ -3476,8 +3540,12 @@ service cloud.firestore {
 
         // One subject's marks in one section, with its review state.
         match /marksSheets/{sheetId} {
+          // Same missing-document rule as attendanceSessions: a sheet that has
+          // not been created yet is judged by the section/subject its id names
+          // (examId__subjectId__sectionId) and the exam's own year and class.
           allow read: if canManageStaff(schoolId, branchId)
-            || profileMayEnterMarks(callerProfile(), schoolId, branchId, resource.data);
+            || profileMayEnterMarks(callerProfile(), schoolId, branchId,
+                 resource != null ? resource.data : sheetKeyData(schoolId, branchId, sheetId));
 
           allow create: if isActiveCaller() && validCreateAudit()
             && request.resource.data.schoolId == schoolId
@@ -3591,11 +3659,11 @@ service cloud.firestore {
 
         // Finalised, versioned, create-only results.
         match /resultSummaries/{resultId} {
-          allow read: if canManageStaff(schoolId, branchId)
-            || (isActiveCaller() && callerSchoolId() == schoolId && callerBranchId() == branchId
-                && callerRole() == 'TEACHER'
-                && get(ttDoc(schoolId, branchId, 'examinations', resource.data.examId)).data.status == 'PUBLISHED')
-            || parentMayReadResult(schoolId, branchId, resource.data);
+          // A result that has not been calculated yet does not exist; judge a
+          // missing one by the exam/student/version its id names
+          // (examId__studentId__v<version>).
+          allow read: if resultReadable(schoolId, branchId,
+            resource != null ? resource.data : resultKeyData(resultId));
 
           allow create: if profileManages(callerProfile(), schoolId, branchId)
             && request.resource.data.schoolId == schoolId

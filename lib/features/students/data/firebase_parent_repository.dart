@@ -244,11 +244,16 @@ class FirebaseParentRepository implements ParentRepository {
   Future<List<Student>> getChildrenForParent({
     required String schoolId,
     required String parentId,
+    String? branchId,
   }) async {
     try {
-      final links = await _firestore
+      var linkQuery = _firestore
           .collectionGroup(FirestoreFields.parentLinksCollection)
-          .where('schoolId', isEqualTo: schoolId)
+          .where('schoolId', isEqualTo: schoolId);
+      if (branchId != null) {
+        linkQuery = linkQuery.where('branchId', isEqualTo: branchId);
+      }
+      final links = await linkQuery
           .where('parentId', isEqualTo: parentId)
           .get();
 
@@ -261,19 +266,19 @@ class FirebaseParentRepository implements ParentRepository {
         if (data['canAccessPortal'] != true || data['status'] != 'ACTIVE') {
           continue;
         }
-        final branchId = data[FirestoreFields.branchId] as String;
+        final linkBranchId = data[FirestoreFields.branchId] as String;
         final studentId = data['studentId'] as String;
         try {
           final studentSnapshot = await _studentDoc(
             schoolId,
-            branchId,
+            linkBranchId,
             studentId,
           ).get();
           if (studentSnapshot.exists) {
             students.add(
               Student.fromFirestore(
                 schoolId,
-                branchId,
+                linkBranchId,
                 studentId,
                 studentSnapshot.data()!,
               ),

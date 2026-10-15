@@ -293,11 +293,16 @@ abstract class PaymentRepository {
     required String actorId,
   });
 
+  /// Payments recorded against one invoice. [studentId] (the invoice's
+  /// student) pins the query: a parent is allowed a payment only through
+  /// their own child, and Firestore rules are not filters, so a query keyed on
+  /// `invoiceId` alone is refused for them.
   Stream<List<Payment>> watchInvoicePayments(
     String schoolId,
     String branchId,
-    String invoiceId,
-  );
+    String invoiceId, {
+    String? studentId,
+  });
 
   Future<PagedResult<Payment>> fetchPayments({
     required String schoolId,

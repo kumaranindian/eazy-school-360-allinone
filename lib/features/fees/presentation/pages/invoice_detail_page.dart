@@ -147,7 +147,14 @@ class _Detail extends ConsumerWidget {
         !invoice.isVoid &&
         invoice.paidMinor == 0;
     final canReverse = !parentView && tenant.can(Permission.reversePayments);
-    final payments = ref.watch(invoicePaymentsProvider(key));
+    final payments = ref.watch(
+      invoicePaymentsProvider((
+        schoolId: key.schoolId,
+        branchId: key.branchId,
+        invoiceId: key.invoiceId,
+        studentId: invoice.studentId,
+      )),
+    );
     final receiptRoute = parentView ? '/my-fees/receipts' : '/fees/receipts';
 
     return ListView(

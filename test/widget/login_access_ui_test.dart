@@ -44,6 +44,7 @@ LoginAccess _access({
   List<LoginMethod> school = LoginMethod.values,
 }) => LoginAccess(
   id: 't1',
+  uid: hasAccount ? 'uid-t1' : null,
   kind: LoginKind.staff,
   name: 'Asha Krishnamurthy-Subramanian',
   userType: 'TEACHER',
@@ -270,6 +271,49 @@ void main() {
       await tester.pumpAndSettle();
       expect(repo.writes, hasLength(1));
       expect(repo.writes.single.enabled, isTrue);
+    });
+
+    testWidgets('Check access names what is missing and how to fix it', (
+      tester,
+    ) async {
+      final repo = FakeLoginAccessRepository(access: _access())
+        ..diagnosis = const AccessDiagnosis(
+          healthy: false,
+          checks: [
+            AccessCheck(
+              id: 'PARENT_ACCESS',
+              ok: false,
+              severity: 'HIGH',
+              message: 'The parentAccess index document is missing.',
+              fix: 'Parents → Refresh parent access.',
+            ),
+            AccessCheck(
+              id: 'STATUS_ACTIVE',
+              ok: true,
+              severity: 'OK',
+              message: 'ok',
+            ),
+          ],
+        );
+      await _pump(tester, home: _opener(), repo: repo);
+      await _open(tester);
+      await tester.ensureVisible(find.text('Check access'));
+      await tester.tap(find.text('Check access'));
+      await tester.pumpAndSettle();
+      expect(find.text('Needs attention'), findsOneWidget);
+      expect(
+        find.textContaining('parentAccess index document'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Refresh parent access'), findsOneWidget);
+
+      repo.diagnosis = const AccessDiagnosis(healthy: true, checks: []);
+      await tester.tap(find.text('Check access'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Everything this account needs'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('own account / administrators are read-only', (tester) async {

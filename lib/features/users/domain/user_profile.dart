@@ -38,6 +38,20 @@ class LoginState {
       enabled && method != null && effective.contains(method);
 }
 
+/// A `/users/{uid}` document that exists but cannot be used: its role or
+/// status is missing or not one this app knows (a typo, a lowercase value, a
+/// role from another system). Surfaced as "account not set up correctly"
+/// instead of a crash or an endless loading screen.
+///
+/// An [Error], not an `Exception`, so Riverpod does not retry it.
+class InvalidProfileException extends Error {
+  final String field;
+  InvalidProfileException(this.field);
+
+  @override
+  String toString() => 'InvalidProfileException(field: $field)';
+}
+
 class UserProfile {
   final String userId;
   final String? schoolId;
@@ -93,8 +107,16 @@ class UserProfile {
       email: data['email'] as String? ?? '',
       phone: data['phone'] as String?,
       photoUrl: data['photoUrl'] as String?,
-      role: UserRole.fromWireValue(data[FirestoreFields.role] as String),
-      status: UserStatus.fromWireValue(data[FirestoreFields.status] as String),
+      role: _parse(
+        data[FirestoreFields.role],
+        FirestoreFields.role,
+        UserRole.fromWireValue,
+      ),
+      status: _parse(
+        data[FirestoreFields.status],
+        FirestoreFields.status,
+        UserStatus.fromWireValue,
+      ),
       linkedParentId: data['linkedParentId'] as String?,
       login: LoginState.fromData(data['login']),
       createdAt: (data[FirestoreFields.createdAt] as Timestamp?)?.toDate(),
@@ -102,6 +124,15 @@ class UserProfile {
       createdBy: data[FirestoreFields.createdBy] as String?,
       updatedBy: data[FirestoreFields.updatedBy] as String?,
     );
+  }
+
+  static T _parse<T>(Object? raw, String field, T Function(String) parse) {
+    if (raw is! String) throw InvalidProfileException(field);
+    try {
+      return parse(raw);
+    } on StateError {
+      throw InvalidProfileException(field);
+    }
   }
 
   Map<String, dynamic> toFirestoreCreate({required String createdBy}) {

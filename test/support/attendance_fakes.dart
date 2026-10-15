@@ -13,7 +13,12 @@ import 'package:eazy_school_360/features/students/domain/student.dart';
 import 'package:eazy_school_360/features/students/domain/student_status.dart';
 import 'package:eazy_school_360/features/staff/domain/staff.dart';
 
-Student fakeStudent(String id, String first, {String? roll}) => Student(
+Student fakeStudent(
+  String id,
+  String first, {
+  String? roll,
+  String? academicYearId,
+}) => Student(
   studentId: id,
   schoolId: 'school-1',
   branchId: 'main',
@@ -26,6 +31,7 @@ Student fakeStudent(String id, String first, {String? roll}) => Student(
   admissionDate: DateTime(2026, 6, 1),
   status: StudentStatus.active,
   currentRollNumber: roll,
+  currentAcademicYearId: academicYearId,
 );
 
 /// Serves a canned register and records every save the UI performs.

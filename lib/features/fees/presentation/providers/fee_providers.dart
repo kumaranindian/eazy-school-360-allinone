@@ -72,11 +72,21 @@ final invoiceProvider = StreamProvider.autoDispose
           .watchInvoice(key.schoolId, key.branchId, key.invoiceId);
     });
 
+/// An invoice's payments, pinned to the invoice's student (see
+/// [PaymentRepository.watchInvoicePayments]).
 final invoicePaymentsProvider = StreamProvider.autoDispose
-    .family<List<Payment>, FeeInvoiceKey>((ref, key) {
+    .family<
+      List<Payment>,
+      ({String schoolId, String branchId, String invoiceId, String studentId})
+    >((ref, key) {
       return ref
           .watch(paymentRepositoryProvider)
-          .watchInvoicePayments(key.schoolId, key.branchId, key.invoiceId);
+          .watchInvoicePayments(
+            key.schoolId,
+            key.branchId,
+            key.invoiceId,
+            studentId: key.studentId,
+          );
     });
 
 final invoiceWaiversProvider = StreamProvider.autoDispose

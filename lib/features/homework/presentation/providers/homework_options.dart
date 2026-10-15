@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../timetable/domain/substitution.dart' show StaffLite;
 import '../../../academic_setup/presentation/providers/academic_structure_providers.dart';
 import '../../../timetable/presentation/providers/timetable_providers.dart';
 
@@ -57,12 +58,17 @@ final homeworkOptionsProvider = FutureProvider.autoDispose
         )).future,
       );
       final subjects = {for (final s in subjectList) s.subjectId: s};
-      final teachers = await ref.watch(
-        activeTeachersProvider((
-          schoolId: key.schoolId,
-          branchId: key.branchId,
-        )).future,
-      );
+      // Teacher names only matter to an admin choosing a teacher. A teacher
+      // (teacherStaffId set) may not list colleagues' staff records, and the
+      // list is only used to label their own options anyway.
+      final teachers = key.teacherStaffId != null
+          ? const <StaffLite>[]
+          : await ref.watch(
+              activeTeachersProvider((
+                schoolId: key.schoolId,
+                branchId: key.branchId,
+              )).future,
+            );
       final className = {for (final c in classes) c.classId: c.name};
       final teacherName = {for (final t in teachers) t.staffId: t.name};
 

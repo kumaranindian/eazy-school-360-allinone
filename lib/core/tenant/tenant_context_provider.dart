@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../logging/app_logger.dart';
 import '../../features/authentication/presentation/providers/auth_providers.dart';
 import '../../features/school_setup/presentation/providers/school_providers.dart';
+import '../../features/users/domain/user_profile.dart';
 import '../../features/users/domain/user_status.dart';
 import '../../features/users/presentation/providers/user_providers.dart';
 import 'account_inactive_exception.dart';
@@ -32,9 +33,21 @@ class TenantContextNotifier extends AsyncNotifier<TenantContext?> {
     }
     AppLogger.debug('Resolving tenant for uid=${authState.uid}', tag: 'Tenant');
 
-    final profile = await ref
-        .watch(userRepositoryProvider)
-        .getUserProfile(authState.uid);
+    final UserProfile? profile;
+    try {
+      profile = await ref
+          .watch(userRepositoryProvider)
+          .getUserProfile(authState.uid);
+    } on InvalidProfileException catch (e) {
+      AppLogger.error(
+        'Profile for uid=${authState.uid} is unusable ($e); refusing access.',
+        tag: 'Tenant',
+      );
+      throw AccountInactiveException(
+        UserStatus.disabled,
+        cause: InactiveCause.invalidProfile,
+      );
+    }
     if (profile == null) {
       AppLogger.debug(
         'No /users/${authState.uid} profile; routing to create-school.',

@@ -15,6 +15,7 @@ const { pushToUsers } = require('./push');
 const { defineSecret, defineString } = require('firebase-functions/params');
 const { provisionLogins, ensureAuthUser, enablePortalLinks } = require('./provision');
 const access = require('./access');
+const { diagnoseAccess } = require('./diagnose');
 const { requestOtp, verifyOtp } = require('./otp');
 const { createWhatsAppSender } = require('./whatsapp');
 
@@ -143,6 +144,14 @@ const adminCtx = () => ({
 exports.getLoginAccess = onCall(async (request) => {
   const a = signedIn(request);
   const out = await access.getLoginAccess(adminCtx(), a.uid, a.token, request.data);
+  if (out.error) fail(out);
+  return out.result;
+});
+
+// Read-only: names the missing prerequisite behind a user's permission-denied.
+exports.diagnoseAccess = onCall(async (request) => {
+  const a = signedIn(request);
+  const out = await diagnoseAccess({ db }, a.uid, a.token, request.data);
   if (out.error) fail(out);
   return out.result;
 });

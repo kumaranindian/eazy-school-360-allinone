@@ -6,6 +6,7 @@ import '../../homework/data/homework_firestore.dart';
 import '../../homework/data/homework_writes.dart';
 import '../../homework/domain/homework_repositories.dart';
 import '../domain/announcement.dart';
+import '../domain/audience_fallback.dart';
 import 'announcement_writes.dart';
 
 /// Announcements. Same discipline as homework: each change is one batch of
@@ -21,13 +22,17 @@ class FirebaseAnnouncementRepository implements AnnouncementRepository {
   HomeworkCollections _c(String schoolId, String branchId) =>
       HomeworkCollections(_firestore, schoolId, branchId);
 
-  static const _parentAudiences = [
-    'ALL',
-    'BRANCH',
-    'PARENTS',
-    'CLASS',
-    'SECTION',
-  ];
+  static bool _denied(Object e) =>
+      e is FirebaseException && e.code == 'permission-denied';
+
+  Future<T> _withParentFallback<T>(
+    String viewerRole,
+    Future<T> Function(List<String> audiences) run,
+  ) => runWithParentFallback(
+    isParent: viewerRole == 'PARENT',
+    run: run,
+    isDenied: _denied,
+  );
 
   Future<Announcement?> _read(HomeworkCollections c, String id) async {
     final snap = await c.announcements.doc(id).get();
@@ -296,17 +301,16 @@ class FirebaseAnnouncementRepository implements AnnouncementRepository {
           for (final d in snap.docs) Announcement.fromFirestore(d.data(), d.id),
         ]);
       } else {
-        Query<Map<String, dynamic>> q = c.announcements.where(
-          'status',
-          isEqualTo: AnnouncementStatus.published.wireValue,
-        );
-        if (viewerRole == 'PARENT') {
-          q = q.where('audienceKind', whereIn: _parentAudiences);
-        }
-        final snap = await q
-            .orderBy('publishAt', descending: true)
-            .limit(limit)
-            .get();
+        final snap = await _withParentFallback(viewerRole, (audiences) {
+          Query<Map<String, dynamic>> q = c.announcements.where(
+            'status',
+            isEqualTo: AnnouncementStatus.published.wireValue,
+          );
+          if (audiences.isNotEmpty) {
+            q = q.where('audienceKind', whereIn: audiences);
+          }
+          return q.orderBy('publishAt', descending: true).limit(limit).get();
+        });
         list.addAll([
           for (final d in snap.docs) Announcement.fromFirestore(d.data(), d.id),
         ]);
@@ -336,21 +340,36 @@ class FirebaseAnnouncementRepository implements AnnouncementRepository {
     required String branchId,
     required String viewerRole,
     int limit = 30,
-  }) {
-    Query<Map<String, dynamic>> q = _c(schoolId, branchId).notices;
-    if (viewerRole == 'PARENT') {
-      q = q.where('audienceKind', whereIn: _parentAudiences);
+  }) async* {
+    Stream<List<BroadcastNotice>> watch(List<String> audiences) {
+      Query<Map<String, dynamic>> q = _c(schoolId, branchId).notices;
+      if (audiences.isNotEmpty) {
+        q = q.where('audienceKind', whereIn: audiences);
+      }
+      return q
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .snapshots()
+          .map(
+            (snap) => [
+              for (final d in snap.docs)
+                BroadcastNotice.fromFirestore(d.data(), d.id),
+            ],
+          );
     }
-    return q
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .snapshots()
-        .map(
-          (snap) => [
-            for (final d in snap.docs)
-              BroadcastNotice.fromFirestore(d.data(), d.id),
-          ],
-        );
+
+    if (viewerRole != 'PARENT') {
+      yield* watch(const []);
+      return;
+    }
+    try {
+      await for (final x in watch(parentAudiences)) {
+        yield x;
+      }
+    } catch (e) {
+      if (!_denied(e)) rethrow;
+      yield* watch(schoolWideAudience);
+    }
   }
 
   @override
@@ -361,14 +380,13 @@ class FirebaseAnnouncementRepository implements AnnouncementRepository {
     int limit = 50,
   }) async {
     try {
-      Query<Map<String, dynamic>> q = _c(schoolId, branchId).notices;
-      if (viewerRole == 'PARENT') {
-        q = q.where('audienceKind', whereIn: _parentAudiences);
-      }
-      final snap = await q
-          .orderBy('createdAt', descending: true)
-          .limit(limit)
-          .get();
+      final snap = await _withParentFallback(viewerRole, (audiences) {
+        Query<Map<String, dynamic>> q = _c(schoolId, branchId).notices;
+        if (audiences.isNotEmpty) {
+          q = q.where('audienceKind', whereIn: audiences);
+        }
+        return q.orderBy('createdAt', descending: true).limit(limit).get();
+      });
       return [
         for (final d in snap.docs)
           BroadcastNotice.fromFirestore(d.data(), d.id),

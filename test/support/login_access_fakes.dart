@@ -73,6 +73,15 @@ class FakeLoginAccessRepository implements LoginAccessRepository {
     );
   }
 
+  AccessDiagnosis diagnosis = const AccessDiagnosis(healthy: true, checks: []);
+
+  @override
+  Future<AccessDiagnosis> diagnose({
+    required String schoolId,
+    required String branchId,
+    required String uid,
+  }) async => diagnosis;
+
   @override
   Future<SchoolAuthSettings> getSchoolSettings(String schoolId) async =>
       settings;

@@ -224,6 +224,13 @@ class FakeAcademicStructureRepository implements AcademicStructureRepository {
   ) => Stream.value(years);
 
   @override
+  Future<AcademicYear?> getAcademicYear(
+    String schoolId,
+    String branchId,
+    String academicYearId,
+  ) async => years.where((y) => y.academicYearId == academicYearId).firstOrNull;
+
+  @override
   Stream<List<SchoolClass>> watchClasses(
     String schoolId,
     String branchId,

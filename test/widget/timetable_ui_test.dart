@@ -87,6 +87,7 @@ class _FakeParentRepository implements ParentRepository {
   Future<List<Student>> getChildrenForParent({
     required String schoolId,
     required String parentId,
+    String? branchId,
   }) async => children;
 
   @override

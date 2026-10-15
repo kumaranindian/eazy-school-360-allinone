@@ -48,9 +48,15 @@ abstract class ParentRepository {
   /// A collection-group query across every student's `parentLinks`
   /// (brief §22: "Parent A → Student 1, Student 2, Student 3") — see
   /// `firestore.indexes.json` for the index this needs.
+  ///
+  /// A parent reads their own links with just [schoolId] + [parentId]. Staff
+  /// (who are scoped to a branch by the rules) must also pass [branchId] —
+  /// without it the rules cannot prove the query stays inside their branch
+  /// and refuse it (needs the `(schoolId, branchId, parentId)` index).
   Future<List<Student>> getChildrenForParent({
     required String schoolId,
     required String parentId,
+    String? branchId,
   });
 
   /// Grants portal-login authorization to an existing `/users/{uid}`

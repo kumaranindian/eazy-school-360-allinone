@@ -84,6 +84,26 @@ class FirebaseLoginAccessRepository implements LoginAccessRepository {
   }
 
   @override
+  Future<AccessDiagnosis> diagnose({
+    required String schoolId,
+    required String branchId,
+    required String uid,
+  }) async {
+    final m = await _call('diagnoseAccess', {
+      'schoolId': schoolId,
+      'branchId': branchId,
+      'uid': uid,
+    });
+    return AccessDiagnosis(
+      healthy: m['healthy'] == true,
+      checks: [
+        for (final c in (m['checks'] as List? ?? const []))
+          AccessCheck.fromMap(c as Map),
+      ],
+    );
+  }
+
+  @override
   Future<SchoolAuthSettings> getSchoolSettings(String schoolId) async {
     final m = await _call('getSchoolAuthSettings', {'schoolId': schoolId});
     final configured = Map<String, dynamic>.from(

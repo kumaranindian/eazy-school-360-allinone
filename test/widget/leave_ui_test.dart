@@ -78,6 +78,7 @@ class _FakeParentRepository implements ParentRepository {
   Future<List<Student>> getChildrenForParent({
     required String schoolId,
     required String parentId,
+    String? branchId,
   }) async => children;
 
   @override
@@ -331,7 +332,7 @@ Future<void> _fillStudentForm(
 }
 
 void main() {
-  final child = fakeStudent('stu-1', 'Anil');
+  final child = fakeStudent('stu-1', 'Anil', academicYearId: 'y1');
 
   group('route and navigation permissions', () {
     testWidgets('a parent reaches only /my-leave', (tester) async {

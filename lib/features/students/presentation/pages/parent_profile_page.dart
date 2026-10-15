@@ -57,6 +57,7 @@ class ParentProfilePage extends ConsumerWidget {
               childrenForParentProvider((
                 schoolId: schoolId,
                 parentId: parentId,
+                branchId: branchId,
               )),
             );
 
