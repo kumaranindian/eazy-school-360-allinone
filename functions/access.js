@@ -297,7 +297,16 @@ async function setLoginAccess(ctx, callerUid, token, data) {
     await auth.revokeRefreshTokens(uid);
     revoked = true;
   }
-  return { result: { uid, created, enabled: user.enabled, methods, effective: user.effective, revoked } };
+  // A family's class/section-scoped screens (homework, leave, results,
+  // timetable) are authorised by the `parentAccess` index, which is only built
+  // when a link is portal-enabled. Granting access therefore (re)builds it, so
+  // a parent who already had an account is not left with screens that fail.
+  let portalLinked = false;
+  if (kind === 'PARENT' && data.enabled && !created && data.enablePortal !== false && ctx.enablePortalLinks) {
+    await ctx.enablePortalLinks({ db, schoolId, branchId, by: callerUid, now }, id);
+    portalLinked = true;
+  }
+  return { result: { uid, created, enabled: user.enabled, methods, effective: user.effective, revoked, portalLinked } };
 }
 
 const TARGET_ERRORS = { TARGET_MISMATCH: 'PERMISSION_DENIED', FORBIDDEN_TARGET: 'PERMISSION_DENIED' };
@@ -307,26 +316,51 @@ async function createAccountFor(ctx, { rec, kind, schoolId, branchId, callerUid,
   if (kind === 'STAFF' && rec.data.userId) return { error: 'ALREADY_LINKED' };
   const role = kind === 'PARENT' ? 'PARENT' : rec.data.isTeacher ? 'TEACHER' : 'FINANCE';
   if (!mayManageRole(caller, role)) return { error: 'PERMISSION_DENIED' };
-  const a = await ctx.ensureAuthUser(auth, db, { email: rec.email, name: rec.name, phone: rec.phone });
-  if (a.problem) return { error: a.problem };
-  const batch = db.batch();
-  batch.set(db.collection('users').doc(a.uid), {
+  const a = await ctx.ensureAuthUser(auth, db, {
+    email: rec.email,
+    name: rec.name,
+    phone: rec.phone,
     schoolId,
     branchId,
-    name: rec.name,
-    email: rec.email,
-    phone: rec.phone,
-    photoUrl: null,
-    role,
-    status: 'ACTIVE',
-    linkedParentId: kind === 'PARENT' ? rec.ref.id : null,
-    // Created locked: setLoginAccess immediately writes the real grant.
-    login: { enabled: false, methods: [], effective: [], phone: null, updatedAt: now, updatedBy: callerUid },
-    createdAt: now,
-    updatedAt: now,
-    createdBy: callerUid,
-    updatedBy: callerUid,
+    kind,
+    recordId: rec.ref.id,
+    allowedRoles:
+      kind === 'PARENT'
+        ? ['PARENT']
+        : caller.role === 'SCHOOL_ADMIN'
+          ? ['TEACHER', 'FINANCE', 'BRANCH_ADMIN']
+          : ['TEACHER', 'FINANCE'],
   });
+  if (a.problem) return { error: a.problem };
+  const batch = db.batch();
+  const userRef = db.collection('users').doc(a.uid);
+  if (a.existingProfile) {
+    // An existing /users profile for this person: map it, keep role/status and
+    // any existing grant (setLoginAccess then writes the requested one).
+    batch.update(userRef, {
+      ...(kind === 'PARENT' ? { linkedParentId: rec.ref.id } : {}),
+      updatedAt: now,
+      updatedBy: callerUid,
+    });
+  } else {
+    batch.set(userRef, {
+      schoolId,
+      branchId,
+      name: rec.name,
+      email: rec.email,
+      phone: rec.phone,
+      photoUrl: null,
+      role,
+      status: 'ACTIVE',
+      linkedParentId: kind === 'PARENT' ? rec.ref.id : null,
+      // Created locked: setLoginAccess immediately writes the real grant.
+      login: { enabled: false, methods: [], effective: [], phone: null, updatedAt: now, updatedBy: callerUid },
+      createdAt: now,
+      updatedAt: now,
+      createdBy: callerUid,
+      updatedBy: callerUid,
+    });
+  }
   batch.update(rec.ref, { [kind === 'STAFF' ? 'userId' : 'linkedUserId']: a.uid, updatedAt: now, updatedBy: callerUid });
   await batch.commit();
   // A parent's portal shows nothing until their children's links allow it.

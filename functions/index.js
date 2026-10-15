@@ -20,7 +20,7 @@ const { createWhatsAppSender } = require('./whatsapp');
 
 initializeApp();
 // Must match the Firestore database region (Firestore triggers are regional).
-setGlobalOptions({ region: process.env.FUNCTIONS_REGION || 'us-central1', maxInstances: 10 });
+setGlobalOptions({ region: process.env.FUNCTIONS_REGION || 'asia-south1', maxInstances: 10 });
 
 const db = getFirestore();
 const messaging = getMessaging();

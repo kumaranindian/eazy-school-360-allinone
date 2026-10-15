@@ -24,14 +24,38 @@ async function assertAdmin(db, uid, schoolId, branchId, token) {
 // Finds or creates the Authentication account for [email]. Returns
 // { uid, created } or { problem }. [email] may be null for a phone-only login
 // (the account is then reachable only through the verified phone OTP flow).
-async function ensureAuthUser(auth, db, { email, name }) {
+//
+// When the email already has an Auth account AND a /users profile, the profile
+// is *mapped* to the record (`existingProfile: true`) only if it belongs to the
+// same school/branch, has a role this record may hold (`allowedRoles`), and is
+// not claimed by another person. Otherwise it is EMAIL_IN_USE: re-using it
+// would silently merge two people (or two schools).
+async function ensureAuthUser(auth, db, { email, name, schoolId, branchId, kind, recordId, allowedRoles }) {
   if (email) {
     try {
       const existing = await auth.getUserByEmail(email);
       const profile = await db.collection('users').doc(existing.uid).get();
-      // An email that already belongs to a profile is never re-used: it would
-      // silently merge two people (or two schools).
-      if (profile.exists) return { problem: 'EMAIL_IN_USE' };
+      if (profile.exists) {
+        const u = profile.data();
+        const sameTenant = schoolId && u.schoolId === schoolId && (!u.branchId || !branchId || u.branchId === branchId);
+        const roleOk = Array.isArray(allowedRoles) && allowedRoles.includes(u.role);
+        if (!sameTenant || !roleOk) return { problem: 'EMAIL_IN_USE' };
+        if (kind === 'PARENT') {
+          if (u.linkedParentId && u.linkedParentId !== recordId) return { problem: 'EMAIL_IN_USE' };
+          const other = await db
+            .collection('schools').doc(schoolId).collection('branches').doc(u.branchId || branchId)
+            .collection('parents').where('linkedUserId', '==', existing.uid).limit(2).get();
+          if (other.docs.some((d) => d.id !== recordId)) return { problem: 'EMAIL_IN_USE' };
+        } else if (kind === 'STAFF') {
+          const other = await db
+            .collection('schools').doc(schoolId).collection('branches').doc(u.branchId || branchId)
+            .collection('staff').where('userId', '==', existing.uid).limit(2).get();
+          if (other.docs.some((d) => d.id !== recordId)) return { problem: 'EMAIL_IN_USE' };
+        } else {
+          return { problem: 'EMAIL_IN_USE' };
+        }
+        return { uid: existing.uid, created: false, existingProfile: true, profile: u };
+      }
       // An Auth account with this email but no profile was created outside
       // the app (e.g. someone pre-registered the address). Whoever set its
       // password is not known to be the mailbox owner, so the password is
@@ -92,16 +116,41 @@ async function provisionStaff(ctx, id, opts) {
   if (!email) return { id, name, outcome: 'NO_EMAIL' };
   if (!EMAIL.test(email)) return { id, name, email, outcome: 'INVALID_EMAIL' };
   const role = s.isTeacher ? 'TEACHER' : opts.role;
-  const a = await ensureAuthUser(auth, db, { email, name, schoolId });
+  const a = await ensureAuthUser(auth, db, {
+    email,
+    name,
+    schoolId,
+    branchId,
+    kind: 'STAFF',
+    recordId: id,
+    allowedRoles: opts.mappableRoles,
+  });
   if (a.problem) return { id, name, email, outcome: a.problem };
   const batch = db.batch();
-  batch.set(
-    db.collection('users').doc(a.uid),
-    profileDoc({ schoolId, branchId, name, email, phone: s.phone, role, login: await defaultLogin(ctx), by, now }),
-  );
+  const userRef = db.collection('users').doc(a.uid);
+  if (a.existingProfile) {
+    // Keep the profile's role/status; only fill the gaps and map the record.
+    const patch = { updatedAt: now, updatedBy: by };
+    if (!a.profile.login) patch.login = await defaultLogin(ctx);
+    batch.update(userRef, patch);
+  } else {
+    batch.set(
+      userRef,
+      profileDoc({ schoolId, branchId, name, email, phone: s.phone, role, login: await defaultLogin(ctx), by, now }),
+    );
+  }
   batch.update(ref, { userId: a.uid, ...(s.email ? {} : { email }), updatedAt: now, updatedBy: by });
   await batch.commit();
-  return { id, name, email, outcome: 'CREATED', uid: a.uid, role, newAccount: a.created };
+  return {
+    id,
+    name,
+    email,
+    outcome: 'CREATED',
+    uid: a.uid,
+    role: a.existingProfile ? a.profile.role : role,
+    newAccount: a.created,
+    mapped: a.existingProfile === true,
+  };
 }
 
 // Recomputes parentAccess/{parentId} exactly as ParentAccessSync does in the
@@ -167,28 +216,43 @@ async function provisionParent(ctx, id, opts) {
   const email = (p.email || opts.emails[id] || '').trim().toLowerCase();
   if (!email) return { id, name, outcome: 'NO_EMAIL' };
   if (!EMAIL.test(email)) return { id, name, email, outcome: 'INVALID_EMAIL' };
-  const a = await ensureAuthUser(auth, db, { email, name, schoolId });
+  const a = await ensureAuthUser(auth, db, {
+    email,
+    name,
+    schoolId,
+    branchId,
+    kind: 'PARENT',
+    recordId: id,
+    allowedRoles: ['PARENT'],
+  });
   if (a.problem) return { id, name, email, outcome: a.problem };
   const batch = db.batch();
-  batch.set(
-    db.collection('users').doc(a.uid),
-    profileDoc({
-      schoolId,
-      branchId,
-      name,
-      email,
-      phone: p.phone,
-      role: 'PARENT',
-      linkedParentId: id,
-      login: await defaultLogin(ctx),
-      by,
-      now,
-    }),
-  );
+  const userRef = db.collection('users').doc(a.uid);
+  if (a.existingProfile) {
+    const patch = { linkedParentId: id, updatedAt: now, updatedBy: by };
+    if (!a.profile.login) patch.login = await defaultLogin(ctx);
+    batch.update(userRef, patch);
+  } else {
+    batch.set(
+      userRef,
+      profileDoc({
+        schoolId,
+        branchId,
+        name,
+        email,
+        phone: p.phone,
+        role: 'PARENT',
+        linkedParentId: id,
+        login: await defaultLogin(ctx),
+        by,
+        now,
+      }),
+    );
+  }
   batch.update(ref, { linkedUserId: a.uid, ...(p.email ? {} : { email }), updatedAt: now, updatedBy: by });
   await batch.commit();
   if (opts.enablePortal) await enablePortalLinks(ctx, id);
-  return { id, name, email, outcome: 'CREATED', uid: a.uid, role: 'PARENT', newAccount: a.created };
+  return { id, name, email, outcome: 'CREATED', uid: a.uid, role: 'PARENT', newAccount: a.created, mapped: a.existingProfile === true };
 }
 
 // Core of the callable, separated from the Firebase wrapper so it can be
@@ -215,13 +279,14 @@ async function provisionLogins({ db, auth, now }, callerUid, data, token) {
   if (data.emails && typeof data.emails === 'object') {
     for (const [k, v] of Object.entries(data.emails)) if (typeof v === 'string') emails[k] = v;
   }
+  const mappableRoles = caller.role === 'SCHOOL_ADMIN' ? ['TEACHER', 'FINANCE', 'BRANCH_ADMIN'] : ['TEACHER', 'FINANCE'];
   const ctx = { db, auth, schoolId, branchId, by: callerUid, now };
   const results = [];
   for (const id of [...new Set(ids)]) {
     try {
       results.push(
         kind === 'STAFF'
-          ? await provisionStaff(ctx, id, { role, emails })
+          ? await provisionStaff(ctx, id, { role, emails, mappableRoles })
           : await provisionParent(ctx, id, { enablePortal: data.enablePortal === true, emails }),
       );
     } catch (e) {

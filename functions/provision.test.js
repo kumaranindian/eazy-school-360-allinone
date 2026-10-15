@@ -10,13 +10,28 @@ function fakeDb(seed) {
     path,
     id: path.split('/').pop(),
     get: async () => ({ exists: store.has(path), id: path.split('/').pop(), data: () => store.get(path) }),
-    collection: (c) => ({ doc: (i) => ref(`${path}/${c}/${i}`) }),
+    collection: (c) => coll(`${path}/${c}`),
     update: async (d) => store.set(path, { ...store.get(path), ...d }),
     set: async (d) => store.set(path, d),
   });
+  const coll = (path) => {
+    const conds = [];
+    const q = {
+      doc: (i) => ref(`${path}/${i}`),
+      where: (f, op, v) => (conds.push([f, v]), q),
+      limit: () => q,
+      get: async () => ({
+        docs: [...store.entries()]
+          .filter(([k]) => k.startsWith(`${path}/`) && k.split('/').length === path.split('/').length + 1)
+          .filter(([, d]) => conds.every(([f, v]) => d[f] === v))
+          .map(([k, d]) => ({ id: k.split('/').pop(), data: () => d, ref: ref(k) })),
+      }),
+    };
+    return q;
+  };
   return {
     store,
-    collection: (c) => ({ doc: (i) => ref(`${c}/${i}`) }),
+    collection: (c) => coll(c),
     // Only what provision.js uses: equality filters over every doc whose
     // path has a `/<name>/<id>` tail.
     collectionGroup: (name) => {
@@ -148,4 +163,39 @@ test('two parent records sharing one email: second is refused, not merged', asyn
   });
   const { results } = await call(db, fakeAuth(), { kind: 'PARENT', ids: ['pa', 'pb'] });
   assert.deepStrictEqual(results.map((r) => r.outcome), ['CREATED', 'EMAIL_IN_USE']);
+});
+
+test('an existing /users profile for the email is mapped to the record, not refused', async () => {
+  const db = fakeDb({
+    ...base(),
+    'users/pre-t': { schoolId: 's1', branchId: 'b1', role: 'TEACHER', status: 'ACTIVE', email: 'asha@x.com' },
+    'users/pre-p': { schoolId: 's1', branchId: 'b1', role: 'PARENT', status: 'ACTIVE', email: 'par@x.com' },
+    [`${B}/parents/p1`]: { firstName: 'P', lastName: 'One', email: 'par@x.com', status: 'ACTIVE' },
+  });
+  const auth = fakeAuth({ 'asha@x.com': 'pre-t', 'par@x.com': 'pre-p' });
+  const st = await call(db, auth, { ids: ['t1'] });
+  assert.strictEqual(st.results[0].outcome, 'CREATED');
+  assert.strictEqual(st.results[0].mapped, true);
+  assert.strictEqual(db.store.get(`${B}/staff/t1`).userId, 'pre-t');
+  assert.strictEqual(db.store.get('users/pre-t').role, 'TEACHER');
+  const pa = await call(db, auth, { kind: 'PARENT', ids: ['p1'] });
+  assert.strictEqual(pa.results[0].mapped, true);
+  assert.strictEqual(db.store.get(`${B}/parents/p1`).linkedUserId, 'pre-p');
+  assert.strictEqual(db.store.get('users/pre-p').linkedParentId, 'p1');
+});
+
+test('a profile of another school, another role or another person is still EMAIL_IN_USE', async () => {
+  const db = fakeDb({
+    ...base(),
+    'users/x1': { schoolId: 's2', role: 'TEACHER' },
+    'users/x2': { schoolId: 's1', branchId: 'b1', role: 'SCHOOL_ADMIN' },
+    [`${B}/staff/t5`]: { firstName: 'O', lastName: 'Wner', email: 'o@x.com', status: 'ACTIVE', userId: 'x3' },
+    'users/x3': { schoolId: 's1', branchId: 'b1', role: 'TEACHER' },
+    [`${B}/staff/ta`]: { firstName: 'A', lastName: 'A', email: 'a@x.com', status: 'ACTIVE', isTeacher: true },
+    [`${B}/staff/tb`]: { firstName: 'B', lastName: 'B', email: 'b@x.com', status: 'ACTIVE', isTeacher: true },
+    [`${B}/staff/tc`]: { firstName: 'C', lastName: 'C', email: 'o@x.com', status: 'ACTIVE', isTeacher: true },
+  });
+  const auth = fakeAuth({ 'a@x.com': 'x1', 'b@x.com': 'x2', 'o@x.com': 'x3' });
+  const { results } = await call(db, auth, { ids: ['ta', 'tb', 'tc'] });
+  assert.deepStrictEqual(results.map((r) => r.outcome), ['EMAIL_IN_USE', 'EMAIL_IN_USE', 'EMAIL_IN_USE']);
 });
