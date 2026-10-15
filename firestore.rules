@@ -58,8 +58,11 @@ service cloud.firestore {
     // A profile existing is not enough — status must be ACTIVE. INVITED
     // and DISABLED accounts are denied everything except reading (and
     // nothing else on) their own profile.
+    // (Kept deliberately small: this is expanded into most rules in the file,
+    // and the whole ruleset must stay under the service's release limit. The
+    // profile is read once and the sign-in method derived once.)
     function isActiveCaller() {
-      return hasProfile() && callerProfile().status == 'ACTIVE' && loginAllowed();
+      return hasProfile() && activeAndAllowed(callerProfile());
     }
 
     // ---- Login access (authentication feature) ----------------------------
@@ -79,38 +82,59 @@ service cloud.firestore {
         : 'OTHER';
     }
 
-    function loginAllowed() {
-      let l = callerProfile().get('login', null);
-      return l == null || (
+    // [p] is the caller's own profile. ACTIVE, and the login grant (if any)
+    // permits the token's sign-in method. Mirrors storage.rules loginAllowed().
+    function activeAndAllowed(p) {
+      let l = p.get('login', null);
+      let m = signInMethod();
+      return p.status == 'ACTIVE' && (l == null || (
         l.enabled == true
-        && signInMethod() in l.effective
+        && m in l.effective
         // A Google sign-in is only accepted for the Google account whose
         // verified email is the one registered on the profile.
-        && (signInMethod() != 'GOOGLE'
+        && (m != 'GOOGLE'
           || (request.auth.token.get('email_verified', false) == true
-            && request.auth.token.get('email', '').lower() == callerProfile().get('email', '')))
-      );
+            && request.auth.token.get('email', '').lower() == p.get('email', '')))
+      ));
     }
 
     function isPlatformAdmin() {
-      return isActiveCaller() && callerRole() == 'PLATFORM_ADMIN';
+      return hasProfile() && isPlatformAdminP(callerProfile());
+    }
+
+    function isPlatformAdminP(p) {
+      return activeAndAllowed(p) && p.role == 'PLATFORM_ADMIN';
     }
 
     function isSchoolAdminOf(schoolId) {
-      return isActiveCaller() && callerRole() == 'SCHOOL_ADMIN' && callerSchoolId() == schoolId;
+      return hasProfile() && isSchoolAdminOfP(callerProfile(), schoolId);
+    }
+
+    function isSchoolAdminOfP(p, schoolId) {
+      return activeAndAllowed(p) && p.role == 'SCHOOL_ADMIN' && p.schoolId == schoolId;
     }
 
     function isBranchAdminOf(schoolId, branchId) {
-      return isActiveCaller() && callerRole() == 'BRANCH_ADMIN'
-        && callerSchoolId() == schoolId && callerBranchId() == branchId;
+      return hasProfile() && isBranchAdminOfP(callerProfile(), schoolId, branchId);
+    }
+
+    function isBranchAdminOfP(p, schoolId, branchId) {
+      return activeAndAllowed(p) && p.role == 'BRANCH_ADMIN'
+        && p.schoolId == schoolId && p.branchId == branchId;
     }
 
     function isSchoolAdminOrAbove(schoolId) {
-      return isPlatformAdmin() || isSchoolAdminOf(schoolId);
+      return hasProfile() && schoolAdminOrAboveP(callerProfile(), schoolId);
+    }
+
+    function schoolAdminOrAboveP(p, schoolId) {
+      return activeAndAllowed(p) && (p.role == 'PLATFORM_ADMIN'
+        || (p.role == 'SCHOOL_ADMIN' && p.schoolId == schoolId));
     }
 
     function isSameSchool(schoolId) {
-      return isActiveCaller() && callerSchoolId() == schoolId;
+      return hasProfile() && activeAndAllowed(callerProfile())
+        && callerSchoolId() == schoolId;
     }
 
     // ---- Academic setup (Milestone 2) ----------------------------------
@@ -120,15 +144,27 @@ service cloud.firestore {
     // read-only access to their own branch's configuration; PARENT gets
     // none of this (brief §22) — deliberately absent from the role list
     // below rather than relying on a negative check.
+    // One ACTIVE-caller check for the whole "admin of this branch, or one of
+    // [roles] in this branch" family (kept as one expression so the helpers
+    // below do not each expand isActiveCaller() several times).
+    //   PLATFORM_ADMIN: always; SCHOOL_ADMIN: their school;
+    //   others: their own school + branch and a role listed in [roles].
+    function staffScope(schoolId, branchId, roles) {
+      return hasProfile() && staffScopeOf(callerProfile(), schoolId, branchId, roles);
+    }
+
+    function staffScopeOf(p, schoolId, branchId, roles) {
+      return activeAndAllowed(p) && (p.role == 'PLATFORM_ADMIN'
+        || (p.schoolId == schoolId && (p.role == 'SCHOOL_ADMIN'
+          || (p.branchId == branchId && p.role in roles))));
+    }
+
     function canManageAcademicSetup(schoolId, branchId) {
-      return isSchoolAdminOf(schoolId) || isBranchAdminOf(schoolId, branchId) || isPlatformAdmin();
+      return staffScope(schoolId, branchId, ['BRANCH_ADMIN']);
     }
 
     function canViewAcademicSetup(schoolId, branchId) {
-      return canManageAcademicSetup(schoolId, branchId) || (
-        isActiveCaller() && callerSchoolId() == schoolId && callerBranchId() == branchId &&
-        (callerRole() == 'TEACHER' || callerRole() == 'FINANCE')
-      );
+      return staffScope(schoolId, branchId, ['BRANCH_ADMIN', 'TEACHER', 'FINANCE']);
     }
 
     // ---- Student + Parent management (Milestone 3) ---------------------
@@ -139,14 +175,11 @@ service cloud.firestore {
     // from canViewStudentData below) — they can only read a specific
     // student if an ACTIVE, portal-enabled parentLinks record names them.
     function canManageStudentData(schoolId, branchId) {
-      return isSchoolAdminOf(schoolId) || isBranchAdminOf(schoolId, branchId) || isPlatformAdmin();
+      return staffScope(schoolId, branchId, ['BRANCH_ADMIN']);
     }
 
     function canViewStudentData(schoolId, branchId) {
-      return canManageStudentData(schoolId, branchId) || (
-        isActiveCaller() && callerSchoolId() == schoolId && callerBranchId() == branchId &&
-        (callerRole() == 'TEACHER' || callerRole() == 'FINANCE')
-      );
+      return staffScope(schoolId, branchId, ['BRANCH_ADMIN', 'TEACHER', 'FINANCE']);
     }
 
     function parentLinkPath(schoolId, branchId, studentId, parentId) {
@@ -182,14 +215,11 @@ service cloud.firestore {
     // Designation is descriptive only and appears nowhere below: access
     // follows the caller's /users role, never a job title.
     function canManageStaff(schoolId, branchId) {
-      return isSchoolAdminOf(schoolId) || isBranchAdminOf(schoolId, branchId) || isPlatformAdmin();
+      return staffScope(schoolId, branchId, ['BRANCH_ADMIN']);
     }
 
     function canViewStaff(schoolId, branchId) {
-      return canManageStaff(schoolId, branchId) || (
-        isActiveCaller() && callerSchoolId() == schoolId && callerBranchId() == branchId &&
-        callerRole() == 'FINANCE'
-      );
+      return staffScope(schoolId, branchId, ['BRANCH_ADMIN', 'FINANCE']);
     }
 
     function departmentPath(schoolId, branchId, departmentId) {
@@ -369,9 +399,7 @@ service cloud.firestore {
     }
 
     function canFeeStaff(schoolId, branchId) {
-      return canManageStaff(schoolId, branchId) || (
-        isActiveCaller() && callerSchoolId() == schoolId && callerBranchId() == branchId && callerRole() == 'FINANCE'
-      );
+      return staffScope(schoolId, branchId, ['BRANCH_ADMIN', 'FINANCE']);
     }
 
     function feeDoc(schoolId, branchId, collection, id) {
