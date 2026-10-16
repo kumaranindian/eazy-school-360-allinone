@@ -67,6 +67,7 @@ abstract final class RolePermissions {
       Permission.viewOwnStaffProfile,
       Permission.viewOwnHomework,
       Permission.viewOwnResults,
+      Permission.viewOwnAttendance,
     },
     UserRole.schoolAdmin: {
       Permission.viewNotifications,
@@ -216,6 +217,7 @@ abstract final class RolePermissions {
       Permission.viewOwnHomework,
       Permission.viewAnnouncements,
       Permission.viewOwnResults,
+      Permission.viewOwnAttendance,
     },
   };
 

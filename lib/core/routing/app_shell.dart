@@ -170,6 +170,14 @@ class AppShell extends ConsumerWidget {
     ),
     (
       NavDestination(
+        label: 'My Attendance',
+        icon: Icons.fact_check_outlined,
+        selectedIcon: Icons.fact_check,
+      ),
+      AppRoutes.myAttendance,
+    ),
+    (
+      NavDestination(
         label: 'My Results',
         icon: Icons.workspace_premium_outlined,
         selectedIcon: Icons.workspace_premium,
@@ -297,6 +305,11 @@ class AppShell extends ConsumerWidget {
       'Examinations',
       'Schedules, marks and report cards',
       Icons.workspace_premium_outlined,
+    ),
+    AppRoutes.myAttendance: (
+      'Attendance',
+      'Daily record for your children',
+      Icons.fact_check_outlined,
     ),
     AppRoutes.myResults: (
       'Your results',

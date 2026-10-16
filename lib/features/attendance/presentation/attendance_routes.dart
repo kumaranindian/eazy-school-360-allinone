@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 
 import 'pages/attendance_hub_page.dart';
 import 'pages/attendance_reports_page.dart';
+import 'pages/my_attendance_page.dart';
 import 'pages/staff_attendance_page.dart';
 import 'pages/student_attendance_page.dart';
 
@@ -24,5 +25,13 @@ List<RouteBase> attendanceRoutes() => [
         builder: (context, state) => const AttendanceReportsPage(),
       ),
     ],
+  ),
+];
+
+/// A parent's read-only view of the linked children's attendance.
+List<RouteBase> myAttendanceRoutes() => [
+  GoRoute(
+    path: '/my-attendance',
+    builder: (context, state) => const MyAttendancePage(),
   ),
 ];

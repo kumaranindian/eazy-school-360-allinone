@@ -131,6 +131,9 @@ abstract final class AppRoutes {
   static const String examStudentResult = '/exams/results/:examId/:studentId';
   static const String examHistory = '/exams/history/:examId';
   static const String myResults = '/my-results';
+
+  /// A parent's read-only view of the linked children's attendance.
+  static const String myAttendance = '/my-attendance';
   static const String myResult = '/my-results/:examId/:studentId';
 
   /// Notification centre and parent–teacher messages (Milestone 11).
@@ -246,6 +249,7 @@ abstract final class AppRoutes {
     examResults: Permission.approveResults,
     examStudentResult: Permission.approveResults,
     examHistory: Permission.approveResults,
+    myAttendance: Permission.viewOwnAttendance,
     myResults: Permission.viewOwnResults,
     myResult: Permission.viewOwnResults,
     notifications: Permission.viewNotifications,

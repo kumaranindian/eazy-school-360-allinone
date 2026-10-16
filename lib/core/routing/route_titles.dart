@@ -46,6 +46,7 @@ const Map<String, String> _titles = {
   AppRoutes.myHomework: 'My Homework',
   AppRoutes.announcements: 'Announcements',
   AppRoutes.exams: 'Exams',
+  AppRoutes.myAttendance: 'My Attendance',
   AppRoutes.myResults: 'My Results',
   AppRoutes.notifications: 'Notifications',
   AppRoutes.messages: 'Messages',

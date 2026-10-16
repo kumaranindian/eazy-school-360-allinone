@@ -191,6 +191,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(routes: myHomeworkRoutes()),
           StatefulShellBranch(routes: announcementRoutes()),
           StatefulShellBranch(routes: examRoutes()),
+          StatefulShellBranch(routes: myAttendanceRoutes()),
           StatefulShellBranch(routes: myResultsRoutes()),
           StatefulShellBranch(routes: notificationRoutes()),
           StatefulShellBranch(routes: messageRoutes()),

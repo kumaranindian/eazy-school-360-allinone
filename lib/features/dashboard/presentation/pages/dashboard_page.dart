@@ -12,6 +12,7 @@ import '../../../../shared/branding/school_brand_logo.dart';
 import '../../../../shared/branding/page_hero.dart';
 import '../../../../shared/layouts/hub_layout.dart';
 import '../../../../shared/loading/async_value_widget.dart';
+import '../widgets/parent_home_summary.dart';
 
 /// One shortcut on the dashboard.
 ///
@@ -123,6 +124,13 @@ const _sections = [
       Icons.workspace_premium_outlined,
       AppColors.gold,
       path: AppRoutes.exams,
+    ),
+    _Shortcut(
+      'My attendance',
+      'Daily record for your children',
+      Icons.fact_check_outlined,
+      AppColors.brandBlue,
+      path: AppRoutes.myAttendance,
     ),
     _Shortcut(
       'My results',
@@ -286,6 +294,10 @@ class DashboardPage extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _Hero(tenant: tenant),
+              if (tenant.role == UserRole.parent) ...[
+                const SizedBox(height: AppSpacing.lg),
+                ParentHomeSummary(tenant: tenant),
+              ],
               for (final (section, items) in groups) ...[
                 const SizedBox(height: AppSpacing.lg),
                 HubGroup(

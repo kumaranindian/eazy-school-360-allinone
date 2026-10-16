@@ -183,6 +183,9 @@ enum Permission {
   /// A parent's view of the linked children's published results.
   viewOwnResults,
 
+  /// A parent's read-only view of the linked children's attendance.
+  viewOwnAttendance,
+
   /// The notification centre and preferences (every signed-in role).
   viewNotifications,
 

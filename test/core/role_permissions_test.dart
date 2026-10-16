@@ -20,7 +20,7 @@ void main() {
   });
 
   test(
-    'parent manages their own profile and views their own children\'s fees and leave — nothing else',
+    'parent manages their own profile and views their own children\'s fees, leave, attendance and results — nothing else',
     () {
       expect(RolePermissions.permissionsFor(UserRole.parent), {
         Permission.manageOwnProfile,
@@ -30,6 +30,7 @@ void main() {
         Permission.viewOwnHomework,
         Permission.viewAnnouncements,
         Permission.viewOwnResults,
+        Permission.viewOwnAttendance,
         Permission.viewNotifications,
         Permission.useMessages,
       });
