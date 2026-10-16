@@ -2,10 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../users/presentation/providers/user_providers.dart';
 import '../../data/firebase_academic_structure_repository.dart';
+import '../../data/firebase_school_year_repository.dart';
 import '../../domain/academic_structure_repository.dart';
 import '../../domain/academic_year.dart';
 import '../../domain/class_subject_link.dart';
+import '../../domain/school_academic_year.dart';
 import '../../domain/school_class.dart';
+import '../../domain/school_year_repository.dart';
 import '../../domain/section.dart';
 import '../../domain/subject.dart';
 import 'academic_setup_keys.dart';
@@ -13,6 +16,29 @@ import 'academic_setup_keys.dart';
 final academicStructureRepositoryProvider =
     Provider<AcademicStructureRepository>((ref) {
       return FirebaseAcademicStructureRepository(ref.watch(firestoreProvider));
+    });
+
+final schoolYearRepositoryProvider = Provider<SchoolYearRepository>((ref) {
+  return FirebaseSchoolYearRepository(ref.watch(firestoreProvider));
+});
+
+/// The school-wide academic years (the registry branches open from).
+final schoolYearsProvider = StreamProvider.autoDispose
+    .family<List<SchoolAcademicYear>, String>((ref, schoolId) {
+      return ref.watch(schoolYearRepositoryProvider).watchSchoolYears(schoolId);
+    });
+
+/// Which branches (comma-joined ids) already hold the branch copy of a
+/// school-wide year.
+final schoolYearOpenedProvider = FutureProvider.autoDispose
+    .family<Set<String>, ({String schoolId, String yearId, String branchIds})>((
+      ref,
+      key,
+    ) {
+      if (key.branchIds.isEmpty) return <String>{};
+      return ref
+          .watch(schoolYearRepositoryProvider)
+          .openedIn(key.schoolId, key.yearId, key.branchIds.split(','));
     });
 
 final academicYearsProvider = StreamProvider.autoDispose

@@ -15,6 +15,7 @@ import '../domain/student.dart';
 import '../domain/student_academic_record.dart';
 import '../domain/student_repository.dart';
 import '../domain/student_status.dart';
+import 'branch_transfer_writes.dart';
 import 'parent_access_sync.dart';
 
 /// Nesting: `/schools/{s}/branches/{b}/students/{studentId}`, then
@@ -610,6 +611,193 @@ class FirebaseStudentRepository implements StudentRepository {
 
       await batch.commit();
       await _refreshFamilies(schoolId, branchId, studentId, updatedBy);
+    } catch (error, stackTrace) {
+      throw mapExceptionToFailure(error, stackTrace);
+    }
+  }
+
+  @override
+  Future<String> transferToBranch({
+    required String schoolId,
+    required String fromBranchId,
+    required String studentId,
+    required String toBranchId,
+    required String admissionNumber,
+    required String academicYearId,
+    required String classId,
+    required String sectionId,
+    String? rollNumber,
+    String? reason,
+    required DateTime effectiveDate,
+    required String updatedBy,
+  }) async {
+    try {
+      final snap = await _studentDoc(schoolId, fromBranchId, studentId).get();
+      if (!snap.exists) {
+        throw const ValidationFailure('That student could not be found.');
+      }
+      final source = Student.fromFirestore(
+        schoolId,
+        fromBranchId,
+        studentId,
+        snap.data()!,
+      );
+
+      final toBranch = await _firestore
+          .collection(FirestoreFields.schoolsCollection)
+          .doc(schoolId)
+          .collection(FirestoreFields.branchesCollection)
+          .doc(toBranchId)
+          .get();
+      if (!toBranch.exists) {
+        throw const ValidationFailure('That branch could not be found.');
+      }
+
+      // Checks that need data, in the DESTINATION branch.
+      final available = await isAdmissionNumberAvailable(
+        schoolId,
+        toBranchId,
+        admissionNumber.trim(),
+      );
+      if (!available) {
+        throw const ValidationFailure(
+          'This admission number is already in use in the new branch.',
+        );
+      }
+      final year = await _firestore
+          .collection(FirestoreFields.schoolsCollection)
+          .doc(schoolId)
+          .collection(FirestoreFields.branchesCollection)
+          .doc(toBranchId)
+          .collection(FirestoreFields.academicYearsCollection)
+          .doc(academicYearId)
+          .get();
+      if (!year.exists || year.data()?[FirestoreFields.status] == 'CLOSED') {
+        throw const ValidationFailure(
+          'Choose an academic year that is open in the new branch.',
+        );
+      }
+      await _assertSectionBelongsToClass(
+        schoolId,
+        toBranchId,
+        academicYearId,
+        classId,
+        sectionId,
+      );
+      if ((await _studentDoc(schoolId, toBranchId, studentId).get()).exists) {
+        throw const ValidationFailure(
+          'This student already has a record in the new branch.',
+        );
+      }
+
+      // Guardians with an ACTIVE link, and whether the new branch has them.
+      final links = await _parentLinksCollection(
+        schoolId,
+        fromBranchId,
+        studentId,
+      ).where(FirestoreFields.status, isEqualTo: 'ACTIVE').get();
+      final guardians = <TransferGuardian>[];
+      for (final l in links.docs) {
+        final parentId = l.id;
+        final toParent = _firestore
+            .collection(FirestoreFields.schoolsCollection)
+            .doc(schoolId)
+            .collection(FirestoreFields.branchesCollection)
+            .doc(toBranchId)
+            .collection(FirestoreFields.parentsCollection)
+            .doc(parentId);
+        final exists = (await toParent.get()).exists;
+        Map<String, dynamic>? data;
+        if (!exists) {
+          final from = await _firestore
+              .collection(FirestoreFields.schoolsCollection)
+              .doc(schoolId)
+              .collection(FirestoreFields.branchesCollection)
+              .doc(fromBranchId)
+              .collection(FirestoreFields.parentsCollection)
+              .doc(parentId)
+              .get();
+          data = from.data();
+          if (data == null) continue; // a dangling link carries nothing over
+        }
+        guardians.add(
+          TransferGuardian(
+            parentId: parentId,
+            parentData: data,
+            existsInDestination: exists,
+            link: ParentStudentLink.fromFirestore(
+              schoolId,
+              fromBranchId,
+              studentId,
+              parentId,
+              l.data(),
+            ),
+          ),
+        );
+      }
+
+      final activeRecords =
+          await _academicRecordsCollection(schoolId, fromBranchId, studentId)
+              .where(
+                FirestoreFields.status,
+                isEqualTo: AcademicRecordStatus.active.wireValue,
+              )
+              .get();
+
+      final transferRef = _firestore
+          .collection(FirestoreFields.schoolsCollection)
+          .doc(schoolId)
+          .collection('studentTransfers')
+          .doc();
+      final destRecordId = _academicRecordsCollection(
+        schoolId,
+        toBranchId,
+        studentId,
+      ).doc().id;
+
+      final writes = <PlannedWrite>[
+        ...BranchTransferWrites.plan(
+          BranchTransferInput(
+            source: source,
+            toBranchId: toBranchId,
+            admissionNumber: admissionNumber,
+            academicYearId: academicYearId,
+            classId: classId,
+            sectionId: sectionId,
+            rollNumber: rollNumber,
+            reason: reason,
+            effectiveDate: effectiveDate,
+            actorId: updatedBy,
+            activeSourceRecordId: activeRecords.docs.firstOrNull?.id,
+            destinationRecordId: destRecordId,
+            transferId: transferRef.id,
+            guardians: guardians,
+          ),
+        ),
+        // Any further active records of the old placement are closed too.
+        for (final extra in activeRecords.docs.skip(1))
+          PlannedWrite.update(
+            'schools/$schoolId/branches/$fromBranchId/students/$studentId/academicRecords/${extra.id}',
+            {
+              FirestoreFields.status:
+                  AcademicRecordStatus.transferred.wireValue,
+              'endDate': Timestamp.fromDate(effectiveDate),
+              FirestoreFields.updatedAt: FieldValue.serverTimestamp(),
+              FirestoreFields.updatedBy: updatedBy,
+            },
+          ),
+      ];
+      final batch = _firestore.batch();
+      for (final w in writes) {
+        final ref = _firestore.doc(w.path);
+        w.isCreate ? batch.set(ref, w.data) : batch.update(ref, w.data);
+      }
+      await batch.commit();
+
+      // Both families' indexes (best effort, like every other student write).
+      await _refreshFamilies(schoolId, fromBranchId, studentId, updatedBy);
+      await _refreshFamilies(schoolId, toBranchId, studentId, updatedBy);
+      return transferRef.id;
     } catch (error, stackTrace) {
       throw mapExceptionToFailure(error, stackTrace);
     }

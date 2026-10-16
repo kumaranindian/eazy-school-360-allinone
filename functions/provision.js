@@ -17,7 +17,12 @@ async function assertAdmin(db, uid, schoolId, branchId, token) {
   // Same gate as the rules: a disabled login or method cannot administer.
   if (!u || u.schoolId !== schoolId || !loginAllowed(u, token)) return null;
   if (u.role === 'SCHOOL_ADMIN') return u;
-  if (u.role === 'BRANCH_ADMIN' && u.branchId === branchId) return u;
+  if (branchId) {
+    // A branch admin of this branch: by home role, or by a per-branch role
+    // (users.branchRoles). The returned caller carries the role held HERE.
+    if (u.role === 'BRANCH_ADMIN' && u.branchId === branchId) return u;
+    if (u.branchId !== branchId && (u.branchRoles || {})[branchId] === 'BRANCH_ADMIN') return { ...u, role: 'BRANCH_ADMIN' };
+  }
   return null;
 }
 
@@ -30,16 +35,22 @@ async function assertAdmin(db, uid, schoolId, branchId, token) {
 // same school/branch, has a role this record may hold (`allowedRoles`), and is
 // not claimed by another person. Otherwise it is EMAIL_IN_USE: re-using it
 // would silently merge two people (or two schools).
-async function ensureAuthUser(auth, db, { email, name, schoolId, branchId, kind, recordId, allowedRoles }) {
+async function ensureAuthUser(auth, db, { email, name, schoolId, branchId, kind, recordId, allowedRoles, allowCrossBranch }) {
   if (email) {
     try {
       const existing = await auth.getUserByEmail(email);
       const profile = await db.collection('users').doc(existing.uid).get();
       if (profile.exists) {
         const u = profile.data();
-        const sameTenant = schoolId && u.schoolId === schoolId && (!u.branchId || !branchId || u.branchId === branchId);
+        const sameSchool = !!schoolId && u.schoolId === schoolId;
+        const sameBranch = !u.branchId || !branchId || u.branchId === branchId;
+        // A staff member who already works in another branch of the SAME school
+        // is not a clash: the record in this branch gets a per-branch role
+        // (users.branchRoles) instead of a second account. School admins and
+        // non-staff profiles are never merged this way.
+        const crossBranch = allowCrossBranch === true && kind === 'STAFF' && sameSchool && !sameBranch && STAFF_ROLES.includes(u.role);
         const roleOk = Array.isArray(allowedRoles) && allowedRoles.includes(u.role);
-        if (!sameTenant || !roleOk) return { problem: 'EMAIL_IN_USE' };
+        if (!sameSchool || (!sameBranch && !crossBranch) || !roleOk) return { problem: 'EMAIL_IN_USE' };
         if (kind === 'PARENT') {
           if (u.linkedParentId && u.linkedParentId !== recordId) return { problem: 'EMAIL_IN_USE' };
           const other = await db
@@ -47,14 +58,17 @@ async function ensureAuthUser(auth, db, { email, name, schoolId, branchId, kind,
             .collection('parents').where('linkedUserId', '==', existing.uid).limit(2).get();
           if (other.docs.some((d) => d.id !== recordId)) return { problem: 'EMAIL_IN_USE' };
         } else if (kind === 'STAFF') {
+          // The record being linked is in [branchId]; another record of the same
+          // person there (or, for a same-branch map, in their home branch)
+          // would make two people share one login.
           const other = await db
-            .collection('schools').doc(schoolId).collection('branches').doc(u.branchId || branchId)
+            .collection('schools').doc(schoolId).collection('branches').doc(crossBranch ? branchId : (u.branchId || branchId))
             .collection('staff').where('userId', '==', existing.uid).limit(2).get();
           if (other.docs.some((d) => d.id !== recordId)) return { problem: 'EMAIL_IN_USE' };
         } else {
           return { problem: 'EMAIL_IN_USE' };
         }
-        return { uid: existing.uid, created: false, existingProfile: true, profile: u };
+        return { uid: existing.uid, created: false, existingProfile: true, crossBranch, profile: u };
       }
       // An Auth account with this email but no profile was created outside
       // the app (e.g. someone pre-registered the address). Whoever set its
@@ -124,6 +138,8 @@ async function provisionStaff(ctx, id, opts) {
     kind: 'STAFF',
     recordId: id,
     allowedRoles: opts.mappableRoles,
+    // Only a school admin may attach a person from another branch.
+    allowCrossBranch: opts.allowCrossBranch,
   });
   if (a.problem) return { id, name, email, outcome: a.problem };
   const batch = db.batch();
@@ -131,6 +147,11 @@ async function provisionStaff(ctx, id, opts) {
   if (a.existingProfile) {
     // Keep the profile's role/status; only fill the gaps and map the record.
     const patch = { updatedAt: now, updatedBy: by };
+    if (a.crossBranch) {
+      // Same person, another branch: add the per-branch role, never touch the
+      // home branch/role. (Cloud Functions are the only writer of branchRoles.)
+      patch.branchRoles = { ...(a.profile.branchRoles || {}), [branchId]: role };
+    }
     if (!a.profile.login) patch.login = await defaultLogin(ctx);
     batch.update(userRef, patch);
   } else {
@@ -147,7 +168,8 @@ async function provisionStaff(ctx, id, opts) {
     email,
     outcome: 'CREATED',
     uid: a.uid,
-    role: a.existingProfile ? a.profile.role : role,
+    role: a.existingProfile ? (a.crossBranch ? role : a.profile.role) : role,
+    crossBranch: a.crossBranch === true,
     newAccount: a.created,
     mapped: a.existingProfile === true,
   };
@@ -286,7 +308,7 @@ async function provisionLogins({ db, auth, now }, callerUid, data, token) {
     try {
       results.push(
         kind === 'STAFF'
-          ? await provisionStaff(ctx, id, { role, emails, mappableRoles })
+          ? await provisionStaff(ctx, id, { role, emails, mappableRoles, allowCrossBranch: caller.role === 'SCHOOL_ADMIN' })
           : await provisionParent(ctx, id, { enablePortal: data.enablePortal === true, emails }),
       );
     } catch (e) {

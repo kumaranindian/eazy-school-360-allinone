@@ -1,3 +1,4 @@
+import '../../../core/permissions/user_role.dart';
 import '../../authentication/domain/login_method.dart';
 import 'login_provisioning.dart';
 
@@ -237,6 +238,16 @@ abstract class LoginAccessRepository {
   Future<({int teachers, int written})> refreshTeacherAccess({
     required String schoolId,
     required String branchId,
+  });
+
+  /// School admin only: grants, changes (or, with a null [role], revokes) the
+  /// role this login holds in another [branchId]. Returns the login's
+  /// resulting per-branch roles.
+  Future<Map<String, UserRole>> setBranchAccess({
+    required String schoolId,
+    required String branchId,
+    required String uid,
+    required UserRole? role,
   });
 
   Future<SchoolAuthSettings> getSchoolSettings(String schoolId);

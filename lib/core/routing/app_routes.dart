@@ -21,6 +21,7 @@ abstract final class AppRoutes {
   static const String settings = '/settings';
   static const String settingsBranches = '/settings/branches';
   static const String settingsAcademicYears = '/settings/academic-years';
+  static const String settingsSchoolYears = '/settings/academic-years/school';
   static const String settingsClasses = '/settings/classes';
   static const String settingsSections = '/settings/sections';
   static const String settingsSubjects = '/settings/subjects';

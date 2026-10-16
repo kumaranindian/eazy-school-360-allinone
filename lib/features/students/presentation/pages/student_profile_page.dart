@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/permissions/permission.dart';
+import '../../../../core/permissions/user_role.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/date_formatting.dart';
@@ -13,10 +15,12 @@ import '../../../users/domain/login_provisioning.dart';
 import '../../../users/presentation/widgets/login_access_dialog.dart';
 import '../../domain/parent_student_link.dart';
 import '../../domain/student.dart';
+import '../../domain/student_status.dart';
 import '../providers/parent_providers.dart';
 import '../providers/student_providers.dart';
 import '../widgets/link_parent_dialog.dart';
 import '../widgets/person_photo_picker.dart';
+import '../widgets/student_branch_transfer_dialog.dart';
 import '../widgets/student_status_dialog.dart';
 import '../widgets/student_transfer_dialog.dart';
 
@@ -87,6 +91,28 @@ class StudentProfilePage extends ConsumerWidget {
                               ),
                             ),
                           ),
+                          if (tenant.user.homeRole == UserRole.schoolAdmin &&
+                              student.status == StudentStatus.active)
+                            IconButton(
+                              icon: const Icon(Icons.apartment_outlined),
+                              tooltip: 'Move to another branch',
+                              onPressed: () async {
+                                final moved = await showAdaptiveAppDialog<bool>(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (context) =>
+                                      StudentBranchTransferDialog(
+                                        student: student,
+                                        currentUserId: tenant.user.userId,
+                                      ),
+                                );
+                                if (moved == true && context.mounted) {
+                                  context.showSnackBar(
+                                    '${student.displayName} was moved to the new branch.',
+                                  );
+                                }
+                              },
+                            ),
                           IconButton(
                             icon: const Icon(Icons.flag_outlined),
                             tooltip: 'Change status',

@@ -11,6 +11,14 @@ String accessMessageFor(String reason, {String? cause, int? retryAfterSec}) {
       return 'That record could not be found.';
     case 'INVALID_ARGUMENT':
       return 'That request was not valid. Please check it and try again.';
+    case 'ROLE_NOT_ELIGIBLE':
+      return 'Only teachers, finance staff and branch admins can work in more '
+          'than one branch.';
+    case 'HOME_BRANCH':
+      return "That is this person's own branch. Change their role in Staff instead.";
+    case 'NO_STAFF_RECORD':
+      return 'Add this person as active staff in that branch first, with the '
+          'same email, then give them access.';
     case 'NO_METHOD':
       return 'Choose at least one sign-in method.';
     case 'METHOD_NOT_ENABLED':

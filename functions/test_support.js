@@ -42,6 +42,11 @@ function fakeDb(seed = {}) {
     const q = {
       doc: (id) => ref(`${path}/${id || `auto${++auto}`}`),
       where: (f, op, v) => (conds.push([f, v]), q),
+      add: async (d) => {
+        const r = ref(`${path}/auto${++auto}`);
+        await r.set(d);
+        return r;
+      },
       orderBy: () => q,
       limit: (n) => ((lim = n), q),
       startAfter: (d) => ((after = d.ref.path), q),
@@ -78,6 +83,7 @@ function fakeDb(seed = {}) {
   return {
     store,
     collection: coll,
+    getAll: async (...refs) => Promise.all(refs.map((r) => r.get())),
     collectionGroup: group,
     batch: () => {
       const ops = [];

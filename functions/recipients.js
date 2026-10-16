@@ -35,13 +35,20 @@ async function parentUserIds(db, schoolId, branchId, { classId, sectionId } = {}
   return ids;
 }
 
+// Logins that hold [role] in [branchId]: those whose home branch it is, and
+// staff who work there through a per-branch role (users.branchRoles).
+async function usersWithRoleInBranch(db, schoolId, branchId, role) {
+  const home = await activeUsersWhere(db, schoolId, (u) =>
+    u.where('role', '==', role).where('branchId', '==', branchId),
+  );
+  const extra = await activeUsersWhere(db, schoolId, (u) => u.where(`branchRoles.${branchId}`, '==', role));
+  return new Set([...home, ...extra]);
+}
+
 async function staffUserIds(db, schoolId, branchId) {
   const ids = new Set();
   for (const role of ['TEACHER', 'FINANCE']) {
-    const uids = await activeUsersWhere(db, schoolId, (u) =>
-      u.where('role', '==', role).where('branchId', '==', branchId),
-    );
-    uids.forEach((u) => ids.add(u));
+    (await usersWithRoleInBranch(db, schoolId, branchId, role)).forEach((u) => ids.add(u));
   }
   return ids;
 }
@@ -62,7 +69,8 @@ async function teacherUserIds(db, schoolId, branchId, { classId, sectionId }) {
   const userDocs = await db.getAll(...candidates.map((id) => db.collection('users').doc(id)));
   for (const u of userDocs) {
     const d = u.data();
-    if (d && d.role === 'TEACHER' && d.status === 'ACTIVE' && d.schoolId === schoolId) userIds.add(u.id);
+    const roleHere = d && (d.branchId === branchId ? d.role : (d.branchRoles || {})[branchId]);
+    if (d && roleHere === 'TEACHER' && d.status === 'ACTIVE' && d.schoolId === schoolId) userIds.add(u.id);
   }
   return userIds;
 }
@@ -70,11 +78,7 @@ async function teacherUserIds(db, schoolId, branchId, { classId, sectionId }) {
 async function adminUserIds(db, schoolId, branchId) {
   const ids = new Set();
   (await activeUsersWhere(db, schoolId, (u) => u.where('role', '==', 'SCHOOL_ADMIN'))).forEach((u) => ids.add(u));
-  (
-    await activeUsersWhere(db, schoolId, (u) =>
-      u.where('role', '==', 'BRANCH_ADMIN').where('branchId', '==', branchId),
-    )
-  ).forEach((u) => ids.add(u));
+  (await usersWithRoleInBranch(db, schoolId, branchId, 'BRANCH_ADMIN')).forEach((u) => ids.add(u));
   return ids;
 }
 

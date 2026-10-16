@@ -101,6 +101,29 @@ class TenantContextNotifier extends AsyncNotifier<TenantContext?> {
     );
     return TenantContext(user: profile, school: school, branch: branch);
   }
+
+  /// Acts in [branchId] (one of the user's `workingBranchIds`). The whole app
+  /// reads role and branch from [TenantContext], so every screen follows.
+  /// A branch the user does not work in is ignored.
+  Future<void> switchBranch(String branchId) async {
+    final current = state.value;
+    if (current == null) return;
+    final user = current.user;
+    if (!user.workingBranchIds.contains(branchId)) return;
+    if (current.branch?.branchId == branchId) return;
+    final schoolId = user.schoolId;
+    if (schoolId == null) return;
+    final branch = await ref
+        .read(schoolRepositoryProvider)
+        .getBranch(schoolId, branchId);
+    state = AsyncData(
+      TenantContext(
+        user: user.activeIn(branchId),
+        school: current.school,
+        branch: branch,
+      ),
+    );
+  }
 }
 
 final tenantContextProvider =

@@ -7,6 +7,7 @@ import 'pages/academic_years_page.dart';
 import 'pages/classes_page.dart';
 import 'pages/holidays_page.dart';
 import 'pages/sections_page.dart';
+import 'pages/school_years_page.dart';
 import 'pages/settings_overview_page.dart';
 import 'pages/subjects_page.dart';
 import 'pages/working_days_page.dart';
@@ -29,6 +30,12 @@ List<RouteBase> academicSetupRoutes() => [
       GoRoute(
         path: 'academic-years',
         builder: (context, state) => const AcademicYearsPage(),
+        routes: [
+          GoRoute(
+            path: 'school',
+            builder: (context, state) => const SchoolYearsPage(),
+          ),
+        ],
       ),
       GoRoute(
         path: 'classes',

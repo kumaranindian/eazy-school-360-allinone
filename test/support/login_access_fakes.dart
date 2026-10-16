@@ -1,3 +1,4 @@
+import 'package:eazy_school_360/core/permissions/user_role.dart';
 import 'package:eazy_school_360/features/authentication/domain/login_method.dart';
 import 'package:eazy_school_360/features/users/domain/login_access.dart';
 import 'package:eazy_school_360/features/users/domain/login_provisioning.dart';
@@ -91,6 +92,22 @@ class FakeLoginAccessRepository implements LoginAccessRepository {
   }) async {
     teacherAccessRefreshes++;
     return (teachers: 3, written: 2);
+  }
+
+  final List<({String branchId, String uid, UserRole? role})>
+  branchAccessCalls = [];
+  Object? branchAccessError;
+
+  @override
+  Future<Map<String, UserRole>> setBranchAccess({
+    required String schoolId,
+    required String branchId,
+    required String uid,
+    required UserRole? role,
+  }) async {
+    if (branchAccessError != null) throw branchAccessError!;
+    branchAccessCalls.add((branchId: branchId, uid: uid, role: role));
+    return {if (role != null) branchId: role};
   }
 
   @override

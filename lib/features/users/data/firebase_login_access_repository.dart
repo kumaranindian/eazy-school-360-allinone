@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../../../core/config/functions_region.dart';
 import '../../../core/errors/error_mapper.dart';
+import '../../../core/permissions/user_role.dart';
 import '../../authentication/data/firebase_auth_repository.dart'
     show accessFailureFrom;
 import '../../authentication/domain/login_method.dart';
@@ -116,6 +117,33 @@ class FirebaseLoginAccessRepository implements LoginAccessRepository {
       teachers: (m['teachers'] as num?)?.toInt() ?? 0,
       written: (m['written'] as num?)?.toInt() ?? 0,
     );
+  }
+
+  @override
+  Future<Map<String, UserRole>> setBranchAccess({
+    required String schoolId,
+    required String branchId,
+    required String uid,
+    required UserRole? role,
+  }) async {
+    final m = await _call('setBranchAccess', {
+      'schoolId': schoolId,
+      'branchId': branchId,
+      'uid': uid,
+      'role': role?.wireValue,
+    });
+    final raw = Map<String, dynamic>.from(
+      (m['branchRoles'] as Map?) ?? const {},
+    );
+    final out = <String, UserRole>{};
+    for (final e in raw.entries) {
+      try {
+        out[e.key] = UserRole.fromWireValue(e.value as String);
+      } on StateError {
+        // ignore unknown values
+      }
+    }
+    return out;
   }
 
   @override

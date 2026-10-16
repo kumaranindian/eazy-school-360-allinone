@@ -527,13 +527,23 @@ test('School A admin can manage their own academic years; School B admin is deni
   await seed(async (db) => {
     await seedFullStructure(db, { schoolId: SCHOOL_A, branchId: MAIN, adminUid: 'admin-a' });
     await setDoc(doc(db, 'users', 'admin-b'), userDoc({ schoolId: SCHOOL_B, branchId: MAIN, role: 'SCHOOL_ADMIN' }));
+    // the school-wide year the branch will open
+    const { branchId: _b, ...registry } = academicYearDoc({ schoolId: SCHOOL_A, branchId: MAIN, name: '2027-2028', createdBy: 'admin-a' });
+    await setDoc(doc(db, 'schools', SCHOOL_A, 'academicYears', 'year-2'), registry);
   });
 
   const adminA = asUser('admin-a');
+  // a branch year must be opened from a school-wide year…
+  await assertFails(
+    setDoc(
+      doc(adminA, 'schools', SCHOOL_A, 'branches', MAIN, 'academicYears', 'standalone'),
+      academicYearDoc({ schoolId: SCHOOL_A, branchId: MAIN, name: '2027-2028', createdBy: 'admin-a' }),
+    ),
+  );
   await assertSucceeds(
     setDoc(
       doc(adminA, 'schools', SCHOOL_A, 'branches', MAIN, 'academicYears', 'year-2'),
-      academicYearDoc({ schoolId: SCHOOL_A, branchId: MAIN, name: '2027-2028', createdBy: 'admin-a' }),
+      { ...academicYearDoc({ schoolId: SCHOOL_A, branchId: MAIN, name: '2027-2028', createdBy: 'admin-a' }), schoolYearId: 'year-2' },
     ),
   );
 

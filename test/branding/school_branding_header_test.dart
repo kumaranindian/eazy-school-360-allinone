@@ -1,4 +1,6 @@
 import 'package:eazy_school_360/core/routing/route_titles.dart';
+import 'package:eazy_school_360/core/tenant/tenant_context.dart';
+import 'package:eazy_school_360/core/tenant/tenant_context_provider.dart';
 import 'package:eazy_school_360/shared/branding/school_brand_logo.dart';
 import 'package:eazy_school_360/shared/branding/school_branding.dart';
 import 'package:eazy_school_360/shared/branding/school_branding_header.dart';
@@ -315,6 +317,8 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           schoolBrandingProvider.overrideWith((ref) => ref.watch(branding)),
+          // The header also hosts the branch switcher, which reads the tenant.
+          tenantContextProvider.overrideWith(_NoTenant.new),
         ],
       );
       addTearDown(container.dispose);
@@ -416,4 +420,9 @@ void main() {
       expect(screenTitleForPath('/my-profile'), 'My Profile');
     });
   });
+}
+
+class _NoTenant extends TenantContextNotifier {
+  @override
+  Future<TenantContext?> build() async => null;
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'branch_switcher.dart';
 import 'brand_logo.dart';
 import 'school_brand_logo.dart';
 import 'school_branding.dart';
@@ -242,7 +243,7 @@ class SchoolBrandingAppBar extends ConsumerWidget
           schoolLogo: schoolLogo,
           appLogo: BrandMark(size: logo),
           title: title,
-          actions: actions,
+          actions: [const BranchSwitcher(), ...actions],
         ),
       ),
     );

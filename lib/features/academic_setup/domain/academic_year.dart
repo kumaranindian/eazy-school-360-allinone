@@ -14,6 +14,11 @@ class AcademicYear {
   final DateTime startDate;
   final DateTime endDate;
   final AcademicYearStatus status;
+
+  /// The school-wide year (`/schools/{s}/academicYears/{id}`) this branch year
+  /// was opened from; its id equals this document's id. Null for older
+  /// branch-only years. A linked year keeps the school's name and dates.
+  final String? schoolYearId;
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final String? createdBy;
@@ -27,6 +32,7 @@ class AcademicYear {
     required this.startDate,
     required this.endDate,
     required this.status,
+    this.schoolYearId,
     this.createdAt,
     this.updatedAt,
     this.createdBy,
@@ -49,6 +55,7 @@ class AcademicYear {
       status: AcademicYearStatus.fromWireValue(
         data[FirestoreFields.status] as String,
       ),
+      schoolYearId: data['schoolYearId'] as String?,
       createdAt: (data[FirestoreFields.createdAt] as Timestamp?)?.toDate(),
       updatedAt: (data[FirestoreFields.updatedAt] as Timestamp?)?.toDate(),
       createdBy: data[FirestoreFields.createdBy] as String?,
@@ -64,6 +71,7 @@ class AcademicYear {
       'startDate': Timestamp.fromDate(startDate),
       'endDate': Timestamp.fromDate(endDate),
       FirestoreFields.status: status.wireValue,
+      'schoolYearId': ?schoolYearId,
       FirestoreFields.createdAt: FieldValue.serverTimestamp(),
       FirestoreFields.updatedAt: FieldValue.serverTimestamp(),
       FirestoreFields.createdBy: createdBy,

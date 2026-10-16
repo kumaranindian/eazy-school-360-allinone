@@ -55,6 +55,94 @@ service cloud.firestore {
       return callerProfile().branchId;
     }
 
+    // ---- Per-branch roles (multi-branch staff) ------------------------------
+    // A profile has a home branch (`branchId` + `role`). Staff who also work in
+    // other branches carry `branchRoles: { <branchId>: <role> }`, written only
+    // by Cloud Functions (setBranchAccess / provisioning), never by a client.
+    // The role the caller holds IN a branch is the home role there, the mapped
+    // role elsewhere, and null (no access) otherwise. Missing data grants nothing.
+    function branchRoleOf(p, branchId) {
+      let r = p.get('branchRoles', {}).get(branchId, null);
+      return p.branchId == branchId ? p.role
+        : (r in ['BRANCH_ADMIN', 'TEACHER', 'FINANCE'] ? r : null);
+    }
+
+    function callerRoleIn(branchId) {
+      return branchRoleOf(callerProfile(), branchId);
+    }
+
+    // ACTIVE caller of this school holding [role] in this branch.
+    function callerIsInBranchAs(schoolId, branchId, role) {
+      return isActiveCaller() && callerSchoolId() == schoolId && callerRoleIn(branchId) == role;
+    }
+
+    // ACTIVE caller of this school holding any role in this branch.
+    function callerWorksInBranch(schoolId, branchId) {
+      return isActiveCaller() && callerSchoolId() == schoolId && callerRoleIn(branchId) != null;
+    }
+
+    // School admins and branch-scoped staff (home or per-branch role) of the
+    // school — not parents.
+    function isSchoolStaffOf(schoolId) {
+      return isSchoolAdminOrAbove(schoolId)
+        || (isActiveCaller() && callerSchoolId() == schoolId
+            && (callerRole() in ['BRANCH_ADMIN', 'TEACHER', 'FINANCE']
+                || callerProfile().get('branchRoles', {}).size() > 0));
+    }
+
+    // ---- Student transfer between branches ---------------------------------
+    // One batch (school admin only) that: creates the student in the new
+    // branch (same id, `transferredFrom`), marks the old record TRANSFERRED
+    // (`transferredTo`) and writes the audit entry in schools/{s}/studentTransfers.
+    // Each side checks the other with getAfter(), so neither a forged
+    // "transferred from" nor a one-sided hand-off can be written.
+    function studentPath(schoolId, branchId, studentId) {
+      return /databases/$(database)/documents/schools/$(schoolId)/branches/$(branchId)/students/$(studentId);
+    }
+
+    // [d] is the NEW record in branch [branchId]; its source must be, after the
+    // batch, a TRANSFERRED record pointing back at it.
+    function transferDestinationOk(schoolId, branchId, studentId, d) {
+      let from = d.transferredFrom;
+      let src = studentPath(schoolId, from.branchId, from.studentId);
+      return isSchoolAdminOf(schoolId)
+        && from.keys().hasOnly(['branchId', 'studentId', 'admissionNumber'])
+        && from.branchId is string && from.studentId is string && from.branchId != branchId
+        && d.status == 'ACTIVE'
+        && existsAfter(src)
+        && getAfter(src).data.status == 'TRANSFERRED'
+        && getAfter(src).data.transferredTo.branchId == branchId
+        && getAfter(src).data.transferredTo.studentId == studentId;
+    }
+
+    // [d] is the SOURCE record after the change: now TRANSFERRED to a record
+    // that the same batch creates in the other branch.
+    function transferSourceOk(schoolId, branchId, studentId, before, d) {
+      let to = d.transferredTo;
+      let dest = studentPath(schoolId, to.branchId, to.studentId);
+      return isSchoolAdminOf(schoolId)
+        && before.status == 'ACTIVE' && !('transferredTo' in before)
+        && d.status == 'TRANSFERRED'
+        && to.keys().hasOnly(['branchId', 'studentId', 'admissionNumber'])
+        && to.branchId is string && to.studentId is string && to.branchId != branchId
+        && !exists(dest)
+        && existsAfter(dest)
+        && getAfter(dest).data.transferredFrom.branchId == branchId
+        && getAfter(dest).data.transferredFrom.studentId == studentId;
+    }
+
+    // A branch academic year is the branch's copy of an ACTIVE school-wide
+    // year: same id, same name and dates, and it says which one it is.
+    function branchYearMatchesSchoolYear(schoolId, yearId, d) {
+      let sy = /databases/$(database)/documents/schools/$(schoolId)/academicYears/$(yearId);
+      return exists(sy)
+        && get(sy).data.status == 'ACTIVE'
+        && d.get('schoolYearId', null) == yearId
+        && d.name == get(sy).data.name
+        && d.startDate == get(sy).data.startDate
+        && d.endDate == get(sy).data.endDate;
+    }
+
     // A profile existing is not enough — status must be ACTIVE. INVITED
     // and DISABLED accounts are denied everything except reading (and
     // nothing else on) their own profile.
@@ -119,8 +207,8 @@ service cloud.firestore {
     }
 
     function isBranchAdminOfP(p, schoolId, branchId) {
-      return activeAndAllowed(p) && p.role == 'BRANCH_ADMIN'
-        && p.schoolId == schoolId && p.branchId == branchId;
+      return activeAndAllowed(p) && p.schoolId == schoolId
+        && branchRoleOf(p, branchId) == 'BRANCH_ADMIN';
     }
 
     function isSchoolAdminOrAbove(schoolId) {
@@ -156,7 +244,7 @@ service cloud.firestore {
     function staffScopeOf(p, schoolId, branchId, roles) {
       return activeAndAllowed(p) && (p.role == 'PLATFORM_ADMIN'
         || (p.schoolId == schoolId && (p.role == 'SCHOOL_ADMIN'
-          || (p.branchId == branchId && p.role in roles))));
+          || branchRoleOf(p, branchId) in roles)));
     }
 
     function canManageAcademicSetup(schoolId, branchId) {
@@ -201,8 +289,7 @@ service cloud.firestore {
     // section. Judged on the record's own class/section (list queries must pin
     // both equalities).
     function teacherHasSection(schoolId, branchId, classId, sectionId) {
-      return isActiveCaller() && callerRole() == 'TEACHER'
-        && callerSchoolId() == schoolId && callerBranchId() == branchId
+      return callerIsInBranchAs(schoolId, branchId, 'TEACHER')
         && classId is string && sectionId is string
         && exists(teacherAccessPath(schoolId, branchId))
         && (classId + '__' + sectionId) in get(teacherAccessPath(schoolId, branchId)).data.sectionKeys;
@@ -220,8 +307,7 @@ service cloud.firestore {
     function teacherOfParent(schoolId, branchId, parentId) {
       let pa = /databases/$(database)/documents/schools/$(schoolId)/branches/$(branchId)
         /parentAccess/$(parentId);
-      return isActiveCaller() && callerRole() == 'TEACHER'
-        && callerSchoolId() == schoolId && callerBranchId() == branchId
+      return callerIsInBranchAs(schoolId, branchId, 'TEACHER')
         && exists(teacherAccessPath(schoolId, branchId)) && exists(pa)
         && get(pa).data.sectionKeys.hasAny(get(teacherAccessPath(schoolId, branchId)).data.sectionKeys);
     }
@@ -326,7 +412,7 @@ service cloud.firestore {
     // document's userId link, not through the designation or any
     // client-supplied field.
     function isOwnStaffRecord(schoolId, branchId, staffData) {
-      return isActiveCaller() && callerSchoolId() == schoolId && callerBranchId() == branchId
+      return callerWorksInBranch(schoolId, branchId)
         && staffData.userId != null && staffData.userId == request.auth.uid;
     }
 
@@ -353,8 +439,7 @@ service cloud.firestore {
     }
 
     function isClassTeacherOf(schoolId, branchId, academicYearId, classId, sectionId) {
-      return isActiveCaller() && callerRole() == 'TEACHER'
-        && callerSchoolId() == schoolId && callerBranchId() == branchId
+      return callerIsInBranchAs(schoolId, branchId, 'TEACHER')
         && exists(classTeacherSlotPath(schoolId, branchId, academicYearId, classId, sectionId))
         && get(staffPath(schoolId, branchId,
              get(classTeacherSlotPath(schoolId, branchId, academicYearId, classId, sectionId)).data.teacherStaffId)).data.userId == request.auth.uid
@@ -499,7 +584,7 @@ service cloud.firestore {
     }
 
     function isOwnLeaveStaff(schoolId, branchId, staffId) {
-      return isActiveCaller() && callerSchoolId() == schoolId && callerBranchId() == branchId
+      return callerWorksInBranch(schoolId, branchId)
         && exists(staffPath(schoolId, branchId, staffId))
         && get(staffPath(schoolId, branchId, staffId)).data.userId == request.auth.uid
         && get(staffPath(schoolId, branchId, staffId)).data.status == 'ACTIVE';
@@ -653,8 +738,7 @@ service cloud.firestore {
     // A published/live schedule-or-homework document of one section: teachers
     // of the branch, and parents with a child in that exact section.
     function canReadSectionContent(schoolId, branchId, d) {
-      return (isActiveCaller() && callerSchoolId() == schoolId
-              && callerRole() == 'TEACHER' && callerBranchId() == branchId)
+      return callerIsInBranchAs(schoolId, branchId, 'TEACHER')
         || parentHasSection(schoolId, branchId, d.classId, d.sectionId);
     }
 
@@ -751,7 +835,7 @@ service cloud.firestore {
     // docs/milestone-9-homework-assignments-announcements.md §10.
     function profileOwnsStaff(p, schoolId, branchId, staffId) {
       let path = staffPath(schoolId, branchId, staffId);
-      return p.status == 'ACTIVE' && p.schoolId == schoolId && p.branchId == branchId
+      return p.status == 'ACTIVE' && p.schoolId == schoolId && branchRoleOf(p, branchId) != null
         && exists(path)
         && get(path).data.userId == request.auth.uid
         && get(path).data.status == 'ACTIVE';
@@ -978,14 +1062,14 @@ service cloud.firestore {
         && (p.role == 'PLATFORM_ADMIN'
             || (p.schoolId == schoolId
                 && (p.role == 'SCHOOL_ADMIN'
-                    || (p.role == 'BRANCH_ADMIN' && p.branchId == branchId))));
+                    || branchRoleOf(p, branchId) == 'BRANCH_ADMIN')));
     }
 
     function profileIsClassTeacher(p, schoolId, branchId, data) {
       let slot = classTeacherSlotPath(
         schoolId, branchId, data.academicYearId, data.classId, data.sectionId);
-      return p.status == 'ACTIVE' && p.role == 'TEACHER'
-        && p.schoolId == schoolId && p.branchId == branchId
+      return p.status == 'ACTIVE' && p.schoolId == schoolId
+        && branchRoleOf(p, branchId) == 'TEACHER'
         && exists(slot)
         && get(staffPath(schoolId, branchId, get(slot).data.teacherStaffId)).data.userId == request.auth.uid
         && get(staffPath(schoolId, branchId, get(slot).data.teacherStaffId)).data.status == 'ACTIVE';
@@ -1063,7 +1147,7 @@ service cloud.firestore {
       let slot = slotPath(schoolId, branchId,
         d.academicYearId + '__' + d.classId + '__' + d.sectionId + '__' + d.subjectId);
       return profileManages(p, schoolId, branchId)
-        || (p.role == 'TEACHER' && exists(slot)
+        || (branchRoleOf(p, branchId) == 'TEACHER' && exists(slot)
             && profileOwnsStaff(p, schoolId, branchId, get(slot).data.teacherStaffId));
     }
 
@@ -1304,8 +1388,7 @@ service cloud.firestore {
 
     function resultReadable(schoolId, branchId, d) {
       return canManageStaff(schoolId, branchId)
-        || (isActiveCaller() && callerSchoolId() == schoolId && callerBranchId() == branchId
-            && callerRole() == 'TEACHER'
+        || (callerIsInBranchAs(schoolId, branchId, 'TEACHER')
             && get(ttDoc(schoolId, branchId, 'examinations', d.examId)).data.status == 'PUBLISHED')
         || parentMayReadResult(schoolId, branchId, d);
     }
@@ -1488,7 +1571,8 @@ service cloud.firestore {
       );
 
       allow create: if isSignedIn() && validCreateAudit()
-        && !('login' in request.resource.data) && (
+        && !('login' in request.resource.data)
+        && !('branchRoles' in request.resource.data) && (
         // (a) Self-signup: own profile, SCHOOL_ADMIN of the brand-new school
         //     being created in this same batch — never an existing school.
         (request.auth.uid == userId
@@ -1577,6 +1661,60 @@ service cloud.firestore {
         allow read: if isSchoolAdminOrAbove(schoolId);
         allow write: if false;
       }
+      // Grants/revocations of per-branch roles (setBranchAccess, staff
+      // deactivation). Cloud Functions write; school admins read.
+      match /branchAccessAudit/{eventId} {
+        allow read: if isSchoolAdminOrAbove(schoolId);
+        allow write: if false;
+      }
+
+      // Audit trail of student transfers between branches (written in the same
+      // batch as the move; see transferDestinationOk). Immutable.
+      match /studentTransfers/{transferId} {
+        allow read: if isSchoolAdminOrAbove(schoolId);
+        allow create: if isSchoolAdminOf(schoolId)
+          && request.resource.data.keys().hasOnly(['schoolId', 'studentId', 'studentName', 'fromBranchId', 'toBranchId',
+               'fromAdmissionNumber', 'toAdmissionNumber', 'reason', 'effectiveDate', 'createdAt', 'createdBy'])
+          && request.resource.data.schoolId == schoolId
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.fromBranchId is string && request.resource.data.toBranchId is string
+          && request.resource.data.fromBranchId != request.resource.data.toBranchId
+          && request.resource.data.studentId is string
+          && existsAfter(studentPath(schoolId, request.resource.data.toBranchId, request.resource.data.studentId))
+          && getAfter(studentPath(schoolId, request.resource.data.toBranchId, request.resource.data.studentId))
+               .data.transferredFrom.branchId == request.resource.data.fromBranchId
+          && get(studentPath(schoolId, request.resource.data.fromBranchId, request.resource.data.studentId))
+               .data.status == 'ACTIVE'
+          && getAfter(studentPath(schoolId, request.resource.data.fromBranchId, request.resource.data.studentId))
+               .data.status == 'TRANSFERRED';
+        allow update, delete: if false;
+      }
+
+      // ---- School-wide academic years (registry) ---------------------------
+      // One definition per school (name + dates). Each branch OPENS it, which
+      // creates its own branches/{b}/academicYears/{sameId} document — all
+      // classes, students, fees and results stay branch-owned. A branch year
+      // can only be created from (and must match) an ACTIVE registry year, and
+      // a linked branch year cannot drift: see branchYearMatchesSchoolYear.
+      // The definition is immutable except for archiving it.
+      match /academicYears/{schoolYearId} {
+        allow read: if isSchoolStaffOf(schoolId);
+        allow create: if isSchoolAdminOf(schoolId) && validCreateAudit()
+          && request.resource.data.schoolId == schoolId
+          && request.resource.data.status == 'ACTIVE'
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 100
+          && request.resource.data.startDate is timestamp
+          && request.resource.data.endDate is timestamp
+          && request.resource.data.endDate > request.resource.data.startDate
+          && request.resource.data.keys().hasOnly(['schoolId', 'name', 'startDate', 'endDate', 'status',
+               'createdAt', 'updatedAt', 'createdBy', 'updatedBy']);
+        allow update: if isSchoolAdminOf(schoolId) && validUpdateAudit()
+          && changedOnly(['status', 'updatedAt', 'updatedBy'])
+          && request.resource.data.status in ['ACTIVE', 'ARCHIVED'];
+        allow delete: if false;
+      }
 
       // ---- /schools/{schoolId}/branches/{branchId} ---------------------
       match /branches/{branchId} {
@@ -1618,9 +1756,15 @@ service cloud.firestore {
           allow list: if canViewAcademicSetup(schoolId, branchId);
           allow create: if canManageAcademicSetup(schoolId, branchId) && validCreateAudit()
             && request.resource.data.schoolId == schoolId
-            && request.resource.data.branchId == branchId;
+            && request.resource.data.branchId == branchId
+            && branchYearMatchesSchoolYear(schoolId, academicYearId, request.resource.data);
+          // Years opened from the school-wide registry keep its name and dates;
+          // only the branch's own lifecycle (status) changes. Older branch-only
+          // years remain fully editable.
           allow update: if canManageAcademicSetup(schoolId, branchId) && validUpdateAudit()
-            && changedOnly(['name', 'startDate', 'endDate', 'status', 'updatedAt', 'updatedBy']);
+            && (resource.data.get('schoolYearId', null) == null
+                ? changedOnly(['name', 'startDate', 'endDate', 'status', 'updatedAt', 'updatedBy'])
+                : changedOnly(['status', 'updatedAt', 'updatedBy']));
           allow delete: if false;
 
           match /classes/{classId} {
@@ -1709,10 +1853,18 @@ service cloud.firestore {
 
           allow create: if canManageStudentData(schoolId, branchId) && validCreateAudit()
             && request.resource.data.schoolId == schoolId
-            && request.resource.data.branchId == branchId;
+            && request.resource.data.branchId == branchId
+            && ('transferredTo' in request.resource.data) == false
+            && (!('transferredFrom' in request.resource.data)
+                || transferDestinationOk(schoolId, branchId, studentId, request.resource.data));
 
           allow update: if canManageStudentData(schoolId, branchId) && validUpdateAudit()
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['transferredTo'])
+                || transferSourceOk(schoolId, branchId, studentId, resource.data, request.resource.data))
+            // A student who has been moved to another branch stays TRANSFERRED here.
+            && (!('transferredTo' in resource.data) || request.resource.data.status == 'TRANSFERRED')
             && changedOnly([
+              'transferredTo',
               'admissionNumber', 'studentCode', 'firstName', 'middleName', 'lastName',
               'displayName', 'displayNameLower', 'dateOfBirth', 'gender', 'bloodGroup', 'photoUrl',
               'email', 'phone', 'addressLine1', 'addressLine2', 'city', 'state', 'country', 'postalCode',
@@ -1948,8 +2100,8 @@ service cloud.firestore {
           // proven by `status == 'ACTIVE'`. Colleagues' staff records stay
           // private (see /staff).
           allow read: if canViewStaff(schoolId, branchId) || (
-            isActiveCaller() && callerSchoolId() == schoolId && callerBranchId() == branchId
-              && (resource.data.status == 'ACTIVE' && callerRole() == 'TEACHER'
+            callerWorksInBranch(schoolId, branchId)
+              && (resource.data.status == 'ACTIVE' && callerRoleIn(branchId) == 'TEACHER'
                   || get(staffPath(schoolId, branchId, resource.data.teacherStaffId)).data.userId == request.auth.uid)
           );
 
@@ -2128,7 +2280,7 @@ service cloud.firestore {
 
         match /staffAttendance/{attendanceId} {
           allow read: if canViewStaff(schoolId, branchId) || (
-            isActiveCaller() && callerSchoolId() == schoolId && callerBranchId() == branchId
+            callerWorksInBranch(schoolId, branchId)
               && get(staffPath(schoolId, branchId, resource.data.staffId)).data.userId == request.auth.uid
           );
 
@@ -3370,7 +3522,7 @@ service cloud.firestore {
         match /announcements/{announcementId} {
           allow read: if isAnnouncementAuthorOrManager(schoolId, branchId, resource.data.authorId)
             || (resource.data.status == 'PUBLISHED' && isActiveCaller() && callerSchoolId() == schoolId
-                && ((callerRole() in ['TEACHER', 'FINANCE'] && callerBranchId() == branchId)
+                && ((callerRoleIn(branchId) in ['TEACHER', 'FINANCE'])
                     || (callerRole() == 'PARENT' && parentMayReadAudience(schoolId, branchId, resource.data))));
 
           allow create: if isActiveCaller() && validCreateAudit()
@@ -3421,7 +3573,7 @@ service cloud.firestore {
         match /broadcastNotices/{noticeId} {
           allow read: if isActiveCaller() && callerSchoolId() == schoolId
             && (canManageStaff(schoolId, branchId)
-                || (callerRole() in ['TEACHER', 'FINANCE'] && callerBranchId() == branchId)
+                || (callerRoleIn(branchId) in ['TEACHER', 'FINANCE'])
                 || (callerRole() == 'PARENT' && parentMayReadAudience(schoolId, branchId, resource.data)));
           allow create: if isActiveCaller()
             && request.resource.data.schoolId == schoolId
@@ -3487,8 +3639,7 @@ service cloud.firestore {
         // ---- Examinations, marks and results (Milestone 10) -------------
         match /gradingSchemes/{schemeId} {
           allow read: if canManageStaff(schoolId, branchId)
-            || (isActiveCaller() && callerSchoolId() == schoolId && callerBranchId() == branchId
-                && callerRole() == 'TEACHER');
+            || callerIsInBranchAs(schoolId, branchId, 'TEACHER');
           allow create: if profileManages(callerProfile(), schoolId, branchId) && validCreateAudit()
             && request.resource.data.schoolId == schoolId
             && request.resource.data.branchId == branchId
@@ -3517,8 +3668,7 @@ service cloud.firestore {
 
         match /examinations/{examId} {
           allow read: if canManageStaff(schoolId, branchId)
-            || (isActiveCaller() && callerSchoolId() == schoolId && callerBranchId() == branchId
-                && callerRole() == 'TEACHER')
+            || callerIsInBranchAs(schoolId, branchId, 'TEACHER')
             || (resource.data.status == 'PUBLISHED'
                 && (resource.data.sectionId == null
                     ? parentHasClass(schoolId, branchId, resource.data.classId)
@@ -3569,8 +3719,7 @@ service cloud.firestore {
 
         match /examinationSubjects/{subjectDocId} {
           allow read: if canManageStaff(schoolId, branchId)
-            || (isActiveCaller() && callerSchoolId() == schoolId && callerBranchId() == branchId
-                && callerRole() == 'TEACHER')
+            || callerIsInBranchAs(schoolId, branchId, 'TEACHER')
             || (isActiveCaller() && callerSchoolId() == schoolId && callerRole() == 'PARENT'
                 && get(ttDoc(schoolId, branchId, 'examinations', resource.data.examId)).data.status == 'PUBLISHED');
 
@@ -3693,8 +3842,7 @@ service cloud.firestore {
         // Remarks typed before finalisation (copied into the result then).
         match /examRemarks/{remarkId} {
           allow read: if canManageStaff(schoolId, branchId)
-            || (isActiveCaller() && callerSchoolId() == schoolId && callerBranchId() == branchId
-                && callerRole() == 'TEACHER');
+            || callerIsInBranchAs(schoolId, branchId, 'TEACHER');
           allow create: if isActiveCaller()
             && request.resource.data.schoolId == schoolId
             && request.resource.data.branchId == branchId
@@ -3840,7 +3988,7 @@ service cloud.firestore {
           allow read: if isActiveCaller() && callerSchoolId() == schoolId
             && (canManageStaff(schoolId, branchId)
                 || (callerRole() == 'PARENT' && resource.data.enabled == true)
-                || (callerRole() == 'TEACHER' && callerBranchId() == branchId));
+                || (callerRoleIn(branchId) == 'TEACHER'));
           allow create, update: if profileOwnsStaff(callerProfile(), schoolId, branchId, staffId)
             && request.resource.data.schoolId == schoolId
             && request.resource.data.branchId == branchId

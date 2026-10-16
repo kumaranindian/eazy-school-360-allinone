@@ -14,14 +14,18 @@ class AcademicYearFormDialog extends ConsumerStatefulWidget {
   final String schoolId;
   final String branchId;
   final String currentUserId;
-  final AcademicYear? existing;
+  final AcademicYear existing;
 
+  /// Years are created by opening a school-wide year (see
+  /// `OpenSchoolYearDialog`); this dialog only edits one. A year opened from the
+  /// school-wide registry keeps the school's name and dates — only its status
+  /// is the branch's to change.
   const AcademicYearFormDialog({
     super.key,
     required this.schoolId,
     required this.branchId,
     required this.currentUserId,
-    this.existing,
+    required this.existing,
   });
 
   @override
@@ -32,13 +36,12 @@ class AcademicYearFormDialog extends ConsumerStatefulWidget {
 class _AcademicYearFormDialogState
     extends ConsumerState<AcademicYearFormDialog> {
   final _formKey = GlobalKey<FormState>();
-  late final _name = TextEditingController(text: widget.existing?.name);
-  late DateTime? _startDate = widget.existing?.startDate;
-  late DateTime? _endDate = widget.existing?.endDate;
-  late AcademicYearStatus _status =
-      widget.existing?.status ?? AcademicYearStatus.draft;
+  late final _name = TextEditingController(text: widget.existing.name);
+  late DateTime? _startDate = widget.existing.startDate;
+  late DateTime? _endDate = widget.existing.endDate;
+  late AcademicYearStatus _status = widget.existing.status;
 
-  bool get _isEditing => widget.existing != null;
+  bool get _linked => widget.existing.schoolYearId != null;
 
   Future<void> _pickDate({required bool isStart}) async {
     final picked = await showDatePicker(
@@ -70,27 +73,24 @@ class _AcademicYearFormDialogState
     }
 
     final year = AcademicYear(
-      academicYearId: widget.existing?.academicYearId ?? '',
+      academicYearId: widget.existing.academicYearId,
       schoolId: widget.schoolId,
       branchId: widget.branchId,
       name: _name.text.trim(),
       startDate: _startDate!,
       endDate: _endDate!,
       status: _status,
+      schoolYearId: widget.existing.schoolYearId,
     );
 
     final repository = ref.read(academicStructureRepositoryProvider);
     final success = await ref
         .read(academicStructureWriteControllerProvider.notifier)
         .run(
-          () => _isEditing
-              ? repository.updateAcademicYear(
-                  year,
-                  updatedBy: widget.currentUserId,
-                )
-              : repository
-                    .createAcademicYear(year, createdBy: widget.currentUserId)
-                    .then((_) {}),
+          () => repository.updateAcademicYear(
+            year,
+            updatedBy: widget.currentUserId,
+          ),
         );
 
     if (!mounted) return;
@@ -125,13 +125,19 @@ class _AcademicYearFormDialogState
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            _isEditing ? 'Edit academic year' : 'Add academic year',
-            style: context.textStyles.titleLarge,
-          ),
+          Text('Edit academic year', style: context.textStyles.titleLarge),
+          if (_linked)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.xs),
+              child: Text(
+                'Set by the school. Only the status can be changed here.',
+                style: context.textStyles.bodySmall,
+              ),
+            ),
           const SizedBox(height: AppSpacing.md),
           TextFormField(
             controller: _name,
+            readOnly: _linked,
             decoration: const InputDecoration(
               labelText: 'Name',
               hintText: 'e.g. 2026-2027',
@@ -143,7 +149,7 @@ class _AcademicYearFormDialogState
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () => _pickDate(isStart: true),
+                  onPressed: _linked ? null : () => _pickDate(isStart: true),
                   child: Text(
                     _startDate == null
                         ? 'Start date'
@@ -154,7 +160,7 @@ class _AcademicYearFormDialogState
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () => _pickDate(isStart: false),
+                  onPressed: _linked ? null : () => _pickDate(isStart: false),
                   child: Text(
                     _endDate == null
                         ? 'End date'

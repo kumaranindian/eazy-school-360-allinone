@@ -159,7 +159,12 @@ async function diagnoseAccess({ db }, callerUid, token, data) {
   else c.ok('STATUS_ACTIVE', 'Profile is ACTIVE.');
 
   const needsBranch = user.role !== 'SCHOOL_ADMIN' && user.role !== 'PLATFORM_ADMIN';
-  if (needsBranch && user.branchId !== branchId) {
+  // The role held IN this branch: home role at home, else the per-branch role.
+  const extra = user.branchId !== branchId ? (user.branchRoles || {})[branchId] : null;
+  const roleHere = extra && ['TEACHER', 'FINANCE', 'BRANCH_ADMIN'].includes(extra) ? extra : user.role;
+  if (extra && roleHere === extra) {
+    c.ok('BRANCH_MATCH', `Works in this branch as ${extra} (per-branch role; home branch is "${user.branchId}").`);
+  } else if (needsBranch && user.branchId !== branchId) {
     c.bad('BRANCH_MATCH', 'CRITICAL', `Profile branchId is ${user.branchId ? `"${user.branchId}"` : 'missing'}, not "${branchId}"; branch-scoped rules deny it.`,
       'Set the profile branchId to the branch the person works in.');
   } else if (needsBranch) c.ok('BRANCH_MATCH', 'Profile branch matches.');
@@ -169,10 +174,10 @@ async function diagnoseAccess({ db }, callerUid, token, data) {
     c.bad('LOGIN_METHODS', 'HIGH', 'Login access is switched off or has no effective sign-in method.', 'Enable access and a school-permitted method in Login access.');
   } else c.ok('LOGIN_METHODS', l ? `Methods: ${(l.effective || []).join(', ')}.` : 'Legacy account (no login map): all methods work.');
 
-  if (user.role === 'TEACHER') await teacherChecks(db, c, { uid, schoolId, branchId });
+  if (roleHere === 'TEACHER') await teacherChecks(db, c, { uid, schoolId, branchId });
   if (user.role === 'PARENT') await parentChecks(db, c, { uid, user, schoolId, branchId });
 
-  return { result: { uid, role: user.role, healthy: c.checks.every((x) => x.ok), checks: c.checks } };
+  return { result: { uid, role: roleHere, healthy: c.checks.every((x) => x.ok), checks: c.checks } };
 }
 
 module.exports = { diagnoseAccess };

@@ -17,6 +17,7 @@ const { provisionLogins, ensureAuthUser, enablePortalLinks } = require('./provis
 const access = require('./access');
 const { diagnoseAccess } = require('./diagnose');
 const teacherAccess = require('./teacher_access');
+const branchAccess = require('./branch_access');
 const { requestOtp, verifyOtp } = require('./otp');
 const { createWhatsAppSender } = require('./whatsapp');
 const { callOptions } = require('./call_options');
@@ -272,3 +273,39 @@ exports.refreshTeacherAccess = onCall(callOptions(), async (request) => {
   logger.info('refreshTeacherAccess', { by: a.uid, ...out });
   return out;
 });
+
+// ---- Multi-branch staff ----------------------------------------------------
+
+// A school admin grants / changes / revokes a staff login's role in ANOTHER
+// branch (users.branchRoles — written only here; see branch_access.js).
+exports.setBranchAccess = onCall(callOptions(), async (request) => {
+  const a = signedIn(request);
+  const out = await branchAccess.setBranchAccess(
+    { db, now: FieldValue.serverTimestamp() },
+    a.uid,
+    request.data,
+    a.token,
+  );
+  if (out.error) fail(out);
+  logger.info('setBranchAccess', { by: a.uid, branchId: request.data.branchId, role: request.data.role });
+  return { branchRoles: out.branchRoles };
+});
+
+// A per-branch role is only as good as the staff record behind it: when that
+// record is deactivated (or unlinked) in the branch, the role is removed.
+exports.staffBranchAccessSync = onDocumentWritten(
+  'schools/{schoolId}/branches/{branchId}/staff/{staffId}',
+  async (event) => {
+    const { schoolId, branchId } = event.params;
+    const before = event.data && event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data && event.data.after.exists ? event.data.after.data() : null;
+    try {
+      await branchAccess.revokeIfStaffInactive(
+        { db, now: FieldValue.serverTimestamp() },
+        { schoolId, branchId, before, after },
+      );
+    } catch (e) {
+      logger.error('staffBranchAccessSync failed', { schoolId, branchId, message: String(e.message || e) });
+    }
+  },
+);

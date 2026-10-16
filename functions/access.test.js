@@ -203,3 +203,16 @@ test('re-enabling an account never creates a second one', async () => {
   await set(ctx, {});
   assert.strictEqual(Object.keys(auth.users).length, before);
 });
+
+test('a branch admin through a per-branch role may administer that branch, but not accounts homed elsewhere', async () => {
+  const { assertAdmin } = require('./access');
+  const db = fakeDb({
+    'users/multi': { schoolId: 's1', status: 'ACTIVE', role: 'TEACHER', branchId: 'b1', branchRoles: { b2: 'BRANCH_ADMIN' } },
+    'users/plain': { schoolId: 's1', status: 'ACTIVE', role: 'TEACHER', branchId: 'b1', branchRoles: { b2: 'TEACHER' } },
+  });
+  const ok = await assertAdmin(db, 'multi', 's1', 'b2', {});
+  assert.equal(ok.role, 'BRANCH_ADMIN');
+  assert.equal(await assertAdmin(db, 'multi', 's1', 'b1', {}), null); // home role is teacher
+  assert.equal(await assertAdmin(db, 'multi', 's1', 'b3', {}), null);
+  assert.equal(await assertAdmin(db, 'plain', 's1', 'b2', {}), null);
+});

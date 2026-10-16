@@ -48,8 +48,10 @@ See `role-permission-matrix.md` (data access table) and the generated inventory 
 
 | Check | Result |
 |---|---|
-| Firestore + Storage rules emulator suite (`--project demo-eazy-school-360`) | 365 / 365 pass |
-| `functions` `npm test` | 52 / 52 pass |
-| `flutter analyze` / `dart format` / `flutter test` | clean / clean / 1199 pass |
+| Firestore + Storage rules emulator suite (`--project demo-eazy-school-360`) | 395 / 395 pass |
+| `functions` `npm test` | 67 / 67 pass |
+| `flutter analyze` / `dart format` / `flutter test` | clean / clean / 1250 pass |
 
 Note: in this sandbox the emulators must be run with the proxy variables unset (`env -u HTTPS_PROXY -u https_proxy -u JAVA_TOOL_OPTIONS ...`); otherwise Storage→Firestore lookups are blocked by the egress proxy and Storage tests fail spuriously.
+
+Multi-branch (per-branch roles, school-wide years, branch transfers): see `docs/multi-branch.md`.

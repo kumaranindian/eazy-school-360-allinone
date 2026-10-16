@@ -30,6 +30,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../support/attendance_fakes.dart';
 import '../support/fakes.dart';
+import '../support/school_year_fakes.dart';
 import '../support/staff_fakes.dart';
 
 const _uid = 'uid-1';
@@ -156,6 +157,9 @@ Future<ProviderContainer> _pump(
         ),
       ),
       calendarRepositoryProvider.overrideWithValue(FakeCalendarRepository()),
+      schoolYearRepositoryProvider.overrideWithValue(
+        FakeSchoolYearRepository(),
+      ),
     ],
   );
   addTearDown(container.dispose);
@@ -168,7 +172,7 @@ Future<ProviderContainer> _pump(
 
 const _pages = <(String, String, String)>[
   (AppRoutes.settingsBranches, 'Branches', 'Add branch'),
-  (AppRoutes.settingsAcademicYears, 'Academic years', 'Add academic year'),
+  (AppRoutes.settingsAcademicYears, 'Academic years', 'Open a school year'),
   (AppRoutes.settingsClasses, 'Classes', 'Add class'),
   (AppRoutes.settingsSections, 'Sections', 'Add section'),
   (AppRoutes.settingsSubjects, 'Subjects', 'Add subject'),

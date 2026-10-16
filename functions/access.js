@@ -84,7 +84,12 @@ async function assertAdmin(db, uid, schoolId, branchId, token) {
   const u = snap.data();
   if (!u || u.schoolId !== schoolId || !loginAllowed(u, token)) return null;
   if (u.role === 'SCHOOL_ADMIN') return u;
-  if (u.role === 'BRANCH_ADMIN' && branchId && u.branchId === branchId) return u;
+  if (branchId) {
+    // A branch admin of this branch: by home role, or by a per-branch role
+    // (users.branchRoles). The returned caller carries the role held HERE.
+    if (u.role === 'BRANCH_ADMIN' && u.branchId === branchId) return u;
+    if (u.branchId !== branchId && (u.branchRoles || {})[branchId] === 'BRANCH_ADMIN') return { ...u, role: 'BRANCH_ADMIN' };
+  }
   return null;
 }
 
@@ -170,7 +175,10 @@ async function getLoginAccess({ db, auth }, callerUid, token, data) {
   if (!u || u.schoolId !== schoolId) return { result: out };
   out.hasAccount = true;
   out.role = u.role;
-  out.manageable = mayManageRole(caller, u.role) && rec.uid !== callerUid;
+  // Login access is a property of the whole account, so only a school admin may
+  // change it for someone whose home is another branch.
+  const homeHere = !u.branchId || u.branchId === branchId;
+  out.manageable = mayManageRole(caller, u.role) && rec.uid !== callerUid && (homeHere || caller.role === 'SCHOOL_ADMIN');
   const l = u.login;
   out.legacy = l == null;
   out.enabled = u.status === 'ACTIVE' && (l == null || l.enabled === true);
@@ -252,7 +260,8 @@ async function setLoginAccess(ctx, callerUid, token, data) {
   const txn = await db.runTransaction(async (tx) => {
     const snap = await tx.get(userRef);
     const u = snap.data();
-    if (!u || u.schoolId !== schoolId || (u.branchId && u.branchId !== branchId)) {
+    const worksHere = caller.role === 'SCHOOL_ADMIN' && u && (u.branchRoles || {})[branchId];
+    if (!u || u.schoolId !== schoolId || (u.branchId && u.branchId !== branchId && !worksHere)) {
       throw Object.assign(new Error('mismatch'), { code: 'TARGET_MISMATCH' });
     }
     if (uid === callerUid || !mayManageRole(caller, u.role)) {

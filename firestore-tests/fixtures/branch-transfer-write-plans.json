@@ -1,0 +1,217 @@
+{
+  "scenarios": [
+    {
+      "name": "move an active student with two guardians",
+      "batches": [
+        {
+          "as": "bt-admin",
+          "label": "transfer",
+          "ops": [
+            {
+              "op": "set",
+              "path": "schools/__SCHOOL__/branches/south/students/stu-1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "south",
+                "admissionNumber": "S-100",
+                "studentCode": "STU-STU-1",
+                "firstName": "Anil",
+                "middleName": null,
+                "lastName": "Kumar",
+                "displayName": "Anil Kumar",
+                "displayNameLower": "anil kumar",
+                "dateOfBirth": {
+                  "$time": "2014-05-04T00:00:00.000Z"
+                },
+                "gender": "MALE",
+                "bloodGroup": null,
+                "photoUrl": null,
+                "email": null,
+                "phone": null,
+                "addressLine1": null,
+                "addressLine2": null,
+                "city": null,
+                "state": null,
+                "country": null,
+                "postalCode": null,
+                "admissionDate": {
+                  "$time": "2026-07-01T00:00:00.000Z"
+                },
+                "status": "ACTIVE",
+                "currentAcademicYearId": "y1",
+                "currentClassId": "c6",
+                "currentSectionId": "sb",
+                "currentRollNumber": "12",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "bt-admin",
+                "updatedBy": "bt-admin",
+                "transferredFrom": {
+                  "branchId": "north",
+                  "studentId": "stu-1",
+                  "admissionNumber": "N-001"
+                }
+              }
+            },
+            {
+              "op": "set",
+              "path": "schools/__SCHOOL__/branches/south/students/stu-1/academicRecords/rec-new",
+              "data": {
+                "studentId": "stu-1",
+                "schoolId": "__SCHOOL__",
+                "branchId": "south",
+                "academicYearId": "y1",
+                "classId": "c6",
+                "sectionId": "sb",
+                "rollNumber": "12",
+                "startDate": {
+                  "$time": "2026-07-01T00:00:00.000Z"
+                },
+                "endDate": null,
+                "status": "ACTIVE",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "bt-admin",
+                "updatedBy": "bt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "schools/__SCHOOL__/branches/south/students/stu-1/parentLinks/par-existing",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "south",
+                "studentId": "stu-1",
+                "parentId": "par-existing",
+                "relationshipType": "FATHER",
+                "isPrimary": true,
+                "isEmergencyContact": false,
+                "canAccessPortal": true,
+                "status": "ACTIVE",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "bt-admin",
+                "updatedBy": "bt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "schools/__SCHOOL__/branches/south/parents/par-new",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "south",
+                "firstName": "Ravi",
+                "lastName": "Kumar",
+                "displayName": "Ravi Kumar",
+                "displayNameLower": "ravi kumar",
+                "email": "ravi@example.com",
+                "phone": "+919876543210",
+                "status": "ACTIVE",
+                "linkedUserId": "user-par",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "bt-admin",
+                "updatedBy": "bt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "schools/__SCHOOL__/branches/south/students/stu-1/parentLinks/par-new",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "south",
+                "studentId": "stu-1",
+                "parentId": "par-new",
+                "relationshipType": "FATHER",
+                "isPrimary": true,
+                "isEmergencyContact": false,
+                "canAccessPortal": true,
+                "status": "ACTIVE",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "bt-admin",
+                "updatedBy": "bt-admin"
+              }
+            },
+            {
+              "op": "update",
+              "path": "schools/__SCHOOL__/branches/north/students/stu-1",
+              "data": {
+                "status": "TRANSFERRED",
+                "statusChangeReason": "TRANSFERRED_TO_BRANCH",
+                "statusChangeDate": {
+                  "$time": "2026-07-01T00:00:00.000Z"
+                },
+                "statusChangeNotes": "Family moved",
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "bt-admin",
+                "transferredTo": {
+                  "branchId": "south",
+                  "studentId": "stu-1",
+                  "admissionNumber": "S-100"
+                }
+              }
+            },
+            {
+              "op": "update",
+              "path": "schools/__SCHOOL__/branches/north/students/stu-1/academicRecords/rec-old",
+              "data": {
+                "status": "TRANSFERRED",
+                "endDate": {
+                  "$time": "2026-07-01T00:00:00.000Z"
+                },
+                "updatedAt": {
+                  "$serverTimestamp": true
+                },
+                "updatedBy": "bt-admin"
+              }
+            },
+            {
+              "op": "set",
+              "path": "schools/__SCHOOL__/studentTransfers/tr-1",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "studentId": "stu-1",
+                "studentName": "Anil Kumar",
+                "fromBranchId": "north",
+                "toBranchId": "south",
+                "fromAdmissionNumber": "N-001",
+                "toAdmissionNumber": "S-100",
+                "reason": "Family moved",
+                "effectiveDate": {
+                  "$time": "2026-07-01T00:00:00.000Z"
+                },
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "bt-admin"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

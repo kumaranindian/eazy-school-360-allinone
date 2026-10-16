@@ -96,3 +96,20 @@ test('parent: each missing prerequisite is named', async () => {
   assert.deepStrictEqual(failing(await run(parent({ [`${B}/parentAccess/pr1`]: { classKeys: [], sectionKeys: [] } }), 'p')), ['PARENT_ACCESS']);
   assert.deepStrictEqual(failing(await run(parent({ [`${B}/parents/pr1`]: { linkedUserId: 'other', status: 'ACTIVE' } }), 'p')), ['PARENT_BACKLINK']);
 });
+
+test('a per-branch role passes the branch check and gets the teacher checks there', async () => {
+  const { fakeDb } = require('./test_support');
+  const db = fakeDb({
+    'users/admin': { schoolId: 's1', role: 'SCHOOL_ADMIN', status: 'ACTIVE' },
+    'users/m': { schoolId: 's1', role: 'FINANCE', status: 'ACTIVE', branchId: 'b1', branchRoles: { b2: 'TEACHER' } },
+    'schools/s1/branches/b2/staff/st1': { userId: 'm', status: 'ACTIVE', isTeacher: true },
+  });
+  const out = await diagnoseAccess({ db }, 'admin', TOKEN, { schoolId: 's1', branchId: 'b2', uid: 'm' });
+  const by = Object.fromEntries(out.result.checks.map((c) => [c.id, c]));
+  assert.equal(by.BRANCH_MATCH.ok, true);
+  assert.equal(out.result.role, 'TEACHER');
+  assert.ok(Object.keys(by).some((k) => k.startsWith('TEACHER') || k.includes('STAFF')));
+  // a branch the person has no role in is still reported
+  const none = await diagnoseAccess({ db }, 'admin', TOKEN, { schoolId: 's1', branchId: 'b9', uid: 'm' });
+  assert.equal(Object.fromEntries(none.result.checks.map((c) => [c.id, c])).BRANCH_MATCH.ok, false);
+});

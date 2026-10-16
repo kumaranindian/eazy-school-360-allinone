@@ -136,6 +136,25 @@ abstract class StudentRepository {
     required String updatedBy,
   });
 
+  /// Moves an ACTIVE student to another branch of the same school (school admin
+  /// only), as one atomic batch — see `BranchTransferWrites`. History stays in
+  /// the old branch; the new branch gets the student already placed, plus the
+  /// guardians. Returns the audit entry's id.
+  Future<String> transferToBranch({
+    required String schoolId,
+    required String fromBranchId,
+    required String studentId,
+    required String toBranchId,
+    required String admissionNumber,
+    required String academicYearId,
+    required String classId,
+    required String sectionId,
+    String? rollNumber,
+    String? reason,
+    required DateTime effectiveDate,
+    required String updatedBy,
+  });
+
   /// Chronological, oldest first — see
   /// `docs/milestone-3-student-parent-management.md` → "Academic History
   /// UI".

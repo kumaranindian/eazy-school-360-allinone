@@ -256,3 +256,10 @@ disabled accounts, role-escalation attempts, the self-signup flow, ...).
    to `Permission` and to each role's entry in `RolePermissions.grants` —
    see "How to add a new role" above for the same two-sided (UI +
    rules) requirement.
+
+## Multi-branch (staff in several branches, school-wide years, student moves)
+
+A login can hold a role in more than one branch (`users.branchRoles`, server-written), academic years are defined once per
+school and *opened* by each branch, and a school admin can move a student to another branch. The role-in-branch helper
+(`branchRoleOf` in `firestore.rules`, `roleIn` in `storage.rules`) must be used instead of comparing `callerBranchId()`
+when adding rules. See `docs/multi-branch.md`.

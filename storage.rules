@@ -45,6 +45,15 @@ service firebase.storage {
       );
     }
 
+    // Per-branch roles (multi-branch staff): mirrors firestore.rules'
+    // branchRoleOf(). `branchRoles` is written only by Cloud Functions.
+    function roleIn(branchId) {
+      let r = callerProfile().get('branchRoles', {}).get(branchId, null);
+      return callerProfile().branchId == branchId
+        ? callerProfile().role
+        : (r in ['BRANCH_ADMIN', 'TEACHER', 'FINANCE'] ? r : null);
+    }
+
     function isSameSchool(schoolId) {
       return isActiveCaller() && callerProfile().schoolId == schoolId;
     }
@@ -61,7 +70,7 @@ service firebase.storage {
     // scope for this milestone's Storage rules — the foundation is the
     // relationship record in Firestore, not Storage path authorization).
     function isSameBranch(schoolId, branchId) {
-      return isActiveCaller() && callerProfile().schoolId == schoolId && callerProfile().branchId == branchId;
+      return isActiveCaller() && callerProfile().schoolId == schoolId && roleIn(branchId) != null;
     }
 
     function canManageStudentData(schoolId, branchId) {
@@ -69,7 +78,7 @@ service firebase.storage {
         && (
           callerProfile().role == 'PLATFORM_ADMIN' ||
           callerProfile().role == 'SCHOOL_ADMIN' ||
-          (callerProfile().role == 'BRANCH_ADMIN' && callerProfile().branchId == branchId)
+          roleIn(branchId) == 'BRANCH_ADMIN'
         );
     }
 
@@ -198,11 +207,11 @@ service firebase.storage {
             && (firestore.get(fsDoc(schoolId, branchId, 'homework', homeworkId)).data.createdBy == request.auth.uid
                 || (firestore.get(fsDoc(schoolId, branchId, 'homework', homeworkId)).data.status in ['PUBLISHED', 'CLOSED']
                     && (callerProfile().role == 'PARENT'
-                        || (callerProfile().role == 'TEACHER' && callerProfile().branchId == branchId)))));
+                        || roleIn(branchId) == 'TEACHER'))));
       allow write: if resource == null && hwFileTypeOk()
         && (isAdminOfBranch(schoolId, branchId)
             || (isActiveCaller() && callerProfile().schoolId == schoolId
-                && callerProfile().role == 'TEACHER' && callerProfile().branchId == branchId
+                && roleIn(branchId) == 'TEACHER'
                 && firestore.exists(fsDoc(schoolId, branchId, 'homework', homeworkId))
                 && firestore.get(fsDoc(schoolId, branchId, 'homework', homeworkId)).data.createdBy == request.auth.uid));
       allow delete: if false;
@@ -215,7 +224,7 @@ service firebase.storage {
             && ((callerProfile().role == 'PARENT' && callerProfile().linkedParentId != null
                  && firestore.exists(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/students/$(studentId)/parentLinks/$(callerProfile().linkedParentId))
                  && firestore.get(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/students/$(studentId)/parentLinks/$(callerProfile().linkedParentId)).data.status == 'ACTIVE')
-                || (callerProfile().role == 'TEACHER' && callerProfile().branchId == branchId
+                || (roleIn(branchId) == 'TEACHER'
                     && firestore.exists(fsDoc(schoolId, branchId, 'homework', homeworkId))
                     && firestore.get(fsDoc(schoolId, branchId, 'homework', homeworkId)).data.createdBy == request.auth.uid)));
       allow write: if resource == null && hwFileTypeOk()
@@ -237,7 +246,7 @@ service firebase.storage {
       allow write: if resource == null && hwFileTypeOk()
         && (isAdminOfBranch(schoolId, branchId)
             || (isActiveCaller() && callerProfile().schoolId == schoolId
-                && callerProfile().role == 'TEACHER' && callerProfile().branchId == branchId
+                && roleIn(branchId) == 'TEACHER'
                 && firestore.exists(fsDoc(schoolId, branchId, 'announcements', announcementId))
                 && firestore.get(fsDoc(schoolId, branchId, 'announcements', announcementId)).data.authorId == request.auth.uid));
       allow delete: if false;

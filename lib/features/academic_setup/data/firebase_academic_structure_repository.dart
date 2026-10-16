@@ -143,32 +143,6 @@ class FirebaseAcademicStructureRepository
   }
 
   @override
-  Future<String> createAcademicYear(
-    AcademicYear year, {
-    required String createdBy,
-  }) async {
-    try {
-      if (!year.endDate.isAfter(year.startDate)) {
-        throw const ValidationFailure('End date must be after the start date.');
-      }
-      final siblings = await _yearsCollection(
-        year.schoolId,
-        year.branchId,
-      ).get();
-      _assertNoDuplicateYear(siblings.docs, name: year.name, excludingId: null);
-      if (year.status == AcademicYearStatus.active) {
-        _assertNoOtherActiveYear(siblings.docs, excludingId: null);
-      }
-
-      final ref = _yearsCollection(year.schoolId, year.branchId).doc();
-      await ref.set(year.toFirestoreCreate(createdBy: createdBy));
-      return ref.id;
-    } catch (error, stackTrace) {
-      throw mapExceptionToFailure(error, stackTrace);
-    }
-  }
-
-  @override
   Future<void> updateAcademicYear(
     AcademicYear year, {
     required String updatedBy,

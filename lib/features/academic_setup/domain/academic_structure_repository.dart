@@ -20,15 +20,6 @@ abstract class AcademicStructureRepository {
     String academicYearId,
   );
 
-  /// Throws a [ValidationFailure] if an academic year with the same name
-  /// already exists for this branch, if the date range is invalid, or if
-  /// marking this year ACTIVE would leave a second ACTIVE year for the
-  /// same branch.
-  Future<String> createAcademicYear(
-    AcademicYear year, {
-    required String createdBy,
-  });
-
   Future<void> updateAcademicYear(
     AcademicYear year, {
     required String updatedBy,

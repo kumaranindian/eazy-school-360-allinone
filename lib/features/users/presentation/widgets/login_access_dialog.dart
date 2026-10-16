@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/errors/error_mapper.dart';
+import '../../../../core/permissions/user_role.dart';
+import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/layouts/detail_grid.dart';
 import '../../../authentication/domain/login_method.dart';
@@ -10,6 +12,7 @@ import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../domain/login_access.dart';
 import '../../domain/login_provisioning.dart';
 import '../providers/login_access_providers.dart';
+import 'branch_access_section.dart';
 
 /// Opens the per-person Login Access manager (the key icon on staff and
 /// parent lists and profiles). Resolves to true when something changed.
@@ -501,6 +504,10 @@ class _LoginAccessDialogState extends ConsumerState<LoginAccessDialog> {
           ),
         ],
       ],
+      if (widget.kind == LoginKind.staff &&
+          a.uid != null &&
+          ref.read(tenantContextProvider).value?.role == UserRole.schoolAdmin)
+        BranchAccessSection(schoolId: widget.schoolId, uid: a.uid!),
       if (_diagnosis != null)
         Padding(
           padding: const EdgeInsets.only(top: AppSpacing.md),

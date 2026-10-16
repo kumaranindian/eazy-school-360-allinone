@@ -14,8 +14,8 @@ import '../providers/student_providers.dart';
 /// [AcademicRecordStatus] — a same-year section change should normally
 /// close as `transferred`, an end-of-year promotion as `completed`.
 ///
-/// Branch transfer is out of scope — see
-/// `docs/milestone-3-student-parent-management.md` → "Known limitations".
+/// A move to another branch is a separate, audited action — see
+/// `StudentBranchTransferDialog`.
 class StudentTransferDialog extends ConsumerStatefulWidget {
   final Student student;
   final String currentUserId;

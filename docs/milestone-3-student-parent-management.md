@@ -190,7 +190,7 @@ left dangling as still-ACTIVE, or the cache pointing somewhere the
 history doesn't agree with) is exactly the "partially-created
 relationship" failure mode the brief warns against in §33.
 
-**Branch transfer is explicitly out of scope.** A student document lives
+**Branch transfer was out of scope in this milestone — it now exists as a separate, audited action (see `docs/multi-branch.md` §3).** A student document lives
 under one specific `branches/{branchId}` path; moving it to a different
 branch means creating a new document under a different path and
 migrating every subcollection underneath it — a genuinely different, more
@@ -396,5 +396,5 @@ alternatives, not simultaneous dimensions.
   page") — "Load more" only. Acceptable at the scale this app targets;
   flagged since the brief was explicit about designing lists "for
   growth."
-- **Branch transfer is not supported** — see "Transfer / academic history
+- **Branch transfer** is handled by `docs/multi-branch.md` §3 (it was not supported here) — see "Transfer / academic history
   rule" above; documented, not faked.

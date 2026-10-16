@@ -199,3 +199,46 @@ test('a profile of another school, another role or another person is still EMAIL
   const { results } = await call(db, auth, { ids: ['ta', 'tb', 'tc'] });
   assert.deepStrictEqual(results.map((r) => r.outcome), ['EMAIL_IN_USE', 'EMAIL_IN_USE', 'EMAIL_IN_USE']);
 });
+
+test('the same person in a second branch gets a per-branch role, not a second account (school admin only)', async () => {
+  const S2 = 'schools/s1/branches/b2';
+  const seed = () => ({
+    ...base(),
+    'users/ba2': { status: 'ACTIVE', schoolId: 's1', branchId: 'b2', role: 'BRANCH_ADMIN' },
+    'users/home': { status: 'ACTIVE', schoolId: 's1', branchId: 'b1', role: 'TEACHER', email: 'asha@x.com' },
+    [`${B}/staff/home`]: { userId: 'home', status: 'ACTIVE', isTeacher: true },
+    [`${S2}/staff/x1`]: { firstName: 'Asha', lastName: 'K', email: 'asha@x.com', status: 'ACTIVE', isTeacher: true },
+  });
+  const run = (db, uid) => provisionLogins({ db, auth: fakeAuth({ 'asha@x.com': 'home' }), now: 'NOW' }, uid,
+    { schoolId: 's1', branchId: 'b2', kind: 'STAFF', ids: ['x1'] });
+
+  // a branch admin of the second branch must not attach someone else's login
+  const denied = fakeDb(seed());
+  assert.strictEqual((await run(denied, 'ba2')).results[0].outcome, 'EMAIL_IN_USE');
+  assert.strictEqual(denied.store.get(`${S2}/staff/x1`).userId, undefined);
+
+  const db = fakeDb(seed());
+  const { results } = await run(db, 'admin');
+  assert.strictEqual(results[0].outcome, 'CREATED');
+  assert.strictEqual(results[0].crossBranch, true);
+  const u = db.store.get('users/home');
+  assert.deepStrictEqual(u.branchRoles, { b2: 'TEACHER' });
+  assert.strictEqual(u.branchId, 'b1');
+  assert.strictEqual(u.role, 'TEACHER');
+  assert.strictEqual(db.store.get(`${S2}/staff/x1`).userId, 'home');
+});
+
+test('cross-branch mapping never merges admins, parents or other schools', async () => {
+  const S2 = 'schools/s1/branches/b2';
+  for (const home of [
+    { role: 'SCHOOL_ADMIN', schoolId: 's1', branchId: 'b1' },
+    { role: 'PARENT', schoolId: 's1', branchId: 'b1' },
+    { role: 'TEACHER', schoolId: 's2', branchId: 'b1' },
+  ]) {
+    const db = fakeDb({ ...base(), 'users/home': { status: 'ACTIVE', ...home },
+      [`${S2}/staff/x1`]: { firstName: 'A', lastName: 'K', email: 'asha@x.com', status: 'ACTIVE', isTeacher: true } });
+    const { results } = await provisionLogins({ db, auth: fakeAuth({ 'asha@x.com': 'home' }), now: 'NOW' }, 'admin',
+      { schoolId: 's1', branchId: 'b2', kind: 'STAFF', ids: ['x1'] });
+    assert.strictEqual(results[0].outcome, 'EMAIL_IN_USE', JSON.stringify(home));
+  }
+});
