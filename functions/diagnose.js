@@ -112,11 +112,13 @@ async function parentChecks(db, c, { uid, user, schoolId, branchId }) {
 
   const wantClass = new Set();
   const wantSection = new Set();
+  const children = [];
   for (const l of usable) {
     const st = (await branchRef(db, schoolId, branchId).collection('students').doc(l.studentId).get()).data();
     if (st && st.status === 'ACTIVE' && st.currentClassId) {
       wantClass.add(st.currentClassId);
       if (st.currentSectionId) wantSection.add(`${st.currentClassId}__${st.currentSectionId}`);
+      children.push({ id: l.studentId, ...st });
     }
   }
   const acc = await branchRef(db, schoolId, branchId).collection('parentAccess').doc(pid).get();
@@ -132,6 +134,62 @@ async function parentChecks(db, c, { uid, user, schoolId, branchId }) {
     c.bad('PARENT_ACCESS', 'HIGH', `parentAccess is stale: missing ${missing.join(', ')}.`, 'Parents → "Refresh parent access".');
   } else {
     c.ok('PARENT_ACCESS', 'parentAccess index matches the children\'s classes.');
+  }
+  await resultChecks(db, c, { schoolId, branchId, children });
+}
+
+/**
+ * What "My results" depends on, per child: a PUBLISHED examination of the
+ * child's class (class-wide or the child's section) in the child's current
+ * academic year, and the child's result document for the examination's
+ * version in force (`{examId}__{studentId}__v{resultVersion}`) whose own
+ * examId / studentId / version agree with it. The rules read exactly these.
+ */
+async function resultChecks(db, c, { schoolId, branchId, children }) {
+  const b = branchRef(db, schoolId, branchId);
+  for (const ch of children) {
+    const who = ch.displayName || ch.firstName || ch.id;
+    const inClass = await b.collection('examinations').where('classId', '==', ch.currentClassId).get();
+    const published = inClass.docs.filter((e) => e.data().status === 'PUBLISHED');
+    const mine = published.filter((e) => e.data().sectionId == null || e.data().sectionId === ch.currentSectionId);
+    if (mine.length === 0) {
+      const states = [...new Set(inClass.docs.map((e) => e.data().status))].join(', ') || 'none';
+      // Not an access defect: nothing is published for this child yet.
+      c.ok('RESULTS_EXAMS',
+        `${who}: no PUBLISHED examination for the child's class/section yet (examinations in this class: ${inClass.docs.length}; states: ${states}). Publish one from Exams → Results for it to appear.`);
+      continue;
+    }
+    for (const e of mine) {
+      const x = e.data();
+      const tag = `${who} / ${x.name || e.id}`;
+      if (x.academicYearId !== ch.currentAcademicYearId) {
+        c.bad('RESULTS_YEAR', 'HIGH',
+          `${tag}: the examination is in academic year "${x.academicYearId}" but the child's current year is "${ch.currentAcademicYearId}"; the app lists only the child's current year.`,
+          'Place the child in the examination\'s year, or create the examination in the child\'s current year.');
+        continue;
+      }
+      if (!Number.isInteger(x.resultVersion) || x.resultVersion < 1) {
+        c.bad('RESULTS_VERSION', 'HIGH', `${tag}: the published examination has resultVersion ${JSON.stringify(x.resultVersion)}.`,
+          'Withdraw and republish the examination.');
+        continue;
+      }
+      const rid = `${e.id}__${ch.id}__v${x.resultVersion}`;
+      const r = await b.collection('resultSummaries').doc(rid).get();
+      if (!r.exists) {
+        c.bad('RESULT_DOC', 'HIGH', `${tag}: there is no result document "${rid}" for this child.`,
+          'Open the examination\'s results; if the child is missing, reopen, finalise and publish again so a result is written for every pupil.');
+        continue;
+      }
+      const d = r.data();
+      const wrong = [];
+      if (d.examId !== e.id) wrong.push(`examId=${JSON.stringify(d.examId)}`);
+      if (d.studentId !== ch.id) wrong.push(`studentId=${JSON.stringify(d.studentId)}`);
+      if (d.version !== x.resultVersion) wrong.push(`version=${JSON.stringify(d.version)} (examination is at ${x.resultVersion})`);
+      if (wrong.length) {
+        c.bad('RESULT_FIELDS', 'HIGH', `${tag}: the result document disagrees with its id: ${wrong.join(', ')}. The rules read these fields, so access is denied.`,
+          'Reopen, finalise and publish the examination again to rewrite the result.');
+      } else c.ok('RESULT_DOC', `${tag}: published and the result document is consistent.`);
+    }
   }
 }
 

@@ -113,3 +113,45 @@ test('a per-branch role passes the branch check and gets the teacher checks ther
   const none = await diagnoseAccess({ db }, 'admin', TOKEN, { schoolId: 's1', branchId: 'b9', uid: 'm' });
   assert.equal(Object.fromEntries(none.result.checks.map((c) => [c.id, c])).BRANCH_MATCH.ok, false);
 });
+
+// ---- parent: what "My results" depends on ------------------------------------
+const exam = (o = {}) => ({
+  [`${B}/examinations/y1__c1__sa__final`]: { status: 'PUBLISHED', classId: 'c1', sectionId: 'sa', academicYearId: 'y1', resultVersion: 1, name: 'Final', ...o },
+});
+const withYear = { [`${B}/students/st1`]: { status: 'ACTIVE', currentClassId: 'c1', currentSectionId: 'sa', currentAcademicYearId: 'y1' } };
+const result = (o = {}) => ({
+  [`${B}/resultSummaries/y1__c1__sa__final__st1__v1`]: { examId: 'y1__c1__sa__final', studentId: 'st1', version: 1, ...o },
+});
+
+test('parent results: a published exam with its consistent result is healthy', async () => {
+  const r = await run(parent({ ...withYear, ...exam(), ...result() }), 'p');
+  assert.strictEqual(r.result.healthy, true, JSON.stringify(failing(r)));
+  assert.ok(r.result.checks.some((c) => c.id === 'RESULT_DOC' && c.ok));
+});
+
+test('parent results: nothing published yet is informational, not a defect', async () => {
+  const r = await run(parent({ ...withYear, ...exam({ status: 'COMPLETED' }) }), 'p');
+  assert.strictEqual(r.result.healthy, true);
+  assert.match(r.result.checks.find((c) => c.id === 'RESULTS_EXAMS').message, /COMPLETED/);
+});
+
+test('parent results: an exam in another academic year than the child is named', async () => {
+  const r = await run(parent({ ...withYear, ...exam({ academicYearId: 'y0' }), ...result() }), 'p');
+  assert.deepStrictEqual(failing(r), ['RESULTS_YEAR']);
+});
+
+test('parent results: a published exam with no result document for the child is named', async () => {
+  assert.deepStrictEqual(failing(await run(parent({ ...withYear, ...exam() }), 'p')), ['RESULT_DOC']);
+});
+
+test('parent results: a result whose fields disagree with its id is named', async () => {
+  const r = await run(parent({ ...withYear, ...exam(), ...result({ version: '1', studentId: 'other' }) }), 'p');
+  assert.deepStrictEqual(failing(r), ['RESULT_FIELDS']);
+  assert.match(r.result.checks.find((c) => c.id === 'RESULT_FIELDS').message, /studentId=.*version=/);
+});
+
+test('parent results: a bad resultVersion on a published exam is named; another section\'s exam is ignored', async () => {
+  assert.deepStrictEqual(failing(await run(parent({ ...withYear, ...exam({ resultVersion: 0 }) }), 'p')), ['RESULTS_VERSION']);
+  const other = parent({ ...withYear, [`${B}/examinations/y1__c1__sb__x`]: { status: 'PUBLISHED', classId: 'c1', sectionId: 'sb', academicYearId: 'y1', resultVersion: 1 } });
+  assert.strictEqual((await run(other, 'p')).result.healthy, true);
+});
