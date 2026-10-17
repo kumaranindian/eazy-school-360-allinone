@@ -21,14 +21,27 @@ class FilterField {
   /// (searching).
   final Widget Function(BuildContext context, bool enabled) controlBuilder;
 
+  /// False when this one control cannot be used right now (e.g. a Section
+  /// before a class is chosen). Only changes how it is drawn; the value and
+  /// the page's state are untouched.
+  final bool enabled;
+
   const FilterField({
     required this.label,
     required this.appliedLabel,
     required this.onClear,
     required this.controlBuilder,
+    this.enabled = true,
   });
 
   bool get isApplied => appliedLabel != null;
+
+  /// The control, drawn at half strength while [enabled] is false so a
+  /// disabled filter reads as unavailable at a glance.
+  Widget buildControl(BuildContext context, bool filtersEnabled) {
+    final control = controlBuilder(context, filtersEnabled);
+    return enabled ? control : Opacity(opacity: 0.5, child: control);
+  }
 
   /// A dropdown filter. A `null` option value means "not filtered": it is
   /// the default, is what [onClear] selects, and never shows as a chip.
@@ -54,6 +67,7 @@ class FilterField {
       label: label,
       appliedLabel: applied,
       onClear: () => onChanged?.call(null),
+      enabled: onChanged != null,
       controlBuilder: (context, enabled) => DropdownButtonFormField<T?>(
         isExpanded: true,
         value: value,

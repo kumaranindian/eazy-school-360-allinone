@@ -104,7 +104,7 @@ class FilterBar extends StatelessWidget {
                   const SizedBox(width: AppSpacing.sm),
                   SizedBox(
                     width: _inlineFieldWidth,
-                    child: f.controlBuilder(context, filtersEnabled),
+                    child: f.buildControl(context, filtersEnabled),
                   ),
                 ],
                 if (hidden.isNotEmpty) ...[
@@ -165,70 +165,36 @@ class FilterBar extends StatelessWidget {
     );
   }
 
-  Widget _searchField(BuildContext context) {
-    final controller = searchController!;
-    return ListenableBuilder(
-      listenable: controller,
-      builder: (context, _) => TextField(
-        controller: controller,
-        enabled: searchEnabled,
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: searchHint,
-          isDense: true,
-          prefixIcon:
-              searchPrefix ?? const Icon(Icons.search, semanticLabel: 'Search'),
-          suffixIcon: controller.text.isEmpty
-              ? null
-              : IconButton(
-                  icon: const Icon(Icons.clear),
-                  tooltip: 'Clear search',
-                  onPressed: () {
-                    controller.clear();
-                    onSearchChanged?.call('');
-                  },
-                ),
-        ),
-        onChanged: onSearchChanged,
-      ),
-    );
-  }
+  Widget _searchField(BuildContext context) => FilterSearchField(
+    controller: searchController!,
+    hint: searchHint,
+    prefix: searchPrefix,
+    enabled: searchEnabled,
+    onChanged: onSearchChanged,
+  );
 
   Widget _filtersButton(
     BuildContext context, {
     required int count,
     required int total,
-  }) {
-    // The count covers every active filter, inline ones included, so the
-    // button never says "no filters" while a list is filtered.
-    final label = total > 0 ? 'Filters · $total' : 'Filters';
-    // On a very narrow screen, or with large text, the labelled button would
-    // squeeze the search box; an icon with a count badge keeps its width fixed.
-    final compact =
-        MediaQuery.sizeOf(context).width < 380 ||
-        MediaQuery.textScalerOf(context).scale(1) > 1.3;
-    if (compact) {
-      return IconButton.filledTonal(
-        tooltip: label,
-        onPressed: filtersEnabled ? () => _openSheet(context) : null,
-        icon: Badge(
-          isLabelVisible: total > 0,
-          label: Text('$total'),
-          child: const Icon(Icons.tune),
-        ),
-      );
-    }
-    return SizedBox(
-      height: 48,
-      child: FilledButton.tonalIcon(
-        onPressed: filtersEnabled ? () => _openSheet(context) : null,
-        icon: const Icon(Icons.tune, size: 20),
-        label: Text(label),
-      ),
-    );
-  }
+  }) => FiltersButton(
+    total: total,
+    onPressed: filtersEnabled ? () => _openSheet(context) : null,
+  );
 
-  Future<void> _openSheet(BuildContext context) {
+  Future<void> _openSheet(BuildContext context) => openFilterSheet(
+    context,
+    fieldsBuilder: fieldsBuilder,
+    filtersEnabled: filtersEnabled,
+  );
+
+  /// The bottom sheet holding every filter. [fieldsBuilder] is called again
+  /// after each change, because the page owns the values.
+  static Future<void> openFilterSheet(
+    BuildContext context, {
+    required List<FilterField> Function() fieldsBuilder,
+    bool filtersEnabled = true,
+  }) {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -275,7 +241,7 @@ class FilterBar extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   for (final f in fields) ...[
-                    f.controlBuilder(context, filtersEnabled),
+                    f.buildControl(context, filtersEnabled),
                     const SizedBox(height: AppSpacing.md),
                   ],
                   FilledButton(
@@ -289,5 +255,101 @@ class FilterBar extends StatelessWidget {
         },
       ),
     );
+  }
+}
+
+/// The search box of [FilterBar], usable on its own.
+class FilterSearchField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hint;
+  final Widget? prefix;
+  final bool enabled;
+  final ValueChanged<String>? onChanged;
+
+  const FilterSearchField({
+    super.key,
+    required this.controller,
+    this.hint = 'Search',
+    this.prefix,
+    this.enabled = true,
+    this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) => TextField(
+        controller: controller,
+        enabled: enabled,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: hint,
+          isDense: true,
+          prefixIcon:
+              prefix ?? const Icon(Icons.search, semanticLabel: 'Search'),
+          suffixIcon: controller.text.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.clear),
+                  tooltip: 'Clear search',
+                  onPressed: () {
+                    controller.clear();
+                    onChanged?.call('');
+                  },
+                ),
+        ),
+        onChanged: onChanged,
+      ),
+    );
+  }
+}
+
+/// The "Filters" button: how many filters are applied, and a tap opens the
+/// sheet. [expanded] fills the width it is given (a phone toolbar) instead of
+/// switching to an icon with a badge on very narrow screens.
+class FiltersButton extends StatelessWidget {
+  final int total;
+  final VoidCallback? onPressed;
+  final bool expanded;
+
+  const FiltersButton({
+    super.key,
+    required this.total,
+    required this.onPressed,
+    this.expanded = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // The count covers every active filter, inline ones included, so the
+    // button never says "no filters" while a list is filtered.
+    final label = total > 0 ? 'Filters · $total' : 'Filters';
+    // On a very narrow screen, or with large text, the labelled button would
+    // squeeze the search box; an icon with a count badge keeps its width fixed.
+    final compact =
+        !expanded &&
+        (MediaQuery.sizeOf(context).width < 380 ||
+            MediaQuery.textScalerOf(context).scale(1) > 1.3);
+    if (compact) {
+      return IconButton.filledTonal(
+        tooltip: label,
+        onPressed: onPressed,
+        icon: Badge(
+          isLabelVisible: total > 0,
+          label: Text('$total'),
+          child: const Icon(Icons.tune),
+        ),
+      );
+    }
+    final button = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 48),
+      child: FilledButton.tonalIcon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.tune, size: 20),
+        label: Text(label),
+      ),
+    );
+    return expanded ? SizedBox(width: double.infinity, child: button) : button;
   }
 }

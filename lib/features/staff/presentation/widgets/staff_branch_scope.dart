@@ -25,7 +25,16 @@ class StaffBranchScope extends ConsumerWidget {
   )
   builder;
 
-  const StaffBranchScope({super.key, required this.builder});
+  /// Whether to draw the "Branch" dropdown row above the page. A screen that
+  /// puts the branch choice in its own header (the Teachers hero) turns it
+  /// off; the branch is still resolved exactly the same way.
+  final bool showBranchRow;
+
+  const StaffBranchScope({
+    super.key,
+    required this.builder,
+    this.showBranchRow = true,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -70,7 +79,7 @@ class StaffBranchScope extends ConsumerWidget {
 
         return Column(
           children: [
-            if (branches.length > 1)
+            if (showBranchRow && branches.length > 1)
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.md,

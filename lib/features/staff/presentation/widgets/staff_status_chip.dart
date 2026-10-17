@@ -5,7 +5,11 @@ import '../../domain/staff_status.dart';
 class StaffStatusChip extends StatelessWidget {
   final StaffStatus status;
 
-  const StaffStatusChip({super.key, required this.status});
+  /// Drops the 48px tap-target padding, for chips inside list rows that are
+  /// tappable as a whole.
+  final bool dense;
+
+  const StaffStatusChip({super.key, required this.status, this.dense = false});
 
   @override
   Widget build(BuildContext context) {
@@ -24,6 +28,7 @@ class StaffStatusChip extends StatelessWidget {
         style: TextStyle(color: color, fontSize: 12),
       ),
       visualDensity: VisualDensity.compact,
+      materialTapTargetSize: dense ? MaterialTapTargetSize.shrinkWrap : null,
       side: BorderSide(color: color.withValues(alpha: 0.4)),
     );
   }

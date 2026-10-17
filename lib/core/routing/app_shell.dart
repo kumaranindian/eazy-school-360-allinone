@@ -246,11 +246,8 @@ class AppShell extends ConsumerWidget {
       'People, departments and designations',
       Icons.badge_outlined,
     ),
-    AppRoutes.teachers: (
-      'Teaching staff',
-      'Who teaches what, and where',
-      Icons.co_present_outlined,
-    ),
+    // AppRoutes.teachers draws its own compact header (TeachersHero), which
+    // also holds the branch selector, so the shell shows no hero for it.
     AppRoutes.attendance: (
       'Daily attendance',
       'Mark, review and report',

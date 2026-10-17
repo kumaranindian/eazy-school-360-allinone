@@ -64,6 +64,17 @@ class AdaptiveScaffold extends StatelessWidget {
     actions: actions ?? const [],
   );
 
+  /// A rail icon; on the icon-only tablet rail it carries the destination's
+  /// name as a tooltip.
+  Widget _railIcon(
+    NavDestination d, {
+    required bool selected,
+    required bool tip,
+  }) {
+    final icon = Icon(selected ? (d.selectedIcon ?? d.icon) : d.icon);
+    return tip ? Tooltip(message: d.label, child: icon) : icon;
+  }
+
   /// Every routed screen gets the version line under its content.
   Widget _withFooter(Widget content) => Column(
     children: [
@@ -200,19 +211,27 @@ class AdaptiveScaffold extends StatelessWidget {
                     child: IntrinsicHeight(
                       child: NavigationRail(
                         extended: isDesktop,
-                        minExtendedWidth: 220,
+                        // Desktop: a 208px sidebar with labels. Tablet: a
+                        // 64px icon-only rail, so each icon carries a tooltip
+                        // (the label is still the accessible name).
+                        minExtendedWidth: 208,
+                        minWidth: 64,
                         selectedIndex: selectedIndex,
                         onDestinationSelected: onDestinationSelected,
-                        labelType: isDesktop
-                            ? NavigationRailLabelType.none
-                            : NavigationRailLabelType.all,
+                        labelType: NavigationRailLabelType.none,
                         destinations: [
                           for (final d in destinations)
                             NavigationRailDestination(
-                              icon: Icon(d.icon),
-                              selectedIcon: d.selectedIcon != null
-                                  ? Icon(d.selectedIcon)
-                                  : null,
+                              icon: _railIcon(
+                                d,
+                                selected: false,
+                                tip: !isDesktop,
+                              ),
+                              selectedIcon: _railIcon(
+                                d,
+                                selected: true,
+                                tip: !isDesktop,
+                              ),
                               label: Text(d.label),
                             ),
                         ],
@@ -239,7 +258,7 @@ class _ContentFrame extends StatelessWidget {
   final Widget child;
   const _ContentFrame({required this.child});
 
-  static const double maxWidth = 1360;
+  static const double maxWidth = 1440;
 
   @override
   Widget build(BuildContext context) {

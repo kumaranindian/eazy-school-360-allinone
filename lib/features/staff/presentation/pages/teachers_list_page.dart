@@ -5,15 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/error_mapper.dart';
-import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/error/error_view.dart';
-import '../../../../shared/filters/filter_bar.dart';
+import '../../../../core/utils/responsive.dart';
 import '../../../../shared/filters/filter_field.dart';
 import '../../../../shared/filters/page_actions.dart';
-import '../../../../shared/layouts/responsive_data_list.dart';
-import '../../../../shared/layouts/scrollable_header.dart';
 import '../../../../shared/layouts/stat_chips.dart';
+import '../../../../shared/layouts/status_chips.dart';
 import '../../../../shared/paging/paged_list_controller.dart';
 import '../../../academic_setup/domain/academic_year.dart';
 import '../../../academic_setup/domain/academic_year_status.dart';
@@ -28,7 +26,9 @@ import '../providers/staff_providers.dart';
 import '../widgets/staff_branch_scope.dart';
 import '../widgets/staff_bulk_actions.dart';
 import '../widgets/staff_section_switcher.dart';
-import '../widgets/staff_status_chip.dart';
+import '../widgets/teacher_list.dart';
+import '../widgets/teachers_hero.dart';
+import '../widgets/teachers_toolbar.dart';
 
 /// One teacher plus their assignments in the selected academic year.
 class _TeacherRow {
@@ -52,6 +52,8 @@ class TeachersListPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StaffBranchScope(
+      // The branch choice lives in the compact hero instead.
+      showBranchRow: false,
       builder: (context, tenant, schoolId, branchId) =>
           _TeachersList(schoolId: schoolId, branchId: branchId),
     );
@@ -318,23 +320,55 @@ class _TeachersListState extends ConsumerState<_TeachersList> {
     super.dispose();
   }
 
+  // Page padding and the gap between sections, by layout.
+  static double _pagePadding(ScreenSize l) =>
+      l.isMobile ? 12 : (l.isTablet ? 16 : 20);
+  static double _sectionGap(ScreenSize l) =>
+      l.isMobile ? 10 : (l.isTablet ? 12 : 14);
+
+  /// The content never grows wider than this on a large display.
+  static const double _maxContentWidth = 1440;
+
   @override
   Widget build(BuildContext context) {
     final branchKey = (schoolId: widget.schoolId, branchId: widget.branchId);
     final yearsAsync = ref.watch(academicYearsProvider(branchKey));
+    // One layout decision for the whole screen, from the window width — the
+    // same input the navigation shell uses, so the two always agree.
+    final layout = screenSizeForWidth(MediaQuery.sizeOf(context).width);
+
+    // The header stays while the page loads, fails, or has no year yet.
+    Widget framed(Widget child) => _Frame(
+      padding: _pagePadding(layout),
+      child: Column(
+        children: [
+          TeachersHero(
+            schoolId: widget.schoolId,
+            branchId: widget.branchId,
+            layout: layout,
+          ),
+          SizedBox(height: _sectionGap(layout)),
+          Expanded(child: child),
+        ],
+      ),
+    );
 
     return yearsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => ErrorView(
-        message: userMessageFor(error),
-        onRetry: () => ref.invalidate(academicYearsProvider(branchKey)),
+      loading: () => framed(const Center(child: CircularProgressIndicator())),
+      error: (error, _) => framed(
+        ErrorView(
+          message: userMessageFor(error),
+          onRetry: () => ref.invalidate(academicYearsProvider(branchKey)),
+        ),
       ),
       data: (years) {
         if (years.isEmpty) {
-          return const EmptyView(
-            icon: Icons.event_outlined,
-            message:
-                'Create an academic year in Settings before viewing teachers.',
+          return framed(
+            const EmptyView(
+              icon: Icons.event_outlined,
+              message:
+                  'Create an academic year in Settings before viewing teachers.',
+            ),
           );
         }
         if (_yearId == null || !years.any((y) => y.academicYearId == _yearId)) {
@@ -347,12 +381,30 @@ class _TeachersListState extends ConsumerState<_TeachersList> {
             if (mounted) _applyQuery();
           });
         }
-        return _buildBody(context, years);
+        return _buildBody(context, years, layout);
       },
     );
   }
 
-  Widget _buildBody(BuildContext context, List<AcademicYear> years) {
+  /// The headcount behind the current list, when the page knows it: only for
+  /// the plain status list (a search or assignment filter changes what is
+  /// counted, and nothing is invented).
+  int? _totalFor(StaffCounts? counts) {
+    if (counts == null || _hasAssignmentFilter || _isSearching) return null;
+    return switch (_status) {
+      null => counts.total,
+      StaffStatus.active => counts.active,
+      StaffStatus.onNotice => counts.onNotice,
+      StaffStatus.inactive => counts.inactive,
+      _ => null,
+    };
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    List<AcademicYear> years,
+    ScreenSize layout,
+  ) {
     final yearKey = (
       schoolId: widget.schoolId,
       branchId: widget.branchId,
@@ -384,169 +436,139 @@ class _TeachersListState extends ConsumerState<_TeachersList> {
         )
         .value;
 
-    String list(Iterable<String> values) {
+    /// Distinct names, sorted; null when there are none (a teacher without a
+    /// class is genuinely empty, whereas '…' marks names still loading).
+    String? list(Iterable<String> values) {
       final distinct = values.toSet().toList()..sort();
-      return distinct.isEmpty ? '—' : distinct.join(', ');
+      return distinct.isEmpty ? null : distinct.join(', ');
     }
 
-    String subjectsOf(_TeacherRow r) => list(
+    String? subjectsOf(_TeacherRow r) => list(
       r.active
           .where((a) => !a.isClassTeacher)
           .map((a) => names?.subjectName(a.subjectId) ?? '…'),
     );
-    String classesOf(_TeacherRow r) => list(
+    String? classesOf(_TeacherRow r) => list(
       r.active.map((a) => names?.classSection(a.classId, a.sectionId) ?? '…'),
     );
-    String classTeacherOf(_TeacherRow r) => list(
+    String? classTeacherOf(_TeacherRow r) => list(
       r.active
           .where((a) => a.isClassTeacher)
           .map((a) => names?.classSection(a.classId, a.sectionId) ?? '…'),
     );
 
-    return Column(
-      children: [
-        ScrollableHeader(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Flexible(
-                      child: StaffSectionSwitcher(
-                        current: StaffSection.teachers,
-                      ),
-                    ),
-                    PageActionsMenu(
-                      actions: staffBulkPageActions(
-                        context,
-                        ref,
-                        schoolId: widget.schoolId,
-                        branchId: widget.branchId,
-                        teachers: true,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                StatChipsBar(chips: _statChips(counts)),
-                const SizedBox(height: AppSpacing.sm),
-                FilterBar(
-                  searchController: _searchController,
-                  searchHint: 'Search teachers by name',
-                  onSearchChanged: _onSearchChanged,
-                  searchEnabled: !_hasAssignmentFilter,
-                  fieldsBuilder: () => _filters(years),
-                  note: _hasAssignmentFilter
-                      ? 'Showing teachers with active assignments matching the class / section / subject. Search and status are paused.'
-                      : null,
-                ),
-              ],
+    final gap = SizedBox(height: _sectionGap(layout));
+    return _Frame(
+      padding: _pagePadding(layout),
+      // Every row is built (a page holds at most a few dozen), so layout and
+      // finders never depend on what has scrolled into view.
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TeachersHero(
+              schoolId: widget.schoolId,
+              branchId: widget.branchId,
+              layout: layout,
             ),
-          ),
-        ),
-        Expanded(
-          child: ListenableBuilder(
-            listenable: _controller,
-            builder: (context, _) {
-              if (_controller.errorMessage != null &&
-                  _controller.items.isEmpty) {
-                return ErrorView(
-                  message: _controller.errorMessage!,
-                  onRetry: _controller.reload,
-                );
-              }
-              if (!_controller.hasLoaded) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              return Column(
-                children: [
-                  Expanded(
-                    child: ResponsiveDataList<_TeacherRow>(
-                      items: _controller.items,
-                      columnHeaders: const [
-                        'Teacher',
-                        'Employee Code',
-                        'Subjects',
-                        'Classes',
-                        'Class Teacher',
-                        'Status',
-                      ],
-                      emptyState: const EmptyView(
-                        icon: Icons.school_outlined,
-                        message: 'No teachers found.',
-                      ),
-                      cellsBuilder: (row) => [
-                        DataCell(
-                          TextButton(
-                            onPressed: () =>
-                                context.push('/staff/${row.staff.staffId}'),
-                            child: Text(row.staff.displayName),
-                          ),
-                        ),
-                        DataCell(Text(row.staff.employeeCode)),
-                        DataCell(
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 240),
-                            child: Text(
-                              subjectsOf(row),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ),
-                        DataCell(
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 240),
-                            child: Text(
-                              classesOf(row),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ),
-                        DataCell(Text(classTeacherOf(row))),
-                        DataCell(StaffStatusChip(status: row.staff.status)),
-                      ],
-                      cardBuilder: (row) => Card(
-                        child: ListTile(
-                          isThreeLine: true,
-                          title: Text(row.staff.displayName),
-                          subtitle: Text(
-                            '${row.staff.employeeCode}\nSubjects: ${subjectsOf(row)}\nClasses: ${classesOf(row)}'
-                            '${classTeacherOf(row) == '—' ? '' : '\nClass teacher: ${classTeacherOf(row)}'}',
-                          ),
-                          trailing: StaffStatusChip(status: row.staff.status),
-                          onTap: () =>
-                              context.push('/staff/${row.staff.staffId}'),
-                        ),
-                      ),
-                    ),
+            gap,
+            TeachersToolbar(
+              layout: layout,
+              switcher: const StaffSectionSwitcher(
+                current: StaffSection.teachers,
+              ),
+              trailing: PageActionsMenu(
+                actions: staffBulkPageActions(
+                  context,
+                  ref,
+                  schoolId: widget.schoolId,
+                  branchId: widget.branchId,
+                  teachers: true,
+                ),
+              ),
+              searchController: _searchController,
+              searchHint: 'Search teachers by name',
+              onSearchChanged: _onSearchChanged,
+              searchEnabled: !_hasAssignmentFilter,
+              fieldsBuilder: () => _filters(years),
+              note: _hasAssignmentFilter
+                  ? 'Showing teachers with active assignments matching the class / section / subject. Search and status are paused.'
+                  : null,
+            ),
+            gap,
+            StatusChips(
+              chips: _statChips(counts),
+              activeFilters: _filters(years),
+              layout: layout,
+            ),
+            gap,
+            ListenableBuilder(
+              listenable: _controller,
+              builder: (context, _) {
+                if (_controller.errorMessage != null &&
+                    _controller.items.isEmpty) {
+                  return ErrorView(
+                    message: _controller.errorMessage!,
+                    onRetry: _controller.reload,
+                  );
+                }
+                if (!_controller.hasLoaded) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 48),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                return TeacherListCard(
+                  layout: layout,
+                  emptyState: const EmptyView(
+                    icon: Icons.school_outlined,
+                    message: 'No teachers found.',
                   ),
-                  if (_controller.hasMore)
-                    Padding(
-                      padding: const EdgeInsets.all(AppSpacing.md),
-                      child: OutlinedButton(
-                        onPressed: _controller.isLoading
-                            ? null
-                            : _controller.loadMore,
-                        child: _controller.isLoading
-                            ? const SizedBox(
-                                height: 16,
-                                width: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Load more'),
+                  items: [
+                    for (final row in _controller.items)
+                      TeacherListItem(
+                        staffId: row.staff.staffId,
+                        name: row.staff.displayName,
+                        employeeCode: row.staff.employeeCode,
+                        classes: classesOf(row),
+                        subjects: subjectsOf(row),
+                        classTeacherOf: classTeacherOf(row),
+                        status: row.staff.status,
+                        onTap: () =>
+                            context.push('/staff/${row.staff.staffId}'),
                       ),
-                    ),
-                ],
-              );
-            },
-          ),
+                  ],
+                  total: _totalFor(counts),
+                  hasMore: _controller.hasMore,
+                  isLoading: _controller.isLoading,
+                  onLoadMore: _controller.loadMore,
+                );
+              },
+            ),
+          ],
         ),
-      ],
+      ),
+    );
+  }
+}
+
+/// Pads the page and keeps it to a readable width, centred, on large displays.
+class _Frame extends StatelessWidget {
+  final double padding;
+  final Widget child;
+
+  const _Frame({required this.padding, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          maxWidth: _TeachersListState._maxContentWidth,
+        ),
+        child: Padding(padding: EdgeInsets.all(padding), child: child),
+      ),
     );
   }
 }
