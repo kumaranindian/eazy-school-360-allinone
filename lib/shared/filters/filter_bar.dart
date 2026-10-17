@@ -58,6 +58,23 @@ class FilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    // One surface card, like the staff directories' toolbar, so every list
+    // page opens with the same search-and-filter block.
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: _content(context),
+      ),
+    );
+  }
+
+  Widget _content(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final fields = fieldsBuilder();

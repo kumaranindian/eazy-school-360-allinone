@@ -94,13 +94,10 @@ class AdaptiveScaffold extends StatelessWidget {
   Widget _heroColumn(Widget h, bool compact) {
     return Column(
       children: [
+        // The same 16px gutter as the pages below it, so the hero and the
+        // content share their left and right edges on every screen.
         Padding(
-          padding: EdgeInsets.fromLTRB(
-            compact ? 8 : 16,
-            compact ? 8 : 16,
-            compact ? 8 : 16,
-            0,
-          ),
+          padding: EdgeInsets.fromLTRB(16, compact ? 8 : 12, 16, 0),
           child: h,
         ),
         Expanded(child: body),

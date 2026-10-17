@@ -30,11 +30,35 @@ class StaffBranchScope extends ConsumerWidget {
   /// off; the branch is still resolved exactly the same way.
   final bool showBranchRow;
 
+  /// An extra picker that belongs beside the branch picker (an academic-year
+  /// dropdown): shown in the same compact row instead of a second row of its
+  /// own. Built with the resolved ids.
+  final Widget? Function(
+    BuildContext context,
+    String schoolId,
+    String branchId,
+  )?
+  scopeControl;
+
   const StaffBranchScope({
     super.key,
     required this.builder,
     this.showBranchRow = true,
+    this.scopeControl,
   });
+
+  /// One band holding the scope pickers side by side (wrapping on a phone).
+  static Widget scopeRow(List<Widget> controls) => Padding(
+    padding: const EdgeInsets.fromLTRB(AppSpacing.md, 12, AppSpacing.md, 0),
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: Wrap(
+        spacing: AppSpacing.sm + 4,
+        runSpacing: AppSpacing.sm + 4,
+        children: [for (final c in controls) SizedBox(width: 260, child: c)],
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -58,9 +82,17 @@ class StaffBranchScope extends ConsumerWidget {
               message: 'No branch found for your account.',
             );
           }
-          return KeyedSubtree(
+          final control = scopeControl?.call(context, schoolId, branchId);
+          final page = KeyedSubtree(
             key: ValueKey('$schoolId/$branchId'),
             child: builder(context, tenant, schoolId, branchId),
+          );
+          if (control == null) return page;
+          return Column(
+            children: [
+              scopeRow([control]),
+              Expanded(child: page),
+            ],
           );
         }
 
@@ -79,39 +111,29 @@ class StaffBranchScope extends ConsumerWidget {
 
         return Column(
           children: [
-            if (showBranchRow && branches.length > 1)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md,
-                  AppSpacing.md,
-                  AppSpacing.md,
-                  0,
-                ),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 320),
-                    child: DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      value: branchId,
-                      decoration: const InputDecoration(
-                        labelText: 'Branch',
-                        isDense: true,
-                      ),
-                      items: [
-                        for (final b in branches)
-                          DropdownMenuItem(
-                            value: b.branchId,
-                            child: Text(b.name),
-                          ),
-                      ],
-                      onChanged: (value) => ref
-                          .read(selectedStaffBranchIdProvider.notifier)
-                          .select(value),
+            if ((showBranchRow && branches.length > 1) || scopeControl != null)
+              scopeRow([
+                if (showBranchRow && branches.length > 1)
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    value: branchId,
+                    decoration: const InputDecoration(
+                      labelText: 'Branch',
+                      isDense: true,
                     ),
+                    items: [
+                      for (final b in branches)
+                        DropdownMenuItem(
+                          value: b.branchId,
+                          child: Text(b.name),
+                        ),
+                    ],
+                    onChanged: (value) => ref
+                        .read(selectedStaffBranchIdProvider.notifier)
+                        .select(value),
                   ),
-                ),
-              ),
+                ?scopeControl?.call(context, schoolId, branchId),
+              ]),
             Expanded(
               child: KeyedSubtree(
                 key: ValueKey('$schoolId/$branchId'),

@@ -170,7 +170,7 @@ class _HubState extends ConsumerState<_Hub> {
             );
           },
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         HubGroup(
           title: 'Timetable views',
           tiles: [
@@ -188,7 +188,7 @@ class _HubState extends ConsumerState<_Hub> {
             ),
           ],
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         HubGroup(
           title: 'Plan and check',
           tiles: [

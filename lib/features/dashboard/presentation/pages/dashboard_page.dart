@@ -289,24 +289,24 @@ class DashboardPage extends ConsumerWidget {
         ].where((g) => g.$2.isNotEmpty).toList();
 
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.lg),
+          padding: const EdgeInsets.all(AppSpacing.md),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _Hero(tenant: tenant),
               if (tenant.role == UserRole.parent) ...[
-                const SizedBox(height: AppSpacing.lg),
+                const SizedBox(height: AppSpacing.md),
                 ParentHomeSummary(tenant: tenant),
               ],
               for (final (section, items) in groups) ...[
-                const SizedBox(height: AppSpacing.lg),
+                const SizedBox(height: AppSpacing.md),
                 HubGroup(
                   title: section.title,
                   subtitle: section.subtitle,
                   tiles: [for (final item in items) _tile(context, item)],
                 ),
               ],
-              const SizedBox(height: AppSpacing.lg),
+              const SizedBox(height: AppSpacing.md),
             ],
           ),
         );

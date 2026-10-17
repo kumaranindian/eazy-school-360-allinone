@@ -75,6 +75,26 @@ class ResponsiveDataList<T> extends StatelessWidget {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(AppRadius.lg),
                     child: DataTable(
+                      // The same compact table as the staff directories: a
+                      // slim muted header and 46px rows, with column gaps that
+                      // fit a normal window without sideways scrolling.
+                      headingRowHeight: 36,
+                      dataRowMinHeight: 46,
+                      dataRowMaxHeight: 56,
+                      columnSpacing: 20,
+                      horizontalMargin: AppSpacing.md,
+                      dividerThickness: 1,
+                      headingTextStyle: Theme.of(context).textTheme.labelMedium
+                          ?.copyWith(
+                            fontSize: 12,
+                            letterSpacing: 0.4,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
+                      dataTextStyle: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(fontSize: 14),
                       columns: [
                         for (final i in keep)
                           DataColumn(label: Text(columnHeaders[i])),

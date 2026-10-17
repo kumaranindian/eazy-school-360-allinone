@@ -1,3 +1,6 @@
+import 'package:eazy_school_360/shared/branding/page_hero.dart';
+import 'package:eazy_school_360/shared/filters/directory_toolbar.dart';
+import 'package:eazy_school_360/shared/layouts/directory_list.dart';
 import 'package:eazy_school_360/app/app.dart';
 import 'package:eazy_school_360/core/config/app_environment.dart';
 import 'package:eazy_school_360/core/config/env_config.dart';
@@ -195,4 +198,34 @@ void main() {
       });
     }
   }
+
+  group('shared directory layout', () {
+    testWidgets('desktop: the same hero, toolbar and table card as staff', (
+      tester,
+    ) async {
+      await _pump(tester, size: const Size(1440, 900));
+      expect(find.byType(DirectoryToolbar), findsOneWidget);
+      expect(find.byType(DirectoryListCard), findsOneWidget);
+      expect(find.byType(DirectoryTable), findsOneWidget);
+      for (final header in ['STUDENT', 'ADMISSION NO', 'CLASS', 'STATUS']) {
+        expect(find.text(header), findsOneWidget, reason: header);
+      }
+      // one 16px gutter: the hero, toolbar and list share their left edge
+      final hero = tester.getRect(find.byType(PageHero));
+      expect(tester.getRect(find.byType(DirectoryToolbar)).left, hero.left);
+      expect(tester.getRect(find.byType(DirectoryListCard)).left, hero.left);
+      expect(hero.height, lessThan(95));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('phone: cards, with the footer inside the list card', (
+      tester,
+    ) async {
+      await _pump(tester, size: const Size(390, 844));
+      expect(find.byType(DirectoryCard), findsWidgets);
+      expect(find.byType(DirectoryTable), findsNothing);
+      expect(find.textContaining('Showing'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/utils/responsive.dart';
-import '../../domain/staff_status.dart';
-import 'staff_status_chip.dart';
+import '../../core/theme/app_spacing.dart';
+import '../../core/utils/responsive.dart';
 
 /// Page padding and the gap between sections, by layout — one definition for
-/// every staff directory screen.
+/// every directory screen (staff, teachers, students, parents).
 abstract final class DirectoryLayout {
-  static double pagePadding(ScreenSize l) =>
-      l.isMobile ? 12 : (l.isTablet ? 16 : 20);
-  static double sectionGap(ScreenSize l) =>
-      l.isMobile ? 10 : (l.isTablet ? 12 : 14);
+  /// One 16px gutter on every size, the same as the rest of the app's pages
+  /// and the shell's hero, so edges line up from screen to screen.
+  static double pagePadding(ScreenSize l) => 16;
+  static double sectionGap(ScreenSize l) => 12;
 
   /// The content never grows wider than this on a large display.
   static const double maxContentWidth = 1440;
@@ -20,9 +18,19 @@ abstract final class DirectoryLayout {
 /// Pads a directory page and keeps it to a readable width, centred.
 class DirectoryFrame extends StatelessWidget {
   final double padding;
+
+  /// The space above the content; smaller than [padding] when a hero already
+  /// sits above it (the shell's), so the gap to it matches the gaps between
+  /// sections.
+  final double? top;
   final Widget child;
 
-  const DirectoryFrame({super.key, required this.padding, required this.child});
+  const DirectoryFrame({
+    super.key,
+    required this.padding,
+    this.top,
+    required this.child,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +40,15 @@ class DirectoryFrame extends StatelessWidget {
         constraints: const BoxConstraints(
           maxWidth: DirectoryLayout.maxContentWidth,
         ),
-        child: Padding(padding: EdgeInsets.all(padding), child: child),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            padding,
+            top ?? padding,
+            padding,
+            padding,
+          ),
+          child: child,
+        ),
       ),
     );
   }
@@ -65,9 +81,19 @@ class DirectoryRow {
   /// ("—" in the table).
   final List<String?> values;
 
+  /// Widgets for cells whose text is resolved by the cell itself (a class name
+  /// looked up from providers); where non-null, replaces the [values] text.
+  final List<Widget?>? cells;
+
   /// The single secondary line of a phone card, or null for none.
   final String? phoneLine;
-  final StaffStatus status;
+
+  /// Like [phoneLine], for a detail that is a widget; wins when both are set.
+  final Widget? phoneDetail;
+
+  /// The status pill (a staff chip, a student badge...), already built by the
+  /// page: this list only decides where it goes.
+  final Widget statusBadge;
   final VoidCallback onTap;
 
   /// A selection checkbox at the start of the row, while choosing people.
@@ -82,7 +108,9 @@ class DirectoryRow {
     required this.code,
     required this.values,
     required this.phoneLine,
-    required this.status,
+    this.cells,
+    this.phoneDetail,
+    required this.statusBadge,
     required this.onTap,
     this.leading,
     this.actions = const [],
@@ -430,8 +458,11 @@ class DirectoryTable extends StatelessWidget {
                     ],
                   ),
                   _cellText(item.code),
-                  [for (final c in shown) _cellText(item.values[c])],
-                  StaffStatusChip(status: item.status, dense: true),
+                  [
+                    for (final c in shown)
+                      item.cells?[c] ?? _cellText(item.values[c]),
+                  ],
+                  item.statusBadge,
                   Row(mainAxisSize: MainAxisSize.min, children: item.actions),
                   minHeight: rowMinHeight,
                 ),
@@ -466,6 +497,10 @@ class DirectoryCard extends StatelessWidget {
 
   const DirectoryCard({super.key, required this.item});
 
+  /// Below this much row width (a 320px phone, or large text) the status pill
+  /// moves under the name instead of squeezing the name beside it.
+  static const double _narrow = 300;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -480,56 +515,78 @@ class DirectoryCard extends StatelessWidget {
             horizontal: AppSpacing.md,
             vertical: AppSpacing.sm,
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              if (item.leading != null) ...[
-                item.leading!,
-                const SizedBox(width: AppSpacing.xs),
-              ],
-              PersonAvatar(initials: item.initials, size: 36),
-              const SizedBox(width: AppSpacing.sm + 2),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      item.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        fontSize: 14,
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      item.code,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontSize: 13,
-                        color: muted,
-                      ),
-                    ),
-                    if (line != null && line.isNotEmpty)
-                      Text(
-                        line,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          fontSize: 12,
-                          color: muted,
-                        ),
-                      ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final scale = MediaQuery.textScalerOf(context).scale(1);
+              final stacked = constraints.maxWidth < _narrow || scale > 1.3;
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (item.leading != null) ...[
+                    item.leading!,
+                    const SizedBox(width: AppSpacing.xs),
                   ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              StaffStatusChip(status: item.status, dense: true),
-              ...item.actions,
-            ],
+                  PersonAvatar(initials: item.initials, size: 36),
+                  const SizedBox(width: AppSpacing.sm + 2),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          item.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontSize: 14,
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          item.code,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontSize: 13,
+                            color: muted,
+                          ),
+                        ),
+                        if (item.phoneDetail != null)
+                          DefaultTextStyle.merge(
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontSize: 12,
+                              color: muted,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            child: item.phoneDetail!,
+                          )
+                        else if (line != null && line.isNotEmpty)
+                          Text(
+                            line,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontSize: 12,
+                              color: muted,
+                            ),
+                          ),
+                        if (stacked) ...[
+                          const SizedBox(height: 4),
+                          item.statusBadge,
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (!stacked) ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    item.statusBadge,
+                  ],
+                  ...item.actions,
+                ],
+              );
+            },
           ),
         ),
       ),

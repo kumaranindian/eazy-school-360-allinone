@@ -294,7 +294,7 @@ class _HubState extends ConsumerState<_Hub> {
           )
         else if (_data != null)
           ..._content(context, _data!),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         HubGroup(
           title: 'Go to',
           tiles: [
@@ -510,7 +510,7 @@ class _HubState extends ConsumerState<_Hub> {
               ],
             ),
         ],
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
       ],
       if (widget.tenant.can(Permission.viewStaffAttendance)) ...[
         Text(

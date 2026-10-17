@@ -1,3 +1,4 @@
+import 'package:eazy_school_360/shared/branding/page_hero.dart';
 import 'package:eazy_school_360/app/app.dart';
 import 'package:eazy_school_360/core/config/app_environment.dart';
 import 'package:eazy_school_360/core/config/env_config.dart';
@@ -443,6 +444,23 @@ void main() {
     timetables: [published.copyWith(entryCount: publishedCells.length)],
     entries: {published.timetableId: publishedCells},
   );
+
+  group('compact layout', () {
+    testWidgets('the hero is one slim strip and the year picker follows it', (
+      tester,
+    ) async {
+      final w = await _pump(tester, role: UserRole.branchAdmin);
+      await w.go(tester, '/timetable');
+      final hero = tester.getRect(find.byType(PageHero));
+      expect(hero.height, lessThan(95)); // was a ~140px banner
+      final year = tester.getRect(
+        find.widgetWithText(DropdownButtonFormField<String>, 'Academic year'),
+      );
+      expect(year.top - hero.bottom, lessThan(30));
+      expect(year.left, hero.left); // one shared gutter
+      expect(tester.takeException(), isNull);
+    });
+  });
 
   group('route and navigation permissions', () {
     testWidgets('a parent reaches only /my-timetable', (tester) async {

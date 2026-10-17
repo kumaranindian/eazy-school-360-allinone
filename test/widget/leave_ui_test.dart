@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:eazy_school_360/shared/branding/page_hero.dart';
 import 'package:eazy_school_360/features/staff/domain/teacher_scope.dart';
 import 'package:eazy_school_360/features/staff/presentation/providers/teacher_scope_providers.dart';
 import 'package:eazy_school_360/app/app.dart';
@@ -349,6 +350,30 @@ Future<void> _fillStudentForm(
 
 void main() {
   final child = fakeStudent('stu-1', 'Anil', academicYearId: 'y1');
+
+  group('compact layout', () {
+    testWidgets('the hero is one slim strip', (tester) async {
+      final w = await _pump(tester, role: UserRole.branchAdmin);
+      await w.go(tester, '/leave');
+      final hero = tester.getRect(find.byType(PageHero));
+      expect(hero.height, lessThan(95)); // was a ~140px banner
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the year picker is the first thing on a leave list', (
+      tester,
+    ) async {
+      final w = await _pump(tester, role: UserRole.branchAdmin);
+      await w.go(tester, '/leave/applications');
+      final year = tester.getRect(
+        find.widgetWithText(DropdownButtonFormField<String>, 'Academic year'),
+      );
+      // one slim row directly under the shell's bar
+      final bar = tester.getRect(find.byType(AppBar).first);
+      expect(year.top - bar.bottom, lessThan(30));
+      expect(tester.takeException(), isNull);
+    });
+  });
 
   group('route and navigation permissions', () {
     testWidgets('a parent reaches only /my-leave', (tester) async {

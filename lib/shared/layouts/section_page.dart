@@ -72,7 +72,7 @@ class SectionPage extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.md,
-                  AppSpacing.md,
+                  12,
                   AppSpacing.md,
                   0,
                 ),
@@ -83,6 +83,7 @@ class SectionPage extends StatelessWidget {
                       IconButton(
                         icon: const Icon(Icons.arrow_back),
                         tooltip: 'Back to $parentLabel',
+                        visualDensity: VisualDensity.compact,
                         onPressed: () => context.go(parentRoute!),
                       ),
                       const SizedBox(width: AppSpacing.xs),
@@ -90,7 +91,7 @@ class SectionPage extends StatelessWidget {
                     Expanded(
                       child: Padding(
                         padding: EdgeInsets.only(
-                          top: parentRoute != null ? 6 : 0,
+                          top: parentRoute != null ? 2 : 0,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,7 +134,7 @@ class SectionPage extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.md,
-                    AppSpacing.md,
+                    12,
                     AppSpacing.md,
                     0,
                   ),
@@ -170,8 +171,8 @@ class SectionToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Wrap(
-    spacing: AppSpacing.md,
-    runSpacing: AppSpacing.md,
+    spacing: AppSpacing.sm + 4,
+    runSpacing: AppSpacing.sm + 4,
     children: children,
   );
 }

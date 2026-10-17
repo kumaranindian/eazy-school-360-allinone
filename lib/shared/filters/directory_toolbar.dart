@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/utils/responsive.dart';
-import '../../../../shared/filters/filter_bar.dart';
-import '../../../../shared/filters/filter_field.dart';
+import '../../core/theme/app_spacing.dart';
+import '../../core/utils/responsive.dart';
+import 'filter_bar.dart';
+import 'filter_field.dart';
 
-/// The search-and-filter surface of the staff directories (Staff, Teachers): the Staff | Teachers
+/// The search-and-filter surface of the directory screens (Staff, Teachers,
+/// Students, Parents): the Staff | Teachers
 /// switch, the search box, the filters, and the Filters button, in one card.
 ///
 /// - **Desktop** (and only when the width really allows): everything on one
@@ -20,9 +21,11 @@ import '../../../../shared/filters/filter_field.dart';
 /// their effects; this builds the same [FilterField]s' controls
 /// ([fieldsBuilder] is read again on every build and every sheet change) and
 /// reports changes through the callbacks it was given.
-class StaffToolbar extends StatelessWidget {
+class DirectoryToolbar extends StatelessWidget {
   final ScreenSize layout;
-  final Widget switcher;
+
+  /// An optional leading control (the Staff | Teachers switch).
+  final Widget? switcher;
 
   /// The page's "⋮" menu, shown at the end of the toolbar.
   final Widget? trailing;
@@ -47,10 +50,10 @@ class StaffToolbar extends StatelessWidget {
   /// An explanatory line under the controls (e.g. why search is paused).
   final String? note;
 
-  const StaffToolbar({
+  const DirectoryToolbar({
     super.key,
     required this.layout,
-    required this.switcher,
+    this.switcher,
     required this.searchController,
     required this.onSearchChanged,
     required this.fieldsBuilder,
@@ -108,7 +111,7 @@ class StaffToolbar extends StatelessWidget {
             // Text scaling widens the switch, the search box's chrome and the
             // button, so every width test below scales with it.
             final scale = MediaQuery.textScalerOf(context).scale(1);
-            final switcherW = _switcherWidth * scale;
+            final switcherW = switcher == null ? 0.0 : _switcherWidth * scale;
             final oneRowAt =
                 switcherW +
                 _minSearch +
@@ -160,8 +163,10 @@ class StaffToolbar extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(width: double.infinity, child: switcher),
-        const SizedBox(height: _gap),
+        if (switcher != null) ...[
+          SizedBox(width: double.infinity, child: switcher),
+          const SizedBox(height: _gap),
+        ],
         search,
         const SizedBox(height: _gap),
         Row(
@@ -190,8 +195,7 @@ class StaffToolbar extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        switcher,
-        const SizedBox(width: _gap),
+        if (switcher != null) ...[switcher!, const SizedBox(width: _gap)],
         Expanded(flex: 3, child: search),
         for (final f in inline) ...[
           const SizedBox(width: _gap),
@@ -219,8 +223,7 @@ class StaffToolbar extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              switcher,
-              const SizedBox(width: _gap),
+              if (switcher != null) ...[switcher!, const SizedBox(width: _gap)],
               Expanded(child: search),
               if (trailing != null) trailing!,
             ],

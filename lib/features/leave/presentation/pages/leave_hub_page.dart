@@ -151,7 +151,7 @@ class _Hub extends ConsumerWidget {
               ],
             ),
           ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         HubGroup(
           title: 'Review and plan',
           tiles: [
@@ -182,7 +182,7 @@ class _Hub extends ConsumerWidget {
               ),
           ],
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         HubGroup(
           title: 'Configure',
           tiles: [
@@ -194,7 +194,7 @@ class _Hub extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         Text('Recent activity', style: theme.textTheme.titleSmall),
         const SizedBox(height: AppSpacing.xs),
         Text(

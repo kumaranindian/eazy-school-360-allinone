@@ -361,9 +361,9 @@ class AppShell extends ConsumerWidget {
     return PageHero(
       title: title,
       subtitle: meta.$2,
+      icon: meta.$3,
       compact: compact,
       pills: [if (place.isNotEmpty) HeroPill(place)],
-      trailing: PageHero.iconBadge(meta.$3, size: compact ? 32 : 48),
     );
   }
 

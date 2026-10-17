@@ -126,13 +126,13 @@ class HubTile extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: tint != null
                       ? tint.withValues(alpha: 0.14)
@@ -141,7 +141,7 @@ class HubTile extends StatelessWidget {
                 ),
                 child: Icon(icon, color: tint ?? scheme.onPrimaryContainer),
               ),
-              const SizedBox(width: AppSpacing.md),
+              const SizedBox(width: AppSpacing.sm + 4),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -177,7 +177,7 @@ class HubTile extends StatelessWidget {
               if (!comingSoon) ...[
                 const SizedBox(width: AppSpacing.xs),
                 Padding(
-                  padding: const EdgeInsets.only(top: 10),
+                  padding: const EdgeInsets.only(top: 8),
                   child: Icon(Icons.chevron_right, color: scheme.outline),
                 ),
               ],

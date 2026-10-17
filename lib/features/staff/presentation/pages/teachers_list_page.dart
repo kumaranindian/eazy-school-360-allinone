@@ -1,3 +1,4 @@
+import '../../../users/presentation/widgets/login_access_button.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -24,13 +25,14 @@ import '../../domain/staff_status.dart';
 import '../../domain/teacher_assignment.dart';
 import '../providers/academic_names_provider.dart';
 import '../providers/staff_providers.dart';
+import '../widgets/staff_status_chip.dart';
 import '../widgets/staff_branch_scope.dart';
 import '../widgets/staff_bulk_actions.dart';
 import '../widgets/staff_section_switcher.dart';
-import '../widgets/directory_list.dart';
+import '../../../../shared/layouts/directory_list.dart';
 import '../widgets/staff_hero.dart';
 import '../widgets/staff_login_access.dart';
-import '../widgets/staff_toolbar.dart';
+import '../../../../shared/filters/directory_toolbar.dart';
 
 /// One teacher plus their assignments in the selected academic year.
 class _TeacherRow {
@@ -484,7 +486,7 @@ class _TeachersListState extends ConsumerState<_TeachersList> {
           children: [
             _hero(layout),
             gap,
-            StaffToolbar(
+            DirectoryToolbar(
               layout: layout,
               switcher: const StaffSectionSwitcher(
                 current: StaffSection.teachers,
@@ -568,7 +570,10 @@ class _TeachersListState extends ConsumerState<_TeachersList> {
                           if (classTeacherOf(row) != null)
                             'Class teacher: ${classTeacherOf(row)}',
                         ].whereType<String>().join(' · '),
-                        status: row.staff.status,
+                        statusBadge: StaffStatusChip(
+                          status: row.staff.status,
+                          dense: true,
+                        ),
                         onTap: () =>
                             context.push('/staff/${row.staff.staffId}'),
                         actions: [

@@ -286,7 +286,7 @@ class _ReportsState extends ConsumerState<_Reports> {
             ),
           ),
         ],
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         Text('Outstanding by class and section', style: text.titleMedium),
         const SizedBox(height: AppSpacing.sm),
         FilledButton.icon(
@@ -353,7 +353,7 @@ class _ReportsState extends ConsumerState<_Reports> {
             ),
           ),
         ],
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         Text('Student ledger', style: text.titleMedium),
         const SizedBox(height: AppSpacing.sm),
         OutlinedButton.icon(

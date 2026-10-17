@@ -25,7 +25,7 @@ import 'package:eazy_school_360/features/staff/domain/teacher_assignment.dart';
 import 'package:eazy_school_360/features/staff/domain/teacher_assignment_status.dart';
 import 'package:eazy_school_360/features/staff/presentation/providers/staff_providers.dart';
 import 'package:eazy_school_360/features/staff/presentation/widgets/staff_status_chip.dart';
-import 'package:eazy_school_360/features/staff/presentation/widgets/directory_list.dart';
+import 'package:eazy_school_360/shared/layouts/directory_list.dart';
 import 'package:eazy_school_360/features/students/domain/paged_result.dart';
 import 'package:eazy_school_360/features/users/domain/user_profile.dart';
 import 'package:eazy_school_360/features/users/domain/user_status.dart';
@@ -454,14 +454,15 @@ void main() {
             of: find.byType(DirectoryListCard),
             matching: find.byType(StaffStatusChip),
           );
-          // the status of the long-named teacher's row sits to the right of it
-          final sameRow = [
+          // the status of the long-named teacher's row never overlaps its
+          // name: beside it on a wide row, underneath it on a narrow card
+          final nearby = [
             for (var i = 0; i < statuses.evaluate().length; i++)
               tester.getRect(statuses.at(i)),
-          ].where((r) => (r.center.dy - nameRect.center.dy).abs() < 40);
-          expect(sameRow, isNotEmpty);
-          for (final r in sameRow) {
-            expect(nameRect.right, lessThanOrEqualTo(r.left + 0.5));
+          ].where((r) => (r.center.dy - nameRect.center.dy).abs() < 60);
+          expect(nearby, isNotEmpty);
+          for (final r in nearby) {
+            expect(r.overlaps(nameRect), isFalse, reason: '$r vs $nameRect');
           }
         },
       );

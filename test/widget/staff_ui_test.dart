@@ -13,7 +13,7 @@ import 'package:eazy_school_360/features/school_setup/domain/school.dart';
 import 'package:eazy_school_360/features/school_setup/domain/school_status.dart';
 import 'package:eazy_school_360/features/school_setup/presentation/providers/school_providers.dart';
 import 'package:eazy_school_360/features/staff/domain/staff_status.dart';
-import 'package:eazy_school_360/features/staff/presentation/widgets/directory_list.dart';
+import 'package:eazy_school_360/shared/layouts/directory_list.dart';
 import 'package:eazy_school_360/features/staff/presentation/providers/staff_providers.dart';
 import 'package:eazy_school_360/features/users/domain/user_profile.dart';
 import 'package:eazy_school_360/features/users/domain/user_status.dart';

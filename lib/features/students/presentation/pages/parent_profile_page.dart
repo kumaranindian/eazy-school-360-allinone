@@ -107,7 +107,7 @@ class ParentProfilePage extends ConsumerWidget {
                                 )
                           : (_, __) async => false,
                     ),
-                    const SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.md),
                     Text(
                       'Contact details',
                       style: Theme.of(context).textTheme.titleMedium,
@@ -131,7 +131,7 @@ class ParentProfilePage extends ConsumerWidget {
                           parent.city,
                         ].whereType<String>().join(', '),
                       ),
-                    const SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.md),
                     Text(
                       'Portal access',
                       style: Theme.of(context).textTheme.titleMedium,
@@ -143,7 +143,7 @@ class ParentProfilePage extends ConsumerWidget {
                           : 'No login account linked yet. Portal access is granted from Users management once an account exists for this parent.',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
-                    const SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: AppSpacing.md),
                     Text(
                       'Children',
                       style: Theme.of(context).textTheme.titleMedium,

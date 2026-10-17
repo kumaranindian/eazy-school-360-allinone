@@ -283,7 +283,7 @@ class _Detail extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         Text('Fees', style: context.textStyles.titleMedium),
         Card(
           child: Column(
@@ -353,7 +353,7 @@ class _Detail extends ConsumerWidget {
             ),
           ),
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         Text('Payments', style: context.textStyles.titleMedium),
         AsyncValueWidget(
           value: payments,

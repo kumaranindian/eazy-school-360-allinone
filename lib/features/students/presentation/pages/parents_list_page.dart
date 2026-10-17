@@ -1,3 +1,4 @@
+import '../../../users/presentation/widgets/login_access_button.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -7,14 +8,15 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/activation_status.dart';
 import '../../../../core/permissions/permission.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/utils/responsive.dart';
 import '../../../../shared/dialogs/app_dialog.dart';
 import '../../../../shared/error/empty_view.dart';
-import '../../../../shared/filters/filter_bar.dart';
+import '../../../../shared/filters/directory_toolbar.dart';
 import '../../../../shared/filters/filter_field.dart';
 import '../../../../shared/filters/page_actions.dart';
-import '../../../../shared/layouts/scrollable_header.dart';
-import '../../../../shared/layouts/responsive_data_list.dart';
+import '../../../../shared/layouts/directory_list.dart';
+import '../../../../shared/layouts/hub_layout.dart';
+import '../../../../shared/layouts/status_chips.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../../users/domain/login_provisioning.dart';
 import '../../../users/presentation/widgets/login_access_dialog.dart';
@@ -248,6 +250,7 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
   @override
   Widget build(BuildContext context) {
     final tenantState = ref.watch(tenantContextProvider);
+    final layout = screenSizeForWidth(MediaQuery.sizeOf(context).width);
 
     return AsyncValueWidget(
       value: tenantState,
@@ -281,134 +284,116 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
                   label: const Text('Add parent'),
                 )
               : null,
-          body: Column(
-            children: [
-              ScrollableHeader(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: FilterBar(
-                          searchController: _searchController,
-                          searchHint: 'Search parents by name',
-                          onSearchChanged: _onSearchChanged,
-                          filtersEnabled: !_isSearching,
-                          fieldsBuilder: _filters,
+          body: DirectoryFrame(
+            padding: DirectoryLayout.pagePadding(layout),
+            // The shell's hero is directly above: keep the gap to it the same
+            // as the gaps between sections.
+            top: DirectoryLayout.sectionGap(layout),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DirectoryToolbar(
+                    layout: layout,
+                    trailing: PageActionsMenu(
+                      actions: [
+                        if (canManage && !_selecting)
+                          PageAction(
+                            label: 'Give login access',
+                            icon: Icons.vpn_key_outlined,
+                            onSelected: () => setState(() => _selecting = true),
+                          ),
+                        if (canManage)
+                          PageAction(
+                            label: 'Refresh parent access',
+                            icon: Icons.sync_lock_outlined,
+                            onSelected: () => _refreshAccess(
+                              context,
+                              schoolId,
+                              branchId,
+                              tenant.user.userId,
+                            ),
+                          ),
+                      ],
+                    ),
+                    searchController: _searchController,
+                    searchHint: 'Search parents by name',
+                    onSearchChanged: _onSearchChanged,
+                    filtersEnabled: !_isSearching,
+                    fieldsBuilder: _filters,
+                    inlineCount: 1,
+                  ),
+                  if (!_isSearching && _filters().any((f) => f.isApplied)) ...[
+                    SizedBox(height: DirectoryLayout.sectionGap(layout)),
+                    StatusChips(
+                      chips: const [],
+                      activeFilters: _filters(),
+                      layout: layout,
+                    ),
+                  ],
+                  if (_selecting) ...[
+                    SizedBox(height: DirectoryLayout.sectionGap(layout)),
+                    LoginSelectionBar(
+                      selected: _selected.length,
+                      selectable: _selectable.length,
+                      onSelectAll: () => setState(
+                        () => _selected.addAll(
+                          _selectable.map((p) => p.parentId),
                         ),
                       ),
-                      PageActionsMenu(
-                        actions: [
-                          if (canManage && !_selecting)
-                            PageAction(
-                              label: 'Give login access',
-                              icon: Icons.vpn_key_outlined,
-                              onSelected: () =>
-                                  setState(() => _selecting = true),
-                            ),
-                          if (canManage)
-                            PageAction(
-                              label: 'Refresh parent access',
-                              icon: Icons.sync_lock_outlined,
-                              onSelected: () => _refreshAccess(
-                                context,
-                                schoolId,
-                                branchId,
-                                tenant.user.userId,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (_selecting)
-                LoginSelectionBar(
-                  selected: _selected.length,
-                  selectable: _selectable.length,
-                  onSelectAll: () => setState(
-                    () => _selected.addAll(_selectable.map((p) => p.parentId)),
-                  ),
-                  onClear: () => setState(_selected.clear),
-                  onCreate: () => _giveLogins(schoolId, branchId),
-                  onCancel: () => setState(() {
-                    _selecting = false;
-                    _selected.clear();
-                  }),
-                ),
-              Expanded(
-                child: _isLoading && _items.isEmpty
-                    ? const Center(child: CircularProgressIndicator())
-                    : ResponsiveDataList<Parent>(
-                        items: _items,
-                        columnHeaders: [
-                          if (_selecting) '',
-                          'Name',
-                          'Phone',
-                          'Email',
-                          'Status',
-                          'Login',
-                          '',
-                        ],
-                        emptyState: const EmptyView(
-                          icon: Icons.family_restroom_outlined,
-                          message: 'No parents match your filters.',
+                      onClear: () => setState(_selected.clear),
+                      onCreate: () => _giveLogins(schoolId, branchId),
+                      onCancel: () => setState(() {
+                        _selecting = false;
+                        _selected.clear();
+                      }),
+                    ),
+                  ],
+                  SizedBox(height: DirectoryLayout.sectionGap(layout)),
+                  if (_isLoading && _items.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 48),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else
+                    DirectoryListCard(
+                      layout: layout,
+                      nameHeader: 'Parent',
+                      codeHeader: 'Phone',
+                      columns: const [
+                        DirectoryColumn(header: 'Email', flex: 3),
+                        DirectoryColumn(
+                          header: 'Login',
+                          flex: 2,
+                          showAtWidth: 760,
                         ),
-                        cellsBuilder: (parent) => [
-                          if (_selecting)
-                            DataCell(
-                              Checkbox(
-                                value: _selected.contains(parent.parentId),
-                                onChanged: parent.hasPortalAccess
-                                    ? null
-                                    : (v) => setState(
-                                        () => v == true
-                                            ? _selected.add(parent.parentId)
-                                            : _selected.remove(parent.parentId),
-                                      ),
-                              ),
-                            ),
-                          DataCell(Text(parent.displayName)),
-                          DataCell(Text(parent.phone)),
-                          DataCell(Text(parent.email ?? '—')),
-                          DataCell(
-                            Text(
-                              parent.status == ActivationStatus.active
+                      ],
+                      emptyState: const EmptyView(
+                        icon: Icons.family_restroom_outlined,
+                        message: 'No parents match your filters.',
+                      ),
+                      items: [
+                        for (final parent in _items)
+                          DirectoryRow(
+                            id: parent.parentId,
+                            name: parent.displayName,
+                            code: parent.phone,
+                            values: [
+                              parent.email,
+                              parent.hasPortalAccess ? 'Has login' : null,
+                            ],
+                            phoneLine: [
+                              if (parent.email != null) parent.email!,
+                              if (parent.hasPortalAccess) 'Has login',
+                            ].join(' · '),
+                            statusBadge: HubBadge(
+                              label: parent.status == ActivationStatus.active
                                   ? 'Active'
                                   : 'Inactive',
+                              tone: parent.status == ActivationStatus.active
+                                  ? HubBadgeTone.success
+                                  : HubBadgeTone.neutral,
                             ),
-                          ),
-                          DataCell(
-                            Text(parent.hasPortalAccess ? 'Has login' : '—'),
-                          ),
-                          DataCell(
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (canManage)
-                                  IconButton(
-                                    icon: const Icon(Icons.vpn_key_outlined),
-                                    tooltip: 'Login access',
-                                    onPressed: () => _manageAccess(
-                                      schoolId,
-                                      branchId,
-                                      parent,
-                                    ),
-                                  ),
-                                TextButton(
-                                  onPressed: () => context.push(
-                                    '/parents/${parent.parentId}',
-                                  ),
-                                  child: const Text('View'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                        cardBuilder: (parent) => Card(
-                          child: ListTile(
                             leading: _selecting
                                 ? Checkbox(
                                     value: _selected.contains(parent.parentId),
@@ -423,45 +408,26 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
                                           ),
                                   )
                                 : null,
-                            title: Text(parent.displayName),
-                            subtitle: Text(
-                              '${parent.phone}'
-                              '${parent.hasPortalAccess ? ' · Has login' : ''}',
-                            ),
-                            trailing: canManage
-                                ? IconButton(
-                                    icon: const Icon(Icons.vpn_key_outlined),
-                                    tooltip: 'Login access',
-                                    onPressed: () => _manageAccess(
-                                      schoolId,
-                                      branchId,
-                                      parent,
-                                    ),
-                                  )
-                                : null,
                             onTap: () =>
                                 context.push('/parents/${parent.parentId}'),
+                            actions: [
+                              if (canManage)
+                                LoginAccessButton(
+                                  onPressed: () =>
+                                      _manageAccess(schoolId, branchId, parent),
+                                ),
+                            ],
                           ),
-                        ),
-                      ),
+                      ],
+                      total: null,
+                      hasMore: _hasMore,
+                      isLoading: _isLoading,
+                      onLoadMore: () => _loadPage(_schoolId!, _branchId!),
+                    ),
+                  if (canManage) const SizedBox(height: 72),
+                ],
               ),
-              if (_hasMore)
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: OutlinedButton(
-                    onPressed: _isLoading
-                        ? null
-                        : () => _loadPage(_schoolId!, _branchId!),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 16,
-                            width: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Load more'),
-                  ),
-                ),
-            ],
+            ),
           ),
         );
       },

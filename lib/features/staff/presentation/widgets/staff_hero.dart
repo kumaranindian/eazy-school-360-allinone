@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/utils/responsive.dart';
@@ -48,39 +47,14 @@ class StaffHero extends ConsumerWidget {
     final canChoose =
         tenant != null && !tenant.role.isBranchScoped && branches.length > 1;
 
-    final phone = layout.isMobile;
-    final text = Theme.of(context).textTheme;
-    final heading = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: text.titleLarge?.copyWith(
-            color: Colors.white,
-            fontSize: phone ? 20 : 22,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        Text(
-          subtitle,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: text.bodyMedium?.copyWith(
-            color: const Color(0xFFD9EAFF),
-            fontSize: 13,
-          ),
-        ),
-      ],
-    );
-    final controls = Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.xs,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      alignment: phone ? WrapAlignment.start : WrapAlignment.end,
-      children: [
+    return PageHero(
+      title: title,
+      subtitle: subtitle,
+      icon: icon,
+      compact: layout.isMobile,
+      // The branch choice matters on a phone too, so the pills stay there.
+      pillsOnPhone: true,
+      pills: [
         if (place.isNotEmpty) HeroPill(place),
         if (canChoose)
           _BranchSelector(
@@ -90,42 +64,6 @@ class StaffHero extends ConsumerWidget {
                 ref.read(selectedStaffBranchIdProvider.notifier).select(id),
           ),
       ],
-    );
-
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: phone ? 12 : 20,
-        vertical: phone ? 12 : 16,
-      ),
-      decoration: BoxDecoration(
-        gradient: AppColors.heroGradient,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-      ),
-      child: phone
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    PageHero.iconBadge(icon, size: 40),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(child: heading),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                controls,
-              ],
-            )
-          : Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                PageHero.iconBadge(icon, size: 44),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(child: heading),
-                const SizedBox(width: AppSpacing.md),
-                Flexible(flex: 2, child: controls),
-              ],
-            ),
     );
   }
 }

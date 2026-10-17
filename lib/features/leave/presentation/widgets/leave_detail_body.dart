@@ -446,7 +446,7 @@ class _LeaveApplicationDetailState
                     style: theme.textTheme.bodySmall,
                   ),
                 ),
-              const SizedBox(height: AppSpacing.lg),
+              const SizedBox(height: AppSpacing.md),
               Text('History', style: theme.textTheme.titleSmall),
               const SizedBox(height: AppSpacing.xs),
               if (history.isEmpty)

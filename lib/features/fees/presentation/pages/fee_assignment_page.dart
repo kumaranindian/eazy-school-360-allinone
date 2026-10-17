@@ -351,7 +351,7 @@ class _AssignState extends ConsumerState<_Assign> {
                 currency: fee.currency,
                 onConfirm: busy ? null : _confirm,
               ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
             Text('Students', style: context.textStyles.titleMedium),
             Text(
               'Open a student to assign a single fee or grant a concession.',

@@ -21,9 +21,9 @@ import 'package:eazy_school_360/features/school_setup/presentation/providers/sch
 import 'package:eazy_school_360/features/staff/domain/staff.dart';
 import 'package:eazy_school_360/features/staff/domain/staff_status.dart';
 import 'package:eazy_school_360/features/staff/presentation/providers/staff_providers.dart';
-import 'package:eazy_school_360/features/staff/presentation/widgets/directory_list.dart';
+import 'package:eazy_school_360/shared/layouts/directory_list.dart';
 import 'package:eazy_school_360/features/staff/presentation/widgets/staff_hero.dart';
-import 'package:eazy_school_360/features/staff/presentation/widgets/staff_toolbar.dart';
+import 'package:eazy_school_360/shared/filters/directory_toolbar.dart';
 import 'package:eazy_school_360/features/users/domain/login_access.dart';
 import 'package:eazy_school_360/features/users/domain/login_provisioning.dart';
 import 'package:eazy_school_360/features/users/domain/user_profile.dart';
@@ -446,7 +446,7 @@ void main() {
         await _pump(tester, route: route);
         final out = {
           'hero': tester.getRect(find.byType(StaffHero)),
-          'toolbar': tester.getRect(find.byType(StaffToolbar)),
+          'toolbar': tester.getRect(find.byType(DirectoryToolbar)),
           'list': tester.getRect(find.byType(DirectoryListCard)),
         };
         // a new app for the next route

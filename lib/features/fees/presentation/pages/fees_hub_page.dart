@@ -87,7 +87,7 @@ class _Hub extends ConsumerWidget {
               onRefresh: () => ref.invalidate(feeSummaryProvider(key)),
             ),
           ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         HubGroup(
           title: 'Collect',
           subtitle: 'Bills, payments and receipts',
@@ -107,7 +107,7 @@ class _Hub extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         HubGroup(
           title: 'Set up billing',
           subtitle: 'What is charged, to whom, and when',
@@ -135,7 +135,7 @@ class _Hub extends ConsumerWidget {
           ],
         ),
         if (can(Permission.viewFeeReports)) ...[
-          const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: AppSpacing.md),
           HubGroup(
             title: 'Insights',
             tiles: [

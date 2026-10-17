@@ -6,15 +6,15 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/permissions/permission.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/utils/responsive.dart';
 import '../../../../shared/error/empty_view.dart';
-import '../../../../shared/filters/filter_bar.dart';
+import '../../../../shared/filters/directory_toolbar.dart';
 import '../../../../shared/filters/filter_field.dart';
 import '../../../../shared/filters/page_actions.dart';
+import '../../../../shared/layouts/directory_list.dart';
 import '../../../../shared/layouts/hub_layout.dart';
-import '../../../../shared/layouts/responsive_data_list.dart';
-import '../../../../shared/layouts/scrollable_header.dart';
 import '../../../../shared/layouts/stat_chips.dart';
+import '../../../../shared/layouts/status_chips.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../domain/paged_result.dart';
 import '../../domain/student.dart';
@@ -190,9 +190,15 @@ class _StudentsListPageState extends ConsumerState<StudentsListPage> {
     ),
   );
 
+  /// The headcount behind the list, when it is the plain status list; a
+  /// search changes what is counted, so no total is claimed then.
+  int? _totalFor(Map<StudentStatus?, int>? counts) =>
+      _isSearching ? null : counts?[_statusFilter];
+
   @override
   Widget build(BuildContext context) {
     final tenantState = ref.watch(tenantContextProvider);
+    final layout = screenSizeForWidth(MediaQuery.sizeOf(context).width);
 
     return AsyncValueWidget(
       value: tenantState,
@@ -227,106 +233,86 @@ class _StudentsListPageState extends ConsumerState<StudentsListPage> {
                   label: const Text('Admit student'),
                 )
               : null,
-          body: Column(
-            children: [
-              ScrollableHeader(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: StatChipsBar(chips: _statChips(counts)),
+          body: DirectoryFrame(
+            padding: DirectoryLayout.pagePadding(layout),
+            // The shell's hero is directly above: keep the gap to it the same
+            // as the gaps between sections.
+            top: DirectoryLayout.sectionGap(layout),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DirectoryToolbar(
+                    layout: layout,
+                    trailing: PageActionsMenu(
+                      actions: [
+                        if (canManage)
+                          PageAction(
+                            label: 'Bulk upload (CSV)',
+                            icon: Icons.upload_file_outlined,
+                            onSelected: () => context.push('/students/import'),
                           ),
-                          PageActionsMenu(
-                            actions: [
-                              if (canManage)
-                                PageAction(
-                                  label: 'Bulk upload (CSV)',
-                                  icon: Icons.upload_file_outlined,
-                                  onSelected: () =>
-                                      context.push('/students/import'),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      FilterBar(
-                        searchController: _searchController,
-                        searchHint: _searchBy == _SearchBy.name
-                            ? 'Search by name'
-                            : 'Search by admission number',
-                        onSearchChanged: _onSearchChanged,
-                        searchPrefix: _searchByMenu(),
-                        filtersEnabled: !_isSearching,
-                        fieldsBuilder: _filters,
-                      ),
-                    ],
+                      ],
+                    ),
+                    searchController: _searchController,
+                    searchHint: _searchBy == _SearchBy.name
+                        ? 'Search by name'
+                        : 'Search by admission number',
+                    searchPrefix: _searchByMenu(),
+                    onSearchChanged: _onSearchChanged,
+                    filtersEnabled: !_isSearching,
+                    fieldsBuilder: _filters,
+                    inlineCount: 1,
                   ),
-                ),
-              ),
-              Expanded(
-                child: _isLoading && _items.isEmpty
-                    ? const Center(child: CircularProgressIndicator())
-                    : ResponsiveDataList<Student>(
-                        items: _items,
-                        columnHeaders: const [
-                          'Admission No',
-                          'Student',
-                          'Class',
-                          'Status',
-                          '',
-                        ],
-                        emptyState: const EmptyView(
-                          icon: Icons.groups_outlined,
-                          message: 'No students match your filters.',
-                        ),
-                        cellsBuilder: (student) => [
-                          DataCell(Text(student.admissionNumber)),
-                          DataCell(Text(student.displayName)),
-                          DataCell(StudentPlacementLabel(student: student)),
-                          DataCell(_StatusChip(status: student.status)),
-                          DataCell(
-                            TextButton(
-                              onPressed: () => context.push(
-                                '/students/${student.studentId}',
-                              ),
-                              child: const Text('View'),
+                  SizedBox(height: DirectoryLayout.sectionGap(layout)),
+                  StatusChips(
+                    chips: _statChips(counts),
+                    activeFilters: _isSearching ? const [] : _filters(),
+                    layout: layout,
+                  ),
+                  SizedBox(height: DirectoryLayout.sectionGap(layout)),
+                  if (_isLoading && _items.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 48),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else
+                    DirectoryListCard(
+                      layout: layout,
+                      nameHeader: 'Student',
+                      codeHeader: 'Admission no',
+                      columns: const [
+                        DirectoryColumn(header: 'Class', flex: 3),
+                      ],
+                      emptyState: const EmptyView(
+                        icon: Icons.groups_outlined,
+                        message: 'No students match your filters.',
+                      ),
+                      items: [
+                        for (final student in _items)
+                          DirectoryRow(
+                            id: student.studentId,
+                            name: student.displayName,
+                            code: student.admissionNumber,
+                            values: const [null],
+                            cells: [StudentPlacementLabel(student: student)],
+                            phoneLine: null,
+                            phoneDetail: StudentPlacementLabel(
+                              student: student,
                             ),
-                          ),
-                        ],
-                        cardBuilder: (student) => Card(
-                          margin: EdgeInsets.zero,
-                          child: ListTile(
-                            title: Text(student.displayName),
-                            subtitle: Text(student.admissionNumber),
-                            trailing: _StatusChip(status: student.status),
+                            statusBadge: _StatusChip(status: student.status),
                             onTap: () =>
                                 context.push('/students/${student.studentId}'),
                           ),
-                        ),
-                      ),
+                      ],
+                      total: _totalFor(counts),
+                      hasMore: _hasMore,
+                      isLoading: _isLoading,
+                      onLoadMore: () => _loadPage(_schoolId!, _branchId!),
+                    ),
+                ],
               ),
-              if (_hasMore)
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: OutlinedButton(
-                    onPressed: _isLoading
-                        ? null
-                        : () => _loadPage(_schoolId!, _branchId!),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 16,
-                            width: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Load more'),
-                  ),
-                ),
-            ],
+            ),
           ),
         );
       },

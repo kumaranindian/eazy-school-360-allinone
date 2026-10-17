@@ -1,3 +1,4 @@
+import '../../../users/presentation/widgets/login_access_button.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -23,12 +24,13 @@ import '../../domain/staff.dart';
 import '../../domain/staff_search_field.dart';
 import '../../domain/staff_status.dart';
 import '../providers/staff_providers.dart';
+import '../widgets/staff_status_chip.dart';
 import '../widgets/staff_branch_scope.dart';
 import '../widgets/staff_section_switcher.dart';
-import '../widgets/directory_list.dart';
+import '../../../../shared/layouts/directory_list.dart';
 import '../widgets/staff_hero.dart';
 import '../widgets/staff_login_access.dart';
-import '../widgets/staff_toolbar.dart';
+import '../../../../shared/filters/directory_toolbar.dart';
 import '../../../../core/utils/responsive.dart';
 import '../../../../shared/filters/filter_field.dart';
 import '../../../../shared/filters/page_actions.dart';
@@ -417,7 +419,7 @@ class _StaffListState extends ConsumerState<_StaffList> {
                 icon: Icons.badge_outlined,
               ),
               gap,
-              StaffToolbar(
+              DirectoryToolbar(
                 layout: layout,
                 switcher: const StaffSectionSwitcher(
                   current: StaffSection.staff,
@@ -523,7 +525,10 @@ class _StaffListState extends ConsumerState<_StaffList> {
                             designationNames[staff.designationId],
                             if (staff.userId != null) 'Has login',
                           ].whereType<String>().join(' · '),
-                          status: staff.status,
+                          statusBadge: StaffStatusChip(
+                            status: staff.status,
+                            dense: true,
+                          ),
                           leading: checkbox(staff),
                           onTap: () => context.push('/staff/${staff.staffId}'),
                           actions: [

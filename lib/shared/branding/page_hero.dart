@@ -30,28 +30,43 @@ class HeroPill extends StatelessWidget {
   }
 }
 
-/// The signature header used by the dashboard and every top-level screen:
-/// a navy → blue gradient card with a title, optional subtitle and pills,
-/// and a trailing icon or mark. Pure presentation — no data, no actions.
+/// The signature header of every top-level screen: a short navy → blue
+/// gradient strip with an icon tile, the title and a one-line subtitle on the
+/// left, and the pills (school · branch, role, a branch selector...) on the
+/// right. One compact design for every screen, so no screen spends its first
+/// screenful on a banner. Pure presentation — no data, no actions of its own.
+///
+/// - **Tablet / desktop**: one row, about 78px tall.
+/// - **Phone** ([compact]): the icon, title and subtitle in a slim row; pills
+///   go below only when [pillsOnPhone] says they matter (a branch selector
+///   does; a decorative school label does not).
 class PageHero extends StatelessWidget {
   final String title;
   final String? subtitle;
+
+  /// A rounded tile at the start of the strip.
+  final IconData? icon;
   final List<Widget> pills;
+
+  /// A widget at the far end (the dashboard's school emblem).
   final Widget? trailing;
 
-  /// Slim, title-only variant for phones, where vertical space is scarce.
+  /// The phone variant.
   final bool compact;
+  final bool pillsOnPhone;
 
   const PageHero({
     super.key,
     required this.title,
     this.subtitle,
+    this.icon,
     this.pills = const [],
     this.trailing,
     this.compact = false,
+    this.pillsOnPhone = false,
   });
 
-  /// A rounded white-on-glass tile holding [icon], for [trailing].
+  /// A rounded white-on-glass tile holding [icon].
   static Widget iconBadge(IconData icon, {double size = 44}) => Container(
     width: size,
     height: size,
@@ -65,53 +80,95 @@ class PageHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
+    final heading = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          title,
+          maxLines: compact ? 1 : 2,
+          overflow: TextOverflow.ellipsis,
+          style: text.titleLarge?.copyWith(
+            color: Colors.white,
+            fontSize: compact ? 20 : 22,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        if (subtitle != null)
+          Text(
+            subtitle!,
+            maxLines: compact ? 1 : 2,
+            overflow: TextOverflow.ellipsis,
+            style: text.bodyMedium?.copyWith(
+              color: const Color(0xFFD9EAFF),
+              fontSize: 13,
+            ),
+          ),
+      ],
+    );
+    final pillRow = Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.xs,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      alignment: compact ? WrapAlignment.start : WrapAlignment.end,
+      children: pills,
+    );
+
+    final head = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (icon != null) ...[
+          iconBadge(icon!, size: compact ? 36 : 44),
+          SizedBox(width: compact ? AppSpacing.sm : AppSpacing.md),
+        ],
+        Expanded(child: heading),
+        if (compact && trailing != null) ...[
+          const SizedBox(width: AppSpacing.sm),
+          trailing!,
+        ],
+      ],
+    );
+
     return Container(
-      padding: EdgeInsets.all(compact ? 10 : AppSpacing.lg),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 12 : 20,
+        vertical: compact ? 10 : 16,
+      ),
       decoration: BoxDecoration(
         gradient: AppColors.heroGradient,
         borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
+      child: compact
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: (compact ? text.titleLarge : text.headlineSmall)
-                      ?.copyWith(color: Colors.white),
-                ),
-                if (subtitle != null && !compact) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: text.bodyMedium?.copyWith(
-                      color: const Color(0xFFD9EAFF),
-                    ),
-                  ),
-                ],
-                if (pills.isNotEmpty && !compact) ...[
+                head,
+                if (pillsOnPhone && pills.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.sm),
-                  Wrap(
-                    spacing: AppSpacing.sm,
-                    runSpacing: AppSpacing.xs,
-                    children: pills,
-                  ),
+                  pillRow,
+                ],
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (icon != null) ...[
+                  iconBadge(icon!, size: 44),
+                  const SizedBox(width: AppSpacing.md),
+                ],
+                // The title block gets the larger share, so a one-line
+                // subtitle stays on one line beside the pills.
+                Expanded(flex: 3, child: heading),
+                if (pills.isNotEmpty) ...[
+                  const SizedBox(width: AppSpacing.md),
+                  Flexible(flex: 2, child: pillRow),
+                ],
+                if (trailing != null) ...[
+                  const SizedBox(width: AppSpacing.md),
+                  trailing!,
                 ],
               ],
             ),
-          ),
-          if (trailing != null) ...[
-            const SizedBox(width: AppSpacing.md),
-            trailing!,
-          ],
-        ],
-      ),
     );
   }
 }

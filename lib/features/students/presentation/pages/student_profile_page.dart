@@ -156,7 +156,7 @@ class StudentProfilePage extends ConsumerWidget {
                                       )
                                 : (_, __) async => false,
                           ),
-                          const SizedBox(height: AppSpacing.lg),
+                          const SizedBox(height: AppSpacing.md),
                           _InfoRow(
                             label: 'Admission number',
                             value: student.admissionNumber,

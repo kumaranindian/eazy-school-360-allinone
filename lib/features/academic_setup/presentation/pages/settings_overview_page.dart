@@ -173,7 +173,7 @@ class SettingsOverviewPage extends ConsumerWidget {
               else
                 _SetupProgressCard(status: status, tenant: tenant),
               for (final group in _groups) ...[
-                const SizedBox(height: AppSpacing.lg),
+                const SizedBox(height: AppSpacing.md),
                 HubGroup(
                   title: group.title,
                   subtitle: group.subtitle,
@@ -184,7 +184,7 @@ class SettingsOverviewPage extends ConsumerWidget {
                   ],
                 ),
               ],
-              const SizedBox(height: AppSpacing.lg),
+              const SizedBox(height: AppSpacing.md),
             ],
           ),
         );
@@ -248,7 +248,7 @@ class _SetupProgressCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

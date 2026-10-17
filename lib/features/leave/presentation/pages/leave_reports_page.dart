@@ -121,7 +121,7 @@ class _ReportsState extends ConsumerState<_Reports> {
             ),
           ],
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         _StatusCounts(
           key: ValueKey('s$_kind$_from$_to'),
           leave: leave,
@@ -129,7 +129,7 @@ class _ReportsState extends ConsumerState<_Reports> {
           from: _from,
           to: _to,
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         Text(
           _kind == LeaveKind.student
               ? 'Approved leave by type'
@@ -148,7 +148,7 @@ class _ReportsState extends ConsumerState<_Reports> {
             from: _from,
             to: _to,
           ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         if (_kind == LeaveKind.student)
           _SectionSummary(
             key: ValueKey('c$_from$_to'),

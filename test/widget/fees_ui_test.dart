@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:eazy_school_360/shared/branding/page_hero.dart';
 import 'package:eazy_school_360/app/app.dart';
 import 'package:eazy_school_360/core/config/app_environment.dart';
 import 'package:eazy_school_360/core/config/env_config.dart';
@@ -136,6 +137,7 @@ Future<_World> _pump(
   List<Student> children = const [],
   String? linkedParentId,
   Size size = const Size(1400, 1000),
+  Map<String, Branch>? branches,
 }) async {
   addTearDown(() => tester.view.resetPhysicalSize());
   tester.view.physicalSize = size;
@@ -180,14 +182,16 @@ Future<_World> _pump(
               status: SchoolStatus.active,
             ),
           },
-          branches: {
-            'school-1/main': const Branch(
-              branchId: 'main',
-              schoolId: 'school-1',
-              name: 'Main',
-              status: BranchStatus.active,
-            ),
-          },
+          branches:
+              branches ??
+              {
+                'school-1/main': const Branch(
+                  branchId: 'main',
+                  schoolId: 'school-1',
+                  name: 'Main',
+                  status: BranchStatus.active,
+                ),
+              },
         ),
       ),
       academicStructureRepositoryProvider.overrideWithValue(
@@ -364,6 +368,83 @@ void main() {
         expect(tester.takeException(), isNull);
       },
     );
+  });
+
+  group('compact layout', () {
+    testWidgets('the hero is one slim strip and the year picker follows it', (
+      tester,
+    ) async {
+      final w = await _pump(tester, role: UserRole.branchAdmin);
+      await w.go(tester, '/fees');
+      final hero = tester.getRect(find.byType(PageHero));
+      expect(hero.height, lessThan(95)); // was a ~140px banner
+      final year = tester.getRect(
+        find.widgetWithText(DropdownButtonFormField<String>, 'Academic year'),
+      );
+      expect(year.top - hero.bottom, lessThan(30));
+      expect(year.left, hero.left); // one shared gutter
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('branch and year are pickers in ONE row, not two stacked', (
+      tester,
+    ) async {
+      final w = await _pump(
+        tester,
+        role: UserRole.schoolAdmin,
+        branches: {
+          'school-1/main': const Branch(
+            branchId: 'main',
+            schoolId: 'school-1',
+            name: 'Main',
+            status: BranchStatus.active,
+          ),
+          'school-1/south': const Branch(
+            branchId: 'south',
+            schoolId: 'school-1',
+            name: 'South',
+            status: BranchStatus.active,
+          ),
+        },
+      );
+      await w.go(tester, '/fees');
+      final branch = tester.getRect(
+        find.widgetWithText(DropdownButtonFormField<String>, 'Branch'),
+      );
+      final year = tester.getRect(
+        find.widgetWithText(DropdownButtonFormField<String>, 'Academic year'),
+      );
+      expect(year.top, branch.top); // the same row
+      expect(year.left, greaterThan(branch.right));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('on a phone the two pickers wrap instead of overflowing', (
+      tester,
+    ) async {
+      final w = await _pump(
+        tester,
+        role: UserRole.schoolAdmin,
+        size: const Size(360, 800),
+        branches: {
+          'school-1/main': const Branch(
+            branchId: 'main',
+            schoolId: 'school-1',
+            name: 'Main',
+            status: BranchStatus.active,
+          ),
+          'school-1/south': const Branch(
+            branchId: 'south',
+            schoolId: 'school-1',
+            name: 'South',
+            status: BranchStatus.active,
+          ),
+        },
+      );
+      await w.go(tester, '/fees');
+      expect(find.text('Academic year'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('fees hub', () {

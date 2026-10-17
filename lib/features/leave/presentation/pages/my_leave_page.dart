@@ -398,7 +398,7 @@ class _StaffBody extends ConsumerWidget {
             );
           },
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.md),
         Text('My applications', style: theme.textTheme.titleSmall),
         const SizedBox(height: AppSpacing.sm),
         applications.when(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_spacing.dart';
+import '../../core/utils/responsive.dart';
+import 'status_chips.dart';
 
 /// One figure in a [StatChipsBar].
 class StatChip {
@@ -25,77 +26,16 @@ class StatChip {
 }
 
 /// A slim row of headline numbers that double as quick filters: tap one to
-/// narrow the list below to it. On a phone the row scrolls sideways so it
-/// never takes more than one line of the screen.
+/// narrow the list below to it. The same compact pills as the staff
+/// directories ([StatusChips]): 32px tall, scrolling sideways on a phone so it
+/// never takes more than one line, wrapping on wider screens.
 class StatChipsBar extends StatelessWidget {
   final List<StatChip> chips;
 
   const StatChipsBar({super.key, required this.chips});
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (var i = 0; i < chips.length; i++) ...[
-            if (i > 0) const SizedBox(width: AppSpacing.sm),
-            _chip(theme, chips[i]),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _chip(ThemeData theme, StatChip chip) {
-    final scheme = theme.colorScheme;
-    final count = chip.valueText ?? chip.count?.toString() ?? '–';
-    return Semantics(
-      button: chip.onTap != null,
-      selected: chip.selected,
-      label: '${chip.label}: $count',
-      excludeSemantics: true,
-      child: Material(
-        color: chip.selected ? scheme.primaryContainer : scheme.surface,
-        shape: StadiumBorder(
-          side: BorderSide(
-            color: chip.selected ? scheme.primary : scheme.outlineVariant,
-          ),
-        ),
-        child: InkWell(
-          customBorder: const StadiumBorder(),
-          onTap: chip.onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.sm,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  count,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: chip.selected
-                        ? scheme.onPrimaryContainer
-                        : scheme.onSurface,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.xs),
-                Text(
-                  chip.label,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: chip.selected
-                        ? scheme.onPrimaryContainer
-                        : scheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ResponsiveBuilder(
+    builder: (context, size) => StatusChips(chips: chips, layout: size),
+  );
 }

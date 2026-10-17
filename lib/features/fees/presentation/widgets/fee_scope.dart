@@ -1,9 +1,9 @@
+import '../../../academic_setup/presentation/widgets/year_scope_control.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/tenant/tenant_context.dart';
-import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/error/error_view.dart';
 import '../../../academic_setup/domain/academic_year.dart';
@@ -66,6 +66,15 @@ class _FeeScopeState extends ConsumerState<FeeScope> {
   @override
   Widget build(BuildContext context) {
     return StaffBranchScope(
+      // The year picker sits in the branch picker's row, not a row of its own.
+      scopeControl: widget.showYearSelector
+          ? (context, schoolId, branchId) => YearScopeControl(
+              schoolId: schoolId,
+              branchId: branchId,
+              selectedId: _yearId,
+              onChanged: (v) => setState(() => _yearId = v),
+            )
+          : null,
       builder: (context, tenant, schoolId, branchId) {
         final BranchKey branchKey = (schoolId: schoolId, branchId: branchId);
         final yearsAsync = ref.watch(academicYearsProvider(branchKey));
@@ -112,37 +121,6 @@ class _FeeScopeState extends ConsumerState<FeeScope> {
 
         return Column(
           children: [
-            if (widget.showYearSelector)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md,
-                  AppSpacing.md,
-                  AppSpacing.md,
-                  0,
-                ),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 260),
-                    child: DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      value: selected.academicYearId,
-                      decoration: const InputDecoration(
-                        labelText: 'Academic year',
-                        isDense: true,
-                      ),
-                      items: [
-                        for (final y in years)
-                          DropdownMenuItem(
-                            value: y.academicYearId,
-                            child: Text(y.name),
-                          ),
-                      ],
-                      onChanged: (v) => setState(() => _yearId = v),
-                    ),
-                  ),
-                ),
-              ),
             Expanded(
               child: KeyedSubtree(
                 key: ValueKey('${selected.academicYearId}/$branchId'),

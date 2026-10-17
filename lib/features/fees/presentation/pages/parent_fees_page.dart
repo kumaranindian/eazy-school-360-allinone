@@ -273,9 +273,9 @@ class _Child extends ConsumerWidget {
                 ),
               ],
             ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
             _Assigned(child: child, yearId: selectedYear),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
             Text('Invoices', style: Theme.of(context).textTheme.titleMedium),
             if (invoices.isEmpty)
               const Padding(
@@ -295,7 +295,7 @@ class _Child extends ConsumerWidget {
                   ),
                 ),
               ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
             Text(
               'Payments & receipts',
               style: Theme.of(context).textTheme.titleMedium,
