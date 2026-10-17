@@ -1374,11 +1374,16 @@ service cloud.firestore {
       return {'academicYearId': p[1], 'classId': p[2], 'sectionId': p[3]};
     }
 
+    // An examination id is itself `year__class__section__name`, so ids that
+    // START with one (sheets, results) are read from the END: the last
+    // segments are the fixed-shape part, the rest is the examination id.
     function sheetKeyData(schoolId, branchId, sheetId) {
       let p = sheetId.split('__');
-      let exam = get(ttDoc(schoolId, branchId, 'examinations', p[0])).data;
+      let n = p.size();
+      let exam = get(ttDoc(schoolId, branchId, 'examinations',
+        sheetId[0:sheetId.size() - p[n - 2].size() - p[n - 1].size() - 4])).data;
       return {'academicYearId': exam.academicYearId, 'classId': exam.classId,
-              'sectionId': p[2], 'subjectId': p[1]};
+              'sectionId': p[n - 1], 'subjectId': p[n - 2]};
     }
 
     function submissionKeyData(submissionId) {
@@ -1395,7 +1400,9 @@ service cloud.firestore {
 
     function resultKeyData(resultId) {
       let p = resultId.split('__');
-      return {'examId': p[0], 'studentId': p[1], 'version': int(p[2][1:])};
+      let n = p.size();
+      return {'examId': resultId[0:resultId.size() - p[n - 2].size() - p[n - 1].size() - 4],
+              'studentId': p[n - 2], 'version': int(p[n - 1][1:])};
     }
 
     function resultReadable(schoolId, branchId, d) {
@@ -1827,7 +1834,8 @@ service cloud.firestore {
           }
 
           match /holidays/{holidayId} {
-            allow read: if canViewAcademicSetup(schoolId, branchId);
+            // Families read the calendar to count leave days; never write it.
+            allow read: if canViewAcademicSetup(schoolId, branchId) || parentInBranch(schoolId, branchId);
             allow create: if canManageAcademicSetup(schoolId, branchId) && validCreateAudit()
               && newInTenant(schoolId, branchId)
               && nd().academicYearId == academicYearId;
@@ -1839,7 +1847,10 @@ service cloud.firestore {
 
         // ---- settings/{workingDays|academic} — small singleton docs ---
         match /settings/{settingId} {
-          allow read: if canViewAcademicSetup(schoolId, branchId);
+          // Families may read only the working days (the leave form counts
+          // days with them); every other setting stays staff-only.
+          allow read: if canViewAcademicSetup(schoolId, branchId)
+            || (settingId == 'workingDays' && parentInBranch(schoolId, branchId));
           allow create, update: if canManageAcademicSetup(schoolId, branchId)
             && newInTenant(schoolId, branchId)
             && nd().updatedAt == request.time

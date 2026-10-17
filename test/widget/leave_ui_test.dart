@@ -151,6 +151,7 @@ Future<_World> _pump(
   FakeLeaveTypeRepository? types,
   FakeLeaveBalanceRepository? balances,
   FakeLeaveCalendarRepository? calendar,
+  FakeCalendarRepository? schoolCalendar,
   FakeLeaveNotificationRepository? notices,
   List<Student> children = const [],
   String? linkedParentId,
@@ -264,7 +265,9 @@ Future<_World> _pump(
         ),
       ),
       academicSettingsRepositoryProvider.overrideWithValue(_FakeSettings()),
-      calendarRepositoryProvider.overrideWithValue(FakeCalendarRepository()),
+      calendarRepositoryProvider.overrideWithValue(
+        schoolCalendar ?? FakeCalendarRepository(),
+      ),
       parentRepositoryProvider.overrideWithValue(
         _FakeParentRepository(children),
       ),
@@ -961,6 +964,25 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('Submit application'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'a school calendar that cannot be read stops the form, with the reason',
+      (tester) async {
+        final w = await _pump(
+          tester,
+          role: UserRole.parent,
+          linkedParentId: 'parent-1',
+          children: [child],
+          schoolCalendar: FakeCalendarRepository()
+            ..error = const PermissionFailure(),
+        );
+        await w.go(tester, '/my-leave/apply?studentId=stu-1&b=main');
+        expect(find.textContaining('permission'), findsOneWidget);
+        // Never an unchecked form that would count every day as a leave day.
+        expect(find.text('Submit application'), findsNothing);
+        expect(w.apps.submitted, isEmpty);
       },
     );
 

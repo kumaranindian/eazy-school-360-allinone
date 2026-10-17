@@ -38,7 +38,7 @@ class MyResultsPage extends StatelessWidget {
   }
 }
 
-typedef _Row = ({Examination exam, ResultSummary? result});
+typedef _Row = ({Examination exam, ResultSummary? result, Object? error});
 
 final _childRowsProvider = FutureProvider.autoDispose
     .family<List<_Row>, Student>((ref, child) async {
@@ -62,6 +62,7 @@ final _childRowsProvider = FutureProvider.autoDispose
       final rows = <_Row>[];
       for (final e in mine) {
         ResultSummary? r;
+        Object? failure;
         try {
           r = await repo.fetchResult(
             schoolId: child.schoolId,
@@ -70,10 +71,11 @@ final _childRowsProvider = FutureProvider.autoDispose
             studentId: child.studentId,
             version: e.resultVersion,
           );
-        } catch (_) {
-          r = null;
+        } catch (error) {
+          // Not "no result": a failed read is reported as such below.
+          failure = error;
         }
-        rows.add((exam: e, result: r));
+        rows.add((exam: e, result: r, error: failure));
       }
       return rows;
     });
@@ -101,8 +103,8 @@ class _ChildResults extends ConsumerWidget {
     final rows = ref.watch(_childRowsProvider(child));
     return rows.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => ErrorView(
-        message: userMessageFor(e),
+      error: (err, _) => ErrorView(
+        message: userMessageFor(err),
         onRetry: () => ref.invalidate(_childRowsProvider(child)),
       ),
       data: (list) {
@@ -133,8 +135,16 @@ class _ChildResults extends ConsumerWidget {
                     title: Text(r.exam.name),
                     subtitle: Padding(
                       padding: const EdgeInsets.only(top: 4),
-                      child: r.result == null
-                          ? const Text('Result not available.')
+                      child: r.error != null
+                          ? Text(
+                              'Could not load this result. '
+                              '${userMessageFor(r.error!)}',
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            )
+                          : r.result == null
+                          ? const Text('Result not available yet.')
                           : Wrap(
                               spacing: AppSpacing.sm,
                               runSpacing: 4,
@@ -275,9 +285,9 @@ class _ChildResult extends ConsumerWidget {
     );
     final exam = ref.watch(examProvider(key));
     if (exam.hasError) {
-      return const EmptyView(
-        icon: Icons.lock_outline,
-        message: 'This result is not available.',
+      return ErrorView(
+        message: userMessageFor(exam.error!),
+        onRetry: () => ref.invalidate(examProvider(key)),
       );
     }
     if (!exam.hasValue) {
@@ -293,20 +303,19 @@ class _ChildResult extends ConsumerWidget {
         message: 'This result is not available.',
       );
     }
-    final result = ref.watch(
-      childResultProvider((
-        schoolId: child.schoolId,
-        branchId: child.branchId,
-        examId: examId,
-        studentId: child.studentId,
-        version: e.resultVersion,
-      )),
+    final resultKey = (
+      schoolId: child.schoolId,
+      branchId: child.branchId,
+      examId: examId,
+      studentId: child.studentId,
+      version: e.resultVersion,
     );
+    final result = ref.watch(childResultProvider(resultKey));
     return result.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, _) => const EmptyView(
-        icon: Icons.lock_outline,
-        message: 'This result is not available.',
+      error: (err, _) => ErrorView(
+        message: userMessageFor(err),
+        onRetry: () => ref.invalidate(childResultProvider(resultKey)),
       ),
       data: (s) => s == null
           ? const EmptyView(

@@ -648,6 +648,10 @@ class FakeResultRepository implements ResultRepository {
   final List<String> published = [];
   final List<int> finalizedVersions = [];
 
+  /// When set, every single-result read fails with it (a denied or failed
+  /// read, as opposed to a result that simply does not exist).
+  Object? fetchError;
+
   FakeResultRepository(this.exams);
 
   @override
@@ -786,6 +790,7 @@ class FakeResultRepository implements ResultRepository {
     // Mirrors the rules: a family can read only the version in force of a
     // PUBLISHED examination. (Staff reads of unpublished results are the
     // staff screens' business.)
+    if (fetchError != null) throw fetchError!;
     return results['${examId}__${studentId}__v$version'];
   }
 

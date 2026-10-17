@@ -27,11 +27,13 @@ class ReportCardLoader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final years = ref
+    // One year document (a family may read that, never the year list).
+    final yearDoc = ref
         .watch(
-          academicYearsProvider((
+          academicYearProvider((
             schoolId: summary.schoolId,
             branchId: summary.branchId,
+            academicYearId: summary.academicYearId,
           )),
         )
         .value;
@@ -54,10 +56,7 @@ class ReportCardLoader extends ConsumerWidget {
           )),
         )
         .value;
-    final year = years
-        ?.where((y) => y.academicYearId == summary.academicYearId)
-        .firstOrNull
-        ?.name;
+    final year = yearDoc?.name;
     final className = classes
         ?.where((c) => c.classId == summary.classId)
         .firstOrNull

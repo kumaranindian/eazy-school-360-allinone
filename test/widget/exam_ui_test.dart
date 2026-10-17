@@ -4,6 +4,7 @@ import 'package:eazy_school_360/core/config/app_environment.dart';
 import 'package:eazy_school_360/core/config/env_config.dart';
 import 'package:eazy_school_360/core/config/env_config_provider.dart';
 import 'package:eazy_school_360/core/constants/activation_status.dart';
+import 'package:eazy_school_360/core/errors/app_failure.dart';
 import 'package:eazy_school_360/core/permissions/user_role.dart';
 import 'package:eazy_school_360/core/routing/app_router.dart';
 import 'package:eazy_school_360/features/academic_setup/domain/academic_settings.dart';
@@ -1433,6 +1434,33 @@ void main() {
         expect(find.text('Download PDF'), findsOneWidget);
       },
     );
+
+    testWidgets(
+      'a failed read is reported as a failure, not as a missing result',
+      (tester) async {
+        final w = await published(tester);
+        w.results.fetchError = const PermissionFailure(
+          'You do not have permission to do that.',
+        );
+        await w.go(tester, '/my-results');
+        expect(
+          find.textContaining('Could not load this result'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('permission'), findsOneWidget);
+        expect(find.text('Result not available yet.'), findsNothing);
+      },
+    );
+
+    testWidgets('a result that does not exist yet says so plainly', (
+      tester,
+    ) async {
+      final w = await published(tester);
+      w.results.results.clear();
+      await w.go(tester, '/my-results');
+      expect(find.text('Result not available yet.'), findsOneWidget);
+      expect(find.textContaining('Could not load'), findsNothing);
+    });
 
     testWidgets('unpublished results are not shown', (tester) async {
       final r = _ready();

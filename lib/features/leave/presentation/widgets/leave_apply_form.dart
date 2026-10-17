@@ -274,7 +274,7 @@ class _LeaveApplyFormState extends ConsumerState<LeaveApplyForm> {
       )),
     );
     final workingDaysAsync = ref.watch(workingDaysProvider(branchKey));
-    final holidays = ref.watch(holidaysProvider(yearKey)).value ?? const [];
+    final holidaysAsync = ref.watch(holidaysProvider(yearKey));
     final existing =
         ref
             .watch(
@@ -288,17 +288,28 @@ class _LeaveApplyFormState extends ConsumerState<LeaveApplyForm> {
             .value ??
         const <LeaveApplication>[];
 
-    if (typesAsync.isLoading || workingDaysAsync.isLoading) {
+    if (typesAsync.isLoading ||
+        workingDaysAsync.isLoading ||
+        holidaysAsync.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (typesAsync.hasError || workingDaysAsync.hasError) {
+    // The school calendar decides which days count, so a calendar that could
+    // not be read must stop the form rather than silently count every day.
+    if (typesAsync.hasError ||
+        workingDaysAsync.hasError ||
+        holidaysAsync.hasError) {
       return Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Text(
-          userMessageFor((typesAsync.error ?? workingDaysAsync.error)!),
+          userMessageFor(
+            (typesAsync.error ??
+                workingDaysAsync.error ??
+                holidaysAsync.error)!,
+          ),
         ),
       );
     }
+    final holidays = holidaysAsync.value ?? const [];
     final allTypes = typesAsync.value ?? const <LeaveType>[];
     final types = [
       for (final t in allTypes)

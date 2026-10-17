@@ -161,6 +161,9 @@ class FakeCalendarRepository implements CalendarRepository {
   WorkingDays workingDays;
   List<Holiday> holidays;
 
+  /// When set, the calendar reads fail with it (a denied or failed read).
+  Object? error;
+
   /// By default every weekday (including Saturday/Sunday) is a working day,
   /// so tests do not depend on which day of the week they run.
   FakeCalendarRepository({WorkingDays? workingDays, this.holidays = const []})
@@ -175,15 +178,17 @@ class FakeCalendarRepository implements CalendarRepository {
           );
 
   @override
-  Future<WorkingDays> getWorkingDays(String schoolId, String branchId) async =>
-      workingDays;
+  Future<WorkingDays> getWorkingDays(String schoolId, String branchId) async {
+    if (error != null) throw error!;
+    return workingDays;
+  }
 
   @override
   Stream<List<Holiday>> watchHolidays(
     String schoolId,
     String branchId,
     String academicYearId,
-  ) => Stream.value(holidays);
+  ) => error != null ? Stream.error(error!) : Stream.value(holidays);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
