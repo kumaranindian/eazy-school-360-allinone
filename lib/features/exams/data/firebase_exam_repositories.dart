@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../../../core/constants/firestore_fields.dart';
 import '../../../core/errors/app_failure.dart';
@@ -57,6 +58,16 @@ class ExamCollections {
       c(FirestoreFields.resultSummariesCollection);
   CollectionReference<Map<String, dynamic>> get notices =>
       c(FirestoreFields.broadcastNoticesCollection);
+}
+
+/// Maps [error] like everywhere else, but when the read was refused says
+/// WHICH read it was (in the message and, in release builds too, the browser
+/// console) — "you don't have permission" alone cannot be acted on.
+AppFailure _failureFor(Object error, StackTrace stackTrace, String reading) {
+  final failure = mapExceptionToFailure(error, stackTrace);
+  if (failure is! PermissionFailure) return failure;
+  debugPrint('[results] permission denied while $reading');
+  return PermissionFailure('${failure.message} ($reading)');
 }
 
 class FirebaseGradingSchemeRepository implements GradingSchemeRepository {
@@ -171,7 +182,10 @@ class FirebaseExamRepository implements ExamRepository {
           .snapshots()
           .map(
             (s) => s.exists ? Examination.fromFirestore(s.data()!, s.id) : null,
-          );
+          )
+          .handleError((Object error, StackTrace stackTrace) {
+            throw _failureFor(error, stackTrace, 'opening exam $examId');
+          });
 
   @override
   Stream<List<ExaminationSubject>> watchSubjects(
@@ -1139,7 +1153,11 @@ class FirebaseResultRepository implements ResultRepository {
       ).results.doc(ResultSummary.idFor(examId, studentId, version)).get();
       return snap.exists ? ResultSummary.fromFirestore(snap.data()!) : null;
     } catch (error, stackTrace) {
-      throw mapExceptionToFailure(error, stackTrace);
+      throw _failureFor(
+        error,
+        stackTrace,
+        'reading the result of exam $examId, version $version',
+      );
     }
   }
 
@@ -1154,6 +1172,9 @@ class FirebaseResultRepository implements ResultRepository {
     required String classId,
     String? sectionId,
   }) async {
+    // Which of the two queries is running, for an error message that can be
+    // acted on if the rules refuse it.
+    var step = 'class-wide';
     try {
       Future<QuerySnapshot<Map<String, dynamic>>> q(String? section) =>
           _c(schoolId, branchId).exams
@@ -1162,13 +1183,22 @@ class FirebaseResultRepository implements ResultRepository {
               .where(FirestoreFields.status, isEqualTo: 'PUBLISHED')
               .where('sectionId', isEqualTo: section)
               .get();
-      final snaps = [await q(null), if (sectionId != null) await q(sectionId)];
+      final snaps = [await q(null)];
+      if (sectionId != null) {
+        step = 'section $sectionId';
+        snaps.add(await q(sectionId));
+      }
       return [
         for (final snap in snaps)
           for (final d in snap.docs) Examination.fromFirestore(d.data(), d.id),
       ]..sort((a, b) => b.startDateKey.compareTo(a.startDateKey));
     } catch (error, stackTrace) {
-      throw mapExceptionToFailure(error, stackTrace);
+      throw _failureFor(
+        error,
+        stackTrace,
+        'listing published $step examinations of class $classId, '
+        'year $academicYearId, branch $branchId',
+      );
     }
   }
 }
