@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/errors/error_mapper.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../../core/permissions/permission.dart';
 import '../../../../core/tenant/tenant_context.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -73,16 +74,27 @@ class _LeaveApplicationDetailState
     }
   }
 
+  /// The login behind a staff applicant, so a reviewer who IS that person gets
+  /// a clear message. Only a courtesy: `firestore.rules` refuses a self-decision
+  /// regardless, so a record that cannot be loaded must not block the decision.
   Future<String?> _subjectUserId(LeaveApplication a) async {
     if (a.kind != LeaveKind.staff) return null;
-    final staff = await ref.read(
-      staffProvider((
-        schoolId: a.schoolId,
-        branchId: a.branchId,
-        staffId: a.subjectId,
-      )).future,
-    );
-    return staff?.userId;
+    try {
+      final staff = await ref.read(
+        staffProvider((
+          schoolId: a.schoolId,
+          branchId: a.branchId,
+          staffId: a.subjectId,
+        )).future,
+      );
+      return staff?.userId;
+    } catch (error) {
+      AppLogger.warning(
+        'Could not load the staff record of leave ${a.applicationId}: $error',
+        tag: 'Leave',
+      );
+      return null;
+    }
   }
 
   Future<void> _decide(LeaveApplication a, LeaveStatus target) async {
@@ -107,16 +119,15 @@ class _LeaveApplicationDetailState
       destructive: target == LeaveStatus.rejected,
     );
     if (remarks == null || !mounted) return;
-    final subjectUserId = await _subjectUserId(a);
     await _run(
-      () => ref
+      () async => ref
           .read(leaveApplicationRepositoryProvider)
           .decide(
             application: a,
             target: target,
             reviewer: _actor,
             remarks: remarks,
-            subjectUserId: subjectUserId,
+            subjectUserId: await _subjectUserId(a),
             todayKey: AttendanceDate.key(DateTime.now()),
           ),
       switch (target) {
@@ -139,15 +150,14 @@ class _LeaveApplicationDetailState
       destructive: true,
     );
     if (remarks == null || !mounted) return;
-    final subjectUserId = await _subjectUserId(a);
     await _run(
-      () => ref
+      () async => ref
           .read(leaveApplicationRepositoryProvider)
           .cancelApproved(
             application: a,
             reviewer: _actor,
             remarks: remarks,
-            subjectUserId: subjectUserId,
+            subjectUserId: await _subjectUserId(a),
           ),
       'Approved leave cancelled.',
     );
