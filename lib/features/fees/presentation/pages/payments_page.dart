@@ -1,3 +1,4 @@
+import '../../../../core/utils/date_formatting.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -204,7 +205,7 @@ class _PaymentsState extends ConsumerState<_Payments> {
                             '${p.receiptNumber} · ${Money.format(p.amountMinor, currency: fee.currency)}',
                           ),
                           subtitle: Text(
-                            '${p.studentName} · ${p.methodDisplay} · ${FeeDates.display(p.paymentDateKey)}',
+                            '${p.studentName} · ${p.methodDisplay} · ${FeeDates.display(p.paymentDateKey)} · Recorded ${formatInstant(p.createdAt)}',
                           ),
                           trailing: PaymentStatusChip(status: p.status),
                           onTap: () =>

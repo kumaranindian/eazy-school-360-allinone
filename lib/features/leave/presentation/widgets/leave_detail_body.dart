@@ -1,3 +1,4 @@
+import '../../../../core/utils/date_formatting.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -401,9 +402,13 @@ class _LeaveApplicationDetailState
                         'Applied by',
                         '${a.applicantName} (${a.relation.wireValue.toLowerCase()})',
                       ),
+                      if (a.createdAt != null)
+                        row('Applied on', formatInstant(a.createdAt)),
                       if ((a.reason ?? '').isNotEmpty) row('Reason', a.reason!),
                       if (a.decidedByName != null)
                         row('Decided by', a.decidedByName!),
+                      if (a.decidedAt != null)
+                        row('Decided on', formatInstant(a.decidedAt)),
                       if ((a.decisionRemarks ?? '').isNotEmpty)
                         row('Reviewer remarks', a.decisionRemarks!),
                     ],
@@ -462,7 +467,7 @@ class _LeaveApplicationDetailState
                     trailing: h.at == null
                         ? null
                         : Text(
-                            leaveDate(AttendanceDate.key(h.at!)),
+                            formatInstant(h.at),
                             style: theme.textTheme.bodySmall,
                           ),
                   ),

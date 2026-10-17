@@ -295,8 +295,7 @@ class _RegisterEditorState extends State<RegisterEditor> {
                         ),
                         subtitle: Text(
                           [
-                            if (h.changedAt != null)
-                              formatDisplayDate(h.changedAt!),
+                            if (h.changedAt != null) formatInstant(h.changedAt),
                             if ((h.reason ?? '').isNotEmpty)
                               'Reason: ${h.reason}',
                             if ((h.newRemarks ?? '').isNotEmpty)

@@ -1,3 +1,4 @@
+import '../../../../core/utils/date_formatting.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -1139,9 +1140,7 @@ class _History extends ConsumerWidget {
                   if ((h.note ?? '').isNotEmpty) h.note!,
                 ].join(' · '),
               ),
-              trailing: h.at == null
-                  ? null
-                  : Text(ttDate(AttendanceDate.key(h.at!))),
+              trailing: h.at == null ? null : Text(formatInstant(h.at)),
               onTap: () => context.go('/timetable/editor/${h.timetableId}'),
             );
           },

@@ -1,3 +1,4 @@
+import '../../../../core/utils/date_formatting.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
@@ -170,6 +171,10 @@ class _ReceiptBodyState extends ConsumerState<ReceiptBody> {
                             _row(
                               'Payment date',
                               FeeDates.display(receipt.paymentDateKey),
+                            ),
+                            _row(
+                              'Recorded on',
+                              formatInstant(receipt.createdAt),
                             ),
                             _row('Method', receipt.methodDisplay),
                             if ((receipt.referenceNo ?? '').isNotEmpty)

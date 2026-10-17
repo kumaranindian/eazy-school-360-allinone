@@ -1,3 +1,4 @@
+import '../../../../core/utils/date_formatting.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -21,7 +22,6 @@ import '../../domain/leave_type.dart';
 import '../../domain/leave_units.dart';
 import '../providers/leave_providers.dart';
 import '../widgets/leave_scope.dart';
-import '../widgets/leave_widgets.dart';
 
 /// `/leave/balances` — find a staff member, see their balances for the year
 /// and the append-only ledger; reviewers with `adjustLeaveBalances` can adjust
@@ -467,7 +467,7 @@ class _StaffBalancesState extends ConsumerState<_StaffBalances> {
                     trailing: e.at == null
                         ? null
                         : Text(
-                            leaveDate(AttendanceDate.key(e.at!)),
+                            formatInstant(e.at),
                             style: theme.textTheme.bodySmall,
                           ),
                   ),

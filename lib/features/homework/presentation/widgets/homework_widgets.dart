@@ -1,3 +1,4 @@
+export '../../../../core/utils/date_formatting.dart' show formatInstant;
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -21,9 +22,6 @@ import '../providers/homework_providers.dart';
 /// "03 Aug 2026" for a `yyyy-MM-dd` key.
 String formatDateKey(String key) =>
     DateFormat('d MMM y').format(AttendanceDate.parse(key));
-
-String formatInstant(DateTime? at) =>
-    at == null ? '—' : DateFormat('d MMM y, h:mm a').format(at.toLocal());
 
 /// "Due 03 Aug 2026, 5:00 PM" (end of day when no time was set).
 String dueLabel(Homework h) {

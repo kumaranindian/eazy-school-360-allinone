@@ -1,3 +1,4 @@
+import '../../../../core/utils/date_formatting.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -311,7 +312,7 @@ class _Child extends ConsumerWidget {
                     '${p.receiptNumber} · ${Money.format(p.amountMinor, currency: currency)}',
                   ),
                   subtitle: Text(
-                    '${FeeDates.display(p.paymentDateKey)} · ${p.methodDisplay} · ${p.invoiceNumber}',
+                    '${FeeDates.display(p.paymentDateKey)} · ${p.methodDisplay} · ${p.invoiceNumber} · Recorded ${formatInstant(p.createdAt)}',
                   ),
                   trailing: PaymentStatusChip(status: p.status),
                   onTap: () => context.push(

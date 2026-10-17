@@ -1,3 +1,4 @@
+import '../../../../core/utils/date_formatting.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../shared/layouts/hero_scope.dart';
@@ -11,7 +12,6 @@ import '../../../../shared/layouts/hub_layout.dart';
 import '../../domain/leave_enums.dart';
 import '../providers/leave_providers.dart';
 import '../widgets/leave_scope.dart';
-import '../widgets/leave_widgets.dart';
 
 /// `/leave` — the reviewer's dashboard: what is waiting, and where to go.
 /// Counts come from `count()` aggregate queries, not from loading the lists.
@@ -220,11 +220,7 @@ class _Hub extends ConsumerWidget {
               trailing: n.createdAt == null
                   ? null
                   : Text(
-                      leaveDate(
-                        '${n.createdAt!.year.toString().padLeft(4, '0')}-'
-                        '${n.createdAt!.month.toString().padLeft(2, '0')}-'
-                        '${n.createdAt!.day.toString().padLeft(2, '0')}',
-                      ),
+                      formatInstant(n.createdAt),
                       style: theme.textTheme.bodySmall,
                     ),
             ),

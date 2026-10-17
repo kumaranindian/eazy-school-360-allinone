@@ -236,7 +236,7 @@ class _StaffDocumentsTabState extends ConsumerState<StaffDocumentsTab> {
                           document.type.displayName,
                           _size(document.sizeBytes),
                           if (document.createdAt != null)
-                            formatDisplayDate(document.createdAt!),
+                            formatInstant(document.createdAt),
                         ].join(' · '),
                       ),
                       onTap: () => _open(document),

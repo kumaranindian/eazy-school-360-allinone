@@ -1,3 +1,4 @@
+import '../../../../core/utils/date_formatting.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -75,7 +76,12 @@ class LeaveNotificationsPage extends ConsumerWidget {
                           ? null
                           : const TextStyle(fontWeight: FontWeight.w600),
                     ),
-                    subtitle: n.body == null ? null : Text(n.body!),
+                    subtitle: Text(
+                      [
+                        if (n.body != null) n.body!,
+                        formatInstant(n.createdAt),
+                      ].join('\n'),
+                    ),
                     onTap: () async {
                       if (!n.read) {
                         try {

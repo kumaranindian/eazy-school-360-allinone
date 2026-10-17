@@ -1,3 +1,4 @@
+import '../../../../core/utils/date_formatting.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_spacing.dart';
@@ -98,6 +99,11 @@ class LeaveApplicationTile extends StatelessWidget {
                       '${LeaveUnits.formatDays(a.units)}',
                       style: theme.textTheme.bodySmall,
                     ),
+                    if (a.createdAt != null)
+                      Text(
+                        'Applied ${formatInstant(a.createdAt)}',
+                        style: theme.textTheme.bodySmall,
+                      ),
                   ],
                 ),
               ),

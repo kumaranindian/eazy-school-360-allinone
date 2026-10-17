@@ -1,3 +1,4 @@
+import '../../../../core/utils/date_formatting.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -181,6 +182,8 @@ class _Detail extends ConsumerWidget {
         Text(
           'Issued ${FeeDates.display(invoice.issueDateKey)} · Due ${FeeDates.display(invoice.dueDateKey)}',
         ),
+        if (invoice.createdAt != null)
+          Text('Created ${formatInstant(invoice.createdAt)}'),
         if (invoice.isVoid)
           Padding(
             padding: const EdgeInsets.only(top: AppSpacing.sm),
@@ -371,7 +374,7 @@ class _Detail extends ConsumerWidget {
                         '${Money.format(p.amountMinor, currency: invoice.currency)} · ${p.methodDisplay}',
                       ),
                       subtitle: Text(
-                        '${p.receiptNumber} · ${FeeDates.display(p.paymentDateKey)}${(p.referenceNo ?? '').isEmpty ? '' : ' · Ref ${p.referenceNo}'} · ${p.collectorName}',
+                        '${p.receiptNumber} · ${FeeDates.display(p.paymentDateKey)}${(p.referenceNo ?? '').isEmpty ? '' : ' · Ref ${p.referenceNo}'} · ${p.collectorName} · Recorded ${formatInstant(p.createdAt)}',
                       ),
                       leading: PaymentStatusChip(status: p.status),
                       onTap: () => context.push(
