@@ -11,6 +11,8 @@ import '../../../../shared/dialogs/app_dialog.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/layouts/section_page.dart';
 import '../../../../shared/loading/async_value_widget.dart';
+import '../../../../core/constants/activation_status.dart';
+import '../../../../core/errors/error_mapper.dart';
 import '../../domain/holiday.dart';
 import '../providers/calendar_providers.dart';
 import '../widgets/academic_year_selector.dart';
@@ -62,6 +64,58 @@ class _HolidaysPageState extends ConsumerState<HolidaysPage> {
     }
   }
 
+  /// "Remove" keeps the record: the holiday is switched to inactive, so it no
+  /// longer closes the school but stays in history (and can be restored by
+  /// editing it). Holidays are never deleted.
+  Future<void> _remove(Holiday holiday, String userId) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove this holiday?'),
+        content: Text(
+          '"${holiday.name}" will stop closing the school. It stays in the '
+          'list as inactive and can be restored by editing it.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep it'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final removed = Holiday(
+      holidayId: holiday.holidayId,
+      schoolId: holiday.schoolId,
+      branchId: holiday.branchId,
+      academicYearId: holiday.academicYearId,
+      date: holiday.date,
+      endDate: holiday.endDate,
+      name: holiday.name,
+      type: holiday.type,
+      description: holiday.description,
+      status: ActivationStatus.inactive,
+    );
+    String message;
+    try {
+      await ref
+          .read(calendarRepositoryProvider)
+          .updateHoliday(removed, updatedBy: userId);
+      message = 'Holiday removed.';
+    } catch (error) {
+      message = userMessageFor(error);
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final tenantState = ref.watch(tenantContextProvider);
@@ -94,6 +148,11 @@ class _HolidaysPageState extends ConsumerState<HolidaysPage> {
             final yearId = years.any((y) => y.academicYearId == _selectedYearId)
                 ? _selectedYearId!
                 : years.first.academicYearId;
+            final workingDays = ref
+                .watch(
+                  workingDaysProvider((schoolId: schoolId, branchId: branchId)),
+                )
+                .value;
             final holidaysAsync = ref.watch(
               holidaysProvider((
                 schoolId: schoolId,
@@ -108,8 +167,8 @@ class _HolidaysPageState extends ConsumerState<HolidaysPage> {
                     ? _ViewMode.list
                     : _viewMode;
                 return SectionPage(
-                  title: 'Holiday calendar',
-                  description: 'Holidays and closures for the year',
+                  title: 'Holidays',
+                  description: 'Holidays, festivals and vacations for the year',
                   parentRoute: AppRoutes.settings,
                   primaryAction: canManage
                       ? SectionAction(
@@ -162,6 +221,7 @@ class _HolidaysPageState extends ConsumerState<HolidaysPage> {
                           padding: const EdgeInsets.all(AppSpacing.md),
                           child: HolidayCalendarView(
                             holidays: holidays,
+                            workingDays: workingDays,
                             onDayTap: canManage
                                 ? (date, existing) => _openForm(
                                     context,
@@ -188,15 +248,15 @@ class _HolidaysPageState extends ConsumerState<HolidaysPage> {
                       final today = DateTime.now();
                       final upcoming = holidays
                           .where(
-                            (h) => !h.date.isBefore(
-                              DateTime(today.year, today.month, today.day),
+                            (h) => !h.lastDate.isBefore(
+                              DateTime.utc(today.year, today.month, today.day),
                             ),
                           )
                           .toList();
                       final past = holidays
                           .where(
-                            (h) => h.date.isBefore(
-                              DateTime(today.year, today.month, today.day),
+                            (h) => h.lastDate.isBefore(
+                              DateTime.utc(today.year, today.month, today.day),
                             ),
                           )
                           .toList();
@@ -222,6 +282,8 @@ class _HolidaysPageState extends ConsumerState<HolidaysPage> {
                                   tenant.user.userId,
                                   existing: holiday,
                                 ),
+                                onRemove: () =>
+                                    _remove(holiday, tenant.user.userId),
                               ),
                             const SizedBox(height: AppSpacing.md),
                           ],
@@ -243,6 +305,8 @@ class _HolidaysPageState extends ConsumerState<HolidaysPage> {
                                   tenant.user.userId,
                                   existing: holiday,
                                 ),
+                                onRemove: () =>
+                                    _remove(holiday, tenant.user.userId),
                               ),
                           ],
                         ],
@@ -263,25 +327,48 @@ class _HolidayTile extends StatelessWidget {
   final Holiday holiday;
   final bool canManage;
   final VoidCallback onEdit;
+  final VoidCallback onRemove;
 
   const _HolidayTile({
     required this.holiday,
     required this.canManage,
     required this.onEdit,
+    required this.onRemove,
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: ListTile(
-        title: Text(holiday.name),
+        title: Text(
+          holiday.status == ActivationStatus.active
+              ? holiday.name
+              : '${holiday.name} (inactive)',
+          style: holiday.status == ActivationStatus.active
+              ? null
+              : TextStyle(color: Theme.of(context).disabledColor),
+        ),
         subtitle: Text(
-          '${formatDisplayDate(holiday.date)} · ${holiday.type.displayName}',
+          '${formatDisplayDate(holiday.date)}'
+          '${holiday.isRange ? ' – ${formatDisplayDate(holiday.lastDate)} · ${holiday.dayCount} days' : ''}'
+          ' · ${holiday.type.displayName}',
         ),
         trailing: canManage
-            ? IconButton(
-                icon: const Icon(Icons.edit_outlined),
-                onPressed: onEdit,
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: 'Edit',
+                    icon: const Icon(Icons.edit_outlined),
+                    onPressed: onEdit,
+                  ),
+                  if (holiday.status == ActivationStatus.active)
+                    IconButton(
+                      tooltip: 'Remove',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: onRemove,
+                    ),
+                ],
               )
             : null,
       ),

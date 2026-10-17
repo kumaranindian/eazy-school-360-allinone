@@ -103,7 +103,7 @@ class SettingsOverviewPage extends ConsumerWidget {
     ]),
     _Group('Calendar', 'When the school is in session', [
       _Section(
-        label: 'Working days',
+        label: 'Weekly offs',
         description: 'Which days of the week classes run',
         icon: Icons.calendar_view_week_outlined,
         route: AppRoutes.settingsWorkingDays,
@@ -111,7 +111,7 @@ class SettingsOverviewPage extends ConsumerWidget {
         setupLabel: 'Working Days',
       ),
       _Section(
-        label: 'Holiday calendar',
+        label: 'Holidays',
         description: 'Holidays and closures for the year',
         icon: Icons.event_busy_outlined,
         route: AppRoutes.settingsHolidays,

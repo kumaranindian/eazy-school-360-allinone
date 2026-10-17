@@ -176,8 +176,8 @@ const _pages = <(String, String, String)>[
   (AppRoutes.settingsClasses, 'Classes', 'Add class'),
   (AppRoutes.settingsSections, 'Sections', 'Add section'),
   (AppRoutes.settingsSubjects, 'Subjects', 'Add subject'),
-  (AppRoutes.settingsHolidays, 'Holiday calendar', 'Add holiday'),
-  (AppRoutes.settingsWorkingDays, 'Working days', ''),
+  (AppRoutes.settingsHolidays, 'Holidays', 'Add holiday'),
+  (AppRoutes.settingsWorkingDays, 'Weekly offs', ''),
 ];
 
 void main() {

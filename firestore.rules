@@ -488,6 +488,36 @@ service cloud.firestore {
       return dateKey is string && dateKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
     }
 
+    // A holiday or vacation: a name, a known type, a first day and an
+    // optional last day (on or after it, covering at most 366 days inclusive).
+    function validHoliday(d) {
+      return d.name is string && d.name.size() >= 1 && d.name.size() <= 100
+        && d.type in ['PUBLIC', 'FESTIVAL', 'SCHOOL', 'VACATION', 'OTHER', 'LOCAL', 'SPECIAL', 'SPECIAL_WORKING_DAY']
+        && d.date is timestamp
+        && (d.get('endDate', null) == null
+          || (d.endDate is timestamp && d.endDate >= d.date
+            && d.endDate <= d.date + duration.value(365, 'd')))
+        && (d.get('description', null) == null
+          || (d.description is string && d.description.size() <= 500))
+        && d.status in ['ACTIVE', 'INACTIVE'];
+    }
+
+    // The branch weekly pattern: a flag for each weekday, optional Saturday
+    // off-weeks (1st-5th), an optional start date, and a bounded history.
+    function validWorkingDays(d) {
+      return d.isWorkingDay is map
+        && d.isWorkingDay.keys().hasOnly(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'])
+        && d.isWorkingDay.MONDAY is bool && d.isWorkingDay.TUESDAY is bool
+        && d.isWorkingDay.WEDNESDAY is bool && d.isWorkingDay.THURSDAY is bool
+        && d.isWorkingDay.FRIDAY is bool && d.isWorkingDay.SATURDAY is bool
+        && d.isWorkingDay.SUNDAY is bool
+        && d.get('saturdayOffWeeks', []) is list
+        && d.get('saturdayOffWeeks', []).size() <= 5
+        && d.get('saturdayOffWeeks', []).hasOnly([1, 2, 3, 4, 5])
+        && (d.get('effectiveFrom', null) == null || validDateKey(d.effectiveFrom))
+        && d.get('history', []) is list && d.get('history', []).size() <= 12;
+    }
+
     // Attendance cannot be recorded for a date later than tomorrow (one day
     // of slack for timezones). Past dates are allowed — that is what a late
     // entry or a correction is.
@@ -1838,9 +1868,11 @@ service cloud.firestore {
             allow read: if canViewAcademicSetup(schoolId, branchId) || parentInBranch(schoolId, branchId);
             allow create: if canManageAcademicSetup(schoolId, branchId) && validCreateAudit()
               && newInTenant(schoolId, branchId)
-              && nd().academicYearId == academicYearId;
+              && nd().academicYearId == academicYearId
+              && validHoliday(nd());
             allow update: if canManageAcademicSetup(schoolId, branchId) && validUpdateAudit()
-              && changedOnly(['date', 'name', 'type', 'description', 'status', 'updatedAt', 'updatedBy']);
+              && changedOnly(['date', 'endDate', 'name', 'type', 'description', 'status', 'updatedAt', 'updatedBy'])
+              && validHoliday(nd());
             allow delete: if false;
           }
         }
@@ -1854,7 +1886,8 @@ service cloud.firestore {
           allow create, update: if canManageAcademicSetup(schoolId, branchId)
             && newInTenant(schoolId, branchId)
             && nd().updatedAt == request.time
-            && nd().updatedBy == request.auth.uid;
+            && nd().updatedBy == request.auth.uid
+            && (settingId != 'workingDays' || validWorkingDays(nd()));
           allow delete: if false;
         }
 

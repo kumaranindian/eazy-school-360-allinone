@@ -183,6 +183,45 @@ class FakeCalendarRepository implements CalendarRepository {
     return workingDays;
   }
 
+  /// What the settings pages wrote, in order.
+  final List<WorkingDays> savedWorkingDays = [];
+  final List<Holiday> createdHolidays = [];
+  final List<Holiday> updatedHolidays = [];
+
+  @override
+  Future<void> setWorkingDays(
+    WorkingDays workingDays, {
+    required String updatedBy,
+  }) async {
+    if (error != null) throw error!;
+    savedWorkingDays.add(workingDays);
+    this.workingDays = workingDays;
+  }
+
+  @override
+  Future<String> createHoliday(
+    Holiday holiday, {
+    required String createdBy,
+  }) async {
+    if (error != null) throw error!;
+    createdHolidays.add(holiday);
+    holidays = [...holidays, holiday];
+    return 'h${createdHolidays.length}';
+  }
+
+  @override
+  Future<void> updateHoliday(
+    Holiday holiday, {
+    required String updatedBy,
+  }) async {
+    if (error != null) throw error!;
+    updatedHolidays.add(holiday);
+    holidays = [
+      for (final h in holidays)
+        if (h.holidayId == holiday.holidayId) holiday else h,
+    ];
+  }
+
   @override
   Stream<List<Holiday>> watchHolidays(
     String schoolId,

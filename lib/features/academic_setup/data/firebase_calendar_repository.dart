@@ -5,6 +5,7 @@ import '../../../core/errors/app_failure.dart';
 import '../../../core/errors/error_mapper.dart';
 import '../domain/calendar_repository.dart';
 import '../domain/holiday.dart';
+import '../domain/holiday_rules.dart';
 import '../domain/working_days.dart';
 
 class FirebaseCalendarRepository implements CalendarRepository {
@@ -128,8 +129,24 @@ class FirebaseCalendarRepository implements CalendarRepository {
         holiday.branchId,
         holiday.academicYearId,
       ).where('date', isEqualTo: Timestamp.fromDate(normalized)).get();
-      if (siblings.docs.isNotEmpty) {
-        throw ValidationFailure('A holiday is already recorded for this date.');
+      final rangeError = HolidayRules.checkRange(holiday.date, holiday.endDate);
+      if (rangeError != null) throw ValidationFailure(rangeError);
+      // Only the same name on the same first day is a duplicate; different
+      // holidays may share a day (a festival inside a vacation).
+      final dup = HolidayRules.duplicateOf(holiday, [
+        for (final d in siblings.docs)
+          Holiday.fromFirestore(
+            holiday.schoolId,
+            holiday.branchId,
+            holiday.academicYearId,
+            d.id,
+            d.data(),
+          ),
+      ]);
+      if (dup != null) {
+        throw ValidationFailure(
+          'A holiday named "${dup.name}" is already recorded for this date.',
+        );
       }
 
       final ref = _holidaysCollection(
@@ -156,9 +173,22 @@ class FirebaseCalendarRepository implements CalendarRepository {
         holiday.branchId,
         holiday.academicYearId,
       ).where('date', isEqualTo: Timestamp.fromDate(normalized)).get();
-      final duplicate = siblings.docs.any((d) => d.id != holiday.holidayId);
-      if (duplicate) {
-        throw ValidationFailure('A holiday is already recorded for this date.');
+      final rangeError = HolidayRules.checkRange(holiday.date, holiday.endDate);
+      if (rangeError != null) throw ValidationFailure(rangeError);
+      final dup = HolidayRules.duplicateOf(holiday, [
+        for (final d in siblings.docs)
+          Holiday.fromFirestore(
+            holiday.schoolId,
+            holiday.branchId,
+            holiday.academicYearId,
+            d.id,
+            d.data(),
+          ),
+      ]);
+      if (dup != null) {
+        throw ValidationFailure(
+          'A holiday named "${dup.name}" is already recorded for this date.',
+        );
       }
 
       await _holidaysCollection(

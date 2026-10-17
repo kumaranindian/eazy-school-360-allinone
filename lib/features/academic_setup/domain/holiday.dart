@@ -12,7 +12,14 @@ class Holiday {
   final String schoolId;
   final String branchId;
   final String academicYearId;
+
+  /// First day (and the only day of a single-day holiday).
   final DateTime date;
+
+  /// Last day of a multi-day holiday or vacation (UTC midnight, on or after
+  /// [date]). Null for a single-day holiday — which is how every holiday
+  /// recorded before ranges existed reads.
+  final DateTime? endDate;
   final String name;
   final HolidayType type;
   final String? description;
@@ -28,6 +35,7 @@ class Holiday {
     required this.branchId,
     required this.academicYearId,
     required this.date,
+    this.endDate,
     required this.name,
     required this.type,
     this.description,
@@ -43,6 +51,33 @@ class Holiday {
   static DateTime normalizeDate(DateTime date) =>
       DateTime.utc(date.year, date.month, date.day);
 
+  /// The last day covered (the start for a single-day holiday).
+  DateTime get lastDate => endDate ?? date;
+
+  bool get isRange => endDate != null && !_sameCivilDay(endDate!, date);
+
+  /// Number of days covered (inclusive).
+  int get dayCount => _civil(lastDate).difference(_civil(date)).inDays + 1;
+
+  /// Whether the civil date [day] (its own year/month/day fields) is covered.
+  /// Stored dates are UTC midnight of the civil date, so the comparison is on
+  /// year/month/day numbers — never on instants — and cannot shift a day.
+  bool covers(DateTime day) {
+    final d = DateTime.utc(day.year, day.month, day.day);
+    return !d.isBefore(_civil(date)) && !d.isAfter(_civil(lastDate));
+  }
+
+  bool overlaps(Holiday other) =>
+      !_civil(other.lastDate).isBefore(_civil(date)) &&
+      !_civil(lastDate).isBefore(_civil(other.date));
+
+  static DateTime _civil(DateTime d) {
+    final u = d.toUtc();
+    return DateTime.utc(u.year, u.month, u.day);
+  }
+
+  static bool _sameCivilDay(DateTime a, DateTime b) => _civil(a) == _civil(b);
+
   factory Holiday.fromFirestore(
     String schoolId,
     String branchId,
@@ -56,6 +91,7 @@ class Holiday {
       branchId: branchId,
       academicYearId: academicYearId,
       date: (data['date'] as Timestamp).toDate(),
+      endDate: (data['endDate'] as Timestamp?)?.toDate(),
       name: data[FirestoreFields.name] as String? ?? '',
       type: HolidayType.fromWireValue(data['type'] as String),
       description: data['description'] as String?,
@@ -69,12 +105,17 @@ class Holiday {
     );
   }
 
+  /// Stored only for a real range; a single day carries no end date.
+  Timestamp? get _endForWrite =>
+      isRange ? Timestamp.fromDate(normalizeDate(endDate!)) : null;
+
   Map<String, dynamic> toFirestoreCreate({required String createdBy}) {
     return {
       FirestoreFields.schoolId: schoolId,
       FirestoreFields.branchId: branchId,
       'academicYearId': academicYearId,
       'date': Timestamp.fromDate(normalizeDate(date)),
+      'endDate': _endForWrite,
       FirestoreFields.name: name,
       'type': type.wireValue,
       'description': description,
@@ -89,6 +130,7 @@ class Holiday {
   Map<String, dynamic> toFirestoreUpdate({required String updatedBy}) {
     return {
       'date': Timestamp.fromDate(normalizeDate(date)),
+      'endDate': _endForWrite,
       FirestoreFields.name: name,
       'type': type.wireValue,
       'description': description,

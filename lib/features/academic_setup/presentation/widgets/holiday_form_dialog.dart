@@ -8,6 +8,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/date_formatting.dart';
 import '../../../../core/validators/validators.dart';
 import '../../domain/holiday.dart';
+import '../../domain/holiday_rules.dart';
 import '../../domain/holiday_type.dart';
 import '../providers/calendar_providers.dart';
 
@@ -41,24 +42,68 @@ class _HolidayFormDialogState extends ConsumerState<HolidayFormDialog> {
   );
   late DateTime _date =
       widget.existing?.date ?? widget.initialDate ?? DateTime.now();
+  // A multi-day holiday or vacation has a last day; a single day does not.
+  late bool _multiDay = widget.existing?.isRange ?? false;
+  late DateTime _endDate = widget.existing?.endDate ?? _date;
   late HolidayType _type = widget.existing?.type ?? HolidayType.school;
   late ActivationStatus _status =
       widget.existing?.status ?? ActivationStatus.active;
 
   bool get _isEditing => widget.existing != null;
 
-  Future<void> _pickDate() async {
+  Future<void> _pickDate({required bool end}) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _date,
+      initialDate: end ? _endDate : _date,
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
+      helpText: end ? 'Last day' : 'First day',
     );
-    if (picked != null) setState(() => _date = picked);
+    if (picked == null) return;
+    setState(() {
+      if (end) {
+        _endDate = picked;
+      } else {
+        _date = picked;
+        if (!_multiDay || _endDate.isBefore(picked)) _endDate = picked;
+      }
+    });
+  }
+
+  Future<bool> _confirmOverlap(List<Holiday> overlapping) async {
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('This overlaps other holidays'),
+        content: Text(
+          'These days are already covered by:\n'
+          '${overlapping.map((h) => '• ${h.name} (${formatDisplayDate(h.date)}'
+              '${h.isRange ? ' – ${formatDisplayDate(h.lastDate)}' : ''})').join('\n')}'
+          '\n\nBoth are kept. The calendar shows the more specific label.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Go back'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Save anyway'),
+          ),
+        ],
+      ),
+    );
+    return go ?? false;
   }
 
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    final end = _multiDay ? _endDate : null;
+    final rangeError = HolidayRules.checkRange(_date, end);
+    if (rangeError != null) {
+      context.showSnackBar(rangeError, isError: true);
+      return;
+    }
 
     final holiday = Holiday(
       holidayId: widget.existing?.holidayId ?? '',
@@ -66,11 +111,31 @@ class _HolidayFormDialogState extends ConsumerState<HolidayFormDialog> {
       branchId: widget.branchId,
       academicYearId: widget.academicYearId,
       date: _date,
+      endDate: end,
       name: _name.text.trim(),
       type: _type,
       description: _description.text.trim(),
       status: _status,
     );
+
+    // Overlap is allowed but never silent; a repeat of the same name on the
+    // same day is refused by the repository.
+    final existingList =
+        ref
+            .read(
+              holidaysProvider((
+                schoolId: widget.schoolId,
+                branchId: widget.branchId,
+                academicYearId: widget.academicYearId,
+              )),
+            )
+            .value ??
+        const <Holiday>[];
+    final overlapping = _status == ActivationStatus.active
+        ? HolidayRules.overlapping(holiday, existingList)
+        : const <Holiday>[];
+    if (overlapping.isNotEmpty && !await _confirmOverlap(overlapping)) return;
+    if (!mounted) return;
 
     final repository = ref.read(calendarRepositoryProvider);
     final success = await ref
@@ -120,10 +185,31 @@ class _HolidayFormDialogState extends ConsumerState<HolidayFormDialog> {
             style: context.textStyles.titleLarge,
           ),
           const SizedBox(height: AppSpacing.md),
-          OutlinedButton(
-            onPressed: _pickDate,
-            child: Text(formatDisplayDate(_date)),
+          OutlinedButton.icon(
+            key: const ValueKey('firstDay'),
+            onPressed: () => _pickDate(end: false),
+            icon: const Icon(Icons.event),
+            label: Text(
+              '${_multiDay ? 'First day: ' : ''}${formatDisplayDate(_date)}',
+            ),
           ),
+          SwitchListTile(
+            key: const ValueKey('multiDay'),
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Spans several days (vacation)'),
+            value: _multiDay,
+            onChanged: (v) => setState(() {
+              _multiDay = v;
+              if (!v) _endDate = _date;
+            }),
+          ),
+          if (_multiDay)
+            OutlinedButton.icon(
+              key: const ValueKey('lastDay'),
+              onPressed: () => _pickDate(end: true),
+              icon: const Icon(Icons.event_available),
+              label: Text('Last day: ${formatDisplayDate(_endDate)}'),
+            ),
           const SizedBox(height: AppSpacing.sm),
           TextFormField(
             controller: _name,
