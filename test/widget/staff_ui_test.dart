@@ -13,6 +13,7 @@ import 'package:eazy_school_360/features/school_setup/domain/school.dart';
 import 'package:eazy_school_360/features/school_setup/domain/school_status.dart';
 import 'package:eazy_school_360/features/school_setup/presentation/providers/school_providers.dart';
 import 'package:eazy_school_360/features/staff/domain/staff_status.dart';
+import 'package:eazy_school_360/features/staff/presentation/widgets/directory_list.dart';
 import 'package:eazy_school_360/features/staff/presentation/providers/staff_providers.dart';
 import 'package:eazy_school_360/features/users/domain/user_profile.dart';
 import 'package:eazy_school_360/features/users/domain/user_status.dart';
@@ -215,20 +216,17 @@ void main() {
         await world.go(tester, '/staff');
 
         // 'Department', 'Designation' and 'Status' also label the filters, so
-        // look for the column headers specifically.
-        final table = tester.widget<DataTable>(find.byType(DataTable));
-        expect(table.columns.map((c) => (c.label as Text).data), [
-          'Employee Code',
-          'Staff Name',
-          'Department',
-          'Designation',
-          'Phone',
-          'Employment Type',
-          'Status',
-          'Login',
-          'Actions',
-        ]);
-        expect(find.byType(DataTable), findsOneWidget);
+        // look for the (upper-case) column headers specifically.
+        expect(find.byType(DirectoryTable), findsOneWidget);
+        for (final header in [
+          'STAFF',
+          'ID',
+          'DEPARTMENT',
+          'DESIGNATION',
+          'STATUS',
+        ]) {
+          expect(find.text(header), findsOneWidget, reason: header);
+        }
         expect(find.text('EMP-0001'), findsOneWidget);
         expect(find.text('Priya Sharma'), findsOneWidget);
         expect(find.text('Academic'), findsWidgets);
@@ -249,8 +247,8 @@ void main() {
       );
       await world.go(tester, '/staff');
 
-      expect(find.byType(DataTable), findsNothing);
-      expect(find.byType(Card), findsOneWidget);
+      expect(find.byType(DirectoryTable), findsNothing);
+      expect(find.byType(DirectoryCard), findsOneWidget);
       expect(find.text('Priya Sharma'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
@@ -439,14 +437,19 @@ void main() {
         size: const Size(900, 1000),
       );
       await world.go(tester, '/staff');
-      final table = tester.widget<DataTable>(find.byType(DataTable));
-      expect(table.columns.map((c) => (c.label as Text).data), [
-        'Employee Code',
-        'Staff Name',
-        'Designation',
-        'Status',
-        'Actions',
-      ]);
+      // Name, ID and status always; the others by the width the table has.
+      for (final header in [
+        'STAFF',
+        'ID',
+        'DEPARTMENT',
+        'DESIGNATION',
+        'STATUS',
+      ]) {
+        expect(find.text(header), findsOneWidget, reason: header);
+      }
+      for (final dropped in ['LOGIN', 'PHONE', 'EMPLOYMENT TYPE']) {
+        expect(find.text(dropped), findsNothing, reason: dropped);
+      }
       expect(tester.takeException(), isNull);
     });
 
@@ -459,8 +462,18 @@ void main() {
         size: const Size(1700, 1000),
       );
       await world.go(tester, '/staff');
-      final table = tester.widget<DataTable>(find.byType(DataTable));
-      expect(table.columns, hasLength(9));
+      for (final header in [
+        'STAFF',
+        'ID',
+        'DEPARTMENT',
+        'DESIGNATION',
+        'LOGIN',
+        'PHONE',
+        'EMPLOYMENT TYPE',
+        'STATUS',
+      ]) {
+        expect(find.text(header), findsOneWidget, reason: header);
+      }
       expect(tester.takeException(), isNull);
     });
 

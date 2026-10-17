@@ -8,26 +8,29 @@ import '../../../../core/utils/responsive.dart';
 import '../../../../shared/branding/page_hero.dart';
 import '../providers/staff_providers.dart';
 
-/// The compact header of the Teachers screen: one short strip with the title
-/// and subtitle, and — on the right (below the title on a phone) — the
+/// The compact header of the staff directories (Staff and Teachers): one short
+/// strip with the title and subtitle, and — on the right (below the title on a phone) — the
 /// school · branch label and, for school-level roles of a school with several
 /// branches, the branch selector. It replaces the tall hero banner and the
 /// separate "Branch" row; the selector drives the same
 /// [selectedStaffBranchIdProvider] the old row did.
-class TeachersHero extends ConsumerWidget {
+class StaffHero extends ConsumerWidget {
   final String schoolId;
   final String branchId;
   final ScreenSize layout;
+  final String title;
+  final String subtitle;
+  final IconData icon;
 
-  const TeachersHero({
+  const StaffHero({
     super.key,
     required this.schoolId,
     required this.branchId,
     required this.layout,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
   });
-
-  static const String title = 'Teaching staff';
-  static const String subtitle = 'Who teaches what, and where';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -104,7 +107,7 @@ class TeachersHero extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    PageHero.iconBadge(Icons.co_present_outlined, size: 40),
+                    PageHero.iconBadge(icon, size: 40),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(child: heading),
                   ],
@@ -116,7 +119,7 @@ class TeachersHero extends ConsumerWidget {
           : Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                PageHero.iconBadge(Icons.co_present_outlined, size: 44),
+                PageHero.iconBadge(icon, size: 44),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(child: heading),
                 const SizedBox(width: AppSpacing.md),

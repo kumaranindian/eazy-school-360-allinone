@@ -11,13 +11,10 @@ import '../../../../core/permissions/user_role.dart';
 import '../../../../shared/dialogs/app_dialog.dart';
 import '../../../users/domain/login_provisioning.dart';
 import '../../../users/presentation/providers/login_access_providers.dart';
-import '../../../users/presentation/widgets/login_access_dialog.dart';
 import '../../../users/presentation/widgets/login_selection_bar.dart';
 import '../../../users/presentation/widgets/provision_logins_dialog.dart';
-import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/error/error_view.dart';
-import '../../../../shared/layouts/responsive_data_list.dart';
 import '../../../../shared/paging/paged_list_controller.dart';
 import '../../domain/department.dart';
 import '../../domain/designation.dart';
@@ -28,12 +25,15 @@ import '../../domain/staff_status.dart';
 import '../providers/staff_providers.dart';
 import '../widgets/staff_branch_scope.dart';
 import '../widgets/staff_section_switcher.dart';
-import '../widgets/staff_status_chip.dart';
-import '../../../../shared/layouts/scrollable_header.dart';
-import '../../../../shared/filters/filter_bar.dart';
+import '../widgets/directory_list.dart';
+import '../widgets/staff_hero.dart';
+import '../widgets/staff_login_access.dart';
+import '../widgets/staff_toolbar.dart';
+import '../../../../core/utils/responsive.dart';
 import '../../../../shared/filters/filter_field.dart';
 import '../../../../shared/filters/page_actions.dart';
 import '../../../../shared/layouts/stat_chips.dart';
+import '../../../../shared/layouts/status_chips.dart';
 import '../staff_export_action.dart';
 
 /// The staff directory: desktop table / mobile cards, search by name,
@@ -46,6 +46,8 @@ class StaffListPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StaffBranchScope(
+      // The branch choice lives in the compact hero instead.
+      showBranchRow: false,
       builder: (context, tenant, schoolId, branchId) => _StaffList(
         schoolId: schoolId,
         branchId: branchId,
@@ -111,15 +113,13 @@ class _StaffListState extends ConsumerState<_StaffList> {
   }
 
   Future<void> _manageAccess(Staff s) async {
-    final changed = await showLoginAccessDialog(
-      context: context,
+    final changed = await openStaffLoginAccess(
+      context,
       schoolId: widget.schoolId,
       branchId: widget.branchId,
-      kind: LoginKind.staff,
-      id: s.staffId,
-      fallbackName: s.displayName,
+      staff: s,
     );
-    if (changed == true && mounted) _controller.reload();
+    if (changed && mounted) _controller.reload();
   }
 
   Future<void> _giveLogins() async {
@@ -332,6 +332,26 @@ class _StaffListState extends ConsumerState<_StaffList> {
     ),
   ];
 
+  /// The headcount behind the current list, when the page knows it: only for
+  /// the plain status list (a search or a narrowing filter changes what is
+  /// counted, and nothing is invented).
+  int? _totalFor(StaffCounts? counts) {
+    if (counts == null ||
+        _isSearching ||
+        _departmentId != null ||
+        _designationId != null ||
+        _employmentType != null) {
+      return null;
+    }
+    return switch (_status) {
+      null => counts.total,
+      StaffStatus.active => counts.active,
+      StaffStatus.onNotice => counts.onNotice,
+      StaffStatus.inactive => counts.inactive,
+      _ => null,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final branchKey = (schoolId: widget.schoolId, branchId: widget.branchId);
@@ -354,6 +374,23 @@ class _StaffListState extends ConsumerState<_StaffList> {
     final designationNames = {
       for (final d in designations) d.designationId: d.name,
     };
+    // One layout decision for the whole screen, from the window width — the
+    // same input the navigation shell uses, so the two always agree.
+    final layout = screenSizeForWidth(MediaQuery.sizeOf(context).width);
+    final gap = SizedBox(height: DirectoryLayout.sectionGap(layout));
+
+    Widget? checkbox(Staff staff) => _selecting
+        ? Checkbox(
+            value: _selected.contains(staff.staffId),
+            onChanged: staff.userId != null
+                ? null
+                : (v) => setState(
+                    () => v == true
+                        ? _selected.add(staff.staffId)
+                        : _selected.remove(staff.staffId),
+                  ),
+          )
+        : null;
 
     return Scaffold(
       floatingActionButton: widget.canManage
@@ -363,222 +400,153 @@ class _StaffListState extends ConsumerState<_StaffList> {
               label: const Text('Add staff'),
             )
           : null,
-      body: Column(
-        children: [
-          ScrollableHeader(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Flexible(
-                        child: StaffSectionSwitcher(
-                          current: StaffSection.staff,
-                        ),
-                      ),
-                      PageActionsMenu(actions: _pageActions(context)),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  StatChipsBar(chips: _statChips(counts)),
-                  const SizedBox(height: AppSpacing.sm),
-                  FilterBar(
-                    searchController: _searchController,
-                    searchHint: 'Search ${_searchField.label.toLowerCase()}',
-                    onSearchChanged: _onSearchChanged,
-                    searchPrefix: _searchByMenu(),
-                    filtersEnabled: !_isSearching,
-                    fieldsBuilder: () => _filters(departments, designations),
-                  ),
-                  if (_selecting)
-                    Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.sm),
-                      child: ListenableBuilder(
-                        listenable: _controller,
-                        builder: (context, _) => LoginSelectionBar(
-                          selected: _selected.length,
-                          selectable: _selectable.length,
-                          onSelectAll: () => setState(
-                            () => _selected.addAll(
-                              _selectable.map((s) => s.staffId),
-                            ),
-                          ),
-                          onClear: () => setState(_selected.clear),
-                          onCreate: _giveLogins,
-                          onCancel: () => setState(() {
-                            _selecting = false;
-                            _selected.clear();
-                          }),
-                        ),
-                      ),
-                    ),
-                ],
+      body: DirectoryFrame(
+        padding: DirectoryLayout.pagePadding(layout),
+        // Every row is built (a page holds at most a few dozen), so layout and
+        // finders never depend on what has scrolled into view.
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              StaffHero(
+                schoolId: widget.schoolId,
+                branchId: widget.branchId,
+                layout: layout,
+                title: 'Staff directory',
+                subtitle: 'People, departments and designations',
+                icon: Icons.badge_outlined,
               ),
-            ),
-          ),
-          Expanded(
-            child: ListenableBuilder(
-              listenable: _controller,
-              builder: (context, _) {
-                if (_controller.errorMessage != null &&
-                    _controller.items.isEmpty) {
-                  return ErrorView(
-                    message: _controller.errorMessage!,
-                    onRetry: _controller.reload,
-                  );
-                }
-                if (!_controller.hasLoaded) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                return Column(
-                  children: [
-                    Expanded(
-                      child: ResponsiveDataList<Staff>(
-                        items: _controller.items,
-                        columnHeaders: [
-                          if (_selecting) '',
-                          'Employee Code',
-                          'Staff Name',
-                          'Department',
-                          'Designation',
-                          'Phone',
-                          'Employment Type',
-                          'Status',
-                          'Login',
-                          'Actions',
-                        ],
-                        // Tablet keeps the columns needed to identify and open a
-                        // person; desktop shows everything.
-                        tabletColumns: _selecting
-                            ? const [0, 1, 2, 4, 7, 9]
-                            : const [0, 1, 3, 6, 8],
-                        emptyState: const EmptyView(
-                          icon: Icons.badge_outlined,
-                          message: 'No staff found.',
-                        ),
-                        cellsBuilder: (staff) => [
-                          if (_selecting)
-                            DataCell(
-                              Checkbox(
-                                value: _selected.contains(staff.staffId),
-                                onChanged: staff.userId != null
-                                    ? null
-                                    : (v) => setState(
-                                        () => v == true
-                                            ? _selected.add(staff.staffId)
-                                            : _selected.remove(staff.staffId),
-                                      ),
-                              ),
-                            ),
-                          DataCell(Text(staff.employeeCode)),
-                          DataCell(Text(staff.displayName)),
-                          DataCell(
-                            Text(departmentNames[staff.departmentId] ?? '—'),
-                          ),
-                          DataCell(
-                            Text(designationNames[staff.designationId] ?? '—'),
-                          ),
-                          DataCell(Text(staff.phone)),
-                          DataCell(Text(staff.employmentType.displayName)),
-                          DataCell(StaffStatusChip(status: staff.status)),
-                          DataCell(
-                            Text(staff.userId != null ? 'Has login' : '—'),
-                          ),
-                          DataCell(
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (widget.canManage)
-                                  IconButton(
-                                    icon: const Icon(Icons.vpn_key_outlined),
-                                    tooltip: 'Login access',
-                                    onPressed: () => _manageAccess(staff),
-                                  ),
-                                TextButton(
-                                  onPressed: () =>
-                                      context.push('/staff/${staff.staffId}'),
-                                  child: const Text('View'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                        cardBuilder: (staff) => Card(
-                          child: ListTile(
-                            leading: _selecting
-                                ? Checkbox(
-                                    value: _selected.contains(staff.staffId),
-                                    onChanged: staff.userId != null
-                                        ? null
-                                        : (v) => setState(
-                                            () => v == true
-                                                ? _selected.add(staff.staffId)
-                                                : _selected.remove(
-                                                    staff.staffId,
-                                                  ),
-                                          ),
-                                  )
-                                : null,
-                            title: Text(staff.displayName),
-                            subtitle: Text(
-                              '${staff.employeeCode} · ${designationNames[staff.designationId] ?? '—'}'
-                              '${staff.userId != null ? ' · Has login' : ''}',
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                StaffStatusChip(status: staff.status),
-                                if (widget.canManage)
-                                  IconButton(
-                                    icon: const Icon(Icons.vpn_key_outlined),
-                                    tooltip: 'Login access',
-                                    onPressed: () => _manageAccess(staff),
-                                  ),
-                              ],
-                            ),
-                            onTap: () =>
-                                context.push('/staff/${staff.staffId}'),
-                          ),
-                        ),
+              gap,
+              StaffToolbar(
+                layout: layout,
+                switcher: const StaffSectionSwitcher(
+                  current: StaffSection.staff,
+                ),
+                trailing: PageActionsMenu(actions: _pageActions(context)),
+                searchController: _searchController,
+                searchHint: 'Search ${_searchField.label.toLowerCase()}',
+                searchPrefix: _searchByMenu(),
+                onSearchChanged: _onSearchChanged,
+                filtersEnabled: !_isSearching,
+                fieldsBuilder: () => _filters(departments, designations),
+              ),
+              if (_selecting)
+                Padding(
+                  padding: EdgeInsets.only(
+                    top: DirectoryLayout.sectionGap(layout),
+                  ),
+                  child: ListenableBuilder(
+                    listenable: _controller,
+                    builder: (context, _) => LoginSelectionBar(
+                      selected: _selected.length,
+                      selectable: _selectable.length,
+                      onSelectAll: () => setState(
+                        () =>
+                            _selected.addAll(_selectable.map((s) => s.staffId)),
                       ),
+                      onClear: () => setState(_selected.clear),
+                      onCreate: _giveLogins,
+                      onCancel: () => setState(() {
+                        _selecting = false;
+                        _selected.clear();
+                      }),
                     ),
-                    if (_controller.errorMessage != null)
-                      Padding(
-                        padding: const EdgeInsets.all(AppSpacing.sm),
-                        child: Text(
-                          _controller.errorMessage!,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.error,
-                          ),
-                        ),
+                  ),
+                ),
+              gap,
+              StatusChips(
+                chips: _statChips(counts),
+                // Filters are paused while searching, as the bar always said.
+                activeFilters: _isSearching
+                    ? const []
+                    : _filters(departments, designations),
+                layout: layout,
+              ),
+              gap,
+              ListenableBuilder(
+                listenable: _controller,
+                builder: (context, _) {
+                  if (_controller.errorMessage != null &&
+                      _controller.items.isEmpty) {
+                    return ErrorView(
+                      message: _controller.errorMessage!,
+                      onRetry: _controller.reload,
+                    );
+                  }
+                  if (!_controller.hasLoaded) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 48),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  return DirectoryListCard(
+                    layout: layout,
+                    nameHeader: 'Staff',
+                    codeHeader: 'ID',
+                    columns: const [
+                      DirectoryColumn(header: 'Department', showAtWidth: 640),
+                      DirectoryColumn(header: 'Designation', showAtWidth: 760),
+                      DirectoryColumn(
+                        header: 'Login',
+                        flex: 2,
+                        showAtWidth: 880,
                       ),
-                    if (_controller.hasMore)
-                      Padding(
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        child: OutlinedButton(
-                          onPressed: _controller.isLoading
-                              ? null
-                              : _controller.loadMore,
-                          child: _controller.isLoading
-                              ? const SizedBox(
-                                  height: 16,
-                                  width: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text('Load more'),
-                        ),
+                      DirectoryColumn(
+                        header: 'Phone',
+                        flex: 2,
+                        showAtWidth: 1000,
                       ),
-                  ],
-                );
-              },
-            ),
+                      DirectoryColumn(
+                        header: 'Employment type',
+                        flex: 2,
+                        showAtWidth: 1120,
+                      ),
+                    ],
+                    emptyState: const EmptyView(
+                      icon: Icons.badge_outlined,
+                      message: 'No staff found.',
+                    ),
+                    items: [
+                      for (final staff in _controller.items)
+                        DirectoryRow(
+                          id: staff.staffId,
+                          name: staff.displayName,
+                          code: staff.employeeCode,
+                          values: [
+                            departmentNames[staff.departmentId],
+                            designationNames[staff.designationId],
+                            staff.userId != null ? 'Has login' : null,
+                            staff.phone,
+                            staff.employmentType.displayName,
+                          ],
+                          phoneLine: [
+                            designationNames[staff.designationId],
+                            if (staff.userId != null) 'Has login',
+                          ].whereType<String>().join(' · '),
+                          status: staff.status,
+                          leading: checkbox(staff),
+                          onTap: () => context.push('/staff/${staff.staffId}'),
+                          actions: [
+                            if (widget.canManage)
+                              LoginAccessButton(
+                                onPressed: () => _manageAccess(staff),
+                              ),
+                          ],
+                        ),
+                    ],
+                    total: _totalFor(counts),
+                    hasMore: _controller.hasMore,
+                    isLoading: _controller.isLoading,
+                    onLoadMore: _controller.loadMore,
+                    errorText: _controller.errorMessage,
+                  );
+                },
+              ),
+              // Room for the Add staff button below the last row.
+              if (widget.canManage) const SizedBox(height: 72),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

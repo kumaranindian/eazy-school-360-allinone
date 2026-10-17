@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/error_mapper.dart';
+import '../../../../core/permissions/permission.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/error/error_view.dart';
 import '../../../../core/utils/responsive.dart';
@@ -26,9 +27,10 @@ import '../providers/staff_providers.dart';
 import '../widgets/staff_branch_scope.dart';
 import '../widgets/staff_bulk_actions.dart';
 import '../widgets/staff_section_switcher.dart';
-import '../widgets/teacher_list.dart';
-import '../widgets/teachers_hero.dart';
-import '../widgets/teachers_toolbar.dart';
+import '../widgets/directory_list.dart';
+import '../widgets/staff_hero.dart';
+import '../widgets/staff_login_access.dart';
+import '../widgets/staff_toolbar.dart';
 
 /// One teacher plus their assignments in the selected academic year.
 class _TeacherRow {
@@ -54,8 +56,11 @@ class TeachersListPage extends StatelessWidget {
     return StaffBranchScope(
       // The branch choice lives in the compact hero instead.
       showBranchRow: false,
-      builder: (context, tenant, schoolId, branchId) =>
-          _TeachersList(schoolId: schoolId, branchId: branchId),
+      builder: (context, tenant, schoolId, branchId) => _TeachersList(
+        schoolId: schoolId,
+        branchId: branchId,
+        canManage: tenant.can(Permission.manageStaff),
+      ),
     );
   }
 }
@@ -63,8 +68,13 @@ class TeachersListPage extends StatelessWidget {
 class _TeachersList extends ConsumerStatefulWidget {
   final String schoolId;
   final String branchId;
+  final bool canManage;
 
-  const _TeachersList({required this.schoolId, required this.branchId});
+  const _TeachersList({
+    required this.schoolId,
+    required this.branchId,
+    required this.canManage,
+  });
 
   @override
   ConsumerState<_TeachersList> createState() => _TeachersListState();
@@ -320,14 +330,24 @@ class _TeachersListState extends ConsumerState<_TeachersList> {
     super.dispose();
   }
 
-  // Page padding and the gap between sections, by layout.
-  static double _pagePadding(ScreenSize l) =>
-      l.isMobile ? 12 : (l.isTablet ? 16 : 20);
-  static double _sectionGap(ScreenSize l) =>
-      l.isMobile ? 10 : (l.isTablet ? 12 : 14);
+  Widget _hero(ScreenSize layout) => StaffHero(
+    schoolId: widget.schoolId,
+    branchId: widget.branchId,
+    layout: layout,
+    title: 'Teaching staff',
+    subtitle: 'Who teaches what, and where',
+    icon: Icons.co_present_outlined,
+  );
 
-  /// The content never grows wider than this on a large display.
-  static const double _maxContentWidth = 1440;
+  Future<void> _manageAccess(Staff staff) async {
+    final changed = await openStaffLoginAccess(
+      context,
+      schoolId: widget.schoolId,
+      branchId: widget.branchId,
+      staff: staff,
+    );
+    if (changed && mounted) _controller.reload();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -338,16 +358,12 @@ class _TeachersListState extends ConsumerState<_TeachersList> {
     final layout = screenSizeForWidth(MediaQuery.sizeOf(context).width);
 
     // The header stays while the page loads, fails, or has no year yet.
-    Widget framed(Widget child) => _Frame(
-      padding: _pagePadding(layout),
+    Widget framed(Widget child) => DirectoryFrame(
+      padding: DirectoryLayout.pagePadding(layout),
       child: Column(
         children: [
-          TeachersHero(
-            schoolId: widget.schoolId,
-            branchId: widget.branchId,
-            layout: layout,
-          ),
-          SizedBox(height: _sectionGap(layout)),
+          _hero(layout),
+          SizedBox(height: DirectoryLayout.sectionGap(layout)),
           Expanded(child: child),
         ],
       ),
@@ -457,22 +473,18 @@ class _TeachersListState extends ConsumerState<_TeachersList> {
           .map((a) => names?.classSection(a.classId, a.sectionId) ?? '…'),
     );
 
-    final gap = SizedBox(height: _sectionGap(layout));
-    return _Frame(
-      padding: _pagePadding(layout),
+    final gap = SizedBox(height: DirectoryLayout.sectionGap(layout));
+    return DirectoryFrame(
+      padding: DirectoryLayout.pagePadding(layout),
       // Every row is built (a page holds at most a few dozen), so layout and
       // finders never depend on what has scrolled into view.
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            TeachersHero(
-              schoolId: widget.schoolId,
-              branchId: widget.branchId,
-              layout: layout,
-            ),
+            _hero(layout),
             gap,
-            TeachersToolbar(
+            StaffToolbar(
               layout: layout,
               switcher: const StaffSectionSwitcher(
                 current: StaffSection.teachers,
@@ -518,24 +530,53 @@ class _TeachersListState extends ConsumerState<_TeachersList> {
                     child: Center(child: CircularProgressIndicator()),
                   );
                 }
-                return TeacherListCard(
+                return DirectoryListCard(
                   layout: layout,
+                  nameHeader: 'Teacher',
+                  codeHeader: 'ID',
+                  columns: const [
+                    DirectoryColumn(header: 'Classes', flex: 3),
+                    DirectoryColumn(
+                      header: 'Subjects',
+                      flex: 3,
+                      showAtWidth: 700,
+                    ),
+                    DirectoryColumn(
+                      header: 'Class teacher',
+                      flex: 2,
+                      showAtWidth: 900,
+                    ),
+                  ],
                   emptyState: const EmptyView(
                     icon: Icons.school_outlined,
                     message: 'No teachers found.',
                   ),
                   items: [
                     for (final row in _controller.items)
-                      TeacherListItem(
-                        staffId: row.staff.staffId,
+                      DirectoryRow(
+                        id: row.staff.staffId,
                         name: row.staff.displayName,
-                        employeeCode: row.staff.employeeCode,
-                        classes: classesOf(row),
-                        subjects: subjectsOf(row),
-                        classTeacherOf: classTeacherOf(row),
+                        code: row.staff.employeeCode,
+                        values: [
+                          classesOf(row),
+                          subjectsOf(row),
+                          classTeacherOf(row),
+                        ],
+                        phoneLine: [
+                          classesOf(row),
+                          subjectsOf(row),
+                          if (classTeacherOf(row) != null)
+                            'Class teacher: ${classTeacherOf(row)}',
+                        ].whereType<String>().join(' · '),
                         status: row.staff.status,
                         onTap: () =>
                             context.push('/staff/${row.staff.staffId}'),
+                        actions: [
+                          if (widget.canManage)
+                            LoginAccessButton(
+                              onPressed: () => _manageAccess(row.staff),
+                            ),
+                        ],
                       ),
                   ],
                   total: _totalFor(counts),
@@ -547,27 +588,6 @@ class _TeachersListState extends ConsumerState<_TeachersList> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// Pads the page and keeps it to a readable width, centred, on large displays.
-class _Frame extends StatelessWidget {
-  final double padding;
-  final Widget child;
-
-  const _Frame({required this.padding, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          maxWidth: _TeachersListState._maxContentWidth,
-        ),
-        child: Padding(padding: EdgeInsets.all(padding), child: child),
       ),
     );
   }

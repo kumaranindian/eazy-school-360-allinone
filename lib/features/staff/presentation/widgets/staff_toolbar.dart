@@ -5,7 +5,7 @@ import '../../../../core/utils/responsive.dart';
 import '../../../../shared/filters/filter_bar.dart';
 import '../../../../shared/filters/filter_field.dart';
 
-/// The search-and-filter surface of the Teachers screen: the Staff | Teachers
+/// The search-and-filter surface of the staff directories (Staff, Teachers): the Staff | Teachers
 /// switch, the search box, the filters, and the Filters button, in one card.
 ///
 /// - **Desktop** (and only when the width really allows): everything on one
@@ -20,7 +20,7 @@ import '../../../../shared/filters/filter_field.dart';
 /// their effects; this builds the same [FilterField]s' controls
 /// ([fieldsBuilder] is read again on every build and every sheet change) and
 /// reports changes through the callbacks it was given.
-class TeachersToolbar extends StatelessWidget {
+class StaffToolbar extends StatelessWidget {
   final ScreenSize layout;
   final Widget switcher;
 
@@ -28,8 +28,16 @@ class TeachersToolbar extends StatelessWidget {
   final Widget? trailing;
   final TextEditingController searchController;
   final String searchHint;
+
+  /// Optional control at the start of the search box (e.g. "search by").
+  final Widget? searchPrefix;
   final ValueChanged<String> onSearchChanged;
   final bool searchEnabled;
+
+  /// False while the filters cannot be used (the page is searching); they are
+  /// drawn disabled and [pausedMessage] says why.
+  final bool filtersEnabled;
+  final String pausedMessage;
   final List<FilterField> Function() fieldsBuilder;
 
   /// How many of the first fields appear inline on tablet / desktop (the rest
@@ -39,7 +47,7 @@ class TeachersToolbar extends StatelessWidget {
   /// An explanatory line under the controls (e.g. why search is paused).
   final String? note;
 
-  const TeachersToolbar({
+  const StaffToolbar({
     super.key,
     required this.layout,
     required this.switcher,
@@ -48,7 +56,11 @@ class TeachersToolbar extends StatelessWidget {
     required this.fieldsBuilder,
     this.trailing,
     this.searchHint = 'Search',
+    this.searchPrefix,
     this.searchEnabled = true,
+    this.filtersEnabled = true,
+    this.pausedMessage =
+        'Filters are paused while searching. Clear the search to use them.',
     this.inlineCount = 4,
     this.note,
   });
@@ -70,12 +82,14 @@ class TeachersToolbar extends StatelessWidget {
     final fields = fieldsBuilder();
     final inline = fields.take(inlineCount).toList();
     final total = fields.where((f) => f.isApplied).length;
-    void openSheet() =>
-        FilterBar.openFilterSheet(context, fieldsBuilder: fieldsBuilder);
+    final VoidCallback? openSheet = filtersEnabled
+        ? () => FilterBar.openFilterSheet(context, fieldsBuilder: fieldsBuilder)
+        : null;
 
     final search = FilterSearchField(
       controller: searchController,
       hint: searchHint,
+      prefix: searchPrefix,
       enabled: searchEnabled,
       onChanged: onSearchChanged,
     );
@@ -126,11 +140,11 @@ class TeachersToolbar extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 body,
-                if (note != null)
+                if (!filtersEnabled || note != null)
                   Padding(
                     padding: const EdgeInsets.only(top: AppSpacing.xs),
                     child: Text(
-                      note!,
+                      filtersEnabled ? note! : pausedMessage,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
@@ -142,7 +156,7 @@ class TeachersToolbar extends StatelessWidget {
     );
   }
 
-  Widget _phone(Widget search, int total, VoidCallback openSheet) {
+  Widget _phone(Widget search, int total, VoidCallback? openSheet) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -171,7 +185,7 @@ class TeachersToolbar extends StatelessWidget {
     Widget search,
     List<FilterField> inline,
     int total,
-    VoidCallback openSheet,
+    VoidCallback? openSheet,
   ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -181,7 +195,7 @@ class TeachersToolbar extends StatelessWidget {
         Expanded(flex: 3, child: search),
         for (final f in inline) ...[
           const SizedBox(width: _gap),
-          Expanded(flex: 2, child: f.buildControl(context, true)),
+          Expanded(flex: 2, child: f.buildControl(context, filtersEnabled)),
         ],
         const SizedBox(width: _gap),
         FiltersButton(total: total, onPressed: openSheet),
@@ -195,7 +209,7 @@ class TeachersToolbar extends StatelessWidget {
     Widget search,
     List<FilterField> inline,
     int total,
-    VoidCallback openSheet, {
+    VoidCallback? openSheet, {
     required bool sideBySide,
   }) {
     return Column(
@@ -233,7 +247,7 @@ class TeachersToolbar extends StatelessWidget {
             for (final f in inline)
               SizedBox(
                 width: _filterWidth,
-                child: f.buildControl(context, true),
+                child: f.buildControl(context, filtersEnabled),
               ),
             FiltersButton(total: total, onPressed: openSheet),
           ],

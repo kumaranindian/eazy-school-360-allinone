@@ -5,30 +5,87 @@ import '../../../../core/utils/responsive.dart';
 import '../../domain/staff_status.dart';
 import 'staff_status_chip.dart';
 
-/// One teacher as the list shows them. The page builds these from its own
-/// rows (display names already resolved); the widgets below only lay them out.
-class TeacherListItem {
-  final String staffId;
-  final String name;
-  final String employeeCode;
+/// Page padding and the gap between sections, by layout — one definition for
+/// every staff directory screen.
+abstract final class DirectoryLayout {
+  static double pagePadding(ScreenSize l) =>
+      l.isMobile ? 12 : (l.isTablet ? 16 : 20);
+  static double sectionGap(ScreenSize l) =>
+      l.isMobile ? 10 : (l.isTablet ? 12 : 14);
 
-  /// Class-and-section names, comma separated; null when the teacher has no
-  /// active assignment (shown as "—" in the table, omitted on a phone).
-  final String? classes;
-  final String? subjects;
-  final String? classTeacherOf;
+  /// The content never grows wider than this on a large display.
+  static const double maxContentWidth = 1440;
+}
+
+/// Pads a directory page and keeps it to a readable width, centred.
+class DirectoryFrame extends StatelessWidget {
+  final double padding;
+  final Widget child;
+
+  const DirectoryFrame({super.key, required this.padding, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          maxWidth: DirectoryLayout.maxContentWidth,
+        ),
+        child: Padding(padding: EdgeInsets.all(padding), child: child),
+      ),
+    );
+  }
+}
+
+/// A column of the directory table beyond the always-present name, ID and
+/// status. [showAtWidth] is the table width from which it is shown: columns
+/// are dropped by the width the table really has (the last ones first), never
+/// by the device, and what is dropped stays one tap away on the profile.
+class DirectoryColumn {
+  final String header;
+  final int flex;
+  final double showAtWidth;
+
+  const DirectoryColumn({
+    required this.header,
+    this.flex = 3,
+    this.showAtWidth = 0,
+  });
+}
+
+/// One person as the list shows them. The page builds these from its own rows
+/// (display values already resolved); the widgets below only lay them out.
+class DirectoryRow {
+  final String id;
+  final String name;
+  final String code;
+
+  /// One value per [DirectoryColumn], in order; null when genuinely empty
+  /// ("—" in the table).
+  final List<String?> values;
+
+  /// The single secondary line of a phone card, or null for none.
+  final String? phoneLine;
   final StaffStatus status;
   final VoidCallback onTap;
 
-  const TeacherListItem({
-    required this.staffId,
+  /// A selection checkbox at the start of the row, while choosing people.
+  final Widget? leading;
+
+  /// Icon buttons at the end of the row (e.g. the Login access key).
+  final List<Widget> actions;
+
+  const DirectoryRow({
+    required this.id,
     required this.name,
-    required this.employeeCode,
-    required this.classes,
-    required this.subjects,
-    required this.classTeacherOf,
+    required this.code,
+    required this.values,
+    required this.phoneLine,
     required this.status,
     required this.onTap,
+    this.leading,
+    this.actions = const [],
   });
 
   /// "AB" from "Anil Bose": the first letters of the first and last word.
@@ -41,32 +98,42 @@ class TeacherListItem {
   }
 }
 
-/// The teacher list card: the table (tablet / desktop) or compact cards
-/// (phone), and the "Showing N of TOTAL / Load more" footer, all in one card.
+/// The directory card: the table (tablet / desktop) or compact cards (phone),
+/// and the "Showing N of TOTAL / Load more" footer, all in one card.
 ///
 /// Paging stays with the page: it passes the count, whether there is more,
 /// whether a load is running, and the callback — nothing here fetches.
-class TeacherListCard extends StatelessWidget {
-  final List<TeacherListItem> items;
+class DirectoryListCard extends StatelessWidget {
+  final List<DirectoryRow> items;
+  final List<DirectoryColumn> columns;
+  final String nameHeader;
+  final String codeHeader;
   final ScreenSize layout;
   final Widget emptyState;
 
-  /// The total the shown teachers are part of, when the page knows it (it does
-  /// not while a search or assignment filter has taken over the query).
+  /// The total the shown rows are part of, when the page knows it (it does not
+  /// while a search or a narrowing filter has taken over the query).
   final int? total;
   final bool hasMore;
   final bool isLoading;
   final VoidCallback onLoadMore;
 
-  const TeacherListCard({
+  /// A load-more failure to show under the list (the rows already there stay).
+  final String? errorText;
+
+  const DirectoryListCard({
     super.key,
     required this.items,
+    required this.columns,
+    this.nameHeader = 'Name',
+    this.codeHeader = 'ID',
     required this.layout,
     required this.emptyState,
     required this.total,
     required this.hasMore,
     required this.isLoading,
     required this.onLoadMore,
+    this.errorText,
   });
 
   @override
@@ -89,11 +156,24 @@ class TeacherListCard extends StatelessWidget {
             else if (layout.isMobile)
               for (var i = 0; i < items.length; i++) ...[
                 if (i > 0) const Divider(height: 1),
-                TeacherCard(key: ValueKey(items[i].staffId), item: items[i]),
+                DirectoryCard(key: ValueKey(items[i].id), item: items[i]),
               ]
             else
-              TeacherTable(items: items),
+              DirectoryTable(
+                items: items,
+                columns: columns,
+                nameHeader: nameHeader,
+                codeHeader: codeHeader,
+              ),
             if (items.isNotEmpty) ...[
+              if (errorText != null)
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  child: Text(
+                    errorText!,
+                    style: TextStyle(color: scheme.error),
+                  ),
+                ),
               const Divider(height: 1),
               _Footer(
                 shown: items.length,
@@ -175,12 +255,12 @@ class _Footer extends StatelessWidget {
   }
 }
 
-/// A teacher's circle of initials.
-class TeacherAvatar extends StatelessWidget {
+/// A person's circle of initials.
+class PersonAvatar extends StatelessWidget {
   final String initials;
   final double size;
 
-  const TeacherAvatar({super.key, required this.initials, this.size = 30});
+  const PersonAvatar({super.key, required this.initials, this.size = 30});
 
   @override
   Widget build(BuildContext context) {
@@ -207,55 +287,134 @@ class TeacherAvatar extends StatelessWidget {
   }
 }
 
-/// Desktop / tablet rows. Columns are dropped by the width the table really
-/// has — "Class teacher" first, then "Subjects" — never by the device; the
-/// dropped details stay one tap away on the teacher's profile.
-class TeacherTable extends StatelessWidget {
-  final List<TeacherListItem> items;
+/// Desktop / tablet rows of about 46px.
+class DirectoryTable extends StatelessWidget {
+  final List<DirectoryRow> items;
+  final List<DirectoryColumn> columns;
+  final String nameHeader;
+  final String codeHeader;
 
-  const TeacherTable({super.key, required this.items});
+  const DirectoryTable({
+    super.key,
+    required this.items,
+    required this.columns,
+    this.nameHeader = 'Name',
+    this.codeHeader = 'ID',
+  });
 
   static const double rowMinHeight = 46;
   static const double _statusWidth = 112;
-  static const double _showClassTeacherAt = 900;
-  static const double _showSubjectsAt = 700;
+  static const double _actionWidth = 48;
+  static const double _leadingWidth = 44;
 
   @override
   Widget build(BuildContext context) {
+    final hasLeading = items.any((i) => i.leading != null);
+    final actionCount = items.fold<int>(
+      0,
+      (m, i) => i.actions.length > m ? i.actions.length : m,
+    );
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final classTeacher = width >= _showClassTeacherAt;
-        final subjects = width >= _showSubjectsAt;
+        final shown = [
+          for (var c = 0; c < columns.length; c++)
+            if (width >= columns[c].showAtWidth) c,
+        ];
+        final theme = Theme.of(context);
+        final headStyle = theme.textTheme.labelMedium?.copyWith(
+          fontSize: 12,
+          letterSpacing: 0.4,
+          color: theme.colorScheme.onSurfaceVariant,
+        );
+        final bodyStyle = theme.textTheme.bodyMedium?.copyWith(fontSize: 14);
+
+        Widget cell(Widget child, int flex) => Expanded(
+          flex: flex,
+          child: Padding(
+            padding: const EdgeInsets.only(right: AppSpacing.sm),
+            child: child,
+          ),
+        );
+
+        Widget rowOf(
+          TextStyle? style,
+          Widget? leading,
+          Widget name,
+          Widget code,
+          List<Widget> extras,
+          Widget status,
+          Widget actions, {
+          required double minHeight,
+        }) => DefaultTextStyle.merge(
+          style: style,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: minHeight),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: 6,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (hasLeading)
+                    SizedBox(
+                      width: _leadingWidth,
+                      child: leading ?? const SizedBox.shrink(),
+                    ),
+                  cell(name, 4),
+                  cell(code, 2),
+                  for (final (i, e) in extras.indexed)
+                    cell(e, columns[shown[i]].flex),
+                  SizedBox(
+                    width: _statusWidth,
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: status,
+                    ),
+                  ),
+                  if (actionCount > 0)
+                    SizedBox(
+                      width: actionCount * _actionWidth,
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: actions,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        Text head(String t) => Text(t.toUpperCase(), maxLines: 1);
+
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _TableRow(
-              header: true,
-              classTeacher: classTeacher,
-              subjects: subjects,
-              cells: const _Cells(
-                teacher: Text('Teacher'),
-                id: Text('ID'),
-                classes: Text('Classes'),
-                subjects: Text('Subjects'),
-                classTeacher: Text('Class teacher'),
-                status: Text('Status'),
-              ),
+            rowOf(
+              headStyle,
+              null,
+              head(nameHeader),
+              head(codeHeader),
+              [for (final c in shown) head(columns[c].header)],
+              head('Status'),
+              const SizedBox.shrink(),
+              minHeight: 36,
             ),
             for (final item in items) ...[
               const Divider(height: 1),
-              _TableRow(
-                key: ValueKey(item.staffId),
-                header: false,
-                classTeacher: classTeacher,
-                subjects: subjects,
+              InkWell(
+                key: ValueKey(item.id),
                 onTap: item.onTap,
-                cells: _Cells(
-                  teacher: Row(
+                child: rowOf(
+                  bodyStyle,
+                  item.leading,
+                  Row(
                     children: [
-                      TeacherAvatar(initials: item.initials),
+                      PersonAvatar(initials: item.initials),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
                         child: Text(
@@ -263,21 +422,18 @@ class TeacherTable extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
+                            color: theme.colorScheme.primary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  id: _cellText(item.employeeCode),
-                  classes: _cellText(item.classes),
-                  subjects: _cellText(item.subjects),
-                  classTeacher: _cellText(item.classTeacherOf),
-                  status: Align(
-                    alignment: Alignment.centerRight,
-                    child: StaffStatusChip(status: item.status, dense: true),
-                  ),
+                  _cellText(item.code),
+                  [for (final c in shown) _cellText(item.values[c])],
+                  StaffStatusChip(status: item.status, dense: true),
+                  Row(mainAxisSize: MainAxisSize.min, children: item.actions),
+                  minHeight: rowMinHeight,
                 ),
               ),
             ],
@@ -287,7 +443,7 @@ class TeacherTable extends StatelessWidget {
     );
   }
 
-  /// A value, or the muted "—" when the teacher genuinely has none.
+  /// A value, or the muted "—" when the person genuinely has none.
   static Widget _cellText(String? value) => Builder(
     builder: (context) {
       final muted = Theme.of(context).colorScheme.onSurfaceVariant;
@@ -302,126 +458,19 @@ class TeacherTable extends StatelessWidget {
   );
 }
 
-class _Cells {
-  final Widget teacher;
-  final Widget id;
-  final Widget classes;
-  final Widget subjects;
-  final Widget classTeacher;
-  final Widget status;
+/// A person on a phone: avatar, name, ID, a single line of detail, and the
+/// status. The whole card is the tap target; row actions (the Login access
+/// key) sit at the end.
+class DirectoryCard extends StatelessWidget {
+  final DirectoryRow item;
 
-  const _Cells({
-    required this.teacher,
-    required this.id,
-    required this.classes,
-    required this.subjects,
-    required this.classTeacher,
-    required this.status,
-  });
-}
-
-class _TableRow extends StatelessWidget {
-  final bool header;
-  final bool classTeacher;
-  final bool subjects;
-  final _Cells cells;
-  final VoidCallback? onTap;
-
-  const _TableRow({
-    super.key,
-    required this.header,
-    required this.classTeacher,
-    required this.subjects,
-    required this.cells,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final style = header
-        ? theme.textTheme.labelMedium?.copyWith(
-            fontSize: 12,
-            letterSpacing: 0.4,
-            color: theme.colorScheme.onSurfaceVariant,
-          )
-        : theme.textTheme.bodyMedium?.copyWith(fontSize: 14);
-    Widget cell(Widget child, int flex) => Expanded(
-      flex: flex,
-      child: Padding(
-        padding: const EdgeInsets.only(right: AppSpacing.sm),
-        child: child,
-      ),
-    );
-    final row = DefaultTextStyle.merge(
-      style: style,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minHeight: header ? 36 : TeacherTable.rowMinHeight,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: 6,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              cell(header ? _upper(cells.teacher) : cells.teacher, 4),
-              cell(header ? _upper(cells.id) : cells.id, 2),
-              cell(header ? _upper(cells.classes) : cells.classes, 3),
-              if (subjects)
-                cell(header ? _upper(cells.subjects) : cells.subjects, 3),
-              if (classTeacher)
-                cell(
-                  header ? _upper(cells.classTeacher) : cells.classTeacher,
-                  2,
-                ),
-              SizedBox(
-                width: TeacherTable._statusWidth,
-                child: header
-                    ? Align(
-                        alignment: Alignment.centerRight,
-                        child: _upper(cells.status),
-                      )
-                    : cells.status,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (header || onTap == null) return row;
-    return InkWell(onTap: onTap, child: row);
-  }
-
-  Widget _upper(Widget w) =>
-      w is Text ? Text(w.data!.toUpperCase(), maxLines: 1) : w;
-}
-
-/// A teacher on a phone: avatar, name, ID, a single line of what they teach,
-/// and the status. The whole card is the tap target.
-class TeacherCard extends StatelessWidget {
-  final TeacherListItem item;
-
-  const TeacherCard({super.key, required this.item});
-
-  /// "Class 3 - A · Maths" - only the parts that exist, no empty separators;
-  /// null when there is nothing to say (the line is then not drawn at all).
-  String? get meta {
-    final parts = [
-      item.classes,
-      item.subjects,
-      if (item.classTeacherOf != null) 'Class teacher: ${item.classTeacherOf}',
-    ].whereType<String>().where((p) => p.isNotEmpty).toList();
-    return parts.isEmpty ? null : parts.join(' · ');
-  }
+  const DirectoryCard({super.key, required this.item});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
-    final line = meta;
+    final line = item.phoneLine;
     return InkWell(
       onTap: item.onTap,
       child: ConstrainedBox(
@@ -434,7 +483,11 @@ class TeacherCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              TeacherAvatar(initials: item.initials, size: 36),
+              if (item.leading != null) ...[
+                item.leading!,
+                const SizedBox(width: AppSpacing.xs),
+              ],
+              PersonAvatar(initials: item.initials, size: 36),
               const SizedBox(width: AppSpacing.sm + 2),
               Expanded(
                 child: Column(
@@ -452,7 +505,7 @@ class TeacherCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      item.employeeCode,
+                      item.code,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -460,7 +513,7 @@ class TeacherCard extends StatelessWidget {
                         color: muted,
                       ),
                     ),
-                    if (line != null)
+                    if (line != null && line.isNotEmpty)
                       Text(
                         line,
                         maxLines: 2,
@@ -475,6 +528,7 @@ class TeacherCard extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.sm),
               StaffStatusChip(status: item.status, dense: true),
+              ...item.actions,
             ],
           ),
         ),

@@ -25,7 +25,7 @@ import 'package:eazy_school_360/features/staff/domain/teacher_assignment.dart';
 import 'package:eazy_school_360/features/staff/domain/teacher_assignment_status.dart';
 import 'package:eazy_school_360/features/staff/presentation/providers/staff_providers.dart';
 import 'package:eazy_school_360/features/staff/presentation/widgets/staff_status_chip.dart';
-import 'package:eazy_school_360/features/staff/presentation/widgets/teacher_list.dart';
+import 'package:eazy_school_360/features/staff/presentation/widgets/directory_list.dart';
 import 'package:eazy_school_360/features/students/domain/paged_result.dart';
 import 'package:eazy_school_360/features/users/domain/user_profile.dart';
 import 'package:eazy_school_360/features/users/domain/user_status.dart';
@@ -278,7 +278,7 @@ void main() {
           expect(find.text('Teaching staff'), findsOneWidget);
           expect(find.text('Meera Iyer'), findsOneWidget);
           // never wider than the window
-          final card = tester.getRect(find.byType(TeacherListCard));
+          final card = tester.getRect(find.byType(DirectoryListCard));
           expect(card.left, greaterThanOrEqualTo(0));
           expect(card.right, lessThanOrEqualTo(width));
           expect(find.byType(Scrollable).evaluate().isNotEmpty, isTrue);
@@ -293,8 +293,8 @@ void main() {
         '${width.toInt()}: cards, a stacked toolbar, the filters in a sheet',
         (tester) async {
           await _pump(tester, size: Size(width, 800));
-          expect(find.byType(TeacherCard), findsWidgets);
-          expect(find.byType(TeacherTable), findsNothing);
+          expect(find.byType(DirectoryCard), findsWidgets);
+          expect(find.byType(DirectoryTable), findsNothing);
           // no individual dropdowns inline; one Filters button with the count
           expect(find.byType(DropdownButtonFormField<String?>), findsNothing);
           expect(find.text('Filters · 1'), findsOneWidget);
@@ -336,8 +336,8 @@ void main() {
       '768: table without the lowest-priority columns, two-row toolbar',
       (tester) async {
         await _pump(tester, size: const Size(768, 900));
-        expect(find.byType(TeacherTable), findsOneWidget);
-        expect(find.byType(TeacherCard), findsNothing);
+        expect(find.byType(DirectoryTable), findsOneWidget);
+        expect(find.byType(DirectoryCard), findsNothing);
         expect(find.text('TEACHER'), findsOneWidget);
         expect(find.text('STATUS'), findsOneWidget);
         expect(find.text('CLASS TEACHER'), findsNothing); // dropped first
@@ -379,7 +379,7 @@ void main() {
         tester,
       ) async {
         await _pump(tester, size: Size(width, 900));
-        expect(find.byType(TeacherTable), findsOneWidget);
+        expect(find.byType(DirectoryTable), findsOneWidget);
         expect(find.text('TEACHER'), findsOneWidget);
         expect(find.text('ID'), findsOneWidget);
         expect(find.text('CLASSES'), findsOneWidget);
@@ -409,7 +409,7 @@ void main() {
 
     testWidgets('1920: the content is capped and centred', (tester) async {
       await _pump(tester, size: const Size(1920, 1000));
-      final card = tester.getRect(find.byType(TeacherListCard));
+      final card = tester.getRect(find.byType(DirectoryListCard));
       expect(card.width, lessThanOrEqualTo(1440));
       // centred in what is left of the window beside the sidebar
       expect(card.left, greaterThan(208 + 20));
@@ -420,7 +420,7 @@ void main() {
       final r1 = tester.getRect(find.text('Meera Iyer'));
       final r2 = tester.getRect(find.text('Arun Kumar'));
       expect((r2.center.dy - r1.center.dy).abs(), inInclusiveRange(46, 48));
-      final avatar = tester.getSize(find.byType(TeacherAvatar).first);
+      final avatar = tester.getSize(find.byType(PersonAvatar).first);
       expect(avatar, const Size(30, 30));
     });
   });
@@ -451,7 +451,7 @@ void main() {
           expect(name, findsOneWidget);
           final nameRect = tester.getRect(name);
           final statuses = find.descendant(
-            of: find.byType(TeacherListCard),
+            of: find.byType(DirectoryListCard),
             matching: find.byType(StaffStatusChip),
           );
           // the status of the long-named teacher's row sits to the right of it
@@ -491,7 +491,7 @@ void main() {
         find.widgetWithText(OutlinedButton, 'Load more'),
       );
       expect(button.height, greaterThanOrEqualTo(44));
-      final card = tester.getRect(find.byType(TeacherListCard));
+      final card = tester.getRect(find.byType(DirectoryListCard));
       expect(button.width, greaterThan(card.width - 40));
     });
 
@@ -691,12 +691,12 @@ void main() {
       (tester) async {
         await _pump(tester, size: const Size(1440, 900));
         await tester.enterText(find.byType(TextField).first, 'Mee');
-        expect(find.byType(TeacherTable), findsOneWidget);
+        expect(find.byType(DirectoryTable), findsOneWidget);
 
         tester.view.physicalSize = const Size(390, 800);
         await tester.pumpAndSettle();
-        expect(find.byType(TeacherCard), findsWidgets);
-        expect(find.byType(TeacherTable), findsNothing);
+        expect(find.byType(DirectoryCard), findsWidgets);
+        expect(find.byType(DirectoryTable), findsNothing);
         expect(
           tester
               .widget<TextField>(find.byType(TextField).first)
@@ -707,7 +707,7 @@ void main() {
 
         tester.view.physicalSize = const Size(768, 900);
         await tester.pumpAndSettle();
-        expect(find.byType(TeacherTable), findsOneWidget);
+        expect(find.byType(DirectoryTable), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
     );
