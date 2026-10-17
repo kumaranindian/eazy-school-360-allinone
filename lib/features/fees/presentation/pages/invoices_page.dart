@@ -22,6 +22,7 @@ import '../../domain/fee_repositories.dart';
 import '../../domain/invoice.dart';
 import '../../domain/money.dart';
 import '../providers/fee_providers.dart';
+import '../widgets/fee_row_actions.dart';
 import '../widgets/fee_scope.dart';
 import '../widgets/student_all_years_ledger.dart';
 import '../widgets/fee_widgets.dart';
@@ -300,7 +301,6 @@ class _InvoicesState extends ConsumerState<_Invoices> {
                         columnHeaders: const [
                           'Invoice',
                           'Student',
-                          'Class',
                           'Period',
                           'Due',
                           'Payable',
@@ -308,19 +308,28 @@ class _InvoicesState extends ConsumerState<_Invoices> {
                           'Balance',
                           'Status',
                         ],
+                        // A tablet keeps what identifies the invoice, what is
+                        // owed and its status. Collect is in the first column,
+                        // so it is on screen at any width.
+                        tabletColumns: const [0, 1, 6, 7],
                         emptyState: const EmptyView(
                           icon: Icons.receipt_long_outlined,
                           message: 'No invoices found.',
                         ),
                         cellsBuilder: (i) => [
                           DataCell(
-                            Text(i.invoiceNumber),
-                            onTap: () =>
-                                context.push('/fees/invoices/${i.invoiceId}'),
+                            InvoiceNumberCell(invoice: i, tenant: fee.tenant),
                           ),
-                          DataCell(Text(i.studentName)),
+                          // The class sits beside the name, so the Actions
+                          // column stays inside the window instead of past
+                          // its right edge.
                           DataCell(
-                            Text('${i.className} ${i.sectionName}'.trim()),
+                            Text(
+                              [
+                                i.studentName,
+                                '${i.className} ${i.sectionName}'.trim(),
+                              ].where((p) => p.isNotEmpty).join(' · '),
+                            ),
                           ),
                           DataCell(Text(i.periodLabel)),
                           DataCell(Text(FeeDates.display(i.dueDateKey))),
@@ -350,20 +359,41 @@ class _InvoicesState extends ConsumerState<_Invoices> {
                           ),
                         ],
                         cardBuilder: (i) => Card(
-                          child: ListTile(
-                            title: Text(
-                              '${i.invoiceNumber} · ${i.studentName}',
-                            ),
-                            subtitle: Text(
-                              '${i.periodLabel} · due ${FeeDates.display(i.dueDateKey)}\nBalance ${Money.format(i.balanceMinor, currency: i.currency)} of ${Money.format(i.payableMinor, currency: i.currency)}',
-                            ),
-                            isThreeLine: true,
-                            trailing: InvoiceStatusChip(
-                              invoice: i,
-                              todayKey: today,
-                            ),
-                            onTap: () =>
-                                context.push('/fees/invoices/${i.invoiceId}'),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              ListTile(
+                                title: Text(
+                                  '${i.invoiceNumber} · ${i.studentName}',
+                                ),
+                                subtitle: Text(
+                                  '${i.periodLabel} · due ${FeeDates.display(i.dueDateKey)}\nBalance ${Money.format(i.balanceMinor, currency: i.currency)} of ${Money.format(i.payableMinor, currency: i.currency)}',
+                                ),
+                                isThreeLine: true,
+                                trailing: InvoiceStatusChip(
+                                  invoice: i,
+                                  todayKey: today,
+                                ),
+                                onTap: () => context.push(
+                                  '/fees/invoices/${i.invoiceId}',
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  AppSpacing.md,
+                                  0,
+                                  AppSpacing.sm,
+                                  AppSpacing.sm,
+                                ),
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: InvoiceRowActions(
+                                    invoice: i,
+                                    tenant: fee.tenant,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),

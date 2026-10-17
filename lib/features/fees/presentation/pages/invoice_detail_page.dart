@@ -21,6 +21,7 @@ import '../../domain/payment.dart';
 import '../providers/fee_providers.dart';
 import '../widgets/fee_action_dialogs.dart';
 import '../widgets/fee_pdf.dart';
+import '../widgets/fee_row_actions.dart';
 import '../widgets/fee_widgets.dart';
 
 /// `/fees/invoices/:invoiceId` — the staff view, with actions the signed-in
@@ -201,23 +202,11 @@ class _Detail extends ConsumerWidget {
               FilledButton.icon(
                 icon: const Icon(Icons.payments_outlined),
                 label: const Text('Collect payment'),
-                onPressed: () async {
-                  final result = await showAdaptiveAppDialog<String>(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (context) => CollectPaymentDialog(
-                      schoolId: invoice.schoolId,
-                      branchId: invoice.branchId,
-                      collectorId: tenant.user.userId,
-                      collectorName: tenant.user.name,
-                      invoice: invoice,
-                    ),
-                  );
-                  if (result != null && context.mounted) {
-                    context.showSnackBar('Payment recorded successfully.');
-                    context.push('/fees/receipts/$result');
-                  }
-                },
+                onPressed: () => collectPaymentFor(
+                  context,
+                  tenant: tenant,
+                  invoice: invoice,
+                ),
               ),
             if (canWaive)
               OutlinedButton.icon(

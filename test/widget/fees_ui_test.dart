@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:eazy_school_360/features/fees/domain/invoice.dart';
 import 'package:eazy_school_360/shared/branding/page_hero.dart';
 import 'package:eazy_school_360/app/app.dart';
 import 'package:eazy_school_360/core/config/app_environment.dart';
@@ -443,6 +444,152 @@ void main() {
       );
       await w.go(tester, '/fees');
       expect(find.text('Academic year'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('collecting and printing straight from the lists', () {
+    Future<(_World, FakePaymentRepository)> invoicesList(
+      WidgetTester tester, {
+      List<dynamic>? invoices,
+      Size size = const Size(1400, 1000),
+    }) async {
+      final pay = FakePaymentRepository(payments: [fakePayment()]);
+      final w = await _pump(
+        tester,
+        role: UserRole.branchAdmin,
+        invoiceRepo: FakeInvoiceRepository(
+          invoices: [...?invoices?.cast<Invoice>()],
+        ),
+        paymentRepo: pay,
+        size: size,
+      );
+      await w.go(tester, '/fees/invoices');
+      return (w, pay);
+    }
+
+    testWidgets('an invoice with a balance can be collected from its row', (
+      tester,
+    ) async {
+      final (_, pay) = await invoicesList(
+        tester,
+        invoices: [fakeInvoice(payable: 100000)],
+      );
+      // in the first column, so it is on screen even though the table is
+      // wider than the window
+      expect(
+        tester.getRect(_filled('Collect')).right,
+        lessThanOrEqualTo(tester.view.physicalSize.width),
+      );
+      await tester.tap(_filled('Collect'));
+      await tester.pumpAndSettle();
+      // the same dialog as the invoice page, with the balance filled in
+      expect(find.text('Collect payment'), findsOneWidget);
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.widgetWithText(TextFormField, 'Amount (INR)'),
+            )
+            .controller!
+            .text,
+        '1000.00',
+      );
+      await tester.tap(_filled('Record payment'));
+      await tester.pumpAndSettle();
+      expect(pay.collected, hasLength(1));
+      expect(pay.collected.single.invoiceId, 'stu-1__y1__M-2026-06');
+      expect(pay.collected.single.amountMinor, 100000);
+      // and it opens the receipt, as from the invoice page
+      expect(find.text('Receipt'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a paid or void invoice offers no Collect', (tester) async {
+      await invoicesList(
+        tester,
+        invoices: [
+          fakeInvoice(
+            number: 'INV-1',
+            payable: 100000,
+            paid: 100000,
+            status: InvoiceStatus.paid,
+          ),
+          fakeInvoice(id: 'v', number: 'INV-2', status: InvoiceStatus.voided),
+        ],
+      );
+      expect(find.text('INV-1'), findsOneWidget);
+      expect(find.text('INV-2'), findsOneWidget);
+      expect(find.text('Collect'), findsNothing);
+    });
+
+    testWidgets(
+      'the invoice number opens the invoice, where it can be printed',
+      (tester) async {
+        await invoicesList(tester, invoices: [fakeInvoice()]);
+        await tester.tap(find.text('INV-2026-000001'));
+        await tester.pumpAndSettle();
+        expect(find.text('Collect payment'), findsOneWidget);
+        expect(find.text('Print'), findsOneWidget);
+        expect(find.text('PDF'), findsOneWidget);
+      },
+    );
+
+    testWidgets('a phone card has the same actions', (tester) async {
+      await invoicesList(
+        tester,
+        invoices: [fakeInvoice()],
+        size: const Size(390, 844),
+      );
+      expect(find.text('Collect'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'View'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a payment row opens its receipt, and can print it', (
+      tester,
+    ) async {
+      final w = await _pump(
+        tester,
+        role: UserRole.branchAdmin,
+        paymentRepo: FakePaymentRepository(payments: [fakePayment()]),
+      );
+      await w.go(tester, '/fees/payments');
+      expect(find.byTooltip('Print receipt'), findsOneWidget);
+      expect(
+        tester.getRect(find.byTooltip('Print receipt')).right,
+        lessThanOrEqualTo(tester.view.physicalSize.width),
+      );
+      await tester.tap(find.text('RCT-2026-000001'));
+      await tester.pumpAndSettle();
+      expect(find.text('Receipt'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('printing a receipt that is gone says so, never silently', (
+      tester,
+    ) async {
+      final w = await _pump(
+        tester,
+        role: UserRole.branchAdmin,
+        paymentRepo: FakePaymentRepository(payments: [fakePayment()]),
+      );
+      await w.go(tester, '/fees/payments');
+      await tester.tap(find.byTooltip('Print receipt'));
+      await tester.pumpAndSettle();
+      expect(find.text('This receipt could not be found.'), findsOneWidget);
+    });
+
+    testWidgets('payments lay out on a phone and a tablet without overflow', (
+      tester,
+    ) async {
+      final w = await _pump(
+        tester,
+        role: UserRole.branchAdmin,
+        paymentRepo: FakePaymentRepository(payments: [fakePayment()]),
+        size: const Size(390, 844),
+      );
+      await w.go(tester, '/fees/payments');
+      expect(find.byTooltip('Print receipt'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

@@ -16,6 +16,7 @@ import '../../domain/fee_enums.dart';
 import '../../domain/money.dart';
 import '../../domain/payment.dart';
 import '../providers/fee_providers.dart';
+import '../widgets/fee_row_actions.dart';
 import '../widgets/fee_scope.dart';
 import '../widgets/fee_widgets.dart';
 
@@ -173,16 +174,15 @@ class _PaymentsState extends ConsumerState<_Payments> {
                         'Collected by',
                         'Status',
                       ],
+                      // A tablet keeps the receipt (with its Print button),
+                      // who paid, how much and the status.
+                      tabletColumns: const [0, 2, 5, 7],
                       emptyState: const EmptyView(
                         icon: Icons.payments_outlined,
                         message: 'No payments found.',
                       ),
                       cellsBuilder: (p) => [
-                        DataCell(
-                          Text(p.receiptNumber),
-                          onTap: () =>
-                              context.push('/fees/receipts/${p.paymentId}'),
-                        ),
+                        DataCell(ReceiptNumberCell(payment: p)),
                         DataCell(Text(FeeDates.display(p.paymentDateKey))),
                         DataCell(Text(p.studentName)),
                         DataCell(
@@ -200,16 +200,33 @@ class _PaymentsState extends ConsumerState<_Payments> {
                         DataCell(PaymentStatusChip(status: p.status)),
                       ],
                       cardBuilder: (p) => Card(
-                        child: ListTile(
-                          title: Text(
-                            '${p.receiptNumber} · ${Money.format(p.amountMinor, currency: fee.currency)}',
-                          ),
-                          subtitle: Text(
-                            '${p.studentName} · ${p.methodDisplay} · ${FeeDates.display(p.paymentDateKey)} · Recorded ${formatInstant(p.createdAt)}',
-                          ),
-                          trailing: PaymentStatusChip(status: p.status),
-                          onTap: () =>
-                              context.push('/fees/receipts/${p.paymentId}'),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            ListTile(
+                              title: Text(
+                                '${p.receiptNumber} · ${Money.format(p.amountMinor, currency: fee.currency)}',
+                              ),
+                              subtitle: Text(
+                                '${p.studentName} · ${p.methodDisplay} · ${FeeDates.display(p.paymentDateKey)} · Recorded ${formatInstant(p.createdAt)}',
+                              ),
+                              trailing: PaymentStatusChip(status: p.status),
+                              onTap: () =>
+                                  context.push('/fees/receipts/${p.paymentId}'),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                AppSpacing.md,
+                                0,
+                                AppSpacing.sm,
+                                AppSpacing.sm,
+                              ),
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: PaymentRowActions(payment: p),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
