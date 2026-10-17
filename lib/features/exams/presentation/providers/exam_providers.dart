@@ -1,11 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/errors/app_failure.dart';
 import '../../../../core/tenant/tenant_context.dart';
+import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../students/domain/student.dart';
 import '../../../students/domain/student_status.dart';
 import '../../../students/presentation/providers/student_providers.dart';
 import '../../../users/presentation/providers/user_providers.dart';
 import '../../data/firebase_exam_repositories.dart';
+import '../../data/result_access_probe.dart';
 import '../../domain/exam_repositories.dart';
 import '../../domain/examination.dart';
 import '../../domain/grading_scheme.dart';
@@ -211,16 +214,37 @@ typedef ClassExamsKey = ({
 });
 
 final publishedExamsProvider = FutureProvider.autoDispose
-    .family<List<Examination>, ClassExamsKey>((ref, key) {
-      return ref
-          .read(resultRepositoryProvider)
-          .fetchPublishedForClass(
+    .family<List<Examination>, ClassExamsKey>((ref, key) async {
+      try {
+        return await ref
+            .read(resultRepositoryProvider)
+            .fetchPublishedForClass(
+              schoolId: key.schoolId,
+              branchId: key.branchId,
+              academicYearId: key.academicYearId,
+              classId: key.classId,
+              sectionId: key.sectionId,
+            );
+      } on PermissionFailure {
+        // Only after a refusal: log why, to the console, then report as usual.
+        try {
+          await ResultAccessProbe(ref.read(firestoreProvider)).run(
             schoolId: key.schoolId,
             branchId: key.branchId,
+            parentId: ref
+                .read(tenantContextProvider)
+                .value
+                ?.user
+                .linkedParentId,
             academicYearId: key.academicYearId,
             classId: key.classId,
             sectionId: key.sectionId,
           );
+        } catch (_) {
+          // A diagnostic must never replace the real error.
+        }
+        rethrow;
+      }
     });
 
 typedef SectionRosterKey = ({ExamKey exam, String sectionId});
