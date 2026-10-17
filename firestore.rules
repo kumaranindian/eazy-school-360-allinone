@@ -3634,10 +3634,13 @@ service cloud.firestore {
         match /examinations/{examId} {
           allow read: if canManageStaff(schoolId, branchId)
             || callerIsInBranchAs(schoolId, branchId, 'TEACHER')
+            // `sectionScope` is the section id, or 'ALL' for a class-wide
+            // examination. A string equality is what a query can be proven
+            // against on the live service; a null filter on sectionId is not.
             || (resource.data.status == 'PUBLISHED'
-                && (resource.data.sectionId == null
+                && (resource.data.sectionScope == 'ALL'
                     ? parentHasClass(schoolId, branchId, resource.data.classId)
-                    : parentHasSection(schoolId, branchId, resource.data.classId, resource.data.sectionId)));
+                    : parentHasSection(schoolId, branchId, resource.data.classId, resource.data.sectionScope)));
 
           allow create: if profileManages(callerProfile(), schoolId, branchId) && validCreateAudit()
             && newInTenant(schoolId, branchId)
@@ -3654,6 +3657,7 @@ service cloud.firestore {
             && nd().publishedBy == null
             && nd().nameSlug is string
             && nd().nameSlug.matches('^[a-z0-9]+(-[a-z0-9]+)*$')
+            && nd().sectionScope == (nd().sectionId == null ? 'ALL' : nd().sectionId)
             && examId == nd().academicYearId + '__' + nd().classId
                  + '__' + (nd().sectionId == null ? 'ALL' : nd().sectionId)
                  + '__' + nd().nameSlug

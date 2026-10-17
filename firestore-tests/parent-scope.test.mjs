@@ -67,7 +67,7 @@ async function seedAll() {
     await hw(ids.hwB, 'sb');
     await hw('draft__sa', 'sa', 'DRAFT');
     const exam = (id, section) => setDoc(doc(d, ...n, 'examinations', id), {
-      schoolId: A, branchId: N, academicYearId: 'y1', classId: 'c5', sectionId: section, status: 'PUBLISHED', name: id, ...base,
+      schoolId: A, branchId: N, academicYearId: 'y1', classId: 'c5', sectionId: section, sectionScope: section ?? 'ALL', status: 'PUBLISHED', name: id, ...base,
     });
     await exam('y1__c5__ALL__final', null);
     await exam('y1__c5__sa__unit', 'sa');
@@ -135,7 +135,7 @@ test('examinations: class-wide ones need the class; section ones need the sectio
   await ok(getDoc(ref(p, 'examinations', 'y1__c5__sa__unit')));
   await no(getDoc(ref(p, 'examinations', 'y1__c5__sb__unit')));
   const q = (section) => getDocs(query(col(p, 'examinations'), where('academicYearId', '==', 'y1'), where('classId', '==', 'c5'),
-    where('status', '==', 'PUBLISHED'), where('sectionId', '==', section)));
+    where('status', '==', 'PUBLISHED'), where('sectionScope', '==', section ?? 'ALL')));
   await ok(q(null));
   await ok(q('sa'));
   await no(q('sb'));

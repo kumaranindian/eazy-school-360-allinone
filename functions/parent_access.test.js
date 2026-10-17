@@ -58,7 +58,7 @@ test('only relevant changes trigger a refresh', () => {
 test('a parent can rebuild only their own index, from the data', async () => {
   const db = fakeDb(seed({ 'users/u1': { role: 'PARENT', status: 'ACTIVE', schoolId: 's1', linkedParentId: 'p1' } }));
   const r = await pa.refreshOwnFamily({ db, now: 'NOW' }, 'u1');
-  assert.deepStrictEqual(r, { branches: 1, written: 1 });
+  assert.deepStrictEqual(r, { branches: 1, written: 1, stamped: 0 });
   assert.deepStrictEqual(db.store.get(`${B}/parentAccess/p1`).classKeys, ['c1', 'c2']);
   assert.strictEqual(db.store.get(`${B}/parentAccess/p2`), undefined);
 });
@@ -71,4 +71,20 @@ test('non-parents and inactive parents cannot use the self-heal', async () => {
   for (const uid of ['t1', 'u2', 'nobody']) {
     assert.deepStrictEqual(await pa.refreshOwnFamily({ db, now: 'NOW' }, uid), { error: 'PERMISSION_DENIED' });
   }
+});
+
+test('the self-heal also stamps the sectionScope of examinations that predate it', async () => {
+  const db = fakeDb(seed({
+    'users/u1': { role: 'PARENT', status: 'ACTIVE', schoolId: 's1', linkedParentId: 'p1' },
+    [`${B}/examinations/y1__c1__ALL__final`]: { classId: 'c1', sectionId: null, status: 'PUBLISHED' },
+    [`${B}/examinations/y1__c1__A__unit`]: { classId: 'c1', sectionId: 'A', status: 'PUBLISHED' },
+    [`${B}/examinations/y1__c1__B__ok`]: { classId: 'c1', sectionId: 'B', sectionScope: 'B', status: 'PUBLISHED' },
+    [`${B}/examinations/y1__c9__ALL__other`]: { classId: 'c9', sectionId: null, status: 'PUBLISHED' },
+  }));
+  const r = await pa.refreshOwnFamily({ db, now: 'NOW' }, 'u1');
+  assert.strictEqual(r.stamped, 2);
+  assert.strictEqual(db.store.get(`${B}/examinations/y1__c1__ALL__final`).sectionScope, 'ALL');
+  assert.strictEqual(db.store.get(`${B}/examinations/y1__c1__A__unit`).sectionScope, 'A');
+  // a class the family has no child in is left alone
+  assert.strictEqual(db.store.get(`${B}/examinations/y1__c9__ALL__other`).sectionScope, undefined);
 });

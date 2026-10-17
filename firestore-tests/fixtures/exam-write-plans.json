@@ -157,6 +157,7 @@
                 "academicYearId": "y1",
                 "classId": "c5",
                 "sectionId": "sa",
+                "sectionScope": "sa",
                 "classLabel": "Class 5 – A",
                 "nameSlug": "half-yearly",
                 "name": "Half-yearly",

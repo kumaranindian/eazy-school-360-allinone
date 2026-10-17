@@ -35,13 +35,15 @@ const ref = (db, name, id, b = NORTH, s = A) => doc(db, ...branch(s, b), name, i
 
 // -------------------------------------------------------------- builders
 function examDoc({ uid = 'ex-admin', status = 'DRAFT', overrides = {} } = {}) {
-  return {
+  const d = {
     schoolId: A, branchId: NORTH, academicYearId: YEAR, classId: 'c5', sectionId: 'sa', classLabel: 'Class 5 – A',
     name: 'Half-yearly', nameSlug: 'half-yearly', description: '', type: 'HALF_YEARLY', schemeId: 'gs1',
     startDateKey: '2026-09-01', endDateKey: '2026-09-10', instructions: '', status, revision: 1, lastEvent: 'CREATED',
     subjectCount: 0, sheetCount: 0, approvedSheets: 0, resultVersion: 0, resultCount: 0, resultsWritten: 0,
     schemeSnapshot: null, finalizedBy: null, publishedBy: null, publishedAt: null, ...audit(uid), ...overrides,
   };
+  // sectionScope is the section id, or 'ALL' for a class-wide examination.
+  return { ...d, sectionScope: overrides.sectionScope ?? d.sectionId ?? 'ALL' };
 }
 const hist = ({ id = EXAM, rev, event, toStatus, uid, note = null }) => ({
   schoolId: A, branchId: NORTH, academicYearId: YEAR, examId: id, classId: 'c5', revision: rev, event, toStatus,
@@ -439,7 +441,7 @@ test('Parent access: only published results of a linked child, the version in fo
   await assertSucceeds(getDoc(ref(p1, 'examinations', EXAM)));
   // the two query shapes the app issues: class-wide, and the child's own section
   const examQ = (db, section) => getDocs(query(col(db, 'examinations'), where('academicYearId', '==', YEAR), where('classId', '==', 'c5'),
-    where('status', '==', 'PUBLISHED'), where('sectionId', '==', section)));
+    where('status', '==', 'PUBLISHED'), where('sectionScope', '==', section ?? 'ALL')));
   await assertSucceeds(examQ(p1, 'sa'));
   await assertSucceeds(examQ(p1, null));
   // M12A: another section of the class is not this family's, and the unpinned shape is unprovable
@@ -623,4 +625,19 @@ test('A first remark by the class teacher cannot carry a principal remark', asyn
   const t3 = asUser('t3');
   await assertFails(setDoc(ref(t3, 'examRemarks', `${EXAM}__s2`), mk('s2', { principalRemark: 'Promoted' })));
   await assertSucceeds(setDoc(ref(t3, 'examRemarks', `${EXAM}__s2`), mk('s2')));
+});
+
+test('Examination sectionScope must agree with sectionId, so a family filter can be trusted', async () => {
+  await seedWorld();
+  const make = (o) => {
+    const admin = asUser('ex-br-north');
+    const id = `${YEAR}__c5__sb__scope-check`;
+    const b = writeBatch(admin);
+    b.set(ref(admin, 'examinations', id), examDoc({ uid: 'ex-br-north', overrides: { sectionId: 'sb', name: 'Scope check', nameSlug: 'scope-check', ...o } }));
+    b.set(ref(admin, 'examHistory', `${id}__1`), { ...hist({ id, rev: 1, event: 'CREATED', toStatus: 'DRAFT', uid: 'ex-br-north' }) });
+    return b;
+  };
+  await assertFails(make({ sectionScope: 'ALL' }).commit()); // a section exam claiming to be class-wide
+  await assertFails(make({ sectionScope: 'sa' }).commit()); // another section's scope
+  await assertSucceeds(make({}).commit());
 });

@@ -149,6 +149,16 @@ void main() {
       ),
     );
     batches.add(create);
+    // Families filter examinations on this string; the rules require it to
+    // agree with sectionId (a null filter cannot be proven on the live service).
+    expect(
+      exam.toFirestoreCreate(actorId: 'ex-admin')['sectionScope'],
+      exam.sectionId ?? 'ALL',
+    );
+    expect(
+      exam.copyWith().toFirestoreCreate(actorId: 'a')['sectionScope'],
+      isA<String>(),
+    );
 
     var subjects = 0;
     for (final s in [math, sci]) {

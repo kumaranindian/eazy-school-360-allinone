@@ -18,6 +18,7 @@ const access = require('./access');
 const { diagnoseAccess } = require('./diagnose');
 const teacherAccess = require('./teacher_access');
 const parentAccess = require('./parent_access');
+const examScope = require('./exam_scope');
 const branchAccess = require('./branch_access');
 const { requestOtp, verifyOtp } = require('./otp');
 const { createWhatsAppSender } = require('./whatsapp');
@@ -323,6 +324,21 @@ exports.refreshParentAccess = onCall(callOptions(), async (request) => {
   logger.info('refreshParentAccess', { by: a.uid, ...out });
   return out;
 });
+
+// Every examination carries `sectionScope` (section id or 'ALL'): see exam_scope.js.
+exports.examScopeStamp = onDocumentWritten(
+  'schools/{schoolId}/branches/{branchId}/examinations/{examId}',
+  async (event) => {
+    const after = event.data && event.data.after.exists ? event.data.after : null;
+    if (!after) return;
+    try {
+      await examScope.stampExam(after.ref, after.data());
+    } catch (e) {
+      logger.error('examScope stamp failed', { path: after.ref.path, error: String(e) });
+      throw e; // let the platform retry
+    }
+  },
+);
 
 // A parent's own screens (leave for a child, results, homework, timetable) are
 // authorised by their parentAccess index. The app calls this when it finds the

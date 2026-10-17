@@ -82,10 +82,13 @@ async function seedAll() {
     await setDoc(doc(d, ...n, 'leaveTypes', 'STUDENT__sick'), {
       schoolId: A, branchId: N, kind: 'STUDENT', code: 'sick', name: 'Sick', payType: 'NA', status: 'ACTIVE', ...base,
     });
-    const exam = (id, over = {}) => setDoc(doc(d, ...n, 'examinations', id), {
-      schoolId: A, branchId: N, academicYearId: YEAR, classId: 'c5', sectionId: 'sa', status: 'PUBLISHED', name: id,
-      resultVersion: 1, ...over, ...base,
-    });
+    const exam = (id, over = {}) => {
+      const e = {
+        schoolId: A, branchId: N, academicYearId: YEAR, classId: 'c5', sectionId: 'sa', status: 'PUBLISHED', name: id,
+        resultVersion: 1, ...over, ...base,
+      };
+      return setDoc(doc(d, ...n, 'examinations', id), { ...e, sectionScope: e.sectionId ?? 'ALL' });
+    };
     await exam(EXAM);
     await exam('y1__c5__ALL__annual', { sectionId: null });
     await exam('y1__c5__sa__draft', { status: 'COMPLETED' });
@@ -165,7 +168,7 @@ test('my results: the parent lists published exams of the child and reads the re
   const p = db('plr-p1');
   const q = (section) => getDocs(query(col(p, 'examinations'),
     where('academicYearId', '==', YEAR), where('classId', '==', 'c5'),
-    where('status', '==', 'PUBLISHED'), where('sectionId', '==', section)));
+    where('status', '==', 'PUBLISHED'), where('sectionScope', '==', section ?? 'ALL')));
   const classWide = await assertSucceeds(q(null));
   const section = await assertSucceeds(q('sa'));
   const ids = [...classWide.docs, ...section.docs].map((x) => x.id).sort();
@@ -179,7 +182,7 @@ test('my results: a parent with two children reads each child\'s own results', a
   await assertSucceeds(getDoc(ref(p, 'resultSummaries', resultId('y1__c6__sb__unit', 'stu3'))));
   await assertSucceeds(getDocs(query(col(p, 'examinations'),
     where('academicYearId', '==', YEAR), where('classId', '==', 'c6'),
-    where('status', '==', 'PUBLISHED'), where('sectionId', '==', 'sb'))));
+    where('status', '==', 'PUBLISHED'), where('sectionScope', '==', 'sb'))));
 });
 
 test('my results: a missing result document is a normal miss for the linked parent', async () => {

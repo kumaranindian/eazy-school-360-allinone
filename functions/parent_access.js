@@ -15,6 +15,7 @@
 // backfill for data that already exists.
 
 const { refreshParentAccess } = require('./provision');
+const { stampClasses } = require('./exam_scope');
 
 const branchRef = (db, s, b) => db.collection('schools').doc(s).collection('branches').doc(b);
 
@@ -75,10 +76,15 @@ async function refreshOwnFamily(ctx, uid) {
     .get();
   const branches = new Set(links.docs.map((l) => l.data().branchId).filter((b) => typeof b === 'string' && b));
   let written = 0;
+  let stamped = 0;
   for (const branchId of branches) {
     written += await refreshParents({ ...ctx, by: uid }, schoolId, branchId, [linkedParentId]);
+    // The family's examination list is filtered on sectionScope; stamp the
+    // examinations of its classes that predate the field (see exam_scope.js).
+    const access = (await branchRef(ctx.db, schoolId, branchId).collection('parentAccess').doc(linkedParentId).get()).data();
+    stamped += await stampClasses(ctx.db, schoolId, branchId, (access && access.classKeys) || []);
   }
-  return { branches: branches.size, written };
+  return { branches: branches.size, written, stamped };
 }
 
 module.exports = { placementChanged, linkChanged, refreshParents, refreshFamiliesOfStudent, refreshBranchParents, refreshOwnFamily };

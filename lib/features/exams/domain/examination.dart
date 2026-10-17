@@ -94,6 +94,15 @@ class Examination {
 
   bool get coversAllSections => sectionId == null;
 
+  /// What an examination with no section is stamped with in [sectionScope].
+  static const String allSections = 'ALL';
+
+  /// The section id, or [allSections]. A concrete value that families can
+  /// filter on: the security rules cannot prove "no section" from a null
+  /// filter on the live service, but they can from an equality on a string
+  /// (exactly as for announcements' `audienceKind`).
+  String get sectionScope => sectionId ?? allSections;
+
   /// "Half-yearly 2026 · Class 5 – A".
   String get title =>
       '$name · ${classLabel ?? classId}${sectionId == null ? '' : ''}';
@@ -174,6 +183,7 @@ class Examination {
     'academicYearId': academicYearId,
     'classId': classId,
     'sectionId': sectionId,
+    'sectionScope': sectionScope,
     'classLabel': classLabel,
     'nameSlug': slug(name),
     ...body(),

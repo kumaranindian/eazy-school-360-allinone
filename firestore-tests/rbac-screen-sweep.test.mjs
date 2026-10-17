@@ -56,7 +56,7 @@ async function seed() {
     await setDoc(doc(d, ...n, 'parentAccess', 'pr1'), { schoolId: A, branchId: N, parentId: 'pr1', classKeys: [C], sectionKeys: [`${C}__${S}`], updatedAt: serverTimestamp(), updatedBy: 'seed' });
     await setDoc(doc(d, ...n, 'homework', 'hw1'), { schoolId: A, branchId: N, teacherStaffId: 'st1', classId: C, sectionId: S, academicYearId: Y, status: 'PUBLISHED', ...base });
     await setDoc(doc(d, ...n, 'timetables', 'tt1'), { schoolId: A, branchId: N, academicYearId: Y, classId: C, sectionId: S, status: 'PUBLISHED', ...base });
-    await setDoc(doc(d, ...n, 'examinations', 'ex1'), { schoolId: A, branchId: N, academicYearId: Y, classId: C, sectionId: null, status: 'PUBLISHED', resultVersion: 1, ...base });
+    await setDoc(doc(d, ...n, 'examinations', 'ex1'), { schoolId: A, branchId: N, academicYearId: Y, classId: C, sectionId: null, sectionScope: 'ALL', status: 'PUBLISHED', resultVersion: 1, ...base });
     await setDoc(doc(d, ...n, 'conversations', 'conv1'), { schoolId: A, branchId: N, participants: ['sw-t', 'sw-p'], parentUserId: 'sw-p', ...base });
     await setDoc(doc(d, ...n, 'messageContacts', 'st1'), { schoolId: A, branchId: N, staffId: 'st1', userId: 'sw-t', enabled: true, name: 'T', sectionKeys: [`${C}__${S}`], ...base });
     await setDoc(doc(d, ...n, 'invoices', 'inv1'), { schoolId: A, branchId: N, studentId: 'stu1', ...base });
@@ -180,8 +180,8 @@ T('parent: homework (list, submissions, revisions, detail docs)', async (d) => {
   await getDocs(query(col(d, 'homeworkRevisions'), where('homeworkId', '==', 'hw1'), where('studentId', '==', 'stu1')));
 }, P);
 T('parent: results (exams, subjects, result doc)', async (d) => {
-  await getDocs(query(col(d, 'examinations'), where('academicYearId', '==', Y), where('classId', '==', C), where('status', '==', 'PUBLISHED'), where('sectionId', '==', null)));
-  await getDocs(query(col(d, 'examinations'), where('academicYearId', '==', Y), where('classId', '==', C), where('status', '==', 'PUBLISHED'), where('sectionId', '==', S)));
+  await getDocs(query(col(d, 'examinations'), where('academicYearId', '==', Y), where('classId', '==', C), where('status', '==', 'PUBLISHED'), where('sectionScope', '==', 'ALL')));
+  await getDocs(query(col(d, 'examinations'), where('academicYearId', '==', Y), where('classId', '==', C), where('status', '==', 'PUBLISHED'), where('sectionScope', '==', S)));
   await getDoc(bdoc(d, 'examinations', 'ex1'));
   await getDocs(query(col(d, 'examinationSubjects'), where('examId', '==', 'ex1')));
   await getDoc(bdoc(d, 'resultSummaries', 'ex1__stu1__v1'));

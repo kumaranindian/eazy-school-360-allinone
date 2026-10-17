@@ -1181,7 +1181,10 @@ class FirebaseResultRepository implements ResultRepository {
               .where('academicYearId', isEqualTo: academicYearId)
               .where('classId', isEqualTo: classId)
               .where(FirestoreFields.status, isEqualTo: 'PUBLISHED')
-              .where('sectionId', isEqualTo: section)
+              .where(
+                'sectionScope',
+                isEqualTo: section ?? Examination.allSections,
+              )
               .get();
       final snaps = [await q(null)];
       if (sectionId != null) {
