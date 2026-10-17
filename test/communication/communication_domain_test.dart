@@ -256,6 +256,25 @@ void main() {
       );
     });
 
+    test('payment, fee, attendance and holiday notices have a category', () {
+      expect(
+        NotificationCategory.forType('PAYMENT_RECORDED'),
+        NotificationCategory.fees,
+      );
+      expect(
+        NotificationCategory.forType('FEE_DUE_REMINDER'),
+        NotificationCategory.fees,
+      );
+      expect(
+        NotificationCategory.forType('ATTENDANCE_ABSENT'),
+        NotificationCategory.attendance,
+      );
+      expect(
+        NotificationCategory.forType('HOLIDAY_ADDED'),
+        NotificationCategory.announcement,
+      );
+    });
+
     test('muting hides a category; administrative cannot be muted', () {
       var p = const NotificationPreferences();
       p = p.toggled(NotificationCategory.homework, mute: true);

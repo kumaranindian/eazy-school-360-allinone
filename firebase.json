@@ -72,7 +72,7 @@
         ]
       },
       {
-        "source": "/@(index.html|flutter_bootstrap.js|flutter_service_worker.js|version.json|manifest.json)",
+        "source": "/@(index.html|flutter_bootstrap.js|flutter_service_worker.js|firebase-messaging-sw.js|version.json|manifest.json)",
         "headers": [
           {
             "key": "Cache-Control",

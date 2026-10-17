@@ -31,7 +31,9 @@ enum NotificationCategory {
       return timetable;
     }
     if (type.startsWith('HOMEWORK_')) return homework;
-    if (type.startsWith('ANNOUNCEMENT_')) return announcement;
+    if (type.startsWith('ANNOUNCEMENT_') || type.startsWith('HOLIDAY_')) {
+      return announcement;
+    }
     if (type == 'RESULT_PUBLISHED') return results;
     if (type == 'MESSAGE_RECEIVED') return messages;
     if (type.startsWith('ATTENDANCE_')) return attendance;

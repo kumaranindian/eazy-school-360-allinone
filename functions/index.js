@@ -12,6 +12,10 @@ const logger = require('firebase-functions/logger');
 
 const { broadcastRecipients, targetedRecipients } = require('./recipients');
 const { pushToUsers } = require('./push');
+const { claimDelivery, finishDelivery, errorCategory } = require('./delivery_log');
+const devices = require('./devices');
+const notifyEvents = require('./notify_events');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret, defineString } = require('firebase-functions/params');
 const { provisionLogins, ensureAuthUser, enablePortalLinks } = require('./provision');
 const access = require('./access');
@@ -31,41 +35,128 @@ setGlobalOptions({ region: process.env.FUNCTIONS_REGION || 'asia-south1', maxIns
 const db = getFirestore();
 const messaging = getMessaging();
 
+// Pushes one notification document. Idempotent: the event id is claimed in
+// `pushDeliveries` first, so a retried or duplicated event sends nothing twice.
+// Errors are recorded and swallowed (not thrown): a thrown error would make the
+// platform redeliver the event; the claim already makes that safe, but a
+// permanent failure would just loop. The in-app feed is the record.
 async function deliver(event, resolve) {
   const snap = event.data;
   if (!snap) return;
   const n = snap.data();
   const { schoolId, branchId } = event.params;
   const doc = { ...n, schoolId, branchId };
+  let claim = null;
   try {
+    claim = await claimDelivery(db, event.id, { schoolId, branchId, path: snap.ref.path, type: n.type || '' });
+    if (!claim) {
+      logger.info('push skipped: event already handled', { path: snap.ref.path });
+      return;
+    }
     const userIds = await resolve(doc);
     const sent = await pushToUsers({
       db,
       messaging,
+      schoolId,
       userIds,
       exclude: n.createdBy,
       type: n.type,
       title: n.title,
       body: n.body,
-      data: { refType: n.refType || '', refId: n.refId || '' },
+      notificationId: snap.id,
+      data: { refType: n.refType || '', refId: n.refId || '', branchId, schoolId },
     });
-    logger.info('push delivered', { path: snap.ref.path, type: n.type, recipients: userIds.size, sent });
+    const transient = sent.transientFailed > 0;
+    await finishDelivery(claim, { status: transient ? 'PARTIAL' : 'SENT', ...sent });
+    logger.info('push delivered', { path: snap.ref.path, type: n.type, ...sent });
   } catch (e) {
-    // Retrying would risk duplicate pushes; the in-app feed is the record.
-    logger.error('push failed', { path: snap.ref.path, error: String(e) });
+    const category = errorCategory(e);
+    logger.error('push failed', { path: snap.ref.path, category });
+    await finishDelivery(claim, { status: 'FAILED', errorCategory: category }).catch(() => {});
   }
 }
 
-// Announcements, homework, results: audience-addressed notices.
+// Announcements, homework, results, holidays: audience-addressed notices.
 exports.pushBroadcastNotice = onDocumentCreated(
   'schools/{schoolId}/branches/{branchId}/broadcastNotices/{noticeId}',
   (event) => deliver(event, (doc) => broadcastRecipients(db, doc)),
 );
 
-// Leave decisions, messages, timetable, etc.: per-user notifications.
+// Leave decisions, messages, payments, attendance, fee reminders: per-user.
 exports.pushNotification = onDocumentCreated(
   'schools/{schoolId}/branches/{branchId}/notifications/{notificationId}',
   (event) => deliver(event, (doc) => targetedRecipients(db, doc)),
+);
+
+// ---- Device registration (push tokens) -------------------------------------
+// Clients cannot write device documents (firestore.rules); they register here
+// and the server records the token under the CALLER's account and school.
+
+exports.registerDevice = onCall(callOptions(), async (request) => {
+  const a = signedIn(request);
+  const out = await devices.registerDevice({ db, now: () => new Date() }, a.uid, request.data);
+  if (out.error) fail(out);
+  return out.result;
+});
+
+exports.unregisterDevice = onCall(callOptions(), async (request) => {
+  const a = signedIn(request);
+  const out = await devices.unregisterDevice({ db }, a.uid, request.data);
+  if (out.error) fail(out);
+  return out.result;
+});
+
+// ---- Business events that notify people -----------------------------------
+
+const events = () => ({ db, now: () => new Date() });
+const swallow = (what) => (e) => logger.error(`${what} failed`, { category: errorCategory(e) });
+
+exports.notifyPaymentRecorded = onDocumentCreated(
+  'schools/{schoolId}/branches/{branchId}/payments/{paymentId}',
+  (event) =>
+    notifyEvents
+      .onPaymentRecorded(events(), event.params, event.data && event.data.data())
+      .catch(swallow('payment notice')),
+);
+
+exports.notifyRegisterFinalized = onDocumentWritten(
+  'schools/{schoolId}/branches/{branchId}/attendanceSessions/{sessionId}',
+  (event) =>
+    notifyEvents
+      .onRegisterFinalized(
+        events(),
+        event.params,
+        event.data.before.exists ? event.data.before.data() : undefined,
+        event.data.after.exists ? event.data.after.data() : undefined,
+      )
+      .catch(swallow('attendance notice')),
+);
+
+exports.notifyHolidayWritten = onDocumentWritten(
+  'schools/{schoolId}/branches/{branchId}/holidays/{holidayId}',
+  (event) =>
+    notifyEvents
+      .onHolidayWritten(
+        events(),
+        event.params,
+        event.data.before.exists ? event.data.before.data() : undefined,
+        event.data.after.exists ? event.data.after.data() : undefined,
+      )
+      .catch(swallow('holiday notice')),
+);
+
+// Daily at 08:00 school time (Asia/Kolkata): remind parents of invoices due in
+// 3 days and today. Idempotent, so a re-run sends nothing new.
+exports.feeDueReminders = onSchedule(
+  { schedule: 'every day 08:00', timeZone: 'Asia/Kolkata' },
+  async () => {
+    try {
+      const r = await notifyEvents.runFeeDueReminders(events());
+      logger.info('fee due reminders', r);
+    } catch (e) {
+      logger.error('fee due reminders failed', { category: errorCategory(e) });
+    }
+  },
 );
 
 // Creates sign-in accounts for existing staff / parent records and links them.

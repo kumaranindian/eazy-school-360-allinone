@@ -26,6 +26,11 @@ function fakeDb(seed = {}) {
     id: path.split('/').pop(),
     get: async () => snap(path),
     set: async (d) => void store.set(path, structuredClone(d)),
+    // Like Firestore: fails when the document already exists (atomically).
+    create: async (d) => {
+      if (store.has(path)) throw Object.assign(new Error('Document already exists'), { code: 6 });
+      store.set(path, structuredClone(d));
+    },
     delete: async () => void store.delete(path),
     update: async (d) => {
       if (!store.has(path)) throw new Error(`no doc ${path}`);
@@ -65,12 +70,15 @@ function fakeDb(seed = {}) {
   };
   const group = (name) => {
     const conds = [];
+    let lim = Infinity;
     const q = {
       where: (f, op, v) => (conds.push([f, v]), q),
+      limit: (n) => ((lim = n), q),
       get: async () => ({
         docs: [...store.keys()]
           .filter((k) => k.split('/').slice(-2)[0] === name)
           .filter((k) => conds.every(([f, v]) => getPath(store.get(k), f) === v))
+          .slice(0, lim)
           .map(snap),
       }),
     };

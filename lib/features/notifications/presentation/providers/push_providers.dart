@@ -37,31 +37,30 @@ final pushRegistrationProvider = FutureProvider.autoDispose<void>((ref) async {
   }
 
   try {
-    AppLogger.debug('Push registration: starting...', tag: 'Push');
-    AppLogger.debug('Push enabled: ${prefs.pushEnabled}', tag: 'Push');
-    AppLogger.debug('Platform supported: ${gateway.supported}', tag: 'Push');
-
     if (!prefs.pushEnabled) {
       final token = await gateway.getToken();
-      AppLogger.debug('Push disabled, removing token: $token', tag: 'Push');
       if (token != null) {
         await repo.removeDevice(userId: scope.userId, token: token);
       }
       return;
     }
 
-    AppLogger.debug('Requesting permission...', tag: 'Push');
-    if (!await gateway.requestPermission()) {
-      AppLogger.debug('Permission denied', tag: 'Push');
-      return;
+    await gateway.initialize();
+    var allowed = await gateway.permission() == PushPermission.granted;
+    if (!allowed) {
+      // A browser ignores a prompt that is not the result of a click, and a
+      // refused one cannot be asked again: wait for the user to press
+      // "Enable" (see [enablePushOnThisDevice]).
+      if (gateway.requiresUserGesture ||
+          await gateway.permission() == PushPermission.denied) {
+        return;
+      }
+      allowed = await gateway.requestPermission();
     }
+    if (!allowed) return;
 
-    AppLogger.debug('Permission granted, getting token...', tag: 'Push');
+    // Never log the token: it is a credential for this device's inbox.
     final token = await gateway.getToken();
-    AppLogger.debug(
-      'Token obtained: ${token != null ? "YES (${token.substring(0, 20)}...)" : "NO"}',
-      tag: 'Push',
-    );
 
     if (token != null) await register(token);
     final sub = gateway.onTokenRefresh.listen((t) {
@@ -101,3 +100,19 @@ Future<void> unregisterPushDevice(WidgetRef ref) async {
     AppLogger.error('Push unregister failed', tag: 'Push', error: e);
   }
 }
+
+/// The browser "Enable notifications" button: asks for permission (this must
+/// run from a click) and, if granted, registers the device. Returns the
+/// resulting permission so the page can explain a refusal.
+Future<PushPermission> enablePushOnThisDevice(WidgetRef ref) async {
+  final gateway = ref.read(pushGatewayProvider);
+  await gateway.requestPermission();
+  ref.invalidate(pushRegistrationProvider);
+  return gateway.permission();
+}
+
+/// This device's current permission, for the settings page.
+final pushPermissionProvider = FutureProvider.autoDispose<PushPermission>(
+  (ref) => ref.watch(pushGatewayProvider).permission(),
+  retry: noRetry,
+);

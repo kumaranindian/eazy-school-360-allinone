@@ -145,6 +145,15 @@ abstract final class NotificationNavigator {
         return n.refId == null
             ? AppRoutes.exams
             : AppRoutes.examDetail.replaceFirst(':examId', n.refId!);
+      case 'PAYMENT_RECORDED':
+        return AppRoutes.myFees;
+      case 'FEE_DUE_REMINDER':
+        final inv = n.refId;
+        return inv == null
+            ? AppRoutes.myFees
+            : AppRoutes.myFeesInvoice.replaceFirst(':invoiceId', inv);
+      case 'ATTENDANCE_ABSENT':
+        return AppRoutes.myAttendance;
       default:
         return null;
     }

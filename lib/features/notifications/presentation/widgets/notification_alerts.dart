@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/routing/app_routes.dart';
+import '../../domain/push_route.dart';
 import '../providers/notification_providers.dart';
 import '../providers/push_providers.dart';
 
@@ -23,6 +26,38 @@ class NotificationAlerts extends ConsumerStatefulWidget {
 
 class _NotificationAlertsState extends ConsumerState<NotificationAlerts> {
   Set<String>? _seen;
+  StreamSubscription<Map<String, String>>? _opened;
+
+  @override
+  void initState() {
+    super.initState();
+    // Tapping a push opens the notification centre (never a destination named
+    // by the payload; see [PushRoute]).
+    // Best-effort: a messaging failure must never stop the app from opening.
+    try {
+      final gateway = ref.read(pushGatewayProvider);
+      if (!gateway.supported) return;
+      _opened = gateway.onOpened.listen(_open, onError: (_) {});
+      unawaited(
+        gateway
+            .launchedBy()
+            .then((d) {
+              if (d != null) _open(d);
+            })
+            .catchError((_) {}),
+      );
+    } catch (_) {}
+  }
+
+  void _open(Map<String, String> data) {
+    if (mounted) context.go(PushRoute.resolve(data));
+  }
+
+  @override
+  void dispose() {
+    _opened?.cancel();
+    super.dispose();
+  }
 
   void _onFeed(AsyncValue<FeedState>? _, AsyncValue<FeedState> next) {
     final feed = next.value;

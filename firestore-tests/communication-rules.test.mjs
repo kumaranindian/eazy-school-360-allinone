@@ -339,18 +339,27 @@ test('A user reads and marks read only their own notifications; counts are aggre
   if (after.data().count !== 0) throw new Error('expected 0 unread');
 });
 
-test('Push devices are the user\'s own, with a bounded token document', async () => {
+test('Push devices are written only by the server; the owner can read and delete their own', async () => {
   await seedWorld();
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'users', 'cm-p1', 'devices', 'tok1'), { token: 'x'.repeat(40), platform: 'android', schoolId: A, status: 'ACTIVE' });
+  });
   const dev = (db, uid, id = 'tok1') => doc(db, 'users', uid, 'devices', id);
   const body = (o = {}) => ({ token: 'x'.repeat(40), platform: 'android', updatedAt: serverTimestamp(), ...o });
   const p1 = asUser('cm-p1');
-  await assertSucceeds(setDoc(dev(p1, 'cm-p1'), body()));
+  // No client write, however well-formed: registration goes through the function.
+  await assertFails(setDoc(dev(p1, 'cm-p1', 'new'), body()));
+  await assertFails(setDoc(dev(p1, 'cm-p1'), body()));
+  await assertFails(updateDoc(dev(p1, 'cm-p1'), { status: 'ACTIVE' }));
+  await assertFails(setDoc(dev(asUser('cm-p2'), 'cm-p1', 'x'), body()));
+  // Own registration: readable and removable; another user's is neither.
   await assertSucceeds(getDoc(dev(p1, 'cm-p1')));
   await assertFails(getDoc(dev(asUser('cm-p2'), 'cm-p1')));
-  await assertFails(setDoc(dev(asUser('cm-p2'), 'cm-p1'), body()));
-  await assertFails(setDoc(dev(p1, 'cm-p1', 't2'), body({ platform: 'toaster' })));
-  await assertFails(setDoc(dev(p1, 'cm-p1', 't3'), body({ extra: 1 })));
-  await assertFails(setDoc(dev(p1, 'cm-p1', 't4'), body({ token: 'short' })));
+  await assertFails(deleteDoc(dev(asUser('cm-p2'), 'cm-p1')));
+  await assertSucceeds(deleteDoc(dev(p1, 'cm-p1')));
+  // The delivery log is server-only.
+  await assertFails(getDoc(doc(p1, 'pushDeliveries', 'evt')));
+  await assertFails(setDoc(doc(p1, 'pushDeliveries', 'evt'), { status: 'SENT' }));
 });
 
 test('Preferences and read lists are the user\'s own, validated, and critical notices cannot be muted', async () => {

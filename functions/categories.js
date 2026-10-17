@@ -8,7 +8,7 @@ function categoryFor(type) {
   if (t.startsWith('LEAVE_')) return 'LEAVE';
   if (t === 'TIMETABLE_PUBLISHED' || t.startsWith('SUBSTITUTION_')) return 'TIMETABLE';
   if (t.startsWith('HOMEWORK_')) return 'HOMEWORK';
-  if (t.startsWith('ANNOUNCEMENT_')) return 'ANNOUNCEMENT';
+  if (t.startsWith('ANNOUNCEMENT_') || t.startsWith('HOLIDAY_')) return 'ANNOUNCEMENT';
   if (t === 'RESULT_PUBLISHED') return 'RESULTS';
   if (t === 'MESSAGE_RECEIVED') return 'MESSAGES';
   if (t.startsWith('ATTENDANCE_')) return 'ATTENDANCE';

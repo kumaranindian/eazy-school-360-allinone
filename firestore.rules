@@ -4032,16 +4032,14 @@ service cloud.firestore {
     }
 
     // Push devices: one document per device under the user's own id, holding
-    // the FCM token. Only the owner may read or write it; the Cloud Function
-    // that sends push reads it with admin credentials.
+    // the FCM token. They are WRITTEN only by the registerDevice Cloud Function
+    // (admin credentials), which records the caller's own school and moves a
+    // token off any other account; a client could otherwise register a token
+    // for any school or keep one that now belongs to someone else. The owner
+    // may read their registrations and delete one (sign-out cleanup).
     match /users/{userId}/devices/{deviceId} {
       allow read, delete: if isSignedIn() && request.auth.uid == userId;
-      allow create, update: if isSignedIn() && request.auth.uid == userId
-        && nd().keys().hasOnly(['token', 'platform', 'updatedAt'])
-        && nd().token is string
-        && nd().token.size() > 20 && nd().token.size() <= 4096
-        && nd().platform in ['android', 'ios', 'web']
-        && nd().updatedAt == request.time;
+      allow create, update: if false;
     }
 
     // Roster queries (Milestone 5): "who was enrolled in this section", across

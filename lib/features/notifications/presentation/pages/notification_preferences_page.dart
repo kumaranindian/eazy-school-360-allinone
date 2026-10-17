@@ -8,6 +8,7 @@ import '../../../homework/presentation/widgets/homework_widgets.dart';
 import '../../domain/notification_category.dart';
 import '../../domain/notification_preferences.dart';
 import '../providers/notification_providers.dart';
+import '../../domain/push_gateway.dart';
 import '../providers/push_providers.dart';
 
 /// `/notifications/preferences` — which categories appear in the centre.
@@ -104,7 +105,7 @@ class _NotificationPreferencesPageState
                           ref.watch(pushGatewayProvider).supported
                               ? 'Alerts on this device, even when the app '
                                     'is closed.'
-                              : 'Available in the Android and iOS apps.',
+                              : 'Not available in this build.',
                         ),
                         value: p.pushEnabled,
                         onChanged:
@@ -112,6 +113,15 @@ class _NotificationPreferencesPageState
                             ? (v) => _save(p, p.withPush(v))
                             : null,
                       ),
+                      if (ref.watch(pushGatewayProvider).requiresUserGesture &&
+                          ref.watch(pushGatewayProvider).supported)
+                        _BrowserPermissionTile(
+                          permission: ref.watch(pushPermissionProvider).value,
+                          onEnable: () async {
+                            await enablePushOnThisDevice(ref);
+                            ref.invalidate(pushPermissionProvider);
+                          },
+                        ),
                       const ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: Icon(Icons.mail_outline),
@@ -158,6 +168,43 @@ class _NotificationPreferencesPageState
           );
         },
       ),
+    );
+  }
+}
+
+/// Browser notification permission: asks only on a click, and explains a
+/// refusal (which only the browser's site settings can undo).
+class _BrowserPermissionTile extends StatelessWidget {
+  final PushPermission? permission;
+  final Future<void> Function() onEnable;
+
+  const _BrowserPermissionTile({
+    required this.permission,
+    required this.onEnable,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final granted = permission == PushPermission.granted;
+    final denied = permission == PushPermission.denied;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.language),
+      title: const Text('This browser'),
+      subtitle: Text(
+        granted
+            ? 'Notifications are allowed in this browser.'
+            : denied
+            ? 'Blocked. Allow notifications for this site in your browser '
+                  'settings, then reload.'
+            : 'Allow this browser to show notifications.',
+      ),
+      trailing: granted || denied
+          ? null
+          : FilledButton.tonal(
+              onPressed: onEnable,
+              child: const Text('Enable'),
+            ),
     );
   }
 }

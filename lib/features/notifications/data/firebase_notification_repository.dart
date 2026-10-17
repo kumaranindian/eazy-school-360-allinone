@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
+import '../../../core/config/functions_region.dart';
 import '../../../core/constants/firestore_fields.dart';
 import '../../../core/errors/error_mapper.dart';
 import '../domain/feed_item.dart';
@@ -8,8 +10,12 @@ import '../domain/notification_repository.dart';
 
 class FirebaseNotificationRepository implements NotificationRepository {
   final FirebaseFirestore _firestore;
+  final FirebaseFunctions Function() _functions;
 
-  FirebaseNotificationRepository(this._firestore);
+  FirebaseNotificationRepository(
+    this._firestore, [
+    FirebaseFunctions Function()? functions,
+  ]) : _functions = functions ?? appFunctions;
 
   CollectionReference<Map<String, dynamic>> _notifications(
     String s,
@@ -219,15 +225,9 @@ class FirebaseNotificationRepository implements NotificationRepository {
     }
   }
 
-  /// Token-derived id: FCM tokens are URL-safe, but may contain `:`.
-  String _deviceId(String token) => token.replaceAll(':', '_');
-
-  CollectionReference<Map<String, dynamic>> _devices(String userId) =>
-      _firestore
-          .collection(FirestoreFields.usersCollection)
-          .doc(userId)
-          .collection('devices');
-
+  // Devices are registered by the registerDevice Cloud Function, never written
+  // from the client: the server records the token under the caller's own
+  // school and moves it off any other account that held it.
   @override
   Future<void> saveDevice({
     required String userId,
@@ -235,10 +235,9 @@ class FirebaseNotificationRepository implements NotificationRepository {
     required String platform,
   }) async {
     try {
-      await _devices(userId).doc(_deviceId(token)).set({
+      await _functions().httpsCallable('registerDevice').call({
         'token': token,
         'platform': platform,
-        FirestoreFields.updatedAt: FieldValue.serverTimestamp(),
       });
     } catch (error, stackTrace) {
       throw mapExceptionToFailure(error, stackTrace);
@@ -251,7 +250,9 @@ class FirebaseNotificationRepository implements NotificationRepository {
     required String token,
   }) async {
     try {
-      await _devices(userId).doc(_deviceId(token)).delete();
+      await _functions().httpsCallable('unregisterDevice').call({
+        'token': token,
+      });
     } catch (error, stackTrace) {
       throw mapExceptionToFailure(error, stackTrace);
     }
