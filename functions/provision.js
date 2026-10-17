@@ -318,4 +318,4 @@ async function provisionLogins({ db, auth, now }, callerUid, data, token) {
   return { results };
 }
 
-module.exports = { provisionLogins, ensureAuthUser, enablePortalLinks, MAX_BATCH };
+module.exports = { provisionLogins, ensureAuthUser, enablePortalLinks, refreshParentAccess, MAX_BATCH };

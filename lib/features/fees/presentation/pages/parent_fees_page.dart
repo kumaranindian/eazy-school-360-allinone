@@ -14,6 +14,8 @@ import '../../../../shared/error/error_view.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../../students/domain/student.dart';
 import '../../../students/presentation/providers/parent_providers.dart';
+import '../../../students/presentation/providers/student_providers.dart'
+    show parentAccessEnsuredProvider;
 import '../../domain/fee_dates.dart';
 import '../../domain/fee_enums.dart';
 import '../../domain/fee_planners.dart';
@@ -29,7 +31,11 @@ import 'receipt_page.dart';
 /// (an ACTIVE, portal-enabled link). Which records are readable is decided by
 /// `firestore.rules`, not by this list.
 final linkedChildrenProvider = FutureProvider.autoDispose
-    .family<List<Student>, ({String schoolId, String parentId})>((ref, key) {
+    .family<List<Student>, ({String schoolId, String parentId})>((
+      ref,
+      key,
+    ) async {
+      await ref.watch(parentAccessEnsuredProvider(key.parentId).future);
       return ref
           .watch(parentRepositoryProvider)
           .getChildrenForParent(schoolId: key.schoolId, parentId: key.parentId);

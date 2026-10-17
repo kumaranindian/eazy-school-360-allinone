@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../users/presentation/providers/user_providers.dart';
 import '../../data/firebase_student_repository.dart';
+import '../../data/parent_access_repair.dart';
 import '../../data/parent_access_sync.dart';
 import '../../domain/academic_record_status.dart';
 import '../../domain/parent_student_link.dart';
@@ -16,6 +17,19 @@ import 'student_keys.dart';
 /// `ParentAccessSync`). Overridable in tests.
 final parentAccessSyncProvider = Provider<ParentAccessSync>(
   (ref) => ParentAccessSync(ref.watch(firestoreProvider)),
+);
+
+/// Self-heal for the signed-in parent's own access index. Overridable in tests.
+final parentAccessRepairProvider = Provider<ParentAccessRepair>(
+  (ref) => ParentAccessRepair(),
+  retry: (retryCount, error) => null,
+);
+
+/// Runs once per parent per session, before their children are loaded, so the
+/// screens that depend on the index never race the repair.
+final parentAccessEnsuredProvider = FutureProvider.family<void, String>(
+  (ref, parentId) => ref.read(parentAccessRepairProvider).ensure(),
+  retry: (retryCount, error) => null,
 );
 
 final studentRepositoryProvider = Provider<StudentRepository>((ref) {

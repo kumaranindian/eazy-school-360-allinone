@@ -17,6 +17,7 @@ const { provisionLogins, ensureAuthUser, enablePortalLinks } = require('./provis
 const access = require('./access');
 const { diagnoseAccess } = require('./diagnose');
 const teacherAccess = require('./teacher_access');
+const parentAccess = require('./parent_access');
 const branchAccess = require('./branch_access');
 const { requestOtp, verifyOtp } = require('./otp');
 const { createWhatsAppSender } = require('./whatsapp');
@@ -271,6 +272,65 @@ exports.refreshTeacherAccess = onCall(callOptions(), async (request) => {
   if (!caller) fail({ error: 'PERMISSION_DENIED' });
   const out = await teacherAccess.refreshBranchAccess(accessCtx(), schoolId, branchId);
   logger.info('refreshTeacherAccess', { by: a.uid, ...out });
+  return out;
+});
+
+// ---- parentAccess index (see parent_access.js) -----------------------------
+// Rebuilt when a parent link or a child's placement/status changes, so a
+// family's class-level screens never depend on someone remembering to refresh.
+
+exports.parentLinkChanged = onDocumentWritten(
+  'schools/{schoolId}/branches/{branchId}/students/{studentId}/parentLinks/{parentId}',
+  async (event) => {
+    const { schoolId, branchId, parentId } = event.params;
+    const before = event.data && event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data && event.data.after.exists ? event.data.after.data() : null;
+    if (!parentAccess.linkChanged(before, after)) return;
+    try {
+      await parentAccess.refreshParents(accessCtx(), schoolId, branchId, [parentId, before && before.parentId, after && after.parentId]);
+    } catch (e) {
+      logger.error('parentAccess refresh failed', { schoolId, branchId, parentId, error: String(e) });
+      throw e; // let the platform retry
+    }
+  },
+);
+
+exports.parentStudentChanged = onDocumentWritten(
+  'schools/{schoolId}/branches/{branchId}/students/{studentId}',
+  async (event) => {
+    const { schoolId, branchId, studentId } = event.params;
+    const before = event.data && event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data && event.data.after.exists ? event.data.after.data() : null;
+    if (!parentAccess.placementChanged(before, after)) return;
+    try {
+      await parentAccess.refreshFamiliesOfStudent(accessCtx(), schoolId, branchId, studentId);
+    } catch (e) {
+      logger.error('parentAccess refresh failed', { schoolId, branchId, studentId, error: String(e) });
+      throw e;
+    }
+  },
+);
+
+// Backfill / repair: rebuilds every family's index in a branch. Run once after
+// deploying, for parents whose index was never built.
+exports.refreshParentAccess = onCall(callOptions(), async (request) => {
+  const a = signedIn(request);
+  const { schoolId, branchId } = request.data || {};
+  if ([schoolId, branchId].some((v) => typeof v !== 'string' || !v)) fail({ error: 'INVALID_ARGUMENT' });
+  const caller = await access.assertAdmin(db, a.uid, schoolId, branchId, a.token);
+  if (!caller) fail({ error: 'PERMISSION_DENIED' });
+  const out = await parentAccess.refreshBranchParents(accessCtx(), schoolId, branchId);
+  logger.info('refreshParentAccess', { by: a.uid, ...out });
+  return out;
+});
+
+// A parent's own screens (leave for a child, results, homework, timetable) are
+// authorised by their parentAccess index. The app calls this when it finds the
+// index missing, so a family is never locked out waiting for an admin.
+exports.refreshMyParentAccess = onCall(callOptions(), async (request) => {
+  const a = signedIn(request);
+  const out = await parentAccess.refreshOwnFamily(accessCtx(), a.uid);
+  if (out.error) fail(out);
   return out;
 });
 
