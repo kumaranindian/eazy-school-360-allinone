@@ -34,7 +34,7 @@ None confirmed.
 | ACAD-2 | Admission-number uniqueness is check-then-write | 2 | ✔ code+rules+tests; ⚑ run `tool/backfill_admission_numbers.js` (dry-run first) on existing data |
 | ACAD-3 | Marks save partial failure; retry impossible | 2 | ✔ |
 | ACAD-4 | `approvedSheets` read-modify-write outside transaction | 2 | ✔ |
-| ACAD-7 | In-branch student transfer not transactional | 2 | ☐ |
+| ACAD-7 | In-branch student transfer not transactional | 2 | ✔ (transaction + precondition; atomicity itself is Firestore's) |
 | ACAD-9 | Attendance rules trust client section/date | 2 | ☐ |
 | NOTIF-2 | Disabled-login users still pushed / can register devices | 2 | ✔ |
 | NOTIF-4 | Push recipients silently truncated at 2000 | 1 | ✔ |

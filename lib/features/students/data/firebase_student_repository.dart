@@ -10,6 +10,7 @@ import '../../../core/errors/error_mapper.dart';
 import '../domain/academic_record_status.dart';
 import '../domain/paged_result.dart';
 import '../domain/parent_student_link.dart';
+import '../domain/placement_precondition.dart';
 import '../domain/relationship_type.dart';
 import '../domain/student.dart';
 import '../domain/student_academic_record.dart';
@@ -635,6 +636,8 @@ class FirebaseStudentRepository implements StudentRepository {
       );
 
       final now = DateTime.now();
+      final studentRef = _studentDoc(schoolId, branchId, studentId);
+      final planned = PlacementPrecondition.of((await studentRef.get()).data());
       final activeRecords =
           await _academicRecordsCollection(schoolId, branchId, studentId)
               .where(
@@ -642,25 +645,6 @@ class FirebaseStudentRepository implements StudentRepository {
                 isEqualTo: AcademicRecordStatus.active.wireValue,
               )
               .get();
-
-      final batch = _firestore.batch();
-      for (final doc in activeRecords.docs) {
-        batch.update(
-          doc.reference,
-          StudentAcademicRecord.fromFirestore(
-            schoolId,
-            branchId,
-            studentId,
-            doc.id,
-            doc.data(),
-          ).toFirestoreClose(
-            status: closeOldRecordAs,
-            endDate: now,
-            updatedBy: updatedBy,
-          ),
-        );
-      }
-
       final newRecordRef = _academicRecordsCollection(
         schoolId,
         branchId,
@@ -678,21 +662,54 @@ class FirebaseStudentRepository implements StudentRepository {
         startDate: now,
         status: AcademicRecordStatus.active,
       );
-      batch.set(
-        newRecordRef,
-        newRecord.toFirestoreCreate(createdBy: updatedBy),
-      );
 
-      batch.update(_studentDoc(schoolId, branchId, studentId), {
-        'currentAcademicYearId': newAcademicYearId,
-        'currentClassId': newClassId,
-        'currentSectionId': newSectionId,
-        'currentRollNumber': newRollNumber,
-        FirestoreFields.updatedAt: FieldValue.serverTimestamp(),
-        FirestoreFields.updatedBy: updatedBy,
+      // One transaction (ACAD-7): it re-reads the student and the records it
+      // is about to close. If a concurrent change got there first, the
+      // student document has moved on and nothing is written.
+      await _firestore.runTransaction((tx) async {
+        final current = PlacementPrecondition.of(
+          (await tx.get(studentRef)).data(),
+        );
+        if (!planned.holdsFor(current)) {
+          throw const ConflictFailure(
+            'This student was just moved or edited by someone else. Reload '
+            'to see the latest placement and try again.',
+          );
+        }
+        final open = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+        for (final doc in activeRecords.docs) {
+          final fresh = await tx.get(doc.reference);
+          if (fresh.data()?[FirestoreFields.status] ==
+              AcademicRecordStatus.active.wireValue) {
+            open.add(doc);
+          }
+        }
+        for (final doc in open) {
+          tx.update(
+            doc.reference,
+            StudentAcademicRecord.fromFirestore(
+              schoolId,
+              branchId,
+              studentId,
+              doc.id,
+              doc.data(),
+            ).toFirestoreClose(
+              status: closeOldRecordAs,
+              endDate: now,
+              updatedBy: updatedBy,
+            ),
+          );
+        }
+        tx.set(newRecordRef, newRecord.toFirestoreCreate(createdBy: updatedBy));
+        tx.update(studentRef, {
+          'currentAcademicYearId': newAcademicYearId,
+          'currentClassId': newClassId,
+          'currentSectionId': newSectionId,
+          'currentRollNumber': newRollNumber,
+          FirestoreFields.updatedAt: FieldValue.serverTimestamp(),
+          FirestoreFields.updatedBy: updatedBy,
+        });
       });
-
-      await batch.commit();
       await _refreshFamilies(schoolId, branchId, studentId, updatedBy);
     } catch (error, stackTrace) {
       throw mapExceptionToFailure(error, stackTrace);
