@@ -13,6 +13,7 @@ import '../../../../shared/error/error_view.dart';
 import '../../../homework/presentation/providers/homework_providers.dart';
 import '../../../homework/presentation/widgets/homework_widgets.dart';
 import '../../domain/announcement.dart';
+import '../widgets/announcement_attachments.dart';
 import '../widgets/current_announcements_card.dart';
 
 /// `/announcements/detail/:announcementId?branchId=…`
@@ -129,7 +130,7 @@ class _AnnouncementDetailPageState
                     SelectableText(a.body),
                     if (a.attachments.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.md),
-                      AttachmentList(attachments: a.attachments),
+                      AnnouncementAttachmentsView(attachments: a.attachments),
                     ],
                     if (a.expiresAt != null) ...[
                       const SizedBox(height: AppSpacing.md),

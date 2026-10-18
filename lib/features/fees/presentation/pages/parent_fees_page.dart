@@ -72,7 +72,8 @@ final _childFeesProvider = FutureProvider.autoDispose
     });
 
 /// `/my-fees` — a parent's read-only view of their linked children's fees,
-/// invoices, payments and receipts. There is no online payment here.
+/// invoices, payments and receipts. There is no online payment yet: open
+/// invoices show a "Pay online — Coming soon" entry.
 class ParentFeesPage extends ConsumerStatefulWidget {
   const ParentFeesPage({super.key});
 
@@ -287,15 +288,30 @@ class _Child extends ConsumerWidget {
               ),
             for (final i in invoices)
               Card(
-                child: ListTile(
-                  title: Text('${i.invoiceNumber} · ${i.periodLabel}'),
-                  subtitle: Text(
-                    'Due ${FeeDates.display(i.dueDateKey)} · Balance ${Money.format(i.balanceMinor, currency: i.currency)} of ${Money.format(i.payableMinor, currency: i.currency)}',
-                  ),
-                  trailing: InvoiceStatusChip(invoice: i, todayKey: today),
-                  onTap: () => context.push(
-                    '/my-fees/invoices/${i.invoiceId}?b=${i.branchId}',
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ListTile(
+                      title: Text('${i.invoiceNumber} · ${i.periodLabel}'),
+                      subtitle: Text(
+                        'Due ${FeeDates.display(i.dueDateKey)} · Balance ${Money.format(i.balanceMinor, currency: i.currency)} of ${Money.format(i.payableMinor, currency: i.currency)}',
+                      ),
+                      trailing: InvoiceStatusChip(invoice: i, todayKey: today),
+                      onTap: () => context.push(
+                        '/my-fees/invoices/${i.invoiceId}?b=${i.branchId}',
+                      ),
+                    ),
+                    if (invoiceAwaitsPayment(i))
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          AppSpacing.md,
+                          0,
+                          AppSpacing.md,
+                          AppSpacing.sm,
+                        ),
+                        child: PayOnlineComingSoon(),
+                      ),
+                  ],
                 ),
               ),
             const SizedBox(height: AppSpacing.md),

@@ -180,6 +180,71 @@ void main() {
       });
     }
 
+    for (final (name, size, scale) in _sizes) {
+      testWidgets('reset password dialog lays out on $name', (tester) async {
+        await _pump(tester, home: _opener(), size: size, textScale: scale);
+        await _open(tester);
+        await tester.ensureVisible(find.text('Reset password…'));
+        await tester.tap(find.text('Reset password…'));
+        await tester.pumpAndSettle();
+        expect(find.text('Name + mobile number'), findsOneWidget);
+        await tester.ensureVisible(find.text('One password set by you'));
+        await tester.tap(find.text('One password set by you'));
+        await tester.pumpAndSettle();
+        expect(find.text('Temporary password'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets(
+      'reset password: random temp is shown once; typed one is validated',
+      (tester) async {
+        final repo = FakeLoginAccessRepository(access: _access());
+        await _pump(tester, home: _opener(), repo: repo);
+        await _open(tester);
+        await tester.ensureVisible(find.text('Reset password…'));
+        await tester.tap(find.text('Reset password…'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('One password set by you'));
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<FilledButton>(
+                find.widgetWithText(FilledButton, 'Reset password'),
+              )
+              .onPressed,
+          isNull,
+          reason: 'an empty admin password cannot be sent',
+        );
+
+        await tester.tap(find.text('Random temporary password'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'Reset password'));
+        await tester.pumpAndSettle();
+        expect(repo.resets.single.option, PasswordSetupOption.randomTemp);
+        expect(find.text('Temp1234Pass'), findsOneWidget);
+      },
+    );
+
+    testWidgets('reset password: link option sends the email, not the server', (
+      tester,
+    ) async {
+      final repo = FakeLoginAccessRepository(access: _access());
+      await _pump(tester, home: _opener(), repo: repo);
+      await _open(tester);
+      await tester.ensureVisible(find.text('Reset password…'));
+      await tester.tap(find.text('Reset password…'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Send email'));
+      await tester.pumpAndSettle();
+      expect(repo.resets, isEmpty);
+      expect(
+        find.textContaining('set-password email was sent'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('shows only what the school allows and why others are off', (
       tester,
     ) async {

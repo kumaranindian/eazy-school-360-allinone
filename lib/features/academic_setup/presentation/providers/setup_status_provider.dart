@@ -14,17 +14,16 @@ import 'calendar_providers.dart';
 /// it can never silently go stale.
 final setupStatusProvider = FutureProvider.autoDispose
     .family<SetupStatus, BranchKey>((ref, key) async {
+      // Watch the live streams (not one-shot reads) so the checklist
+      // updates the moment a profile, branch, year, class, section,
+      // subject or holiday is saved — no manual refresh.
       final school = await ref
           .watch(schoolRepositoryProvider)
           .getSchool(key.schoolId);
-      final branches = await ref
-          .watch(schoolRepositoryProvider)
-          .watchBranches(key.schoolId)
-          .first;
-      final years = await ref
-          .watch(academicStructureRepositoryProvider)
-          .watchAcademicYears(key.schoolId, key.branchId)
-          .first;
+      final branches = await ref.watch(
+        branchesStreamProvider(key.schoolId).future,
+      );
+      final years = await ref.watch(academicYearsProvider(key).future);
 
       var hasAnyClass = false;
       var hasAnySection = false;
@@ -41,50 +40,28 @@ final setupStatusProvider = FutureProvider.autoDispose
           academicYearId: currentYear.academicYearId,
         );
 
-        final classes = await ref
-            .watch(academicStructureRepositoryProvider)
-            .watchClasses(
-              yearKey.schoolId,
-              yearKey.branchId,
-              yearKey.academicYearId,
-            )
-            .first;
+        final classes = await ref.watch(classesProvider(yearKey).future);
         hasAnyClass = classes.isNotEmpty;
 
         for (final schoolClass in classes) {
-          final sections = await ref
-              .watch(academicStructureRepositoryProvider)
-              .watchSections(
-                key.schoolId,
-                key.branchId,
-                currentYear.academicYearId,
-                schoolClass.classId,
-              )
-              .first;
+          final sections = await ref.watch(
+            sectionsProvider((
+              schoolId: key.schoolId,
+              branchId: key.branchId,
+              academicYearId: currentYear.academicYearId,
+              classId: schoolClass.classId,
+            )).future,
+          );
           if (sections.isNotEmpty) {
             hasAnySection = true;
             break;
           }
         }
 
-        final subjects = await ref
-            .watch(academicStructureRepositoryProvider)
-            .watchSubjects(
-              yearKey.schoolId,
-              yearKey.branchId,
-              yearKey.academicYearId,
-            )
-            .first;
+        final subjects = await ref.watch(subjectsProvider(yearKey).future);
         hasAnySubject = subjects.isNotEmpty;
 
-        final holidays = await ref
-            .watch(calendarRepositoryProvider)
-            .watchHolidays(
-              key.schoolId,
-              key.branchId,
-              currentYear.academicYearId,
-            )
-            .first;
+        final holidays = await ref.watch(holidaysProvider(yearKey).future);
         hasAnyHoliday = holidays.isNotEmpty;
       }
 

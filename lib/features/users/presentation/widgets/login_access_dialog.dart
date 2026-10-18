@@ -13,6 +13,7 @@ import '../../domain/login_access.dart';
 import '../../domain/login_provisioning.dart';
 import '../providers/login_access_providers.dart';
 import 'branch_access_section.dart';
+import 'reset_password_dialog.dart';
 
 /// Opens the per-person Login Access manager (the key icon on staff and
 /// parent lists and profiles). Resolves to true when something changed.
@@ -301,6 +302,22 @@ class _LoginAccessDialogState extends ConsumerState<LoginAccessDialog> {
     }
   }
 
+  Future<void> _resetPassword(LoginAccess a) async {
+    final done = await showResetPasswordDialog(
+      context: context,
+      schoolId: widget.schoolId,
+      branchId: widget.branchId,
+      kind: widget.kind,
+      id: widget.id,
+      name: a.name.isNotEmpty ? a.name : (widget.fallbackName ?? 'this person'),
+      email: a.registeredEmail,
+    );
+    if (done == true && mounted) {
+      _changed = true;
+      await _load();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -471,6 +488,12 @@ class _LoginAccessDialogState extends ConsumerState<LoginAccessDialog> {
                         ? 'Send password reset email'
                         : 'Send password setup email',
                   ),
+                ),
+              if (a.effective.contains(LoginMethod.password))
+                OutlinedButton.icon(
+                  onPressed: _saving ? null : () => _resetPassword(a),
+                  icon: const Icon(Icons.lock_reset),
+                  label: const Text('Reset password…'),
                 ),
               OutlinedButton.icon(
                 onPressed: _saving || _checking ? null : _check,

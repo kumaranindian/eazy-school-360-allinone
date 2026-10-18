@@ -176,6 +176,47 @@ void main() {
     );
 
     test(
+      'a school admin may act in any branch of the school, not other schools',
+      () async {
+        final c = container(_profile(role: UserRole.schoolAdmin));
+        c.listen(tenantContextProvider, (_, __) {});
+        var t = (await c.read(tenantContextProvider.future))!;
+        expect(t.branch?.branchId, 'north');
+        await c.read(tenantContextProvider.notifier).switchBranch('south');
+        t = c.read(tenantContextProvider).value!;
+        expect(t.role, UserRole.schoolAdmin);
+        expect(t.branch?.branchId, 'south');
+        // A branch that does not exist in the school is ignored.
+        await c.read(tenantContextProvider.notifier).switchBranch('elsewhere');
+        expect(c.read(tenantContextProvider).value!.branch?.branchId, 'south');
+      },
+    );
+
+    test(
+      'a school admin with no home branch starts in the first branch',
+      () async {
+        final c = container(
+          _profile(role: UserRole.schoolAdmin, branchId: null),
+        );
+        c.listen(tenantContextProvider, (_, __) {});
+        final t = (await c.read(tenantContextProvider.future))!;
+        expect(t.branch?.branchId, isNotNull);
+        expect(t.user.branchId, t.branch?.branchId);
+      },
+    );
+
+    test(
+      'a teacher still cannot switch into a branch they have no role in',
+      () async {
+        final c = container(_profile());
+        c.listen(tenantContextProvider, (_, __) {});
+        await c.read(tenantContextProvider.future);
+        await c.read(tenantContextProvider.notifier).switchBranch('south');
+        expect(c.read(tenantContextProvider).value!.branch?.branchId, 'north');
+      },
+    );
+
+    test(
       'STATE-6: a late branch lookup cannot overwrite a newer state',
       () async {
         final slow = Completer<void>();

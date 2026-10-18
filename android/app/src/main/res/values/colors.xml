@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand blue (AppColors.primary): tints the small notification icon. -->
+    <color name="notification_accent">#0A6BD9</color>
+</resources>

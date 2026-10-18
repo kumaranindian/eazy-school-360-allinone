@@ -194,6 +194,10 @@ class _Detail extends ConsumerWidget {
             ),
           ),
         const SizedBox(height: AppSpacing.md),
+        if (parentView && invoiceAwaitsPayment(invoice)) ...[
+          const PayOnlineComingSoon(),
+          const SizedBox(height: AppSpacing.md),
+        ],
         Wrap(
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.sm,

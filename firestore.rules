@@ -1108,7 +1108,8 @@ service cloud.firestore {
           // edit a draft
           (before.status == 'DRAFT' && after.status == 'DRAFT' && after.lastEvent == 'EDITED'
             && diff.hasOnly(['title', 'body', 'attachments', 'publishAt', 'expiresAt', 'revision',
-                             'lastEvent', 'updatedAt', 'updatedBy']))
+                             'lastEvent', 'updatedAt', 'updatedBy'])
+            && after.attachments is list && after.attachments.size() <= 10)
           ||
           // publish: still addressed within the author's authority, the
           // notice is written with it, and a stored expiry follows the start
@@ -1127,6 +1128,7 @@ service cloud.firestore {
           (before.status == 'PUBLISHED' && after.status == 'PUBLISHED' && after.lastEvent == 'UPDATED'
             && diff.hasOnly(['title', 'body', 'attachments', 'expiresAt', 'revision', 'lastEvent',
                              'updatedAt', 'updatedBy'])
+            && after.attachments is list && after.attachments.size() <= 10
             && after.title is string && after.title.size() >= 3
             && after.body is string && after.body.size() >= 1)
           ||
@@ -3633,7 +3635,7 @@ service cloud.firestore {
             && nd().title.size() >= 3 && nd().title.size() <= 120
             && nd().body is string
             && nd().body.size() >= 1 && nd().body.size() <= 4000
-            && nd().attachments is list && nd().attachments.size() <= 5
+            && nd().attachments is list && nd().attachments.size() <= 10
             && canAddressAudience(schoolId, branchId, nd())
             && announcementHistoryOk(schoolId, branchId, announcementId, nd());
 

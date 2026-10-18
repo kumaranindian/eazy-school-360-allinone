@@ -9,6 +9,7 @@ abstract final class AppRoutes {
   static const String register = '/register';
   static const String forgotPassword = '/forgot-password';
   static const String accountInactive = '/account-inactive';
+  static const String changePassword = '/change-password';
   static const String createSchool = '/create-school';
   static const String dashboard = '/dashboard';
   static const String school = '/school';

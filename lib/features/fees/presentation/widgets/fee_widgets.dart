@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 
+import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../shared/layouts/hub_layout.dart' show HubBadge;
 import '../../domain/fee_dates.dart';
 import '../../domain/fee_enums.dart';
 import '../../domain/invoice.dart';
@@ -36,6 +38,40 @@ class InvoiceStatusChip extends StatelessWidget {
       ),
       visualDensity: VisualDensity.compact,
       side: BorderSide(color: color.withValues(alpha: 0.5)),
+    );
+  }
+}
+
+/// Whether a parent could pay [invoice] online once that exists: issued or
+/// partly paid, with a balance left.
+bool invoiceAwaitsPayment(Invoice invoice) =>
+    invoice.status.isOpen && invoice.balanceMinor > 0;
+
+/// The parent's online-payment entry on an invoice that still has a balance:
+/// shown dimmed with a "Coming soon" badge; tapping only says so. There is no
+/// online payment yet — fees are paid at the school and recorded by staff.
+class PayOnlineComingSoon extends StatelessWidget {
+  const PayOnlineComingSoon({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.xs,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        OutlinedButton.icon(
+          onPressed: () =>
+              context.showSnackBar('Online fee payment is coming soon.'),
+          icon: const Icon(Icons.payments_outlined),
+          label: const Text('Pay online'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: scheme.onSurfaceVariant,
+          ),
+        ),
+        const HubBadge(label: 'Coming soon', icon: Icons.hourglass_top),
+      ],
     );
   }
 }

@@ -16,7 +16,7 @@ const devices = require('./devices');
 const notifyEvents = require('./notify_events');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret, defineString } = require('firebase-functions/params');
-const { provisionLogins, ensureAuthUser, enablePortalLinks } = require('./provision');
+const { provisionLogins, changeInitialPassword, resetLoginPassword, ensureAuthUser, enablePortalLinks } = require('./provision');
 const access = require('./access');
 const { diagnoseAccess } = require('./diagnose');
 const teacherAccess = require('./teacher_access');
@@ -172,8 +172,46 @@ exports.provisionLogins = onCall(callOptions(), async (request) => {
     kind: request.data.kind,
     created: out.results.filter((r) => r.outcome === 'CREATED').length,
     total: out.results.length,
+    // Per-record outcomes only (ids and flags, never emails or passwords) so a
+    // parent who "has a login but cannot sign in" can be traced.
+    outcomes: out.results.map((r) => ({
+      id: r.id,
+      outcome: r.outcome,
+      newAccount: r.newAccount === true,
+      mapped: r.mapped === true,
+      passwordSet: r.passwordSet === true,
+    })),
   });
   return out;
+});
+
+// First sign-in after an admin-set / derived password: the person replaces it.
+// Allowed only while their profile is flagged; nothing about the password is logged.
+exports.changeInitialPassword = onCall(callOptions(), async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const out = await changeInitialPassword(
+    { db, auth: getAuth(), now: FieldValue.serverTimestamp() },
+    request.auth.uid,
+    request.data,
+  );
+  if (out.error === 'NOT_REQUIRED') throw new HttpsError('failed-precondition', 'NOT_REQUIRED');
+  if (out.error) throw new HttpsError('invalid-argument', 'Invalid request.');
+  logger.info('changeInitialPassword', { by: request.auth.uid });
+  return { ok: true };
+});
+
+// Admin sets a new password for an existing staff / parent login (same
+// options as when creating logins). Nothing about the password is logged.
+exports.resetLoginPassword = onCall(callOptions(), async (request) => {
+  const a = signedIn(request);
+  const out = await resetLoginPassword({ db, auth: getAuth(), now: FieldValue.serverTimestamp() }, a.uid, request.data, a.token);
+  if (out.error) fail(out);
+  logger.info('resetLoginPassword', {
+    by: a.uid,
+    kind: request.data.kind,
+    count: Array.isArray(request.data.ids) ? request.data.ids.length : 1,
+  });
+  return out.result;
 });
 
 // ---- Authentication & login access management -----------------------------

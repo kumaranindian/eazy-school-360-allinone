@@ -566,6 +566,25 @@ test('Announcements: who may address which audience', async () => {
   await assertFails(createAnn(asUser('hw-admin'), 'hw-admin', { id: 'nohist', kind: 'ALL', skipHistory: true }).commit());
 });
 
+test('Announcements: up to 10 attachments on create and on edit, 11 refused', async () => {
+  await seedWorld();
+  const admin = asUser('hw-admin');
+  const files = (n) => Array.from({ length: n }, (_, i) => ({
+    path: `schools/${A}/branches/${NORTH}/announcements/ac1/files/att_${i}.pdf`, name: `f${i}.pdf`, contentType: 'application/pdf',
+    sizeBytes: 10, uploadedBy: 'hw-admin', uploadedAt: null,
+  }));
+  await assertFails(createAnn(admin, 'hw-admin', { id: 'ac0', kind: 'ALL', overrides: { attachments: files(11) } }).commit());
+  await assertSucceeds(createAnn(admin, 'hw-admin', { id: 'ac1', kind: 'ALL', overrides: { attachments: files(10) } }).commit());
+  const edit = (n, rev) => {
+    const b = writeBatch(admin);
+    b.update(ref(admin, 'announcements', 'ac1'), { attachments: files(n), revision: rev, lastEvent: 'EDITED', ...stamp('hw-admin') });
+    b.set(ref(admin, 'announcementHistory', `ac1__${rev}`), annHistory({ id: 'ac1', rev, event: 'EDITED', toStatus: 'DRAFT', uid: 'hw-admin' }));
+    return b;
+  };
+  await assertFails(edit(11, 2).commit());
+  await assertSucceeds(edit(3, 2).commit());
+});
+
 test('Announcements: publish needs the notice and history; the audience of a published one is fixed; archive keeps it', async () => {
   await seedWorld();
   const admin = asUser('hw-admin');

@@ -20,6 +20,28 @@ abstract final class AppLogger {
   static void Function(String message, Object? error, StackTrace? stackTrace)?
   errorSink;
 
+  /// Build with `--dart-define=AUTH_TRACE=true` to make [trace] print in
+  /// release builds (web console, logcat) while diagnosing a sign-in problem.
+  /// Leave it off for production builds.
+  static const bool _traceBuild = bool.fromEnvironment('AUTH_TRACE');
+
+  /// A diagnostic line that is printed in debug builds and in release builds
+  /// made with AUTH_TRACE. Same rules as everything here: never a password,
+  /// token or full document; use [maskEmail] for addresses.
+  static void trace(String message, {String tag = 'Trace'}) {
+    if (!_traceBuild && !kDebugMode) return;
+    debugPrint('[TRACE][$tag] $message');
+  }
+
+  /// `jo***@example.com` — enough to recognise an account, not to harvest it.
+  static String maskEmail(String? email) {
+    final e = (email ?? '').trim();
+    final at = e.indexOf('@');
+    if (at < 1) return e.isEmpty ? '(empty)' : '***';
+    final keep = at < 2 ? 1 : 2;
+    return '${e.substring(0, keep)}***${e.substring(at)}';
+  }
+
   static void debug(String message, {String? tag}) {
     _log(LogLevel.debug, message, tag: tag);
   }

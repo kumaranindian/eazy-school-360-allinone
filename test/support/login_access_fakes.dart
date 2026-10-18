@@ -2,6 +2,7 @@ import 'package:eazy_school_360/core/permissions/user_role.dart';
 import 'package:eazy_school_360/features/authentication/domain/login_method.dart';
 import 'package:eazy_school_360/features/users/domain/login_access.dart';
 import 'package:eazy_school_360/features/users/domain/login_provisioning.dart';
+import 'package:eazy_school_360/features/users/domain/password_reset.dart';
 
 /// In-memory [LoginAccessRepository]. Records writes; can be told to refuse.
 class FakeLoginAccessRepository implements LoginAccessRepository {
@@ -72,6 +73,59 @@ class FakeLoginAccessRepository implements LoginAccessRepository {
       methods: methods,
       revoked: revokeSessions || !enabled,
     );
+  }
+
+  final List<PasswordSetup> resets = [];
+  Object? resetError;
+
+  @override
+  Future<String?> resetPassword({
+    required String schoolId,
+    required String branchId,
+    required LoginKind kind,
+    required String id,
+    required PasswordSetup passwordSetup,
+  }) async {
+    if (resetError != null) throw resetError!;
+    resets.add(passwordSetup);
+    return passwordSetup.option == PasswordSetupOption.randomTemp
+        ? 'Temp1234Pass'
+        : null;
+  }
+
+  final List<({List<String> ids, PasswordSetup setup})> bulkResets = [];
+
+  /// Ids the fake reports as having no login.
+  Set<String> noLoginIds = {};
+
+  @override
+  Future<List<PasswordResetResult>> resetPasswords({
+    required String schoolId,
+    required String branchId,
+    required LoginKind kind,
+    required List<String> ids,
+    required PasswordSetup passwordSetup,
+    void Function(int done, int total)? onProgress,
+    bool Function()? isCancelled,
+  }) async {
+    if (resetError != null) throw resetError!;
+    bulkResets.add((ids: ids, setup: passwordSetup));
+    onProgress?.call(ids.length, ids.length);
+    return [
+      for (final id in ids)
+        PasswordResetResult(
+          id: id,
+          name: 'Person $id',
+          outcome: noLoginIds.contains(id)
+              ? PasswordResetOutcome.noAccount
+              : PasswordResetOutcome.reset,
+          tempPassword:
+              !noLoginIds.contains(id) &&
+                  passwordSetup.option == PasswordSetupOption.randomTemp
+              ? 'Temp-$id-Pass1'
+              : null,
+        ),
+    ];
   }
 
   AccessDiagnosis diagnosis = const AccessDiagnosis(healthy: true, checks: []);

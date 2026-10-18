@@ -57,7 +57,9 @@ function fakeDb(seed) {
     },
   };
 }
+let auth_calls = {};
 function fakeAuth(existing = {}) {
+  auth_calls = {};
   const users = { ...existing };
   let n = 0;
   return {
@@ -66,7 +68,15 @@ function fakeAuth(existing = {}) {
       if (users[e]) return { uid: users[e] };
       const err = new Error('nf'); err.code = 'auth/user-not-found'; throw err;
     },
-    createUser: async ({ email }) => { users[email] = `uid${++n}`; return { uid: users[email] }; },
+    createUser: async ({ email, password }) => { users[email] = `uid${++n}`; (auth_calls.created ||= []).push({ email, password }); return { uid: users[email] }; },
+    updateUser: async (uid, patch) => {
+      (auth_calls.updated ||= []).push({ uid, patch });
+      if (patch.email) {
+        for (const [e, u] of Object.entries(users)) if (u === uid) delete users[e];
+        users[patch.email] = uid;
+      }
+    },
+    revokeRefreshTokens: async (uid) => { (auth_calls.revoked ||= []).push(uid); },
   };
 }
 const B = 'schools/s1/branches/b1';
@@ -241,4 +251,207 @@ test('cross-branch mapping never merges admins, parents or other schools', async
       { schoolId: 's1', branchId: 'b2', kind: 'STAFF', ids: ['x1'] });
     assert.strictEqual(results[0].outcome, 'EMAIL_IN_USE', JSON.stringify(home));
   }
+});
+
+
+// ---- password setup options & email change --------------------------------
+const { nameMobilePassword, randomTempPassword, passwordPolicyOk } = require('./provision');
+
+test('NAME_MOBILE: first four letters upper-cased + last five digits', () => {
+  assert.strictEqual(nameMobilePassword('Karthikeyan', '9876543210'), 'KART43210');
+  assert.strictEqual(nameMobilePassword('K. Ra', '+91 98765-43210'), null);
+  assert.strictEqual(nameMobilePassword('Ka Rthik', '+91 98765-43210'), 'KART43210');
+  assert.strictEqual(nameMobilePassword('Ann', '9876543210'), null);
+  assert.strictEqual(nameMobilePassword('Karthik', '1234'), null);
+});
+
+test('RANDOM_TEMP passwords satisfy the policy and differ', () => {
+  const a = randomTempPassword();
+  const b = randomTempPassword();
+  assert.ok(passwordPolicyOk(a));
+  assert.notStrictEqual(a, b);
+});
+
+const withPhone = () => ({ ...base(), [`${B}/staff/t1`]: { ...base()[`${B}/staff/t1`], phone: '9876543210', firstName: 'Karthikeyan' } });
+
+test('NAME_MOBILE sets the derived password server-side, flags a forced change, never stores it', async () => {
+  const db = fakeDb(withPhone());
+  const auth = fakeAuth();
+  const { results } = await call(db, auth, { ids: ['t1'], passwordSetup: { option: 'NAME_MOBILE' } });
+  assert.strictEqual(results[0].outcome, 'CREATED');
+  assert.strictEqual(auth_calls.created[0].password, 'KART43210');
+  assert.strictEqual(results[0].tempPassword, undefined);
+  assert.strictEqual(db.store.get(`users/${results[0].uid}`).login.mustChangePassword, true);
+  assert.ok(!JSON.stringify([...db.store.entries()]).includes('KART43210'));
+});
+
+test('NAME_MOBILE with a missing mobile is refused for that row, not weakened', async () => {
+  const db = fakeDb(base());
+  const { results } = await call(db, fakeAuth(), { ids: ['t1'], passwordSetup: { option: 'NAME_MOBILE' } });
+  assert.strictEqual(results[0].outcome, 'PASSWORD_INPUT_MISSING');
+  assert.strictEqual(db.store.get(`${B}/staff/t1`).userId, undefined);
+});
+
+test('RANDOM_TEMP returns the password once to the admin and stores nothing', async () => {
+  const db = fakeDb(base());
+  const { results } = await call(db, fakeAuth(), { ids: ['t1'], passwordSetup: { option: 'RANDOM_TEMP' } });
+  const pw = results[0].tempPassword;
+  assert.ok(passwordPolicyOk(pw));
+  assert.ok(!JSON.stringify([...db.store.entries()]).includes(pw));
+});
+
+test('ADMIN_DEFINED validates the policy, applies it, and never echoes or stores it', async () => {
+  const bad = await call(fakeDb(base()), fakeAuth(), { ids: ['t1'], passwordSetup: { option: 'ADMIN_DEFINED', password: 'short' } });
+  assert.strictEqual(bad.error, 'INVALID_ARGUMENT');
+  const db = fakeDb(base());
+  const { results } = await call(db, fakeAuth(), { ids: ['t1'], passwordSetup: { option: 'ADMIN_DEFINED', password: 'Welcome2026' } });
+  assert.strictEqual(auth_calls.created[0].password, 'Welcome2026');
+  assert.strictEqual(results[0].tempPassword, undefined);
+  assert.ok(!JSON.stringify([...db.store.entries()]).includes('Welcome2026'));
+});
+
+test('link-based options set no known password and no forced change', async () => {
+  for (const option of ['ACTIVATION_EMAIL', 'RESET_LINK']) {
+    const db = fakeDb(base());
+    const { results } = await call(db, fakeAuth(), { ids: ['t1'], passwordSetup: { option } });
+    assert.strictEqual(results[0].passwordSet, false);
+    assert.strictEqual(db.store.get(`users/${results[0].uid}`).login.mustChangePassword, undefined);
+  }
+});
+
+test('an unknown option is rejected', async () => {
+  const out = await call(fakeDb(base()), fakeAuth(), { ids: ['t1'], passwordSetup: { option: 'NOPE' } });
+  assert.strictEqual(out.error, 'INVALID_ARGUMENT');
+});
+
+test('schools without password sign-in get accounts but no password', async () => {
+  const db = fakeDb({ ...withPhone(), 'schools/s1/authSettings/methods': { methods: ['GOOGLE'] } });
+  const { results } = await call(db, fakeAuth(), { ids: ['t1'], passwordSetup: { option: 'NAME_MOBILE' } });
+  assert.strictEqual(results[0].outcome, 'CREATED');
+  assert.notStrictEqual(auth_calls.created[0].password, 'KART43210');
+  assert.strictEqual(results[0].passwordSet, false);
+});
+
+test('changing a linked email activates the new one, drops the old, revokes sessions, keeps history', async () => {
+  const db = fakeDb({
+    ...base(),
+    'users/u9': { schoolId: 's1', branchId: 'b1', role: 'TEACHER', email: 'l@x.com', status: 'ACTIVE' },
+  });
+  const auth = fakeAuth({ 'l@x.com': 'u9' });
+  const { results } = await call(db, auth, { ids: ['t3'], emails: { t3: 'New@X.com' } });
+  assert.strictEqual(results[0].outcome, 'EMAIL_UPDATED');
+  assert.strictEqual(auth.users['new@x.com'], 'u9');
+  assert.strictEqual(auth.users['l@x.com'], undefined);
+  assert.deepStrictEqual(auth_calls.revoked, ['u9']);
+  const prof = db.store.get('users/u9');
+  assert.strictEqual(prof.email, 'new@x.com');
+  assert.strictEqual(prof.previousEmails[0].email, 'l@x.com');
+  assert.strictEqual(db.store.get(`${B}/staff/t3`).email, 'new@x.com');
+});
+
+test('changing to an email that belongs to another login is refused and changes nothing', async () => {
+  const db = fakeDb({ ...base(), 'users/u9': { schoolId: 's1', role: 'TEACHER', email: 'l@x.com' } });
+  const auth = fakeAuth({ 'l@x.com': 'u9', 'taken@x.com': 'other' });
+  const { results } = await call(db, auth, { ids: ['t3'], emails: { t3: 'taken@x.com' } });
+  assert.strictEqual(results[0].outcome, 'EMAIL_IN_USE');
+  assert.strictEqual(db.store.get('users/u9').email, 'l@x.com');
+  assert.strictEqual(auth_calls.updated, undefined);
+});
+
+test('a branch admin cannot move the email of a branch admin account', async () => {
+  const db = fakeDb({
+    ...base(),
+    'users/ba': { status: 'ACTIVE', schoolId: 's1', branchId: 'b1', role: 'BRANCH_ADMIN' },
+    'users/u9': { schoolId: 's1', branchId: 'b1', role: 'BRANCH_ADMIN', email: 'l@x.com' },
+  });
+  const { results } = await call(db, fakeAuth({ 'l@x.com': 'u9' }), { ids: ['t3'], emails: { t3: 'n@x.com' } }, 'ba');
+  assert.strictEqual(results[0].outcome, 'EMAIL_IN_USE');
+});
+
+
+const { changeInitialPassword } = require('./provision');
+test('changeInitialPassword: only while flagged, policy enforced, flag cleared, sessions revoked', async () => {
+  const db = fakeDb({ 'users/u1': { login: { mustChangePassword: true, enabled: true } }, 'users/u2': { login: { enabled: true } } });
+  const auth = fakeAuth();
+  const ctx = { db, auth, now: 'NOW' };
+  assert.deepStrictEqual(await changeInitialPassword(ctx, 'u1', { newPassword: 'short' }), { error: 'INVALID_ARGUMENT' });
+  assert.deepStrictEqual(await changeInitialPassword(ctx, 'u2', { newPassword: 'Another2026' }), { error: 'NOT_REQUIRED' });
+  assert.deepStrictEqual(await changeInitialPassword(ctx, 'u1', { newPassword: 'Another2026' }), { ok: true });
+  assert.strictEqual(auth_calls.updated[0].patch.password, 'Another2026');
+  assert.deepStrictEqual(auth_calls.revoked, ['u1']);
+  assert.strictEqual(db.store.get('users/u1').login.mustChangePassword, undefined);
+});
+
+const { resetLoginPassword } = require('./provision');
+const resetSeed = () => ({
+  ...base(),
+  [`${B}/staff/t5`]: { firstName: 'Meera', lastName: 'S', phone: '+91 98765 43210', status: 'ACTIVE', userId: 'u5' },
+  'users/u5': { schoolId: 's1', branchId: 'b1', role: 'TEACHER', login: { enabled: true } },
+  'users/ba': { status: 'ACTIVE', schoolId: 's1', branchId: 'b1', role: 'BRANCH_ADMIN' },
+  'users/u9': { schoolId: 's1', branchId: 'b1', role: 'BRANCH_ADMIN' },
+});
+const reset = (db, auth, extra = {}, uid = 'admin') =>
+  resetLoginPassword({ db, auth, now: 'NOW' }, uid, { schoolId: 's1', branchId: 'b1', kind: 'STAFF', id: 't5', passwordSetup: { option: 'NAME_MOBILE' }, ...extra }, {});
+
+test('resetLoginPassword: sets the chosen password, flags must-change, revokes sessions, audits', async () => {
+  const db = fakeDb(resetSeed());
+  const auth = fakeAuth();
+  assert.deepStrictEqual(await reset(db, auth), { result: { ok: true } });
+  assert.strictEqual(auth_calls.updated[0].patch.password, 'MEER43210');
+  assert.deepStrictEqual(auth_calls.revoked, ['u5']);
+  assert.strictEqual(db.store.get('users/u5').login.mustChangePassword, true);
+  assert.ok([...db.store.keys()].some((k) => k.startsWith('schools/s1/authAudit/')));
+
+  const r = await reset(db, fakeAuth(), { passwordSetup: { option: 'RANDOM_TEMP' } });
+  assert.ok(/^[A-Za-z2-9]{12}$/.test(r.result.tempPassword));
+  const a = fakeAuth();
+  assert.deepStrictEqual(await reset(db, a, { passwordSetup: { option: 'ADMIN_DEFINED', password: 'Welcome2026' } }), { result: { ok: true } });
+  assert.strictEqual(auth_calls.updated[0].patch.password, 'Welcome2026');
+});
+
+test('resetLoginPassword: validation, permissions and targets', async () => {
+  const db = fakeDb(resetSeed());
+  const auth = fakeAuth();
+  assert.strictEqual((await reset(db, auth, { passwordSetup: { option: 'RESET_LINK' } })).error, 'INVALID_ARGUMENT');
+  assert.strictEqual((await reset(db, auth, { passwordSetup: { option: 'ADMIN_DEFINED', password: 'short' } })).error, 'INVALID_ARGUMENT');
+  assert.strictEqual((await reset(db, auth, { id: 'nope' })).error, 'NOT_FOUND');
+  assert.strictEqual((await reset(db, auth, { id: 't1' })).error, 'NO_ACCOUNT');
+  assert.strictEqual((await reset(db, auth, {}, 'u5')).error, 'PERMISSION_DENIED');
+  // a branch admin cannot touch a branch admin; nobody resets themselves
+  assert.strictEqual((await reset(db, auth, { id: 't3' }, 'ba')).error, 'PERMISSION_DENIED');
+  assert.strictEqual((await reset(db, auth, { id: 't3', passwordSetup: { option: 'RANDOM_TEMP' } }, 'admin')).result.ok, true);
+  assert.strictEqual((await reset(db, auth, { id: 't3' }, 'u9')).error, 'PERMISSION_DENIED');
+  // NAME_MOBILE needs the record data
+  const db2 = fakeDb({ ...resetSeed(), [`${B}/staff/t5`]: { firstName: 'Al', status: 'ACTIVE', userId: 'u5' } });
+  assert.strictEqual((await reset(db2, fakeAuth())).error, 'PASSWORD_INPUT_MISSING');
+});
+
+test('resetLoginPassword (bulk): one outcome per person, bad rows do not stop the rest', async () => {
+  const db = fakeDb({
+    ...resetSeed(),
+    [`${B}/staff/t6`]: { firstName: 'Ravi', lastName: 'K', phone: '9000012345', status: 'ACTIVE', userId: 'u6' },
+    'users/u6': { schoolId: 's1', branchId: 'b1', role: 'TEACHER', login: { enabled: true } },
+  });
+  const auth = fakeAuth();
+  const r = await reset(db, auth, { id: undefined, ids: ['t5', 't6', 't1', 'nope', 't3'], passwordSetup: { option: 'NAME_MOBILE' } }, 'ba');
+  const by = Object.fromEntries(r.result.results.map((x) => [x.id, x.outcome]));
+  // t1 has no login; t3 is a branch admin (a branch admin may not touch one)
+  assert.deepStrictEqual(by, { t5: 'RESET', t6: 'RESET', t1: 'NO_ACCOUNT', nope: 'NOT_FOUND', t3: 'PERMISSION_DENIED' });
+  assert.deepStrictEqual(auth_calls.updated.map((u) => u.patch.password), ['MEER43210', 'RAVI12345']);
+  assert.strictEqual(db.store.get('users/u6').login.mustChangePassword, true);
+});
+
+test('resetLoginPassword (bulk): random passwords are distinct and returned per person; limits enforced', async () => {
+  const db = fakeDb({
+    ...resetSeed(),
+    [`${B}/staff/t6`]: { firstName: 'Ravi', lastName: 'K', phone: '9000012345', status: 'ACTIVE', userId: 'u6' },
+    'users/u6': { schoolId: 's1', branchId: 'b1', role: 'TEACHER', login: { enabled: true } },
+  });
+  const r = await reset(db, fakeAuth(), { id: undefined, ids: ['t5', 't6'], passwordSetup: { option: 'RANDOM_TEMP' } });
+  const temps = r.result.results.map((x) => x.tempPassword);
+  assert.ok(temps.every((t) => /^[A-Za-z2-9]{12}$/.test(t)));
+  assert.notStrictEqual(temps[0], temps[1]);
+  assert.strictEqual((await reset(db, fakeAuth(), { id: undefined, ids: [] })).error, 'INVALID_ARGUMENT');
+  assert.strictEqual((await reset(db, fakeAuth(), { id: undefined, ids: Array.from({ length: 51 }, (_, i) => `i${i}`) })).error, 'INVALID_ARGUMENT');
+  assert.strictEqual((await reset(db, fakeAuth(), { id: undefined, ids: ['t5'] }, 'u5')).error, 'PERMISSION_DENIED');
 });

@@ -4,10 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/routing/app_routes.dart';
 import '../../core/tenant/tenant_context_provider.dart';
+import '../../features/school_setup/domain/branch_status.dart';
 import '../../features/staff/presentation/providers/staff_providers.dart';
 
-/// Lets a staff member who works in more than one branch choose the branch
-/// they are acting in. Renders nothing for everyone else.
+/// Lets a staff member who works in more than one branch — or a school admin,
+/// who runs every branch — choose the branch they are acting in. Renders
+/// nothing for everyone else (and for a school with a single branch).
 ///
 /// The role can differ per branch (Teacher in North, Finance in South), so a
 /// switch lands on the dashboard: the screen the user was on may not exist for
@@ -20,17 +22,23 @@ class BranchSwitcher extends ConsumerWidget {
     final tenant = ref.watch(tenantContextProvider).value;
     final user = tenant?.user;
     final schoolId = user?.schoolId;
-    if (tenant == null ||
-        user == null ||
-        schoolId == null ||
-        !user.worksInMultipleBranches) {
+    if (tenant == null || user == null || schoolId == null) {
       return const SizedBox.shrink();
     }
-    final names = {
-      for (final b
-          in ref.watch(schoolBranchesProvider(schoolId)).value ?? const [])
-        b.branchId: b.name,
-    };
+    final branches =
+        ref.watch(schoolBranchesProvider(schoolId)).value ?? const [];
+    final admin = user.actsInAnyBranch;
+    // A school admin sees every active branch; staff only the ones they work in.
+    final ids = admin
+        ? [
+            for (final b in branches)
+              if (b.status == BranchStatus.active ||
+                  b.branchId == tenant.branch?.branchId)
+                b.branchId,
+          ]
+        : user.workingBranchIds;
+    if (ids.length < 2) return const SizedBox.shrink();
+    final names = {for (final b in branches) b.branchId: b.name};
     String nameOf(String id) => names[id] ?? id;
     final active = tenant.branch?.branchId ?? user.branchId;
     final wide = MediaQuery.sizeOf(context).width >= 600;
@@ -42,7 +50,7 @@ class BranchSwitcher extends ConsumerWidget {
         if (context.mounted) context.go(AppRoutes.dashboard);
       },
       itemBuilder: (context) => [
-        for (final id in user.workingBranchIds)
+        for (final id in ids)
           PopupMenuItem<String>(
             value: id,
             child: Row(
@@ -55,7 +63,9 @@ class BranchSwitcher extends ConsumerWidget {
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
-                    '${nameOf(id)} · ${(id == user.homeBranchId ? user.homeRole : user.branchRoles[id])?.displayName ?? ''}',
+                    admin
+                        ? nameOf(id)
+                        : '${nameOf(id)} · ${(id == user.homeBranchId ? user.homeRole : user.branchRoles[id])?.displayName ?? ''}',
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),

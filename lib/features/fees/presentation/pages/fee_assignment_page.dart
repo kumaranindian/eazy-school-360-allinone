@@ -47,18 +47,37 @@ class _AssignState extends ConsumerState<_Assign> {
   List<FeeStudent>? _students;
   List<StudentFeeAssignment> _existing = const [];
   final Set<String> _selected = {};
-  AssignmentPlan? _plan;
+  AssignmentPlan? _fullPlan;
+
+  /// Students the admin took out of this preview (e.g. a family on the
+  /// full-payment plan while the class gets the Term 1 fee).
+  final Set<String> _excluded = {};
   bool _loading = false;
   String? _error;
   ({int done, int total})? _progress;
   BulkResult? _result;
+
+  /// The planner's proposal minus the students unticked in the preview — this
+  /// is exactly what is confirmed and written.
+  AssignmentPlan? get _plan {
+    final full = _fullPlan;
+    if (full == null) return null;
+    return AssignmentPlan(
+      toCreate: [
+        for (final p in full.toCreate)
+          if (!_excluded.contains(p.student.studentId)) p,
+      ],
+      skipped: full.skipped,
+    );
+  }
 
   Future<void> _load() async {
     final fee = widget.fee;
     setState(() {
       _loading = true;
       _error = null;
-      _plan = null;
+      _fullPlan = null;
+      _excluded.clear();
       _result = null;
       _students = null;
     });
@@ -95,14 +114,15 @@ class _AssignState extends ConsumerState<_Assign> {
 
   void _buildPlan(List<FeeStructure> all) {
     final chosen = all.where((s) => _selected.contains(s.structureId)).toList();
-    setState(
-      () => _plan = AssignmentPlanner.plan(
+    setState(() {
+      _excluded.clear();
+      _fullPlan = AssignmentPlanner.plan(
         students: _students!,
         structures: chosen,
         academicYearId: widget.fee.year.academicYearId,
         existingAssignmentIds: {for (final a in _existing) a.assignmentId},
-      ),
-    );
+      );
+    });
   }
 
   Future<void> _confirm() async {
@@ -144,7 +164,7 @@ class _AssignState extends ConsumerState<_Assign> {
       setState(() {
         _result = result;
         _progress = null;
-        _plan = null;
+        _fullPlan = null;
       });
       await _load();
     } catch (error) {
@@ -214,7 +234,8 @@ class _AssignState extends ConsumerState<_Assign> {
                         _classId = v;
                         _sectionId = null;
                         _students = null;
-                        _plan = null;
+                        _fullPlan = null;
+                        _excluded.clear();
                         _selected.clear();
                       }),
               ),
@@ -243,7 +264,7 @@ class _AssignState extends ConsumerState<_Assign> {
                     : (v) => setState(() {
                         _sectionId = v;
                         _students = null;
-                        _plan = null;
+                        _fullPlan = null;
                       }),
               ),
             ),
@@ -332,7 +353,7 @@ class _AssignState extends ConsumerState<_Assign> {
                           v == true
                               ? _selected.add(s.structureId)
                               : _selected.remove(s.structureId);
-                          _plan = null;
+                          _fullPlan = null;
                         }),
                 ),
             Align(
@@ -348,8 +369,29 @@ class _AssignState extends ConsumerState<_Assign> {
             if (_plan != null)
               _PlanCard(
                 plan: _plan!,
+                fullPlan: _fullPlan!,
+                excluded: _excluded,
                 currency: fee.currency,
                 onConfirm: busy ? null : _confirm,
+                onToggle: busy
+                    ? null
+                    : (studentId, include) => setState(() {
+                        include
+                            ? _excluded.remove(studentId)
+                            : _excluded.add(studentId);
+                      }),
+                onSetAll: busy
+                    ? null
+                    : (include) => setState(() {
+                        if (include) {
+                          _excluded.clear();
+                        } else {
+                          _excluded.addAll({
+                            for (final p in _fullPlan!.toCreate)
+                              p.student.studentId,
+                          });
+                        }
+                      }),
               ),
             const SizedBox(height: AppSpacing.md),
             Text('Students', style: context.textStyles.titleMedium),
@@ -384,19 +426,38 @@ class _AssignState extends ConsumerState<_Assign> {
 }
 
 class _PlanCard extends StatelessWidget {
+  /// What will be written: [fullPlan] without the [excluded] students.
   final AssignmentPlan plan;
+  final AssignmentPlan fullPlan;
+  final Set<String> excluded;
   final String currency;
   final VoidCallback? onConfirm;
+  final void Function(String studentId, bool include)? onToggle;
+  final void Function(bool include)? onSetAll;
 
   const _PlanCard({
     required this.plan,
+    required this.fullPlan,
+    required this.excluded,
     required this.currency,
     required this.onConfirm,
+    required this.onToggle,
+    required this.onSetAll,
   });
 
   @override
   Widget build(BuildContext context) {
     final breakdown = plan.breakdown;
+    // Everyone the planner would assign, in class order, with their fees.
+    final feesByStudent = <String, List<PlannedAssignment>>{};
+    final students = <FeeStudent>[];
+    for (final p in fullPlan.toCreate) {
+      final list = feesByStudent.putIfAbsent(p.student.studentId, () {
+        students.add(p.student);
+        return [];
+      });
+      list.add(p);
+    }
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -405,9 +466,13 @@ class _PlanCard extends StatelessWidget {
           children: [
             Text('Preview', style: context.textStyles.titleSmall),
             const SizedBox(height: AppSpacing.xs),
-            if (breakdown.isEmpty)
+            if (fullPlan.toCreate.isEmpty)
               const Text(
                 'Nothing new to assign — every eligible student already has these fees.',
+              )
+            else if (breakdown.isEmpty)
+              const Text(
+                'Every student is unticked — nothing will be assigned.',
               ),
             for (final e in breakdown.entries)
               Text(
@@ -421,6 +486,48 @@ class _PlanCard extends StatelessWidget {
                   style: context.textStyles.titleSmall,
                 ),
               ),
+            if (students.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Who gets these fees  ·  ${students.length - excluded.where((id) => feesByStudent.containsKey(id)).length} of ${students.length} selected',
+                style: context.textStyles.titleSmall,
+              ),
+              Text(
+                'Untick a student to leave them out (for example a family on a '
+                'different payment plan). You can still assign them later from '
+                'their own fees.',
+                style: context.textStyles.bodySmall,
+              ),
+              Wrap(
+                spacing: AppSpacing.sm,
+                children: [
+                  TextButton(
+                    onPressed: onSetAll == null ? null : () => onSetAll!(true),
+                    child: const Text('Select all'),
+                  ),
+                  TextButton(
+                    onPressed: onSetAll == null ? null : () => onSetAll!(false),
+                    child: const Text('Select none'),
+                  ),
+                ],
+              ),
+              for (final st in students)
+                CheckboxListTile(
+                  key: ValueKey('plan-${st.studentId}'),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: !excluded.contains(st.studentId),
+                  onChanged: onToggle == null
+                      ? null
+                      : (v) => onToggle!(st.studentId, v == true),
+                  title: Text(st.name),
+                  subtitle: Text(
+                    '${st.admissionNumber} · ${st.sectionName} · '
+                    '${feesByStudent[st.studentId]!.map((p) => p.structure.name).join(', ')}',
+                  ),
+                ),
+            ],
             if (plan.skipped.isNotEmpty)
               ExpansionTile(
                 tilePadding: EdgeInsets.zero,

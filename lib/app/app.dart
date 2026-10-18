@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../core/config/env_config_provider.dart';
 import '../core/regional/school_time.dart';
@@ -59,7 +62,10 @@ class App extends ConsumerWidget {
               ? const Scaffold(body: LoadingIndicator())
               : KeyedSubtree(
                   key: ValueKey(regionalKey),
-                  child: child ?? const SizedBox.shrink(),
+                  child: _RouteProgressBar(
+                    router: router,
+                    child: child ?? const SizedBox.shrink(),
+                  ),
                 ),
         ),
       ),
@@ -120,4 +126,80 @@ class _BrandPrecacheState extends State<_BrandPrecache> {
 
   @override
   Widget build(BuildContext context) => widget.child;
+}
+
+/// Shows a thin loading bar along the top edge while the screen changes,
+/// in place of a page slide transition (those are switched off in the theme).
+class _RouteProgressBar extends StatefulWidget {
+  final GoRouter router;
+  final Widget child;
+  const _RouteProgressBar({required this.router, required this.child});
+
+  static const Duration visibleFor = Duration(milliseconds: 600);
+
+  @override
+  State<_RouteProgressBar> createState() => _RouteProgressBarState();
+}
+
+class _RouteProgressBarState extends State<_RouteProgressBar> {
+  Timer? _timer;
+  bool _loading = false;
+  String? _location;
+
+  @override
+  void initState() {
+    super.initState();
+    _location = _currentLocation();
+    widget.router.routerDelegate.addListener(_onRouteChanged);
+  }
+
+  @override
+  void didUpdateWidget(_RouteProgressBar old) {
+    super.didUpdateWidget(old);
+    if (old.router != widget.router) {
+      old.router.routerDelegate.removeListener(_onRouteChanged);
+      widget.router.routerDelegate.addListener(_onRouteChanged);
+    }
+  }
+
+  String _currentLocation() =>
+      widget.router.routerDelegate.currentConfiguration.uri.path;
+
+  void _onRouteChanged() {
+    final location = _currentLocation();
+    if (location == _location) return;
+    _location = location;
+    // The router can notify while the tree is building; show the bar after.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _timer?.cancel();
+      setState(() => _loading = true);
+      _timer = Timer(_RouteProgressBar.visibleFor, () {
+        if (mounted) setState(() => _loading = false);
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    widget.router.routerDelegate.removeListener(_onRouteChanged);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(child: widget.child),
+        if (_loading)
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(child: LinearProgressIndicator(minHeight: 3)),
+          ),
+      ],
+    );
+  }
 }

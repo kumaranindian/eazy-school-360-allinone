@@ -13,6 +13,7 @@ import '../../../../shared/dialogs/app_dialog.dart';
 import '../../../users/domain/login_provisioning.dart';
 import '../../../users/presentation/providers/login_access_providers.dart';
 import '../../../users/presentation/widgets/login_selection_bar.dart';
+import '../../../users/presentation/widgets/bulk_reset_password_dialog.dart';
 import '../../../users/presentation/widgets/provision_logins_dialog.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/error/error_view.dart';
@@ -90,10 +91,15 @@ class _StaffListState extends ConsumerState<_StaffList> {
 
   // Choosing people to give logins to (one or many).
   bool _selecting = false;
+
+  /// Selecting people who already have a login, to reset their passwords
+  /// (otherwise: people without one, to give them a login).
+  bool _resetMode = false;
   final _selected = <String>{};
 
-  Iterable<Staff> get _selectable =>
-      _controller.items.where((s) => s.userId == null);
+  Iterable<Staff> get _selectable => _controller.items.where(
+    (s) => _resetMode ? s.userId != null : s.userId == null,
+  );
 
   /// Rebuilds the teachers' class-access index (used by the security rules).
   /// Normally automatic on every assignment change; this is the repair/backfill.
@@ -122,6 +128,27 @@ class _StaffListState extends ConsumerState<_StaffList> {
       staff: s,
     );
     if (changed && mounted) _controller.reload();
+  }
+
+  Future<void> _resetPasswords() async {
+    final done = await showBulkResetPasswordDialog(
+      context: context,
+      schoolId: widget.schoolId,
+      branchId: widget.branchId,
+      kind: LoginKind.staff,
+      people: [
+        for (final s in _controller.items)
+          if (_selected.contains(s.staffId))
+            (id: s.staffId, name: s.displayName, email: s.email),
+      ],
+    );
+    if (done == true && mounted) {
+      setState(() {
+        _selecting = false;
+        _resetMode = false;
+        _selected.clear();
+      });
+    }
   }
 
   Future<void> _giveLogins() async {
@@ -232,7 +259,21 @@ class _StaffListState extends ConsumerState<_StaffList> {
       PageAction(
         label: 'Give login access',
         icon: Icons.vpn_key_outlined,
-        onSelected: () => setState(() => _selecting = true),
+        onSelected: () => setState(() {
+          _selecting = true;
+          _resetMode = false;
+          _selected.clear();
+        }),
+      ),
+    if (widget.canManage && !_selecting)
+      PageAction(
+        label: 'Reset passwords',
+        icon: Icons.lock_reset,
+        onSelected: () => setState(() {
+          _selecting = true;
+          _resetMode = true;
+          _selected.clear();
+        }),
       ),
     if (widget.canManage)
       PageAction(
@@ -384,7 +425,8 @@ class _StaffListState extends ConsumerState<_StaffList> {
     Widget? checkbox(Staff staff) => _selecting
         ? Checkbox(
             value: _selected.contains(staff.staffId),
-            onChanged: staff.userId != null
+            onChanged:
+                (_resetMode ? staff.userId == null : staff.userId != null)
                 ? null
                 : (v) => setState(
                     () => v == true
@@ -447,9 +489,19 @@ class _StaffListState extends ConsumerState<_StaffList> {
                             _selected.addAll(_selectable.map((s) => s.staffId)),
                       ),
                       onClear: () => setState(_selected.clear),
-                      onCreate: _giveLogins,
+                      onCreate: _resetMode ? _resetPasswords : _giveLogins,
+                      actionLabel: _resetMode
+                          ? 'Reset passwords'
+                          : 'Give login access',
+                      actionIcon: _resetMode
+                          ? Icons.lock_reset
+                          : Icons.vpn_key_outlined,
+                      selectAllLabel: _resetMode
+                          ? 'Select all (${_selectable.length} with a login)'
+                          : null,
                       onCancel: () => setState(() {
                         _selecting = false;
+                        _resetMode = false;
                         _selected.clear();
                       }),
                     ),

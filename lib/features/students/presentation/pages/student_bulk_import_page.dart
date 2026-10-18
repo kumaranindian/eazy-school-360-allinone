@@ -13,7 +13,10 @@ import '../../../../core/logging/app_logger.dart';
 import '../../../../core/permissions/permission.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/routing/app_routes.dart';
 import '../../../../shared/bulk_import/bulk_rows_view.dart';
+import '../../../../shared/bulk_import/login_access_next_step.dart';
+import '../../../../shared/branding/acting_branch_banner.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../../academic_setup/domain/school_class.dart';
@@ -585,6 +588,7 @@ class _StudentBulkImportPageState extends ConsumerState<StudentBulkImportPage> {
           return ListView(
             padding: const EdgeInsets.all(AppSpacing.md),
             children: [
+              const ActingBranchBanner(verb: 'Importing into'),
               _StepCard(
                 number: 1,
                 title: 'Download the sample sheet',
@@ -929,6 +933,16 @@ class _ResultCard extends StatelessWidget {
             'not imported.',
             style: Theme.of(context).textTheme.titleSmall,
           ),
+          if (imported > 0)
+            const LoginAccessNextStep(
+              message:
+                  'Students sign in through their parents. Parents were '
+                  'imported without a login; select them in the parents list '
+                  'and choose "Give login access" — you pick how each first '
+                  'password is set.',
+              buttonLabel: 'Open parents list',
+              route: AppRoutes.parents,
+            ),
           if (failed + notImported > 0) ...[
             const SizedBox(height: AppSpacing.xs),
             const Text(

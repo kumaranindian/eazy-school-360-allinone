@@ -1,8 +1,11 @@
+import '../logging/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/authentication/presentation/pages/account_inactive_page.dart';
+import '../../features/authentication/presentation/pages/change_initial_password_page.dart';
+import '../../features/authentication/presentation/providers/initial_password_providers.dart';
 import '../../features/authentication/presentation/pages/forgot_password_page.dart';
 import '../../features/authentication/presentation/pages/login_page.dart';
 import '../../features/authentication/presentation/pages/register_page.dart';
@@ -134,8 +137,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             AppRoutes.dashboard;
       }
 
+      // First sign-in with an admin-set / derived password: replace it first.
+      if (tenant.user.login?.mustChangePassword == true &&
+          !ref.read(initialPasswordGateDismissedProvider)) {
+        AppLogger.trace(
+          'redirect to change-password (mustChangePassword) from $path',
+          tag: 'Router',
+        );
+        return path == AppRoutes.changePassword
+            ? null
+            : AppRoutes.changePassword;
+      }
+      if (path == AppRoutes.changePassword) return AppRoutes.dashboard;
+
       final requiredPermission = AppRoutes.requiredPermissions[path];
       if (requiredPermission != null && !tenant.can(requiredPermission)) {
+        AppLogger.trace(
+          'redirect to dashboard: role ${tenant.role.wireValue} lacks '
+          '$requiredPermission for $path',
+          tag: 'Router',
+        );
         return AppRoutes.dashboard;
       }
       return null;
@@ -153,6 +174,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.forgotPassword,
         builder: (context, state) => const ForgotPasswordPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.changePassword,
+        builder: (context, state) => const ChangeInitialPasswordPage(),
       ),
       GoRoute(
         path: AppRoutes.accountInactive,

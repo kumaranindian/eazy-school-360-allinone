@@ -15,6 +15,7 @@ import '../../../../shared/loading/async_value_widget.dart';
 import '../../domain/weekday.dart';
 import '../../domain/weekly_pattern.dart';
 import '../../domain/working_days.dart';
+import '../providers/setup_status_provider.dart';
 import '../providers/calendar_providers.dart';
 
 /// How Saturday is configured in the form. "Alternate" and "selected" both end
@@ -182,6 +183,7 @@ class _WorkingDaysPageState extends ConsumerState<WorkingDaysPage> {
     if (success) {
       setState(() => _draft = null);
       ref.invalidate(workingDaysProvider);
+      ref.invalidate(setupStatusProvider);
       context.showSnackBar(
         configured
             ? 'Weekly offs saved. They apply from ${formatDisplayDate(startsOn)}; '

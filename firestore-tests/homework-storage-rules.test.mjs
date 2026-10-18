@@ -48,7 +48,7 @@ async function seed() {
     await setDoc(doc(db, ...n, 'homework', 'hwd'), { ...stamp, status: 'DRAFT', createdBy: 'hst-t1', teacherStaffId: 'st1' });
     await setDoc(doc(db, ...n, 'students', 'hst-stu1', 'parentLinks', 'par1'), { status: 'ACTIVE', canAccessPortal: true, ...stamp });
     await setDoc(doc(db, ...n, 'students', 'hst-stu1', 'parentLinks', 'par-off'), { status: 'INACTIVE', canAccessPortal: true, ...stamp });
-    await setDoc(doc(db, ...n, 'announcements', 'an1'), { status: 'PUBLISHED', authorId: 'hst-t1', ...stamp });
+    await setDoc(doc(db, ...n, 'announcements', 'an1'), { status: 'PUBLISHED', authorId: 'hst-t1', audienceKind: 'BRANCH', publishAt: new Date('2020-01-01'), ...stamp });
     await setDoc(doc(db, ...n, 'announcements', 'and'), { status: 'DRAFT', authorId: 'hst-t1', ...stamp });
   });
 }

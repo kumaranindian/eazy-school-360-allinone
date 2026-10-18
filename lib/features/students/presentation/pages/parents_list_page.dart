@@ -23,6 +23,7 @@ import '../../../../shared/paging/paged_list_controller.dart';
 import '../../../users/domain/login_provisioning.dart';
 import '../../../users/presentation/widgets/login_access_dialog.dart';
 import '../../../users/presentation/widgets/login_selection_bar.dart';
+import '../../../users/presentation/widgets/bulk_reset_password_dialog.dart';
 import '../../../users/presentation/widgets/provision_logins_dialog.dart';
 import '../../domain/parent.dart';
 import '../../../../core/errors/error_mapper.dart';
@@ -55,10 +56,15 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
 
   // Choosing people to give logins to (one or many).
   bool _selecting = false;
+
+  /// Selecting people who already have a login, to reset their passwords
+  /// (otherwise: people without one, to give them a login).
+  bool _resetMode = false;
   final _selected = <String>{};
 
-  Iterable<Parent> get _selectable =>
-      _controller.items.where((p) => !p.hasPortalAccess);
+  Iterable<Parent> get _selectable => _controller.items.where(
+    (p) => _resetMode ? p.hasPortalAccess : !p.hasPortalAccess,
+  );
 
   Future<void> _manageAccess(
     String schoolId,
@@ -74,6 +80,27 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
       fallbackName: parent.displayName,
     );
     if (changed == true && mounted) _resetAndLoad(schoolId, branchId);
+  }
+
+  Future<void> _resetPasswords(String schoolId, String branchId) async {
+    final done = await showBulkResetPasswordDialog(
+      context: context,
+      schoolId: schoolId,
+      branchId: branchId,
+      kind: LoginKind.parent,
+      people: [
+        for (final p in _controller.items)
+          if (_selected.contains(p.parentId))
+            (id: p.parentId, name: p.displayName, email: p.email),
+      ],
+    );
+    if (done == true && mounted) {
+      setState(() {
+        _selecting = false;
+        _resetMode = false;
+        _selected.clear();
+      });
+    }
   }
 
   Future<void> _giveLogins(String schoolId, String branchId) async {
@@ -303,7 +330,21 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
                           PageAction(
                             label: 'Give login access',
                             icon: Icons.vpn_key_outlined,
-                            onSelected: () => setState(() => _selecting = true),
+                            onSelected: () => setState(() {
+                              _selecting = true;
+                              _resetMode = false;
+                              _selected.clear();
+                            }),
+                          ),
+                        if (canManage && !_selecting)
+                          PageAction(
+                            label: 'Reset passwords',
+                            icon: Icons.lock_reset,
+                            onSelected: () => setState(() {
+                              _selecting = true;
+                              _resetMode = true;
+                              _selected.clear();
+                            }),
                           ),
                         if (canManage)
                           PageAction(
@@ -344,9 +385,21 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
                         ),
                       ),
                       onClear: () => setState(_selected.clear),
-                      onCreate: () => _giveLogins(schoolId, branchId),
+                      onCreate: () => _resetMode
+                          ? _resetPasswords(schoolId, branchId)
+                          : _giveLogins(schoolId, branchId),
+                      actionLabel: _resetMode
+                          ? 'Reset passwords'
+                          : 'Give login access',
+                      actionIcon: _resetMode
+                          ? Icons.lock_reset
+                          : Icons.vpn_key_outlined,
+                      selectAllLabel: _resetMode
+                          ? 'Select all (${_selectable.length} with a login)'
+                          : null,
                       onCancel: () => setState(() {
                         _selecting = false;
+                        _resetMode = false;
                         _selected.clear();
                       }),
                     ),
@@ -405,7 +458,10 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
                             leading: _selecting
                                 ? Checkbox(
                                     value: _selected.contains(parent.parentId),
-                                    onChanged: parent.hasPortalAccess
+                                    onChanged:
+                                        (_resetMode
+                                            ? !parent.hasPortalAccess
+                                            : parent.hasPortalAccess)
                                         ? null
                                         : (v) => setState(
                                             () => v == true

@@ -1,4 +1,5 @@
 import '../../../../core/regional/school_time.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,7 +11,6 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/error/error_view.dart';
 import '../../../academic_setup/presentation/providers/academic_structure_providers.dart';
-import '../../../homework/domain/file_attachment.dart';
 import '../../../homework/domain/homework_repositories.dart' show HomeworkPaths;
 import '../../../homework/presentation/providers/homework_providers.dart';
 import '../../../homework/presentation/widgets/homework_widgets.dart';
@@ -18,6 +18,11 @@ import '../../../staff/presentation/providers/staff_providers.dart';
 import '../../../timetable/presentation/providers/timetable_providers.dart';
 import '../../../timetable/presentation/widgets/timetable_scope.dart';
 import '../../domain/announcement.dart';
+import '../../domain/announcement_file_policy.dart';
+import '../../domain/announcement_save_flow.dart';
+import '../../domain/attachment_upload_controller.dart';
+import '../providers/announcement_providers.dart';
+import '../widgets/announcement_attachments.dart';
 
 /// `/announcements/new` and `/announcements/edit/:announcementId`.
 ///
@@ -71,8 +76,12 @@ class _FormState extends ConsumerState<_Form> {
   DateTime? _publishAt;
   DateTime? _expiresAt;
   bool _notify = true;
-  List<FileAttachment> _attachments = [];
-  final List<PendingFile> _pending = [];
+  late final AttachmentUploadController _files;
+
+  /// True once the announcement exists in Firestore, so its files may be
+  /// uploaded (the Storage rules require the announcement to exist).
+  bool _draftSaved = false;
+  bool _completed = false;
   bool _loaded = false;
   bool _saving = false;
   String? _error;
@@ -88,6 +97,9 @@ class _FormState extends ConsumerState<_Form> {
   @override
   void initState() {
     super.initState();
+    _files = AttachmentUploadController(
+      ref.read(announcementFileUploaderProvider),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) => _resolve());
   }
 
@@ -112,6 +124,9 @@ class _FormState extends ConsumerState<_Form> {
   void dispose() {
     _title.dispose();
     _body.dispose();
+    // Files uploaded but never saved with the announcement are unreferenced.
+    if (!_completed) _files.discardUnsaved();
+    _files.dispose();
     super.dispose();
   }
 
@@ -136,10 +151,11 @@ class _FormState extends ConsumerState<_Form> {
     _sectionId = a.sectionId;
     _publishAt = a.publishAt;
     _expiresAt = a.expiresAt;
-    _attachments = [...a.attachments];
+    _draftSaved = true;
+    _files.loadExisting(a.attachments);
   }
 
-  Announcement _build({Announcement? existing, List<FileAttachment>? files}) {
+  Announcement _build({Announcement? existing}) {
     final tt = widget.tt;
     return Announcement(
       announcementId: _id,
@@ -154,7 +170,7 @@ class _FormState extends ConsumerState<_Form> {
       audienceLabel: existing?.audienceLabel,
       title: _title.text.trim(),
       body: _body.text.trim(),
-      attachments: files ?? _attachments,
+      attachments: _files.attachments,
       publishAt: _publishAt,
       expiresAt: _expiresAt,
       status: existing?.status ?? AnnouncementStatus.draft,
@@ -189,56 +205,68 @@ class _FormState extends ConsumerState<_Form> {
     );
   }
 
-  Future<void> _addFiles() async {
-    final remaining =
-        FilePolicy.maxFilesPerRecord - _attachments.length - _pending.length;
-    final files = await pickValidatedFiles(
-      remaining: remaining,
-      onProblem: (m) {
-        if (mounted) setState(() => _error = m);
-      },
+  String _pathFor(String fileName) => HomeworkPaths.announcementFile(
+    widget.tt.schoolId,
+    widget.tt.branchId,
+    _id,
+    fileName,
+  );
+
+  Future<bool> _uploadNow() =>
+      _files.uploadAll(pathFor: _pathFor, uploadedBy: widget.tt.userId);
+
+  Future<void> _pick({required bool images}) async {
+    if (_saving || _files.isUploading) return;
+    final full = AnnouncementFilePolicy.validateCount(
+      current: _files.items.length,
+      adding: 1,
     );
-    if (files.isEmpty || !mounted) return;
-    if (!_editing) {
-      setState(() {
-        _pending.addAll(files);
-        _error = null;
-      });
-      return;
-    }
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-    try {
-      for (final f in files) {
-        _attachments.add(
-          await ref
-              .read(homeworkFileStoreProvider)
-              .upload(
-                path: HomeworkPaths.announcementFile(
-                  widget.tt.schoolId,
-                  widget.tt.branchId,
-                  _id,
-                  uniqueFileName(f.name),
-                ),
-                fileName: f.name,
-                bytes: f.bytes,
-                uploadedBy: widget.tt.userId,
-              ),
-        );
-      }
-    } catch (e) {
-      _error = userMessageFor(e);
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
+    if (full != null) return setState(() => _error = full);
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: images
+          ? AnnouncementFilePolicy.imageExtensions
+          : AnnouncementFilePolicy.documentExtensions,
+      allowMultiple: true,
+      withData: true,
+    );
+    if (result == null || !mounted) return;
+    final problems = <String>[
+      for (final f in result.files)
+        if (f.bytes == null) '${f.name}: could not be read.',
+      ..._files.add([
+        for (final f in result.files)
+          if (f.bytes != null) (name: f.name, bytes: f.bytes!),
+      ]),
+    ];
+    setState(() => _error = problems.isEmpty ? null : problems.join('\n'));
+    // An announcement that already exists can take its files straight away;
+    // a new one uploads them when it is saved.
+    if (_draftSaved && _files.waiting.isNotEmpty) await _uploadNow();
+  }
+
+  Future<void> _retry(AttachmentItem item) async {
+    if (!_draftSaved) return;
+    final ok = await _files.retry(
+      item,
+      pathFor: _pathFor,
+      uploadedBy: widget.tt.userId,
+    );
+    if (ok && mounted && !_files.hasUnresolved) setState(() => _error = null);
   }
 
   Future<void> _save(Announcement? existing, {required bool publish}) async {
-    if (_saving) return;
+    if (_saving || _files.isUploading) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final tt = widget.tt;
+    final published =
+        existing != null && existing.status == AnnouncementStatus.published;
+    if (published && _files.hasUnresolved) {
+      return setState(
+        () => _error =
+            'Some attachments are not uploaded. Retry or remove them first.',
+      );
+    }
     final problem = _build(existing: existing).validate(now: DateTime.now());
     if (problem != null) return setState(() => _error = problem);
     if (publish) {
@@ -249,7 +277,10 @@ class _FormState extends ConsumerState<_Form> {
           builder: (_) => AnnouncementPreviewScreen(
             announcement: preview,
             scheduledFor: _publishAt,
-            pendingFileNames: [for (final f in _pending) f.name],
+            pendingFileNames: [
+              for (final i in _files.items)
+                if (!i.isUploaded) i.name,
+            ],
           ),
         ),
       );
@@ -259,60 +290,35 @@ class _FormState extends ConsumerState<_Form> {
       _saving = true;
       _error = null;
     });
-    final repo = ref.read(announcementRepositoryProvider);
-    final store = ref.read(homeworkFileStoreProvider);
-    final actor = actorFor(tt.tenant);
     try {
-      var a = _build(existing: existing);
-      if (existing != null && existing.status == AnnouncementStatus.published) {
-        await repo.update(a, actor: actor, notify: _notify);
-      } else {
-        await repo.saveDraft(a, actor: actor);
-        var fileFailures = 0;
-        if (_pending.isNotEmpty) {
-          final uploaded = <FileAttachment>[..._attachments];
-          for (final f in _pending) {
-            try {
-              uploaded.add(
-                await store.upload(
-                  path: HomeworkPaths.announcementFile(
-                    tt.schoolId,
-                    tt.branchId,
-                    a.announcementId,
-                    uniqueFileName(f.name),
-                  ),
-                  fileName: f.name,
-                  bytes: f.bytes,
-                  uploadedBy: actor.userId,
-                ),
-              );
-            } catch (_) {
-              fileFailures++;
-            }
-          }
-          a = _build(existing: existing, files: uploaded);
-          if (uploaded.length > _attachments.length) {
-            await repo.saveDraft(a, actor: actor);
-          }
-        }
-        if (publish) {
-          await repo.publish(
-            a,
+      final outcome =
+          await AnnouncementSaveFlow(
+            ref.read(announcementRepositoryProvider),
+            _files,
+          ).run(
+            build: () => _build(existing: existing),
+            editingPublished: published,
+            publish: publish,
             publishAt: _publishAt ?? DateTime.now(),
-            actor: actor,
+            notify: _notify,
+            actor: actorFor(tt.tenant),
+            pathFor: _pathFor,
+            uploadedBy: tt.userId,
+            onDraftSaved: () => _draftSaved = true,
+          );
+      if (outcome == AnnouncementSaveOutcome.uploadsFailed) {
+        if (mounted) {
+          setState(
+            () => _error =
+                '${_files.failed.length} attachment(s) could not be '
+                'uploaded. Retry them or remove them, then '
+                '${publish ? 'publish' : 'save'} again. Nothing was '
+                'published.',
           );
         }
-        if (fileFailures > 0 && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '$fileFailures file(s) failed to upload — edit the '
-                'announcement to add them again.',
-              ),
-            ),
-          );
-        }
+        return;
       }
+      _completed = true;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -623,42 +629,13 @@ class _FormState extends ConsumerState<_Form> {
               ),
             ),
             SectionCard(
-              title: 'Files',
-              actions: [
-                TextButton.icon(
-                  onPressed: _saving ? null : _addFiles,
-                  icon: const Icon(Icons.attach_file),
-                  label: const Text('Add files'),
-                ),
-              ],
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AttachmentList(
-                    attachments: _attachments,
-                    onRemove: _saving
-                        ? null
-                        : (f) => setState(() => _attachments.remove(f)),
-                  ),
-                  for (final f in _pending)
-                    ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.upload_file),
-                      title: Text(f.name),
-                      subtitle: const Text('Uploads when you save'),
-                      trailing: IconButton(
-                        tooltip: 'Remove ${f.name}',
-                        icon: const Icon(Icons.close),
-                        onPressed: () => setState(() => _pending.remove(f)),
-                      ),
-                    ),
-                  Text(
-                    'PDF, JPG, PNG, TXT or DOCX, up to 10 MB each. Files '
-                    'are not scanned for malware.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
+              title: 'Attachments',
+              child: AnnouncementAttachmentsEditor(
+                controller: _files,
+                enabled: !_saving,
+                onPickImages: () => _pick(images: true),
+                onPickDocuments: () => _pick(images: false),
+                onRetry: _retry,
               ),
             ),
             if (published)

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../logging/app_logger.dart';
 import '../../features/authentication/presentation/providers/auth_providers.dart';
+import '../../features/school_setup/domain/branch_status.dart';
 import '../../features/school_setup/presentation/providers/school_providers.dart';
 import '../../features/users/domain/user_profile.dart';
 import '../../features/users/domain/user_status.dart';
@@ -58,7 +59,19 @@ class TenantContextNotifier extends AsyncNotifier<TenantContext?> {
       return null;
     }
 
+    final login0 = profile.login;
+    AppLogger.trace(
+      'profile uid=${authState.uid} role=${profile.role.wireValue} '
+      'status=${profile.status.name} school=${profile.schoolId} '
+      'branch=${profile.branchId} linkedParentId=${profile.linkedParentId} '
+      'login=${login0 == null ? 'none (legacy)' : 'enabled=${login0.enabled} effective=${login0.effective.map((m) => m.wireValue).toList()} mustChangePassword=${login0.mustChangePassword}'}',
+      tag: 'Tenant',
+    );
     if (profile.status != UserStatus.active) {
+      AppLogger.trace(
+        'blocked: profile status is ${profile.status.name}, not active',
+        tag: 'Tenant',
+      );
       throw AccountInactiveException(profile.status);
     }
 
@@ -68,6 +81,10 @@ class TenantContextNotifier extends AsyncNotifier<TenantContext?> {
     final login = profile.login;
     if (login != null) {
       if (!login.enabled) {
+        AppLogger.trace(
+          'blocked: login access is switched off for this user',
+          tag: 'Tenant',
+        );
         throw AccountInactiveException(
           profile.status,
           cause: InactiveCause.loginDisabled,
@@ -76,7 +93,16 @@ class TenantContextNotifier extends AsyncNotifier<TenantContext?> {
       final method = await ref
           .read(authRepositoryProvider)
           .currentSignInMethod();
+      AppLogger.trace(
+        'sign-in method used=${method?.wireValue} '
+        'permitted=${login.effective.map((m) => m.wireValue).toList()}',
+        tag: 'Tenant',
+      );
       if (!login.allows(method)) {
+        AppLogger.trace(
+          'blocked: this sign-in method is not permitted for the user',
+          tag: 'Tenant',
+        );
         throw AccountInactiveException(
           profile.status,
           cause: InactiveCause.methodNotPermitted,
@@ -89,29 +115,44 @@ class TenantContextNotifier extends AsyncNotifier<TenantContext?> {
     final school = profile.schoolId == null
         ? null
         : await schoolRepository.getSchool(profile.schoolId!);
-    final branch = (profile.schoolId == null || profile.branchId == null)
+    var acting = profile;
+    var branch = (profile.schoolId == null || profile.branchId == null)
         ? null
         : await schoolRepository.getBranch(
             profile.schoolId!,
             profile.branchId!,
           );
+    // A school admin with no home branch still needs a branch to work in:
+    // start in the first one (they can switch from the header).
+    if (branch == null && profile.actsInAnyBranch) {
+      final all = await schoolRepository.watchBranches(profile.schoolId!).first;
+      if (all.isNotEmpty) {
+        branch = all.firstWhere(
+          (b) => b.status == BranchStatus.active,
+          orElse: () => all.first,
+        );
+        acting = profile.activeIn(branch.branchId);
+      }
+    }
 
     AppLogger.debug(
       'Tenant resolved: role/status=${profile.status.name} '
       'school=${profile.schoolId} branch=${profile.branchId}',
       tag: 'Tenant',
     );
-    return TenantContext(user: profile, school: school, branch: branch);
+    return TenantContext(user: acting, school: school, branch: branch);
   }
 
-  /// Acts in [branchId] (one of the user's `workingBranchIds`). The whole app
-  /// reads role and branch from [TenantContext], so every screen follows.
-  /// A branch the user does not work in is ignored.
+  /// Acts in [branchId] (one of the user's `workingBranchIds`, or any branch of
+  /// the school for a school admin). The whole app reads role and branch from
+  /// [TenantContext], so every screen follows. Any other branch is ignored.
   Future<void> switchBranch(String branchId) async {
     final current = state.value;
     if (current == null) return;
     final user = current.user;
-    if (!user.workingBranchIds.contains(branchId)) return;
+    if (!user.workingBranchIds.contains(branchId) && !user.actsInAnyBranch) {
+      return;
+    }
     if (current.branch?.branchId == branchId) return;
     final schoolId = user.schoolId;
     if (schoolId == null) return;
@@ -122,6 +163,7 @@ class TenantContextNotifier extends AsyncNotifier<TenantContext?> {
     final branch = await ref
         .read(schoolRepositoryProvider)
         .getBranch(schoolId, branchId);
+    if (branch == null) return;
     if (request != _switchRequest || !identical(state.value, current)) return;
     state = AsyncData(
       TenantContext(

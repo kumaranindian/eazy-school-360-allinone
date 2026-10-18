@@ -1,6 +1,7 @@
 import '../../../core/permissions/user_role.dart';
 import '../../authentication/domain/login_method.dart';
 import 'login_provisioning.dart';
+import 'password_reset.dart';
 
 enum LoginActivation {
   noAccount('NO_ACCOUNT', 'No login yet'),
@@ -223,6 +224,32 @@ abstract class LoginAccessRepository {
     required bool enabled,
     required List<LoginMethod> methods,
     bool revokeSessions = false,
+  });
+
+  /// Sets a new password for an existing login and requires a change at next
+  /// sign-in. Only the server-set options ([PasswordSetupOption.nameMobile],
+  /// [PasswordSetupOption.randomTemp], [PasswordSetupOption.adminDefined])
+  /// are valid; the link options are emails. Returns the generated password
+  /// for [PasswordSetupOption.randomTemp] (shown once), otherwise null.
+  Future<String?> resetPassword({
+    required String schoolId,
+    required String branchId,
+    required LoginKind kind,
+    required String id,
+    required PasswordSetup passwordSetup,
+  });
+
+  /// [resetPassword] for many people at once, in small resilient batches.
+  /// Every person gets an outcome; a batch that cannot be completed comes back
+  /// as [PasswordResetOutcome.retryLater] (nothing changed — safe to resend).
+  Future<List<PasswordResetResult>> resetPasswords({
+    required String schoolId,
+    required String branchId,
+    required LoginKind kind,
+    required List<String> ids,
+    required PasswordSetup passwordSetup,
+    void Function(int done, int total)? onProgress,
+    bool Function()? isCancelled,
   });
 
   /// Read-only: names the missing prerequisite behind a permission error.

@@ -211,7 +211,10 @@ class FirebaseAnnouncementRepository implements AnnouncementRepository {
     title: type == 'ANNOUNCEMENT_PUBLISHED'
         ? 'New announcement'
         : 'Announcement updated',
-    body: a.title,
+    body: a.attachments.isEmpty
+        ? a.title
+        : '${a.title} · ${a.attachments.length} attachment'
+              '${a.attachments.length == 1 ? '' : 's'}',
     refType: 'ANNOUNCEMENT',
     refId: a.announcementId,
     revision: rev,

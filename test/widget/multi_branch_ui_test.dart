@@ -114,6 +114,22 @@ void main() {
       expect(find.byTooltip('Switch branch'), findsNothing);
     });
 
+    testWidgets('a school admin can switch to any branch and keeps the role', (
+      tester,
+    ) async {
+      final c = await _pumpSwitcher(tester, _user(role: UserRole.schoolAdmin));
+      await tester.tap(find.byTooltip('Switch branch'));
+      await tester.pumpAndSettle();
+      expect(find.text('North Campus'), findsWidgets);
+      await tester.tap(find.text('South Campus'));
+      await tester.pumpAndSettle();
+      final t = c.read(tenantContextProvider).value!;
+      expect(t.role, UserRole.schoolAdmin);
+      expect(t.branch?.branchId, 'south');
+      expect(t.user.branchId, 'south');
+      expect(find.text('dashboard'), findsOneWidget);
+    });
+
     testWidgets('lists the branches with the role held in each; switching '
         'changes the tenant and returns to the dashboard', (tester) async {
       final c = await _pumpSwitcher(

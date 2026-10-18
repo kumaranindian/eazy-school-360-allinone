@@ -12,6 +12,11 @@ class LoginSelectionBar extends StatelessWidget {
   final VoidCallback onCreate;
   final VoidCallback onCancel;
 
+  /// Defaults describe giving logins; reset-password selection overrides them.
+  final String actionLabel;
+  final IconData actionIcon;
+  final String? selectAllLabel;
+
   const LoginSelectionBar({
     super.key,
     required this.selected,
@@ -20,6 +25,9 @@ class LoginSelectionBar extends StatelessWidget {
     required this.onClear,
     required this.onCreate,
     required this.onCancel,
+    this.actionLabel = 'Give login access',
+    this.actionIcon = Icons.vpn_key_outlined,
+    this.selectAllLabel,
   });
 
   @override
@@ -46,7 +54,9 @@ class LoginSelectionBar extends StatelessWidget {
           ),
           TextButton(
             onPressed: selected < selectable ? onSelectAll : null,
-            child: Text('Select all ($selectable without a login)'),
+            child: Text(
+              selectAllLabel ?? 'Select all ($selectable without a login)',
+            ),
           ),
           TextButton(
             onPressed: selected > 0 ? onClear : null,
@@ -54,8 +64,8 @@ class LoginSelectionBar extends StatelessWidget {
           ),
           FilledButton.icon(
             onPressed: selected > 0 ? onCreate : null,
-            icon: const Icon(Icons.vpn_key_outlined),
-            label: const Text('Give login access'),
+            icon: Icon(actionIcon),
+            label: Text(actionLabel),
           ),
           TextButton(onPressed: onCancel, child: const Text('Cancel')),
         ],

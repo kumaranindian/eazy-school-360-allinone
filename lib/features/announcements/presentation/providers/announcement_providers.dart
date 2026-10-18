@@ -8,7 +8,16 @@ import '../../../fees/presentation/pages/parent_fees_page.dart'
 import '../../../homework/presentation/providers/homework_providers.dart';
 import '../../../staff/presentation/providers/staff_providers.dart';
 import '../../../timetable/presentation/providers/timetable_providers.dart';
+import '../../../users/presentation/providers/user_providers.dart'
+    show firebaseStorageProvider;
+import '../../data/firebase_announcement_file_uploader.dart';
 import '../../domain/announcement.dart';
+import '../../domain/announcement_file_uploader.dart';
+
+final announcementFileUploaderProvider = Provider<AnnouncementFileUploader>(
+  (ref) => FirebaseAnnouncementFileUploader(ref.watch(firebaseStorageProvider)),
+  retry: (retryCount, error) => null,
+);
 
 typedef ViewerKey = ({
   String schoolId,

@@ -12,6 +12,7 @@ void main() {
       'register',
       'forgotPassword',
       'accountInactive',
+      'changePassword',
       'createSchool',
       'dashboard',
     };

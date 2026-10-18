@@ -48,6 +48,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:eazy_school_360/features/announcements/presentation/providers/announcement_providers.dart';
+import '../support/announcement_file_fakes.dart';
 import '../support/attendance_fakes.dart';
 import '../support/fakes.dart';
 import '../support/leave_fakes.dart';
@@ -324,6 +326,9 @@ Future<_World> _pump(
       submissionRepositoryProvider.overrideWithValue(subs),
       announcementRepositoryProvider.overrideWithValue(anns),
       homeworkFileStoreProvider.overrideWithValue(store),
+      announcementFileUploaderProvider.overrideWithValue(
+        FakeAnnouncementFileUploader(),
+      ),
     ],
   );
   addTearDown(container.dispose);

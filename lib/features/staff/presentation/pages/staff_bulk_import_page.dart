@@ -11,7 +11,9 @@ import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/permissions/permission.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/routing/app_routes.dart';
 import '../../../../shared/bulk_import/bulk_rows_view.dart';
+import '../../../../shared/bulk_import/login_access_next_step.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../data/bulk_staff_importer.dart';
 import '../../domain/bulk_staff_import.dart';
@@ -652,6 +654,16 @@ class _BodyState extends ConsumerState<_Body> {
                   'row(s) not imported.',
                   style: theme.textTheme.titleSmall,
                 ),
+                if (results.length - failed.length > 0)
+                  const LoginAccessNextStep(
+                    message:
+                        'The people above were imported without a login. To '
+                        'let them sign in, select them in the staff list and '
+                        'choose "Give login access" — you pick how each '
+                        'first password is set.',
+                    buttonLabel: 'Open staff list',
+                    route: AppRoutes.staff,
+                  ),
                 if (failed.isNotEmpty || _rows.any((r) => !r.isValid)) ...[
                   const SizedBox(height: AppSpacing.xs),
                   const Text(

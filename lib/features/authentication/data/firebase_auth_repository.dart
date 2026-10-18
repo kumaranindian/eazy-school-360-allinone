@@ -52,6 +52,12 @@ class FirebaseAuthRepository implements AuthRepository {
   }) async {
     try {
       AppLogger.debug('Sign-in: email/password attempt', tag: 'Auth');
+      AppLogger.trace(
+        'password sign-in attempt email=${AppLogger.maskEmail(email)} '
+        'passwordLength=${password.length} '
+        'project=${_firebaseAuth.app.options.projectId}',
+        tag: 'Auth',
+      );
       final credential = await _firebaseAuth.signInWithEmailAndPassword(
         email: email,
         password: password,
@@ -61,9 +67,17 @@ class FirebaseAuthRepository implements AuthRepository {
         throw fb.FirebaseAuthException(code: 'user-not-found');
       }
       AppLogger.debug('Sign-in OK uid=${user.uid}', tag: 'Auth');
+      AppLogger.trace('password sign-in OK uid=${user.uid}', tag: 'Auth');
       return _toAppUser(user);
     } catch (error, stackTrace) {
       if (error is fb.FirebaseAuthException) {
+        AppLogger.trace(
+          'password sign-in FAILED code=${error.code} '
+          'email=${AppLogger.maskEmail(email)} '
+          'project=${_firebaseAuth.app.options.projectId} — '
+          '${_signInHint(error.code)}',
+          tag: 'Auth',
+        );
         AppLogger.error(
           'Sign-in failed: code=${error.code} message=${error.message}',
           tag: 'Auth',
@@ -278,4 +292,21 @@ String _byCode(String code) => switch (code) {
   'resource-exhausted' => 'RATE_LIMITED',
   'unavailable' || 'deadline-exceeded' => 'DELIVERY_FAILED',
   _ => 'UNKNOWN',
+};
+
+/// What a sign-in failure usually means, for the diagnostic trace only.
+String _signInHint(String code) => switch (code) {
+  'invalid-credential' || 'wrong-password' =>
+    'wrong password, OR this login has no password yet (it was created with '
+        'the activation-email / reset-link option: the person must set one '
+        'from the emailed link), OR the email has no account in THIS '
+        'project (Firebase reports both the same way)',
+  'user-not-found' => 'no account with this email in this project',
+  'user-disabled' => 'the account is disabled in Firebase Authentication',
+  'too-many-requests' => 'temporarily blocked after repeated failures',
+  'operation-not-allowed' =>
+    'email/password sign-in is switched off in the Firebase console',
+  'network-request-failed' => 'no connection to Firebase',
+  'invalid-email' => 'the email address is malformed',
+  _ => 'see the code above',
 };

@@ -223,6 +223,8 @@ test('the payload: Android channel + sound, iOS sound, a tagged web notification
     data: { refType: 'RECEIPT', refId: 'pay-1', branchId: 'main', route: '/admin-only', secret: 'x', amount: '500' },
   });
   assert.strictEqual(m.android.notification.channelId, ANDROID_CHANNEL);
+  assert.strictEqual(m.android.notification.icon, 'ic_stat_notify');
+  assert.match(m.android.notification.color, /^#[0-9A-F]{6}$/i);
   assert.strictEqual(m.android.notification.defaultSound, true);
   assert.strictEqual(m.android.priority, 'high');
   assert.strictEqual(m.apns.payload.aps.sound, 'default');

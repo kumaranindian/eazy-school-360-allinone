@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/constants/firestore_fields.dart';
 import '../../homework/domain/file_attachment.dart';
+import 'announcement_file_policy.dart';
 
 /// Who an announcement is for. Each value is a relationship the system
 /// actually holds: school/branch membership, staff roles, parents' children's
@@ -133,7 +134,9 @@ class Announcement {
     if (audience.needsSection && sectionId == null) {
       return 'Choose the section.';
     }
-    if (attachments.length > 5) return 'Attach at most 5 files.';
+    if (attachments.length > AnnouncementFilePolicy.maxFiles) {
+      return 'Attach at most ${AnnouncementFilePolicy.maxFiles} files.';
+    }
     if (publishAt != null &&
         expiresAt != null &&
         !expiresAt!.isAfter(publishAt!)) {

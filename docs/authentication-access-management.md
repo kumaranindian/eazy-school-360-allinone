@@ -146,3 +146,22 @@ Learned deploying to `eazy-school-360-dev`:
   ```
 * **`functions/.env` is required** for non-interactive deploys (copy `functions/env.example`; it is gitignored). Empty `META_WA_PHONE_NUMBER_ID` / `META_WA_TEMPLATE_NAME` keep phone sign-in off.
 * Deploy: `firebase deploy --only functions --force --project <id>`, then `--only hosting` after `flutter build web --release -t lib/main_<env>.dart --dart-define=APP_ENV=<env>`.
+
+## Password setup & email change when giving login access
+
+"Give login access" (staff and parents; students sign in through their parents) now asks how the first password is set. Chosen per batch, sent to `provisionLogins` as `passwordSetup`, never stored or logged:
+
+| Option | Server action | Email | First sign-in |
+|---|---|---|---|
+| Name + mobile (`NAME_MOBILE`) | sets `FIRST4(name) + last5(mobile)`; a row with < 4 letters or < 5 digits is refused (`PASSWORD_INPUT_MISSING`) | none | must change |
+| Random temporary (`RANDOM_TEMP`) | sets a CSPRNG password; returned once to the admin (CSV download), not stored | none | must change |
+| Activation email (`ACTIVATION_EMAIL`, default) | no password known to anyone | set-password link to new accounts and moved emails | person sets their own |
+| Reset link (`RESET_LINK`) | as above | link also to mapped existing logins | person sets their own |
+| Admin-defined (`ADMIN_DEFINED`) | sets the one password (policy: 8+ chars, letter + digit) | none | must change |
+
+* A password is applied only when the school allows **email & password** and only to accounts created in this run; existing logins (including Google/phone users) are never given or reset a password.
+* "Must change" is `users/{uid}.login.mustChangePassword`. The app routes the person to `/change-password`, which calls `changeInitialPassword` (only works while the flag is set), then signs them in again. **Limit:** this is enforced by the app and the callable, not by `firestore.rules`; a hand-built client could skip the screen until the password is changed.
+* **Email change:** editing an email in the dialog for someone who already has a login moves *that* login (same uid) to the new email: the new email is active, the old one no longer signs in, sessions are revoked, the old address is kept in `users.previousEmails` (last 10). A new email that belongs to another login is `EMAIL_IN_USE` and nothing changes. Branch admins cannot move a branch-admin account.
+* Bulk upload does not create logins itself: after an import the result panel points to the staff / parents list, where the above runs (idempotent: re-running skips existing logins).
+* **Reset password (existing logins).** Staff / Parents → key icon → *Login access* → **Reset password…** offers the same five options. Activation email / Reset link send the set-password email from the app. Name + mobile, Random temporary and One password set by you call `resetLoginPassword` (admin only; same target rules as `setLoginAccess`: not yourself, not a school admin, only a school admin may reset a branch admin; the school must allow email & password). It sets the password, flags `login.mustChangePassword`, revokes all sessions and writes a `PASSWORD_RESET` row to `authAudit` (option only, never the password). A random password is returned once to the admin.
+* Deploy: `firebase deploy --only functions:provisionLogins,functions:changeInitialPassword,functions:resetLoginPassword --project <id>` plus the web build. No new secrets or Console settings.

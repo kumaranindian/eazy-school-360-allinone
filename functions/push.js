@@ -78,6 +78,10 @@ function buildMessage({ type, title, body, data, notificationId }) {
       // The same tag replaces an earlier copy instead of stacking a duplicate.
       notification: {
         channelId: ANDROID_CHANNEL,
+        // The app's logo silhouette (android/app/src/main/res/drawable-*); an
+        // older install without it falls back to the manifest default.
+        icon: 'ic_stat_notify',
+        color: '#0A6BD9',
         visibility: 'public',
         priority: 'high',
         defaultSound: true,

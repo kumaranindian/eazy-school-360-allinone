@@ -19,10 +19,15 @@ class LoginState {
   /// checks the current sign-in against.
   final List<LoginMethod> effective;
 
+  /// Set when an admin chose or derived the first password: the person is
+  /// sent to replace it at their first password sign-in.
+  final bool mustChangePassword;
+
   const LoginState({
     required this.enabled,
     required this.methods,
     required this.effective,
+    this.mustChangePassword = false,
   });
 
   static LoginState? fromData(Object? raw) {
@@ -31,6 +36,7 @@ class LoginState {
       enabled: raw['enabled'] == true,
       methods: LoginMethod.listFromWire(raw['methods']),
       effective: LoginMethod.listFromWire(raw['effective']),
+      mustChangePassword: raw['mustChangePassword'] == true,
     );
   }
 
@@ -127,6 +133,11 @@ class UserProfile {
 
   bool get worksInMultipleBranches => workingBranchIds.length > 1;
 
+  /// A school admin runs every branch of the school (firestore.rules grant it
+  /// everywhere), so the app lets them choose which branch they are acting in.
+  bool get actsInAnyBranch =>
+      homeRole == UserRole.schoolAdmin && schoolId != null;
+
   /// This profile as seen while acting in [branchId]: that branch and the role
   /// held there. An unknown branch leaves the profile unchanged (no access is
   /// ever invented client-side; firestore.rules decide).
@@ -135,7 +146,9 @@ class UserProfile {
       return this;
     }
     final isHome = branchId == homeBranchId;
-    final next = isHome ? homeRole : branchRoles[branchId];
+    final next = actsInAnyBranch
+        ? homeRole
+        : (isHome ? homeRole : branchRoles[branchId]);
     if (next == null) return this;
     return UserProfile(
       userId: userId,

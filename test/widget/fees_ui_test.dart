@@ -1640,6 +1640,83 @@ void main() {
     );
   });
 
+  group('bulk fee assignment — choosing students', () {
+    FakeFeeConfigRepository repo() => FakeFeeConfigRepository(
+      structures: [fakeStructure(code: 'TERM1', amount: 50000)],
+      students: [
+        for (final id in ['1', '2', '3'])
+          FeeStudent(
+            studentId: id,
+            name: 'Student $id',
+            admissionNumber: 'A$id',
+            classId: 'c5',
+            className: 'Class 5',
+            sectionId: 'sa',
+            sectionName: 'A',
+            isEnrolled: true,
+          ),
+      ],
+    );
+
+    Future<_World> preview(
+      WidgetTester tester,
+      FakeFeeConfigRepository c,
+    ) async {
+      final w = await _pump(tester, role: UserRole.finance, config: c);
+      await w.go(tester, '/fees/assign');
+      await tester.tap(
+        find.widgetWithText(DropdownButtonFormField<String>, 'Class'),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Class 5').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Load students'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(CheckboxListTile).first);
+      await tester.pumpAndSettle();
+      await tester.tap(_outlined('Preview assignment'));
+      await tester.pumpAndSettle();
+      return w;
+    }
+
+    testWidgets('everyone is selected by default; unticking leaves them out', (
+      tester,
+    ) async {
+      final config = repo();
+      await preview(tester, config);
+      expect(find.textContaining('3 of 3 selected'), findsOneWidget);
+      expect(find.text('Assign 3'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('plan-2')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('2 of 3 selected'), findsOneWidget);
+      expect(find.textContaining('Tuition: 2 students'), findsOneWidget);
+
+      await tester.tap(_filled('Assign 2'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Assign').last);
+      await tester.pumpAndSettle();
+      expect(config.bulkCreated, [2]);
+    });
+
+    testWidgets('select none disables assigning; select all brings it back', (
+      tester,
+    ) async {
+      await preview(tester, repo());
+      await tester.tap(find.text('Select none'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('0 of 3 selected'), findsOneWidget);
+      expect(find.textContaining('nothing will be assigned'), findsOneWidget);
+      expect(
+        tester.widget<FilledButton>(_filled('Assign 0')).onPressed,
+        isNull,
+      );
+      await tester.tap(find.text('Select all'));
+      await tester.pumpAndSettle();
+      expect(find.text('Assign 3'), findsOneWidget);
+    });
+  });
+
   group('parent portal', () {
     final child = fakeStudent('stu-1', 'Anil');
 
@@ -1705,6 +1782,46 @@ void main() {
           findsOneWidget,
           reason: 'a parent may print their own invoice',
         );
+      },
+    );
+
+    testWidgets(
+      'an invoice with a balance offers "Pay online — Coming soon"; a settled one does not',
+      (tester) async {
+        final invoices = FakeInvoiceRepository(
+          invoices: [
+            fakeInvoice(payable: 100000, paid: 30000),
+            fakeInvoice(
+              id: 'stu-1__y1__M-2026-05',
+              number: 'INV-2026-000002',
+              payable: 50000,
+              paid: 50000,
+              status: InvoiceStatus.paid,
+            ),
+          ],
+        );
+        final w = await _pump(
+          tester,
+          role: UserRole.parent,
+          linkedParentId: 'parent-1',
+          children: [child],
+          invoiceRepo: invoices,
+          paymentRepo: FakePaymentRepository(payments: [fakePayment()]),
+        );
+        await w.go(tester, '/my-fees');
+        // only the invoice with a balance shows the entry
+        expect(find.text('Pay online'), findsOneWidget);
+        expect(find.text('Coming soon'), findsOneWidget);
+        await tester.ensureVisible(find.text('Pay online'));
+        await tester.tap(find.text('Pay online'));
+        await tester.pump();
+        expect(find.text('Online fee payment is coming soon.'), findsOneWidget);
+        // and on the invoice itself
+        await tester.tap(find.text('INV-2026-000001 · June 2026'));
+        await tester.pumpAndSettle();
+        expect(find.text('Pay online'), findsOneWidget);
+        expect(find.text('Coming soon'), findsOneWidget);
+        expect(tester.takeException(), isNull);
       },
     );
 

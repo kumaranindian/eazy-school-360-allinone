@@ -112,6 +112,13 @@ abstract final class AppTheme {
       scaffoldBackgroundColor: background,
       canvasColor: surface,
       visualDensity: VisualDensity.standard,
+      // No slide between screens: the route progress bar marks the change.
+      pageTransitionsTheme: PageTransitionsTheme(
+        builders: {
+          for (final platform in TargetPlatform.values)
+            platform: const _NoTransitionsBuilder(),
+        },
+      ),
       textTheme: AppTypography.textTheme.apply(
         bodyColor: colorScheme.onSurface,
         displayColor: colorScheme.onSurface,
@@ -385,4 +392,17 @@ abstract final class AppTheme {
       dividerTheme: DividerThemeData(color: border, space: 1, thickness: 1),
     );
   }
+}
+
+class _NoTransitionsBuilder extends PageTransitionsBuilder {
+  const _NoTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) => child;
 }

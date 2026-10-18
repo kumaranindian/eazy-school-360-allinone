@@ -70,7 +70,12 @@ field overrides in `firestore.indexes.json`.
 **Android** — channel `eazyschool_general` (high importance, lock-screen
 visible) is created in `MainActivity.kt`; the FCM payload targets it, so
 background messages use the channel's sound. Android 13+ asks for
-`POST_NOTIFICATIONS` at registration. While the app is open the in-app feed
+`POST_NOTIFICATIONS` at registration. The small notification icon is a white
+silhouette of the logo mark (`res/drawable-*/ic_stat_notify.png`, set as the
+FCM default icon in `AndroidManifest.xml` and named in the payload): Android
+draws it as one colour, so the full-colour launcher icon would show blank.
+Regenerate it from `assets/brand/logo_mark.png` if the logo changes. iOS shows
+the app icon automatically. While the app is open the in-app feed
 shows a snackbar.
 
 **iOS** — `ios/Runner/Runner.entitlements` (`aps-environment`) is wired into the

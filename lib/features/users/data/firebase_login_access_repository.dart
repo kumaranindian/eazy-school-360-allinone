@@ -9,6 +9,9 @@ import '../../authentication/data/firebase_auth_repository.dart'
 import '../../authentication/domain/login_method.dart';
 import '../domain/login_access.dart';
 import '../domain/login_provisioning.dart';
+import '../domain/password_reset.dart';
+import '../domain/resilient_batches.dart';
+import '../../../core/errors/app_failure.dart';
 
 /// Talks to the login-access Cloud Functions. Authorization is decided on the
 /// server (caller must be a school/branch admin of the record's tenant).
@@ -87,6 +90,76 @@ class FirebaseLoginAccessRepository implements LoginAccessRepository {
       revoked: m['revoked'] == true,
     );
   }
+
+  @override
+  Future<String?> resetPassword({
+    required String schoolId,
+    required String branchId,
+    required LoginKind kind,
+    required String id,
+    required PasswordSetup passwordSetup,
+  }) async {
+    final m = await _call('resetLoginPassword', {
+      'schoolId': schoolId,
+      'branchId': branchId,
+      'kind': kind.wireValue,
+      'id': id,
+      'passwordSetup': {
+        'option': passwordSetup.option.wireValue,
+        if (passwordSetup.password != null) 'password': passwordSetup.password,
+      },
+    });
+    return m['tempPassword'] as String?;
+  }
+
+  /// Network trouble and throttling are worth another try; a refusal is not.
+  static bool _isTransient(Object e) =>
+      e is NetworkFailure ||
+      (e is AccessPolicyFailure &&
+          const {
+            'DELIVERY_FAILED',
+            'RATE_LIMITED',
+            'UNKNOWN',
+          }.contains(e.reason));
+
+  @override
+  Future<List<PasswordResetResult>> resetPasswords({
+    required String schoolId,
+    required String branchId,
+    required LoginKind kind,
+    required List<String> ids,
+    required PasswordSetup passwordSetup,
+    void Function(int done, int total)? onProgress,
+    bool Function()? isCancelled,
+  }) => runResilientBatches<String, PasswordResetResult>(
+    items: ids,
+    batchSize: 10,
+    concurrency: 2,
+    onProgress: onProgress,
+    isCancelled: isCancelled,
+    isTransient: _isTransient,
+    onGaveUp: (batch) => [
+      for (final id in batch)
+        PasswordResetResult(id: id, outcome: PasswordResetOutcome.retryLater),
+    ],
+    call: (part) async {
+      final m = await _call('resetLoginPassword', {
+        'schoolId': schoolId,
+        'branchId': branchId,
+        'kind': kind.wireValue,
+        'ids': part,
+        'passwordSetup': {
+          'option': passwordSetup.option.wireValue,
+          if (passwordSetup.password != null)
+            'password': passwordSetup.password,
+        },
+      });
+      return [
+        for (final r in (m['results'] as List? ?? const []))
+          PasswordResetResult.fromMap(r as Map),
+      ];
+    },
+  );
 
   @override
   Future<AccessDiagnosis> diagnose({
