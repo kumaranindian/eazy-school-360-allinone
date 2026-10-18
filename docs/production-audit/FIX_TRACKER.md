@@ -44,7 +44,7 @@ None confirmed.
 | SEC-2 | App Check off by default | 0/1 | ⚑ |
 | SEC-3 | OTP: victim lock-out, IP source, no TTL | 3 | ◐ TTL on otpChallenges/otpRate done (⚑ TTL policies are applied by `firebase deploy --only firestore:indexes`); victim lock-out and IP trust need App Check enforcement (SEC-2, ⚑) |
 | SEC-4 | `feeDueReminders` global scan, silent cap | 2 | ✔ |
-| CFG-4 | No Content-Security-Policy | 3 | ☐ |
+| CFG-4 | No Content-Security-Policy | 3 | ◐ CSP added as Report-Only (script/wasm/CanvasKit/Google sign-in loading verified violation-free in headless Chromium; post-login flows could not be exercised here). ⚑ watch the console on the dev site, then rename the header to Content-Security-Policy |
 | CFG-6 | Missing staff composite indexes | 2 | ✔ re-assessed: Firestore index merging serves chained equality filters from the existing (field, displayNameLower) composites; guard test added (tool/indexes.test.js); ⚑ confirm one combined filter on dev |
 | CFG-7 | CI hardening (permissions, pinning, timeouts) | 3 | ☐ |
 | DEP-1 | Functions dependency advisories (firebase-admin 12) | 2 | ✔ firebase-admin 13 (2 high → 0); 8 moderate remain: transitive `uuid` buf-bounds advisory, code path (v3/v5/v6 with a caller buffer) not used; ⚑ deploy to dev and smoke-test callables |
