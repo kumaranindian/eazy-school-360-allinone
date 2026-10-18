@@ -2322,6 +2322,7 @@ service cloud.firestore {
             && validDateKey(nd().dateKey)
             && attendanceId == nd().dateKey + '_' + nd().studentId
             && notFutureAttendance(nd())
+            && dayKey(nd().attendanceDate) == nd().dateKey
             && validAttendanceStatus(nd().status)
             && nd().revision == 1
             && validRemarks(nd())

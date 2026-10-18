@@ -35,7 +35,7 @@ None confirmed.
 | ACAD-3 | Marks save partial failure; retry impossible | 2 | ✔ |
 | ACAD-4 | `approvedSheets` read-modify-write outside transaction | 2 | ✔ |
 | ACAD-7 | In-branch student transfer not transactional | 2 | ✔ (transaction + precondition; atomicity itself is Firestore's) |
-| ACAD-9 | Attendance rules trust client section/date | 2 | ☐ |
+| ACAD-9 | Attendance rules trust client section/date | 2 | ◐ date coherence enforced in rules; enrolment lookup per student is not possible (rules allow 20 document reads per commit, a register commit has 30+) - accepted residual risk: only the section's own teacher or a manager can write |
 | NOTIF-2 | Disabled-login users still pushed / can register devices | 2 | ✔ |
 | NOTIF-4 | Push recipients silently truncated at 2000 | 1 | ✔ |
 | LOG-1 | PII (email, student name) reaches Crashlytics | 1 | ✔ |

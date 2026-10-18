@@ -248,6 +248,15 @@ test('Invalid statuses, oversized remarks, malformed dates and future dates are 
   await assertSucceeds(setDoc(attRef(admin), studentAtt({ remarks: 'ok', uid: 'att-admin' })));
 });
 
+test('ACAD-9: the stored date must be the day the key names', async () => {
+  await seedWorld();
+  const admin = asUser('att-admin');
+  const skewed = { ...studentAtt({ uid: 'att-admin' }), attendanceDate: new Date('2026-06-09T00:00:00Z') };
+  await assertFails(setDoc(attRef(admin), skewed));
+  const mid = { ...studentAtt({ uid: 'att-admin' }), attendanceDate: new Date(`${DATE}T13:00:00Z`) };
+  await assertSucceeds(setDoc(attRef(admin), mid)); // same UTC day is the same day
+});
+
 test('Attendance is never hard-deleted', async () => {
   await seedWorld();
   const admin = asUser('att-admin');
