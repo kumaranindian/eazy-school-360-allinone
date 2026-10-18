@@ -20,7 +20,7 @@ before(async () => {
   testEnv = await initializeTestEnvironment({
     projectId: 'demo-eazy-school-360',
     firestore: {
-      rules: readFileSync('../firestore.rules', 'utf8'),
+      rules: readFileSync(process.env.RULES_FILE || '../firestore.rules', 'utf8'),
     },
   });
 });

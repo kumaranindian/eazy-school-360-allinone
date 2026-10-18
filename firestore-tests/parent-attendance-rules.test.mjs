@@ -26,7 +26,7 @@ const rec = (studentId, dateKey = '2026-06-10', b = N, s = A) => ({
 before(async () => {
   env = await initializeTestEnvironment({
     projectId: 'demo-eazy-school-360',
-    firestore: { rules: readFileSync('../firestore.rules', 'utf8') },
+    firestore: { rules: readFileSync(process.env.RULES_FILE || '../firestore.rules', 'utf8') },
   });
   await env.withSecurityRulesDisabled(async (c) => {
     const d = c.firestore();

@@ -31,8 +31,8 @@ let env;
 before(async () => {
   env = await initializeTestEnvironment({
     projectId: 'demo-eazy-school-360',
-    firestore: { rules: readFileSync('../firestore.rules', 'utf8') },
-    storage: { rules: readFileSync('../storage.rules', 'utf8') },
+    firestore: { rules: readFileSync(process.env.RULES_FILE || '../firestore.rules', 'utf8') },
+    storage: { rules: readFileSync(process.env.STORAGE_RULES_FILE || '../storage.rules', 'utf8') },
   });
   await env.withSecurityRulesDisabled(async (c) => {
     const db = c.firestore();

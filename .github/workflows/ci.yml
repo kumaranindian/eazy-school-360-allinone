@@ -57,6 +57,12 @@ jobs:
         working-directory: firestore-tests
       - name: Firestore and Storage rules (serial, emulator)
         run: firebase emulators:exec --only firestore,storage --project demo-eazy-school-360 "cd firestore-tests && npm test"
+      # The released ruleset is the comment-free build. It must stay under the
+      # service's size limit (fails above 85 %) and behave exactly like the source.
+      - name: Build deployable rules (size gate) and unit-test the minifier
+        run: node --test "tool/*.test.js" && node tool/build_rules.js --check
+      - name: Rules suite against the built (deployable) rules
+        run: RULES_FILE=../build/rules/firestore.rules STORAGE_RULES_FILE=../build/rules/storage.rules firebase emulators:exec --only firestore,storage --project demo-eazy-school-360 "cd firestore-tests && npm test"
 
   functions:
     runs-on: ubuntu-latest

@@ -15,9 +15,12 @@ import { test, before, after } from 'node:test';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import { collection, doc, getDoc, getDocs, limit, query, serverTimestamp, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
-const rules = readFileSync('../firestore.rules', 'utf8');
+const rules = readFileSync(process.env.RULES_FILE || '../firestore.rules', 'utf8');
 // Branch-level collections are declared with exactly eight spaces of indentation.
-const COLLECTIONS = [...rules.matchAll(/^ {8}match \/([A-Za-z]+)\/\{[A-Za-z]+\} \{/gm)].map((m) => m[1]);
+// Collections are discovered from the indented SOURCE (branch-level matches sit at
+// 8 spaces); the ruleset under test may be the minified build (RULES_FILE).
+const source = readFileSync('../firestore.rules', 'utf8');
+const COLLECTIONS = [...source.matchAll(/^ {8}match \/([A-Za-z]+)\/\{[A-Za-z]+\} \{/gm)].map((m) => m[1]);
 const UNIQUE = [...new Set(COLLECTIONS)];
 
 const A = 'sw-a';

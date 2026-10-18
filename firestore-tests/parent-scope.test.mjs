@@ -13,7 +13,7 @@ let env;
 before(async () => {
   env = await initializeTestEnvironment({
     projectId: 'demo-eazy-school-360',
-    firestore: { rules: readFileSync('../firestore.rules', 'utf8') },
+    firestore: { rules: readFileSync(process.env.RULES_FILE || '../firestore.rules', 'utf8') },
   });
   await seedAll();
 });
