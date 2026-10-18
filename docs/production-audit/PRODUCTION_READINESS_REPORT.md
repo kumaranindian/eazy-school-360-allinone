@@ -2,6 +2,44 @@
 
 Commit audited: `develop` @ `f36c35f` · Date: 2026-10-17 · Auditor: Claude (lead) with four read-only sub-audits (findings tagged L/S in BUG_REGISTER.md).
 
+## 0. Re-assessment after remediation (HEAD of `develop`, 2026-10-18)
+
+**Verdict: still NOT READY — but the blockers have changed character.** Every code-level P1/P2 finding is fixed with a regression test (see FIX_TRACKER.md, TEST_RESULTS.md "Post-fix verification"). What stands between this code and production is now **verification on real infrastructure and operations**, none of which can be done from the repository.
+
+| # | Gate | Was | Now | What decides it |
+|---|---|---|---|---|
+| 1 | Authentication & session | PARTIAL | **PARTIAL** | code fixed (NOTIF-1, STATE-3, ROUTE-2); App Check / OTP abuse controls need enforcement (SEC-2/3 ⚑) |
+| 2 | Role-based authorization | PARTIAL | **PARTIAL** | rules + 457 tests green on source and built artifact; ACAD-9 enrolment check not feasible in rules (accepted residual); live ruleset unknown |
+| 3 | Multi-tenant isolation | PARTIAL | **PARTIAL** | proven in emulator only |
+| 4 | Firestore & Storage rules | FAIL | **UNKNOWN → blocker until dry-run** | release artifact is 147,884 B (56 % of limit, CI gate at 85 %); must still pass `tool/deploy_rules.sh <project> --dry-run` on dev and prod |
+| 5 | Student & staff data integrity | PARTIAL | **PARTIAL** | ACAD-2/7, UI-1 fixed; admission-number reservations need the backfill (`tool/backfill_admission_numbers.js`) and duplicates resolved by a human |
+| 6 | Attendance, leave, holidays, results | FAIL | **PARTIAL** | ACAD-1/3/4, UI-2 fixed; existing year dates need `tool/migrate_year_dates.js` |
+| 7 | Fees, invoices, payments | PARTIAL | **PARTIAL** | unchanged: design sound, no E2E, client-clock dates (⊘) |
+| 8 | Notification reliability & isolation | FAIL | **PARTIAL** | retry/redrive, no truncation, device clean-up, disabled-login gating done and unit-tested; never run against real FCM/APNs |
+| 9 | Critical end-to-end workflows | UNKNOWN | **UNKNOWN** | no journey run against a real project |
+| 10 | Static analysis & tests | PASS | **PASS** | format, analyze, 1,481 Dart, 155 functions, 24 tool, 457 rules ×2, TZ ×3 |
+| 11 | Production configuration | FAIL | **FAIL** | CFG-1 guard, CI hardening, Android build job added; no staging project, App Check, signing keystore, APNs/VAPID/Meta secrets |
+| 12 | Backup & restoration | UNKNOWN | **UNKNOWN** | PITR + scheduled backups + one restore drill (OPS-1) |
+| 13 | Monitoring & incident recovery | FAIL | **FAIL** | LOG-1 fixed; Crashlytics native setup and alert policies are owner work (OPS-2/3) |
+| 14 | Build, deployment & rollback | PARTIAL | **PARTIAL** | prod-entry web build in CI; Android/iOS builds never run here |
+
+### Risks introduced by the fixes themselves (read before deploying)
+1. **Deploy order for admission numbers.** The new rules *require* a reservation on student create. An old app build cannot admit students once the rules are live. Ship the app first (or together), run the backfill, then deploy rules.
+2. **Untested in a real toolchain:** the Gradle release-signing guard (no Android SDK here — only pinned by a text test), the `firebase-admin@13` upgrade (unit tests only; deploy to dev and call each callable), the new CI `android` job and prod-entry build (never run on a runner), TTL policies and the new `pushDeliveries` index (take effect on index deploy).
+3. **CSP is Report-Only** by design until watched on the dev site.
+4. **Data migrations are one-way in effect.** Year-date migration needs the correct IANA zone per school; take a backup first (which presupposes OPS-1).
+5. **Accepted residuals:** ACAD-9 (enrolment not verifiable in rules), SEC-3 victim lock-out and SEC-6 signup spam (need App Check/CAPTCHA), ~40 unreviewed post-`await` `setState` calls (STATE-5, debug-mode only), PERF-3.
+
+### Shortest path to READY
+1. Create the **staging** project; deploy indexes, rules (`--dry-run` first on both projects) and functions there; smoke-test every callable (firebase-admin 13).
+2. Enable **PITR + scheduled backups**; do one restore drill.
+3. Run both **backfills** on staging copy of real data; resolve reported duplicates.
+4. Configure **signing** (Android keystore, Apple certs, APNs, VAPID, Meta secrets) and produce one signed AAB/IPA; set up **Crashlytics** natively; create **alert/budget policies**; enable **App Check** (monitor, then enforce).
+5. Run the **critical journeys** end to end on staging with real devices (admit → fees → payment → receipt; attendance; leave; marks → finalise → publish; push on Android/iOS; parent portal).
+6. Watch CSP on staging, flip to enforcing; then promote in the order: app → backfills → rules → functions.
+
+---
+
 ## 1. Verdict: **NOT READY FOR PRODUCTION**
 
 The code base is unusually well engineered where it matters most — money, tenant isolation and role scoping are enforced server-side, transactional and heavily tested. It is not releasable because (a) the security ruleset may not be deployable, (b) a confirmed date defect corrupts academic-year boundaries for every school east of UTC, (c) push delivery leaks to the wrong person and silently loses messages, (d) release signing, monitoring and backups are not in place or not evidenced, and (e) no end-to-end journey has ever been exercised against a real environment. None of these needs a redesign; most are small, local fixes (see IMPLEMENTATION_PLAN.md).
