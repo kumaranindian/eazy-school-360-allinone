@@ -103,13 +103,18 @@ function fakeDb(seed = {}) {
   const group = (name) => {
     const conds = [];
     let lim = Infinity;
+    let after = null;
     const q = {
       where: (f, op, v) => (conds.push([f, op, v]), q),
+      orderBy: () => q,
       limit: (n) => ((lim = n), q),
+      startAfter: (d) => ((after = d.ref.path), q),
       get: async () => ({
         docs: [...store.keys()]
           .filter((k) => k.split('/').slice(-2)[0] === name)
           .filter((k) => conds.every((c) => matches(store.get(k), c)))
+          .sort()
+          .filter((k) => !after || k > after)
           .slice(0, lim)
           .map(snap),
       }),

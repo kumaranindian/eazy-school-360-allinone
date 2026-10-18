@@ -230,7 +230,10 @@ function dueKeyFor(now, offsetDays, timeZone) {
   return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(t);
 }
 
-const MAX_INVOICES_PER_RUN = 2000;
+// Paged, never cut off silently (SEC-4): a run reads at most this many pages
+// per reminder day and reports `truncated` if there was more.
+const INVOICE_PAGE = 500;
+const MAX_INVOICE_PAGES = 200;
 
 /**
  * Reminds the parents of open invoices that fall due [offset] days from now
@@ -241,37 +244,49 @@ const MAX_INVOICES_PER_RUN = 2000;
 async function runFeeDueReminders({ db, now }, { today = new Date(), offsets = [3, 0], timeZone = 'Asia/Kolkata' } = {}) {
   let created = 0;
   let scanned = 0;
+  let truncated = false;
   for (const offset of offsets) {
     const dueKey = dueKeyFor(today, offset, timeZone);
-    const snap = await db.collectionGroup('invoices').where('dueDateKey', '==', dueKey).limit(MAX_INVOICES_PER_RUN).get();
-    for (const d of snap.docs) {
-      const inv = d.data();
-      if (!OPEN_INVOICE.has(inv.status) || !(inv.balanceMinor > 0)) continue;
-      const m = /^schools\/([^/]+)\/branches\/([^/]+)\/invoices\/([^/]+)$/.exec(d.ref.path);
-      if (!m || !inv.studentId) continue;
-      scanned++;
-      const [, schoolId, branchId, invoiceId] = m;
-      const uids = await parentUserIdsOfStudent(db, schoolId, branchId, inv.studentId);
-      for (const uid of uids) {
-        const ok = await createOnce(
-          notificationsOf(db, schoolId, branchId).doc(`FEE_DUE__${invoiceId}__${offset}__${uid}`),
-          targeted({
-            now,
-            schoolId,
-            branchId,
-            uid,
-            type: 'FEE_DUE_REMINDER',
-            title: offset === 0 ? 'Fee due today' : 'Fee due soon',
-            body: `A fee invoice is due on ${dateText(dueKey)}.`,
-            refType: 'INVOICE',
-            refId: invoiceId,
-          }),
-        );
-        if (ok) created++;
+    let after = null;
+    for (let page = 0; ; page++) {
+      if (page >= MAX_INVOICE_PAGES) {
+        truncated = true;
+        break;
       }
+      let q = db.collectionGroup('invoices').where('dueDateKey', '==', dueKey).orderBy('__name__').limit(INVOICE_PAGE);
+      if (after) q = q.startAfter(after);
+      const snap = await q.get();
+      for (const d of snap.docs) {
+        const inv = d.data();
+        if (!OPEN_INVOICE.has(inv.status) || !(inv.balanceMinor > 0)) continue;
+        const m = /^schools\/([^/]+)\/branches\/([^/]+)\/invoices\/([^/]+)$/.exec(d.ref.path);
+        if (!m || !inv.studentId) continue;
+        scanned++;
+        const [, schoolId, branchId, invoiceId] = m;
+        const uids = await parentUserIdsOfStudent(db, schoolId, branchId, inv.studentId);
+        for (const uid of uids) {
+          const ok = await createOnce(
+            notificationsOf(db, schoolId, branchId).doc(`FEE_DUE__${invoiceId}__${offset}__${uid}`),
+            targeted({
+              now,
+              schoolId,
+              branchId,
+              uid,
+              type: 'FEE_DUE_REMINDER',
+              title: offset === 0 ? 'Fee due today' : 'Fee due soon',
+              body: `A fee invoice is due on ${dateText(dueKey)}.`,
+              refType: 'INVOICE',
+              refId: invoiceId,
+            }),
+          );
+          if (ok) created++;
+        }
+      }
+      if (snap.docs.length < INVOICE_PAGE) break;
+      after = snap.docs[snap.docs.length - 1];
     }
   }
-  return { created, scanned };
+  return truncated ? { created, scanned, truncated } : { created, scanned };
 }
 
 module.exports = {

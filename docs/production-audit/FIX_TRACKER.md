@@ -43,7 +43,7 @@ None confirmed.
 | STATE-3 | Sign-out can hang on the unregister callable | 1 | ✔ |
 | SEC-2 | App Check off by default | 0/1 | ⚑ |
 | SEC-3 | OTP: victim lock-out, IP source, no TTL | 3 | ☐ |
-| SEC-4 | `feeDueReminders` global scan, silent cap | 2 | ☐ |
+| SEC-4 | `feeDueReminders` global scan, silent cap | 2 | ✔ |
 | CFG-4 | No Content-Security-Policy | 3 | ☐ |
 | CFG-6 | Missing staff composite indexes | 2 | ☐ |
 | CFG-7 | CI hardening (permissions, pinning, timeouts) | 3 | ☐ |

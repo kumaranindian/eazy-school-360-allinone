@@ -221,3 +221,11 @@ test('the date is the school\'s day, not UTC\'s', () => {
   assert.strictEqual(ev.dueKeyFor(new Date('2026-08-02T20:00:00Z'), 0, 'UTC'), '2026-08-02');
   assert.strictEqual(ev.dueKeyFor(new Date('2026-08-30T10:00:00Z'), 3, 'UTC'), '2026-09-02'); // month boundary
 });
+
+test('SEC-4: more invoices than one page are all reminded, none skipped', async () => {
+  const seed = { ...family() };
+  for (let i = 0; i < 1200; i++) seed[`${B}/invoices/i${String(i).padStart(4, '0')}`] = inv();
+  const db = fakeDb(seed);
+  const r = await run(db, { offsets: [3] });
+  assert.deepStrictEqual(r, { created: 1200, scanned: 1200 });
+});
