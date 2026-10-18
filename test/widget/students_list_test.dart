@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:eazy_school_360/shared/branding/page_hero.dart';
 import 'package:eazy_school_360/shared/filters/directory_toolbar.dart';
 import 'package:eazy_school_360/shared/layouts/directory_list.dart';
@@ -114,6 +116,26 @@ Future<FakeStudentListRepository> _pump(
 }
 
 void main() {
+  testWidgets('STATE-1: an older search that answers late cannot overwrite a '
+      'newer one', (tester) async {
+    final repo = await _pump(tester);
+    final slow = Completer<void>();
+    repo.nameSearchGate = (q) => q == 'as' ? slow.future : Future.value();
+
+    await tester.enterText(find.byType(TextField), 'as');
+    await tester.pump(const Duration(milliseconds: 500)); // search 'as' starts
+    await tester.enterText(find.byType(TextField), 'ra');
+    await tester.pump(const Duration(milliseconds: 500)); // search 'ra' starts
+    await tester.pump();
+    expect(find.text('Ravi Menon'), findsOneWidget);
+
+    slow.complete(); // the older request finally answers
+    await tester.pumpAndSettle();
+    expect(repo.nameSearches, ['as', 'ra']);
+    expect(find.text('Ravi Menon'), findsOneWidget);
+    expect(find.text('Asha Nair'), findsNothing);
+  });
+
   testWidgets(
     'phone: stat chips with counts, search, Filters button, no row of controls',
     (tester) async {

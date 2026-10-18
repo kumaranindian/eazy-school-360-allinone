@@ -39,6 +39,9 @@ class FakeStudentListRepository implements StudentRepository {
   final List<String> nameSearches = [];
   final List<String> admissionSearches = [];
 
+  /// Lets a test hold a name search open to reorder responses.
+  Future<void> Function(String query)? nameSearchGate;
+
   FakeStudentListRepository(this.students);
 
   @override
@@ -67,6 +70,7 @@ class FakeStudentListRepository implements StudentRepository {
     Object? cursor,
   }) async {
     nameSearches.add(query);
+    await nameSearchGate?.call(query);
     return PagedResult(
       items: students
           .where(

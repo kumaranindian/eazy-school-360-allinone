@@ -27,7 +27,7 @@ None confirmed.
 ## P2 — medium
 | ID | Title | Phase | Status |
 |---|---|---|---|
-| STATE-1 | Students/Parents lists: double load-more, stale results, stuck spinner | 2 | ☐ |
+| STATE-1 | Students/Parents lists: double load-more, stale results, stuck spinner | 2 | ✔ |
 | STATE-2 | Same race in leave-balance search, link-parent dialog, admission parent search | 2 | ☐ |
 | UI-1 | Admission reports success when guardian create/link failed | 2 | ☐ |
 | UI-2 | Results finalised with silently missing attendance | 2 | ☐ |

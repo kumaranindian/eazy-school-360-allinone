@@ -8,6 +8,7 @@ import '../../../../core/permissions/permission.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/utils/responsive.dart';
 import '../../../../shared/error/empty_view.dart';
+import '../../../../shared/error/error_view.dart';
 import '../../../../shared/filters/directory_toolbar.dart';
 import '../../../../shared/filters/filter_field.dart';
 import '../../../../shared/filters/page_actions.dart';
@@ -16,7 +17,7 @@ import '../../../../shared/layouts/hub_layout.dart';
 import '../../../../shared/layouts/stat_chips.dart';
 import '../../../../shared/layouts/status_chips.dart';
 import '../../../../shared/loading/async_value_widget.dart';
-import '../../domain/paged_result.dart';
+import '../../../../shared/paging/paged_list_controller.dart';
 import '../../domain/student.dart';
 import '../../domain/student_status.dart';
 import '../providers/student_providers.dart';
@@ -46,68 +47,49 @@ class _StudentsListPageState extends ConsumerState<StudentsListPage> {
   _SearchBy _searchBy = _SearchBy.name;
   StudentStatus? _statusFilter = StudentStatus.active;
 
-  List<Student> _items = [];
-  Object? _cursor;
-  bool _hasMore = false;
-  bool _isLoading = false;
+  final _controller = PagedListController<Student>();
   bool _loadedOnce = false;
   String? _schoolId;
   String? _branchId;
 
   bool get _isSearching => _searchController.text.trim().isNotEmpty;
 
-  Future<void> _resetAndLoad(String schoolId, String branchId) async {
-    setState(() {
-      _schoolId = schoolId;
-      _branchId = branchId;
-      _items = [];
-      _cursor = null;
-      _hasMore = false;
-      _isLoading = true;
-      _loadedOnce = true;
-    });
-    await _loadPage(schoolId, branchId, reset: true);
-  }
-
-  Future<void> _loadPage(
-    String schoolId,
-    String branchId, {
-    bool reset = false,
-  }) async {
+  /// Rebuilds the fetch closure from the current search/filters and loads page
+  /// one. The shared controller drops a response that arrives after a newer
+  /// query started and never runs two page loads at once (STATE-1).
+  void _resetAndLoad(String schoolId, String branchId) {
+    _schoolId = schoolId;
+    _branchId = branchId;
+    _loadedOnce = true;
     final repository = ref.read(studentRepositoryProvider);
-    PagedResult<Student> page;
     final query = _searchController.text.trim();
-
-    if (query.isNotEmpty && _searchBy == _SearchBy.name) {
-      page = await repository.searchStudentsByName(
+    final status = _statusFilter;
+    final by = _searchBy;
+    _controller.fetch = (cursor) {
+      if (query.isNotEmpty && by == _SearchBy.name) {
+        return repository.searchStudentsByName(
+          schoolId: schoolId,
+          branchId: branchId,
+          query: query,
+          cursor: cursor,
+        );
+      }
+      if (query.isNotEmpty) {
+        return repository.searchStudentsByAdmissionNumber(
+          schoolId: schoolId,
+          branchId: branchId,
+          query: query,
+          cursor: cursor,
+        );
+      }
+      return repository.fetchStudents(
         schoolId: schoolId,
         branchId: branchId,
-        query: query,
-        cursor: reset ? null : _cursor,
+        status: status,
+        cursor: cursor,
       );
-    } else if (query.isNotEmpty) {
-      page = await repository.searchStudentsByAdmissionNumber(
-        schoolId: schoolId,
-        branchId: branchId,
-        query: query,
-        cursor: reset ? null : _cursor,
-      );
-    } else {
-      page = await repository.fetchStudents(
-        schoolId: schoolId,
-        branchId: branchId,
-        status: _statusFilter,
-        cursor: reset ? null : _cursor,
-      );
-    }
-
-    if (!mounted) return;
-    setState(() {
-      _items = reset ? page.items : [..._items, ...page.items];
-      _cursor = page.nextCursor;
-      _hasMore = page.hasMore;
-      _isLoading = false;
-    });
+    };
+    _controller.reload();
   }
 
   void _reload() {
@@ -126,8 +108,20 @@ class _StudentsListPageState extends ConsumerState<StudentsListPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onControllerChanged);
+  }
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
     _debounce?.cancel();
+    _controller.removeListener(_onControllerChanged);
+    _controller.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -271,7 +265,13 @@ class _StudentsListPageState extends ConsumerState<StudentsListPage> {
                     layout: layout,
                   ),
                   SizedBox(height: DirectoryLayout.sectionGap(layout)),
-                  if (_isLoading && _items.isEmpty)
+                  if (_controller.errorMessage != null &&
+                      _controller.items.isEmpty)
+                    ErrorView(
+                      message: _controller.errorMessage!,
+                      onRetry: _controller.reload,
+                    )
+                  else if (!_controller.hasLoaded)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 48),
                       child: Center(child: CircularProgressIndicator()),
@@ -289,7 +289,7 @@ class _StudentsListPageState extends ConsumerState<StudentsListPage> {
                         message: 'No students match your filters.',
                       ),
                       items: [
-                        for (final student in _items)
+                        for (final student in _controller.items)
                           DirectoryRow(
                             id: student.studentId,
                             name: student.displayName,
@@ -306,9 +306,10 @@ class _StudentsListPageState extends ConsumerState<StudentsListPage> {
                           ),
                       ],
                       total: _totalFor(counts),
-                      hasMore: _hasMore,
-                      isLoading: _isLoading,
-                      onLoadMore: () => _loadPage(_schoolId!, _branchId!),
+                      hasMore: _controller.hasMore,
+                      isLoading: _controller.isLoading,
+                      onLoadMore: _controller.loadMore,
+                      errorText: _controller.errorMessage,
                     ),
                 ],
               ),

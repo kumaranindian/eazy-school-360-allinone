@@ -17,12 +17,13 @@ import '../../../../shared/filters/page_actions.dart';
 import '../../../../shared/layouts/directory_list.dart';
 import '../../../../shared/layouts/hub_layout.dart';
 import '../../../../shared/layouts/status_chips.dart';
+import '../../../../shared/error/error_view.dart';
 import '../../../../shared/loading/async_value_widget.dart';
+import '../../../../shared/paging/paged_list_controller.dart';
 import '../../../users/domain/login_provisioning.dart';
 import '../../../users/presentation/widgets/login_access_dialog.dart';
 import '../../../users/presentation/widgets/login_selection_bar.dart';
 import '../../../users/presentation/widgets/provision_logins_dialog.dart';
-import '../../domain/paged_result.dart';
 import '../../domain/parent.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../providers/parent_providers.dart';
@@ -44,10 +45,7 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
   Timer? _debounce;
   ActivationStatus? _statusFilter;
 
-  List<Parent> _items = [];
-  Object? _cursor;
-  bool _hasMore = false;
-  bool _isLoading = false;
+  final _controller = PagedListController<Parent>();
   bool _loadedOnce = false;
   String? _schoolId;
   String? _branchId;
@@ -56,7 +54,8 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
   bool _selecting = false;
   final _selected = <String>{};
 
-  Iterable<Parent> get _selectable => _items.where((p) => !p.hasPortalAccess);
+  Iterable<Parent> get _selectable =>
+      _controller.items.where((p) => !p.hasPortalAccess);
 
   Future<void> _manageAccess(
     String schoolId,
@@ -83,7 +82,7 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
         branchId: branchId,
         kind: LoginKind.parent,
         people: [
-          for (final p in _items)
+          for (final p in _controller.items)
             if (_selected.contains(p.parentId))
               (id: p.parentId, name: p.displayName, email: p.email),
         ],
@@ -98,47 +97,29 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
     }
   }
 
-  Future<void> _resetAndLoad(String schoolId, String branchId) async {
-    setState(() {
-      _schoolId = schoolId;
-      _branchId = branchId;
-      _items = [];
-      _cursor = null;
-      _hasMore = false;
-      _isLoading = true;
-      _loadedOnce = true;
-    });
-    await _loadPage(schoolId, branchId, reset: true);
-  }
-
-  Future<void> _loadPage(
-    String schoolId,
-    String branchId, {
-    bool reset = false,
-  }) async {
+  /// Rebuilds the fetch closure from the current search/filter and loads page
+  /// one; the shared controller drops stale responses (STATE-1).
+  void _resetAndLoad(String schoolId, String branchId) {
+    _schoolId = schoolId;
+    _branchId = branchId;
+    _loadedOnce = true;
     final repository = ref.read(parentRepositoryProvider);
     final query = _searchController.text.trim();
-    final PagedResult<Parent> page = query.isNotEmpty
-        ? await repository.searchParentsByName(
+    final status = _statusFilter;
+    _controller.fetch = (cursor) => query.isNotEmpty
+        ? repository.searchParentsByName(
             schoolId: schoolId,
             branchId: branchId,
             query: query,
-            cursor: reset ? null : _cursor,
+            cursor: cursor,
           )
-        : await repository.fetchParents(
+        : repository.fetchParents(
             schoolId: schoolId,
             branchId: branchId,
-            status: _statusFilter,
-            cursor: reset ? null : _cursor,
+            status: status,
+            cursor: cursor,
           );
-
-    if (!mounted) return;
-    setState(() {
-      _items = reset ? page.items : [..._items, ...page.items];
-      _cursor = page.nextCursor;
-      _hasMore = page.hasMore;
-      _isLoading = false;
-    });
+    _controller.reload();
   }
 
   Future<void> _openForm(
@@ -241,8 +222,20 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onControllerChanged);
+  }
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
     _debounce?.cancel();
+    _controller.removeListener(_onControllerChanged);
+    _controller.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -350,7 +343,13 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
                     ),
                   ],
                   SizedBox(height: DirectoryLayout.sectionGap(layout)),
-                  if (_isLoading && _items.isEmpty)
+                  if (_controller.errorMessage != null &&
+                      _controller.items.isEmpty)
+                    ErrorView(
+                      message: _controller.errorMessage!,
+                      onRetry: _controller.reload,
+                    )
+                  else if (!_controller.hasLoaded)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 48),
                       child: Center(child: CircularProgressIndicator()),
@@ -373,7 +372,7 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
                         message: 'No parents match your filters.',
                       ),
                       items: [
-                        for (final parent in _items)
+                        for (final parent in _controller.items)
                           DirectoryRow(
                             id: parent.parentId,
                             name: parent.displayName,
@@ -420,9 +419,10 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
                           ),
                       ],
                       total: null,
-                      hasMore: _hasMore,
-                      isLoading: _isLoading,
-                      onLoadMore: () => _loadPage(_schoolId!, _branchId!),
+                      hasMore: _controller.hasMore,
+                      isLoading: _controller.isLoading,
+                      onLoadMore: _controller.loadMore,
+                      errorText: _controller.errorMessage,
                     ),
                   if (canManage) const SizedBox(height: 72),
                 ],
