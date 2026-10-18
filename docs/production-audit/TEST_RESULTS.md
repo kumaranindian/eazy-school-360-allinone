@@ -29,3 +29,23 @@ Environment: Linux sandbox, Flutter 3.32.8 / Dart 3.8 (`/opt/sdk/flutter`), Node
 * They prove tenant isolation, role/ownership rules, field immutability and state machines **for the repository's rule text in the emulator**. They do not prove those rules are live, nor that the 256 KiB release limit and the production evaluation quotas are respected.
 * Dart tests use fakes for repositories — transactions, index requirements and the real SDK's retry behaviour are only exercised through the rules-contract fixtures.
 * Gaps worth adding (tests do not exist today): attendance write-plan contract; `TZ` matrix; two-writer races (ACAD-3/4/7, admission-number); out-of-order list tests (STATE-1); sign-out cleanup per path (NOTIF-1); `errorSink` PII test (LOG-1); route-map completeness (ROUTE-1); push redrive/truncation (NOTIF-3/4).
+
+
+## Post-fix verification (after the remediation commits listed in `FIX_TRACKER.md`)
+Same environment as above, commit range `c4b5233..HEAD` on `develop`.
+
+| Check | Result |
+|---|---|
+| `dart format --output=none --set-exit-if-changed .` | **PASS** — 613 files, 0 changed |
+| `flutter analyze` | **PASS** — no issues |
+| `flutter test` | **PASS** — 1,481 / 1,481 |
+| Date-sensitive suites under `TZ=Asia/Kolkata`, `America/Los_Angeles`, `Pacific/Auckland` (`academic_setup leave timetable attendance exams features students`) | **PASS** ×3 |
+| `cd functions && npm test` | **PASS** — 155 / 155 |
+| `node --test "tool/*.test.js"` (rules minifier, signing guard, manifest, gitignore, CSP, indexes, admission backfill, year dates) | **PASS** — 24 / 24 |
+| Rules + Storage suite, source rules | **PASS** — 457 / 457 |
+| Rules + Storage suite, built (deployable) rules, 147,884 B = 56.4 % of the limit | **PASS** — 457 / 457 |
+| `npm audit --omit=dev` (functions) after `firebase-admin@13` | 8 moderate (transitive `uuid` buffer-bounds advisory, code path not used), **0 high** |
+| CSP load check (headless Chromium, release web build served with the policy; CanvasKit served locally because the sandbox cannot reach gstatic) | 0 violations on boot; **the app did not render in this sandbox even without a CSP** (Firebase needs the network), so post-login flows are unverified — CSP therefore ships as Report-Only |
+| Still **NOT RUN** | Android/iOS builds, deployed-environment journeys, push on devices, rules `--dry-run` on a real project, backup restore, load profile, a real CI run of the new `android` job and prod-entry build |
+
+Race-condition regression tests added: concurrent push claim takeover and concurrent redrive (`delivery_log.test.js`, `deliver.test.js`), concurrent admission of one number (`admission-number-rules.test.mjs`), concurrent sheet approvals (`exam-rules.test.mjs`), out-of-order searches (`students_list_test`, `link_parent_dialog_race_test`), late branch switch (`multi_branch_tenant_test`), partial marks save + retry (`exam_ui_test`), bounded concurrency helper (`bounded_parallel_test`).
