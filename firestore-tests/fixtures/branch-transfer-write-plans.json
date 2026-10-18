@@ -59,6 +59,20 @@
             },
             {
               "op": "set",
+              "path": "schools/__SCHOOL__/branches/south/admissionNumbers/s-100",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "south",
+                "studentId": "stu-1",
+                "admissionNumber": "S-100",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "bt-admin"
+              }
+            },
+            {
+              "op": "set",
               "path": "schools/__SCHOOL__/branches/south/students/stu-1/academicRecords/rec-new",
               "data": {
                 "studentId": "stu-1",

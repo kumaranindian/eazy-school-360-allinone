@@ -31,7 +31,7 @@ None confirmed.
 | STATE-2 | Same race in leave-balance search, link-parent dialog, admission parent search | 2 | ✔ |
 | UI-1 | Admission reports success when guardian create/link failed | 2 | ✔ |
 | UI-2 | Results finalised with silently missing attendance | 2 | ✔ |
-| ACAD-2 | Admission-number uniqueness is check-then-write | 2 | ☐ |
+| ACAD-2 | Admission-number uniqueness is check-then-write | 2 | ✔ code+rules+tests; ⚑ run `tool/backfill_admission_numbers.js` (dry-run first) on existing data |
 | ACAD-3 | Marks save partial failure; retry impossible | 2 | ☐ |
 | ACAD-4 | `approvedSheets` read-modify-write outside transaction | 2 | ☐ |
 | ACAD-7 | In-branch student transfer not transactional | 2 | ☐ |

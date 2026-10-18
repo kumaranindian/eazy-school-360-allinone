@@ -15,6 +15,8 @@ import '../domain/student.dart';
 import '../domain/student_academic_record.dart';
 import '../domain/student_repository.dart';
 import '../domain/student_status.dart';
+import '../domain/admission_key.dart';
+import 'admission_reservation.dart';
 import 'branch_transfer_writes.dart';
 import 'parent_access_sync.dart';
 
@@ -315,6 +317,15 @@ class FirebaseStudentRepository implements StudentRepository {
     String? excludingStudentId,
   }) async {
     try {
+      // The reservation is authoritative; the query still covers students
+      // that predate it (until tool/backfill_admission_numbers.js has run).
+      final reserved = await _firestore
+          .doc(AdmissionReservation.path(schoolId, branchId, admissionNumber))
+          .get();
+      if (reserved.exists &&
+          reserved.data()?['studentId'] != excludingStudentId) {
+        return false;
+      }
       final matches = await _studentsCollection(
         schoolId,
         branchId,
@@ -356,6 +367,8 @@ class FirebaseStudentRepository implements StudentRepository {
     required String createdBy,
   }) async {
     try {
+      final invalid = AdmissionKey.validate(student.admissionNumber);
+      if (invalid != null) throw ValidationFailure(invalid);
       final available = await isAdmissionNumberAvailable(
         student.schoolId,
         student.branchId,
@@ -383,7 +396,7 @@ class FirebaseStudentRepository implements StudentRepository {
         studentId: studentRef.id,
         schoolId: student.schoolId,
         branchId: student.branchId,
-        admissionNumber: student.admissionNumber,
+        admissionNumber: AdmissionKey.clean(student.admissionNumber),
         studentCode: studentCode,
         firstName: student.firstName,
         middleName: student.middleName,
@@ -430,8 +443,40 @@ class FirebaseStudentRepository implements StudentRepository {
           'currentSectionId': sectionId,
           'currentRollNumber': rollNumber,
         })
-        ..set(recordRef, record.toFirestoreCreate(createdBy: createdBy));
-      await batch.commit();
+        ..set(recordRef, record.toFirestoreCreate(createdBy: createdBy))
+        // Reserved in the same batch: if another admin took the number between
+        // the check above and now, the create-only reservation fails and so
+        // does the whole admission (ACAD-2).
+        ..set(
+          _firestore.doc(
+            AdmissionReservation.path(
+              student.schoolId,
+              student.branchId,
+              student.admissionNumber,
+            ),
+          ),
+          AdmissionReservation.data(
+            schoolId: student.schoolId,
+            branchId: student.branchId,
+            studentId: studentRef.id,
+            number: student.admissionNumber,
+            actorId: createdBy,
+          ),
+        );
+      try {
+        await batch.commit();
+      } on FirebaseException {
+        if (!await isAdmissionNumberAvailable(
+          student.schoolId,
+          student.branchId,
+          student.admissionNumber,
+        )) {
+          throw const ValidationFailure(
+            'This admission number is already in use.',
+          );
+        }
+        rethrow;
+      }
 
       return studentRef.id;
     } catch (error, stackTrace) {
@@ -445,24 +490,62 @@ class FirebaseStudentRepository implements StudentRepository {
     required String updatedBy,
   }) async {
     try {
-      if (student.admissionNumber.isNotEmpty) {
-        final available = await isAdmissionNumberAvailable(
-          student.schoolId,
-          student.branchId,
-          student.admissionNumber,
-          excludingStudentId: student.studentId,
-        );
-        if (!available) {
-          throw const ValidationFailure(
-            'This admission number is already in use.',
-          );
-        }
-      }
-      await _studentDoc(
+      final ref = _studentDoc(
         student.schoolId,
         student.branchId,
         student.studentId,
-      ).update(student.toFirestoreProfileUpdate(updatedBy: updatedBy));
+      );
+      final batch = _firestore.batch();
+      if (student.admissionNumber.isNotEmpty) {
+        final current = (await ref.get()).data()?['admissionNumber'] as String?;
+        // Only a changed number touches the reservations; a student whose
+        // number predates them keeps working untouched.
+        if (current == null ||
+            AdmissionKey.of(current) !=
+                AdmissionKey.of(student.admissionNumber)) {
+          final invalid = AdmissionKey.validate(student.admissionNumber);
+          if (invalid != null) throw ValidationFailure(invalid);
+          final available = await isAdmissionNumberAvailable(
+            student.schoolId,
+            student.branchId,
+            student.admissionNumber,
+            excludingStudentId: student.studentId,
+          );
+          if (!available) {
+            throw const ValidationFailure(
+              'This admission number is already in use.',
+            );
+          }
+          if (current != null && current.trim().isNotEmpty) {
+            final old = _firestore.doc(
+              AdmissionReservation.path(
+                student.schoolId,
+                student.branchId,
+                current,
+              ),
+            );
+            if ((await old.get()).exists) batch.delete(old);
+          }
+          batch.set(
+            _firestore.doc(
+              AdmissionReservation.path(
+                student.schoolId,
+                student.branchId,
+                student.admissionNumber,
+              ),
+            ),
+            AdmissionReservation.data(
+              schoolId: student.schoolId,
+              branchId: student.branchId,
+              studentId: student.studentId,
+              number: student.admissionNumber,
+              actorId: updatedBy,
+            ),
+          );
+        }
+      }
+      batch.update(ref, student.toFirestoreProfileUpdate(updatedBy: updatedBy));
+      await batch.commit();
     } catch (error, stackTrace) {
       throw mapExceptionToFailure(error, stackTrace);
     }

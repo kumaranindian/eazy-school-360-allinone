@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/activation_status.dart';
 import '../../../core/constants/firestore_fields.dart';
 import '../domain/academic_record_status.dart';
+import '../domain/admission_key.dart';
+import 'admission_reservation.dart';
 import '../domain/parent_student_link.dart';
 import '../domain/student.dart';
 import '../domain/student_academic_record.dart';
@@ -98,8 +100,8 @@ abstract final class BranchTransferWrites {
     if (s.status != StudentStatus.active) {
       return 'Only an active student can be moved to another branch.';
     }
-    if (i.admissionNumber.trim().isEmpty) {
-      return 'Enter the admission number in the new branch.';
+    if (AdmissionKey.validate(i.admissionNumber) != null) {
+      return 'Enter a valid admission number for the new branch.';
     }
     if (i.academicYearId.isEmpty || i.classId.isEmpty || i.sectionId.isEmpty) {
       return 'Choose the class and section in the new branch.';
@@ -169,6 +171,18 @@ abstract final class BranchTransferWrites {
           'admissionNumber': s.admissionNumber,
         },
       }),
+      // The number is reserved in the same batch (ACAD-2): a second student
+      // taking it in the meantime makes this whole move fail.
+      PlannedWrite.create(
+        AdmissionReservation.path(schoolId, to, admission),
+        AdmissionReservation.data(
+          schoolId: schoolId,
+          branchId: to,
+          studentId: s.studentId,
+          number: admission,
+          actorId: i.actorId,
+        ),
+      ),
       PlannedWrite.create(
         '$toPath/academicRecords/${i.destinationRecordId}',
         record.toFirestoreCreate(createdBy: i.actorId),

@@ -404,6 +404,34 @@ service cloud.firestore {
       return /databases/$(database)/documents/schools/$(schoolId)/branches/$(branchId)/staffCodes/$(codeLower);
     }
 
+    // ACAD-2: one admission number per branch. The key (case/space-insensitive,
+    // '/' -> '~') is the id of a create-only reservation written in the same
+    // batch as the student; lib/features/students/domain/admission_key.dart
+    // computes the same key.
+    function admissionKey(n) {
+      return n.admissionNumber.trim().lower().replace('/', '~');
+    }
+
+    function validAdmissionNumber(n) {
+      return n.admissionNumber is string
+        && n.admissionNumber.trim().matches('^[A-Za-z0-9#][^\\n]{0,59}$');
+    }
+
+    function admissionPath(schoolId, branchId, key) {
+      return /databases/$(database)/documents/schools/$(schoolId)/branches/$(branchId)/admissionNumbers/$(key);
+    }
+
+    function studentDocPath(schoolId, branchId, studentId) {
+      return /databases/$(database)/documents/schools/$(schoolId)/branches/$(branchId)/students/$(studentId);
+    }
+
+    // The student holds [key] after this write and the reservation says so.
+    function admissionReserved(schoolId, branchId, studentId) {
+      return validAdmissionNumber(nd())
+        && existsAfter(admissionPath(schoolId, branchId, admissionKey(nd())))
+        && getAfter(admissionPath(schoolId, branchId, admissionKey(nd()))).data.studentId == studentId;
+    }
+
     function assignmentPath(schoolId, branchId, assignmentId) {
       return /databases/$(database)/documents/schools/$(schoolId)/branches/$(branchId)/teacherAssignments/$(assignmentId);
     }
@@ -1913,12 +1941,31 @@ service cloud.firestore {
         // identity outlives any single year; see
         // docs/milestone-3-student-parent-management.md → "Why students
         // aren't nested under academicYears".
+        // Admission-number reservations (ACAD-2): id == admissionKey(student).
+        // Created with the student that holds the number, released only when
+        // no student holds it any more.
+        match /admissionNumbers/{keyId} {
+          allow read: if canManageStudentData(schoolId, branchId);
+          allow create: if canManageStudentData(schoolId, branchId)
+            && newInTenant(schoolId, branchId)
+            && nd().createdAt == request.time
+            && nd().createdBy == request.auth.uid
+            && nd().studentId is string
+            && existsAfter(studentDocPath(schoolId, branchId, nd().studentId))
+            && admissionKey(getAfter(studentDocPath(schoolId, branchId, nd().studentId)).data) == keyId;
+          allow update: if false;
+          allow delete: if canManageStudentData(schoolId, branchId)
+            && (!existsAfter(studentDocPath(schoolId, branchId, resource.data.studentId))
+              || admissionKey(getAfter(studentDocPath(schoolId, branchId, resource.data.studentId)).data) != keyId);
+        }
+
         match /students/{studentId} {
           allow read: if canViewStudentData(schoolId, branchId) || canAccessAsParent(schoolId, branchId, studentId)
             || teacherHasSection(schoolId, branchId, resource.data.currentClassId, resource.data.currentSectionId);
 
           allow create: if canManageStudentData(schoolId, branchId) && validCreateAudit()
             && newInTenant(schoolId, branchId)
+            && admissionReserved(schoolId, branchId, studentId)
             && ('transferredTo' in nd()) == false
             && (!('transferredFrom' in nd())
                 || transferDestinationOk(schoolId, branchId, studentId, nd()));
@@ -1928,6 +1975,10 @@ service cloud.firestore {
                 || transferSourceOk(schoolId, branchId, studentId, resource.data, nd()))
             // A student who has been moved to another branch stays TRANSFERRED here.
             && (!('transferredTo' in resource.data) || nd().status == 'TRANSFERRED')
+            // A changed admission number must be reserved by this student (a
+            // student that predates reservations may keep its number as is).
+            && (nd().get('admissionNumber', null) == resource.data.get('admissionNumber', null)
+                || admissionReserved(schoolId, branchId, studentId))
             && changedOnly([
               'transferredTo',
               'admissionNumber', 'studentCode', 'firstName', 'middleName', 'lastName',

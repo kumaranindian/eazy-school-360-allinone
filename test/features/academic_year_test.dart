@@ -5,8 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('fromFirestore parses dates and status from their wire values', () {
-    final start = DateTime(2026, 6, 1);
-    final end = DateTime(2027, 4, 30);
+    // Year boundaries are civil dates, stored and read as UTC midnight
+    // (ACAD-1), so they read back the same in every time zone.
+    final start = DateTime.utc(2026, 6, 1);
+    final end = DateTime.utc(2027, 4, 30);
     final year = AcademicYear.fromFirestore('school-1', 'main', 'year-1', {
       'schoolId': 'school-1',
       'branchId': 'main',

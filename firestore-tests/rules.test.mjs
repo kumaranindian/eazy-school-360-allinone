@@ -848,20 +848,19 @@ test('School A admin can create a student in their own school; School B admin is
   });
 
   const adminA = asUser('admin-a');
-  await assertSucceeds(
-    setDoc(
-      doc(adminA, 'schools', SCHOOL_A, 'branches', MAIN, 'students', 'student-1'),
-      studentDoc({ schoolId: SCHOOL_A, branchId: MAIN, createdBy: 'admin-a' }),
-    ),
-  );
+  // Admission = the student plus its number's reservation (ACAD-2).
+  const admit = (db, uid, id) => {
+    const b = writeBatch(db);
+    b.set(doc(db, 'schools', SCHOOL_A, 'branches', MAIN, 'students', id), studentDoc({ schoolId: SCHOOL_A, branchId: MAIN, createdBy: uid }));
+    b.set(doc(db, 'schools', SCHOOL_A, 'branches', MAIN, 'admissionNumbers', 'adm-2026-001'), {
+      schoolId: SCHOOL_A, branchId: MAIN, studentId: id, createdAt: serverTimestamp(), createdBy: uid,
+    });
+    return b.commit();
+  };
+  await assertSucceeds(admit(adminA, 'admin-a', 'student-1'));
 
   const adminB = asUser('admin-b');
-  await assertFails(
-    setDoc(
-      doc(adminB, 'schools', SCHOOL_A, 'branches', MAIN, 'students', 'student-2'),
-      studentDoc({ schoolId: SCHOOL_A, branchId: MAIN, createdBy: 'admin-b' }),
-    ),
-  );
+  await assertFails(admit(adminB, 'admin-b', 'student-2'));
   await assertFails(getDoc(doc(adminB, 'schools', SCHOOL_A, 'branches', MAIN, 'students', 'student-1')));
 });
 

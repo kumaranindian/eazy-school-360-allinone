@@ -38,6 +38,7 @@ abstract final class FirestoreFields {
   // Staff + Teacher management (Milestone 4)
   static const String staffCollection = 'staff';
   static const String staffCodesCollection = 'staffCodes';
+  static const String admissionNumbersCollection = 'admissionNumbers';
   static const String staffDocumentsCollection = 'documents';
   static const String departmentsCollection = 'departments';
   static const String designationsCollection = 'designations';
