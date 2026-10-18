@@ -24,6 +24,7 @@ const parentAccess = require('./parent_access');
 const examScope = require('./exam_scope');
 const branchAccess = require('./branch_access');
 const deviceCleanup = require('./device_cleanup');
+const currencyLock = require('./currency_lock');
 const { requestOtp, verifyOtp } = require('./otp');
 const { createWhatsAppSender } = require('./whatsapp');
 const { callOptions } = require('./call_options');
@@ -360,6 +361,23 @@ exports.refreshTeacherAccess = onCall(callOptions(), async (request) => {
   logger.info('refreshTeacherAccess', { by: a.uid, ...out });
   return out;
 });
+
+// ---- currency lock (see currency_lock.js) ----------------------------------
+// The first fee structure, invoice or payment of a school fixes its currency.
+for (const [name, collection] of [
+  ['lockCurrencyOnFeeStructure', 'feeStructures'],
+  ['lockCurrencyOnInvoice', 'invoices'],
+  ['lockCurrencyOnPayment', 'payments'],
+]) {
+  exports[name] = onDocumentCreated(`schools/{schoolId}/branches/{branchId}/${collection}/{docId}`, async (event) => {
+    try {
+      await currencyLock.lockCurrency(db, event.params.schoolId);
+    } catch (e) {
+      logger.error('currency lock failed', { category: errorCategory(e) });
+      throw e; // let the platform retry
+    }
+  });
+}
 
 // ---- parentAccess index (see parent_access.js) -----------------------------
 // Rebuilt when a parent link or a child's placement/status changes, so a
