@@ -24,6 +24,8 @@ import 'tenant_context.dart';
 ///   status is anything but active (invited or disabled) — the router
 ///   redirects this to `/account-inactive`, where the user can sign out.
 class TenantContextNotifier extends AsyncNotifier<TenantContext?> {
+  int _switchRequest = 0;
+
   @override
   Future<TenantContext?> build() async {
     final authState = await ref.watch(authStateChangesProvider.future);
@@ -113,9 +115,14 @@ class TenantContextNotifier extends AsyncNotifier<TenantContext?> {
     if (current.branch?.branchId == branchId) return;
     final schoolId = user.schoolId;
     if (schoolId == null) return;
+    // The branch lookup is asynchronous. Whatever happened meanwhile (the user
+    // signed out or another account signed in, the profile reloaded, a newer
+    // switch was requested) wins over this late answer (STATE-6).
+    final request = ++_switchRequest;
     final branch = await ref
         .read(schoolRepositoryProvider)
         .getBranch(schoolId, branchId);
+    if (request != _switchRequest || !identical(state.value, current)) return;
     state = AsyncData(
       TenantContext(
         user: user.activeIn(branchId),

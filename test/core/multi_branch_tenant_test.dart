@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:eazy_school_360/core/permissions/permission.dart';
 import 'package:eazy_school_360/core/permissions/user_role.dart';
 import 'package:eazy_school_360/core/tenant/tenant_context_provider.dart';
@@ -173,6 +175,47 @@ void main() {
       },
     );
 
+    test(
+      'STATE-6: a late branch lookup cannot overwrite a newer state',
+      () async {
+        final slow = Completer<void>();
+        late final _SlowBranches slowRepo;
+        final c = ProviderContainer(
+          overrides: [
+            authRepositoryProvider.overrideWithValue(
+              FakeAuthRepository(
+                signedInAs: const AppUser(uid: 'u1', email: 'a@x.example'),
+              ),
+            ),
+            userRepositoryProvider.overrideWithValue(
+              FakeUserRepository({
+                'u1': _profile(branchRoles: {'south': UserRole.branchAdmin}),
+              }),
+            ),
+            schoolRepositoryProvider.overrideWithValue(
+              slowRepo = _SlowBranches(slow.future, {
+                's1/north': _branch('north'),
+                's1/south': _branch('south'),
+              }),
+            ),
+          ],
+        );
+        addTearDown(c.dispose);
+        c.listen(tenantContextProvider, (_, __) {});
+        await c.read(tenantContextProvider.future);
+        slowRepo.armed = true;
+
+        final pending = c
+            .read(tenantContextProvider.notifier)
+            .switchBranch('south');
+        // Meanwhile the tenant is replaced (as a sign-out / re-login would).
+        c.read(tenantContextProvider.notifier).state = const AsyncData(null);
+        slow.complete();
+        await pending;
+        expect(c.read(tenantContextProvider).value, isNull);
+      },
+    );
+
     test('a branch the user does not work in is ignored', () async {
       final c = container(_profile(branchRoles: {'south': UserRole.finance}));
       c.listen(tenantContextProvider, (_, __) {});
@@ -189,4 +232,18 @@ void main() {
       expect(c.read(tenantContextProvider).value!.branch?.branchId, 'north');
     });
   });
+}
+
+/// Answers branch lookups only once [gate] completes.
+class _SlowBranches extends FakeSchoolRepository {
+  final Future<void> gate;
+  bool armed = false;
+  _SlowBranches(this.gate, Map<String, Branch> branches)
+    : super(schools: {'s1': _school}, branches: branches);
+
+  @override
+  Future<Branch?> getBranch(String schoolId, String branchId) async {
+    if (armed) await gate;
+    return super.getBranch(schoolId, branchId);
+  }
 }

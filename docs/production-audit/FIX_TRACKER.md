@@ -61,9 +61,9 @@ None confirmed.
 | NOTIF-6 | Lock-screen content visibility | 3 | ⊘ |
 | NOTIF-7 | `ALL` pushes to staff who cannot open the notice | 3 | ⊘ |
 | ACAD-5 | NaN / multi-decimal marks components pass client validation | 2 | ✔ |
-| STATE-4 | `addReadIds` lost update | 2 | ☐ |
+| STATE-4 | `addReadIds` lost update | 2 | ✔ |
 | STATE-5 | Small lifecycle gaps (marks submit, conversation, generate dialogs) | 3 | ☐ |
-| STATE-6 | Late `switchBranch` overwrites tenant after sign-out | 2 | ☐ |
+| STATE-6 | Late `switchBranch` overwrites tenant after sign-out | 2 | ✔ |
 | ROUTE-1 | Three routes missing from `requiredPermissions` | 3 | ☐ |
 | LOG-2 | Raw `debugPrint` of callable error bodies in release | 3 | ☐ |
 | CFG-5 | `storage.cors.json` `origin:*` | 3 | ⚑ |
