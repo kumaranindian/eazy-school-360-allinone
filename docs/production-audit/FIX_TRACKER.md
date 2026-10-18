@@ -39,7 +39,7 @@ None confirmed.
 | NOTIF-2 | Disabled-login users still pushed / can register devices | 2 | ✔ |
 | NOTIF-4 | Push recipients silently truncated at 2000 | 1 | ✔ |
 | LOG-1 | PII (email, student name) reaches Crashlytics | 1 | ✔ |
-| ROUTE-2 | No deep-link / refresh restoration | 2 | ☐ |
+| ROUTE-2 | No deep-link / refresh restoration | 2 | ✔ (?from= carried through splash/sign-in; safe-target check) |
 | STATE-3 | Sign-out can hang on the unregister callable | 1 | ✔ |
 | SEC-2 | App Check off by default | 0/1 | ⚑ |
 | SEC-3 | OTP: victim lock-out, IP source, no TTL | 3 | ☐ |

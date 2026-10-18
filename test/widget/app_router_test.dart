@@ -80,6 +80,30 @@ String _location(ProviderContainer container) => container
     .path;
 
 void main() {
+  testWidgets('ROUTE-2: a signed-in deep link survives the splash redirect', (
+    tester,
+  ) async {
+    final container = await _pumpSignedIn(
+      tester,
+      profile: _profile(role: UserRole.schoolAdmin),
+    );
+    container.read(appRouterProvider).go('/?from=%2Fstudents');
+    await tester.pumpAndSettle();
+    expect(_location(container), '/students');
+  });
+
+  testWidgets('ROUTE-2: a hostile return target falls back to the dashboard', (
+    tester,
+  ) async {
+    final container = await _pumpSignedIn(
+      tester,
+      profile: _profile(role: UserRole.schoolAdmin),
+    );
+    container.read(appRouterProvider).go('/?from=%2F%2Fevil.example');
+    await tester.pumpAndSettle();
+    expect(_location(container), AppRoutes.dashboard);
+  });
+
   testWidgets('signed in with no profile -> create-school onboarding', (
     tester,
   ) async {

@@ -28,6 +28,7 @@ import '../../features/users/presentation/pages/users_page.dart';
 import '../tenant/account_inactive_exception.dart';
 import '../tenant/tenant_context_provider.dart';
 import 'app_routes.dart';
+import 'return_to.dart';
 import 'app_shell.dart';
 
 /// Notifies GoRouter to re-run its redirect whenever auth state or tenant
@@ -75,7 +76,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final path = state.fullPath ?? state.matchedLocation;
 
       if (!authState.hasValue && !authState.hasError) {
-        return path == '/' ? null : '/';
+        return path == '/' ? null : ReturnTo.redirect('/', state.uri);
       }
 
       final isLoggedIn = authState.value != null;
@@ -85,7 +86,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path == AppRoutes.forgotPassword) {
           return null;
         }
-        return AppRoutes.login;
+        return ReturnTo.redirect(AppRoutes.login, state.uri);
       }
 
       final tenantState = ref.read(tenantContextProvider);
@@ -98,11 +99,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         }
         // Any other tenant-loading error: let '/' show it with a retry,
         // rather than the router trying to encode every failure path.
-        return path == '/' ? null : '/';
+        return path == '/' ? null : ReturnTo.redirect('/', state.uri);
       }
 
       if (!tenantState.hasValue) {
-        return path == '/' ? null : '/';
+        return path == '/' ? null : ReturnTo.redirect('/', state.uri);
       }
 
       final tenant = tenantState.value;
@@ -110,10 +111,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // *previous* user's profile while it reloads. Never show or authorise
       // anything from it — wait on the splash until it belongs to this uid.
       if (tenant != null && tenant.user.userId != authState.value!.uid) {
-        return path == '/' ? null : '/';
+        return path == '/' ? null : ReturnTo.redirect('/', state.uri);
       }
       if (tenant == null) {
-        return path == AppRoutes.createSchool ? null : AppRoutes.createSchool;
+        return path == AppRoutes.createSchool
+            ? null
+            : ReturnTo.redirect(AppRoutes.createSchool, state.uri);
       }
 
       const signedOutOrOnboardingPaths = {
@@ -125,7 +128,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         AppRoutes.accountInactive,
       };
       if (signedOutOrOnboardingPaths.contains(path)) {
-        return AppRoutes.dashboard;
+        // Back to the page the user was headed for (permissions are checked
+        // when that location is redirected in turn).
+        return ReturnTo.safe(state.uri.queryParameters[ReturnTo.param]) ??
+            AppRoutes.dashboard;
       }
 
       final requiredPermission = AppRoutes.requiredPermissions[path];
