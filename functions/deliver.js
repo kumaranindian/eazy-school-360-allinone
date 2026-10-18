@@ -21,6 +21,16 @@ function makeDelivery({ db, messaging, logger, budgetMs = 240 * 1000, now = () =
     notifications: (doc) => targetedRecipients(db, doc),
   };
 
+  /** When the announcement behind [data] becomes visible, if it has one. */
+  async function publishTime(data) {
+    if (data.refType !== 'ANNOUNCEMENT' || !data.refId) return null;
+    const snap = await db
+      .doc(`schools/${data.schoolId}/branches/${data.branchId}/announcements/${data.refId}`)
+      .get();
+    const at = snap.exists ? snap.data().publishAt : null;
+    return at && typeof at.toDate === 'function' ? at.toDate() : at instanceof Date ? at : null;
+  }
+
   /** One attempt at delivering [data] (the notice document at [ref]). */
   async function runDelivery({ eventId, schoolId, branchId, ref, id, data, kind }) {
     const doc = { ...data, schoolId, branchId };
@@ -30,6 +40,13 @@ function makeDelivery({ db, messaging, logger, budgetMs = 240 * 1000, now = () =
       if (!claim) {
         logger.info('push skipped: event already handled or not due', { path: ref.path });
         return null;
+      }
+      // A notice for an announcement that is scheduled for later waits (ACAD-6).
+      const notBefore = await publishTime(doc);
+      if (notBefore && notBefore.getTime() > now().getTime()) {
+        await finishDelivery(claim, { status: 'SCHEDULED', notBefore }, now);
+        logger.info('push deferred until publish time', { path: ref.path });
+        return 'SCHEDULED';
       }
       const userIds = await resolvers[kind](doc);
       const sent = await pushToUsers({

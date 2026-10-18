@@ -50,7 +50,7 @@ None confirmed.
 | DEP-1 | Functions dependency advisories (firebase-admin 12) | 2 | ☐ |
 | PERF-1 | Finalise results: per-student attendance reads | 2 | ☐ |
 | PERF-2 | Refresh parent access sequential, no guard | 2 | ☐ |
-| ACAD-6 | Scheduled announcements push immediately | 2 | ☐ |
+| ACAD-6 | Scheduled announcements push immediately | 2 | ✔ |
 | OPS-3 | No alert policies / budget alerts | 0 | ⚑ |
 | OPS-4 | Single-document invoice/receipt counters | — | ⊘ |
 

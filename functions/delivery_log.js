@@ -90,12 +90,21 @@ async function finishDelivery(claim, outcome, now = () => new Date()) {
   const at = now();
   const { doneDevices, ...counts } = outcome;
   const done = new Set([...(claim.doneDevices || []), ...(doneDevices || [])]);
-  const retry = counts.status !== 'SENT' && claim.attempt < MAX_ATTEMPTS;
+  // SCHEDULED: not due yet (a future-dated announcement). It waits for its
+  // time without using up an attempt.
+  const scheduled = counts.status === 'SCHEDULED' && counts.notBefore instanceof Date;
+  const retry = scheduled || (counts.status !== 'SENT' && claim.attempt < MAX_ATTEMPTS);
+  const { notBefore, ...stored } = counts;
   await claim.ref.update({
-    ...counts,
+    ...stored,
+    ...(scheduled ? { attempts: claim.attempt - 1 } : {}),
     finishedAt: at,
     retryable: retry,
-    nextAttemptAt: retry ? new Date(at.getTime() + (RETRY_BACKOFF_MS[claim.attempt - 1] || RETRY_BACKOFF_MS.at(-1))) : null,
+    nextAttemptAt: scheduled
+      ? notBefore
+      : retry
+        ? new Date(at.getTime() + (RETRY_BACKOFF_MS[claim.attempt - 1] || RETRY_BACKOFF_MS.at(-1)))
+        : null,
     ...(done.size ? { doneDevices: [...done].slice(0, MAX_DONE_DEVICES) } : {}),
   });
 }

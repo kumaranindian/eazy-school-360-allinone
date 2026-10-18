@@ -11,9 +11,9 @@ const PATH = 'schools/s1/branches/b1/broadcastNotices/n1';
 const t0 = new Date('2026-08-03T10:00:00Z');
 
 /** [n] parents with one device each, plus the notice they are addressed by. */
-function world(n, { notice = true } = {}) {
-  const seed = {};
-  if (notice) seed[PATH] = { type: 'ANNOUNCEMENT_PUBLISHED', title: 'Hi', body: 'There', audienceKind: 'ALL', createdBy: 'nobody' };
+function world(n, { notice = true, extraNotice = {}, seedExtra = {} } = {}) {
+  const seed = { ...seedExtra };
+  if (notice) seed[PATH] = { type: 'ANNOUNCEMENT_PUBLISHED', title: 'Hi', body: 'There', audienceKind: 'ALL', createdBy: 'nobody', ...extraNotice };
   for (let i = 0; i < n; i++) {
     seed[`users/u${i}`] = { schoolId: 's1', status: 'ACTIVE', role: 'PARENT' };
     seed[`users/u${i}/devices/d`] = { token: `tok-${i}-aaaaaaaaaaaaaaaaaaaa`, platform: 'android' };
@@ -115,4 +115,38 @@ test('NOTIF-5: concurrent redrives of one due delivery send once', async () => {
   await Promise.all([w.d.redrive(), w.d.redrive(), w.d.redrive()]);
   assert.strictEqual(w.sentTo.length, 3);
   assert.strictEqual(new Set(w.sentTo).size, 3);
+});
+
+test('ACAD-6: a scheduled announcement is not pushed before its publish time', async () => {
+  const publishAt = new Date(t0.getTime() + 2 * 3600 * 1000);
+  const w = withDoc(
+    world(3, {
+      extraNotice: { refType: 'ANNOUNCEMENT', refId: 'a1' },
+      seedExtra: { 'schools/s1/branches/b1/announcements/a1': { publishAt } },
+    }),
+  );
+  assert.strictEqual(await w.run(), 'SCHEDULED');
+  assert.strictEqual(w.sentTo.length, 0);
+  const rec = w.db.store.get('pushDeliveries/evt');
+  assert.strictEqual(rec.retryable, true);
+  assert.strictEqual(rec.attempts, 0); // waiting does not use an attempt
+  assert.strictEqual(rec.nextAttemptAt.getTime(), publishAt.getTime());
+
+  w.advance(3600 * 1000);
+  assert.strictEqual((await w.d.redrive()).due, 0); // still early
+  w.advance(3600 * 1000 + 1000);
+  await w.d.redrive();
+  assert.strictEqual(w.sentTo.length, 3);
+  assert.strictEqual(w.db.store.get('pushDeliveries/evt').status, 'SENT');
+});
+
+test('an announcement whose time has come is sent at once', async () => {
+  const w = withDoc(
+    world(2, {
+      extraNotice: { refType: 'ANNOUNCEMENT', refId: 'a1' },
+      seedExtra: { 'schools/s1/branches/b1/announcements/a1': { publishAt: new Date(t0.getTime() - 1000) } },
+    }),
+  );
+  assert.strictEqual(await w.run(), 'SENT');
+  assert.strictEqual(w.sentTo.length, 2);
 });
