@@ -7,6 +7,7 @@ import '../../../core/errors/error_mapper.dart';
 import '../domain/feed_item.dart';
 import '../domain/notification_preferences.dart';
 import '../domain/notification_repository.dart';
+import '../domain/read_ids.dart';
 
 class FirebaseNotificationRepository implements NotificationRepository {
   final FirebaseFirestore _firestore;
@@ -183,17 +184,18 @@ class FirebaseNotificationRepository implements NotificationRepository {
   Future<void> addReadIds(String userId, Set<String> ids) async {
     if (ids.isEmpty) return;
     try {
-      final cur = await fetchReadIds(userId);
-      // Newest kept: existing ids stay in order, new ones are appended, and
-      // the oldest fall off beyond 500 (they are old enough to have expired
-      // from the centre's window).
-      final merged = [...cur, ...ids.where((i) => !cur.contains(i))];
-      final kept = merged.length > 500
-          ? merged.sublist(merged.length - 500)
-          : merged;
-      await _readDoc(userId).set({
-        'ids': kept,
-        FirestoreFields.updatedAt: FieldValue.serverTimestamp(),
+      // Read-merge-write inside a transaction: two devices marking different
+      // notices read at once must not overwrite each other's ids (STATE-4).
+      final ref = _readDoc(userId);
+      await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(ref);
+        final cur = [
+          for (final v in (snap.data()?['ids'] as List? ?? [])) v as String,
+        ];
+        tx.set(ref, {
+          'ids': mergeReadIds(cur, ids),
+          FirestoreFields.updatedAt: FieldValue.serverTimestamp(),
+        });
       });
     } catch (error, stackTrace) {
       throw mapExceptionToFailure(error, stackTrace);
