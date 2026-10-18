@@ -62,6 +62,16 @@ test('a school admin can upload their own school\'s logo', async () => {
   );
 });
 
+test('SEC-6: only jpeg, png and webp are accepted as images (no SVG)', async () => {
+  await seedProfile('admin-a', userDoc({ schoolId: SCHOOL_A, role: 'SCHOOL_ADMIN' }));
+  const adminA = testEnv.authenticatedContext('admin-a').storage();
+  const svg = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>');
+  await assertFails(uploadBytes(ref(adminA, `schools/${SCHOOL_A}/logo.svg`), svg, { contentType: 'image/svg+xml' }));
+  await assertFails(uploadBytes(ref(adminA, `schools/${SCHOOL_A}/logo.gif`), PNG_BYTES, { contentType: 'image/gif' }));
+  await assertSucceeds(uploadBytes(ref(adminA, `schools/${SCHOOL_A}/logo.webp`), PNG_BYTES, { contentType: 'image/webp' }));
+  await assertSucceeds(uploadBytes(ref(adminA, `schools/${SCHOOL_A}/logo.jpg`), PNG_BYTES, { contentType: 'image/jpeg' }));
+});
+
 test('a school admin cannot upload into another school\'s logo path', async () => {
   await seedProfile('admin-a', userDoc({ schoolId: SCHOOL_A, role: 'SCHOOL_ADMIN' }));
   const adminA = testEnv.authenticatedContext('admin-a').storage();
