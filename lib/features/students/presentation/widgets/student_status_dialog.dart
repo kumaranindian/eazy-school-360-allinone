@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -28,7 +29,7 @@ class StudentStatusDialog extends ConsumerStatefulWidget {
 
 class _StudentStatusDialogState extends ConsumerState<StudentStatusDialog> {
   late StudentStatus _status = widget.student.status;
-  DateTime _effectiveDate = DateTime.now();
+  DateTime _effectiveDate = SchoolTime.wallNow();
   final _reason = TextEditingController();
   final _notes = TextEditingController();
 

@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -73,7 +74,7 @@ class _StudentBranchTransferDialogState
             sectionId: _sectionId!,
             rollNumber: _roll.text.trim().isEmpty ? null : _roll.text.trim(),
             reason: _reason.text.trim().isEmpty ? null : _reason.text.trim(),
-            effectiveDate: DateTime.now(),
+            effectiveDate: SchoolTime.wallNow(),
             updatedBy: widget.currentUserId,
           );
       if (mounted) Navigator.of(context).pop(true);

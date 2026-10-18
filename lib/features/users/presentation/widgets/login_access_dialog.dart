@@ -1,6 +1,6 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/permissions/user_role.dart';
@@ -385,7 +385,6 @@ class _LoginAccessDialogState extends ConsumerState<LoginAccessDialog> {
 
   List<Widget> _body(BuildContext context, LoginAccess a, String title) {
     final theme = Theme.of(context);
-    final fmt = DateFormat.yMMMd().add_jm();
     final noMethods = a.schoolMethods.isEmpty;
     return [
       Text(title, style: theme.textTheme.titleMedium),
@@ -415,7 +414,9 @@ class _LoginAccessDialogState extends ConsumerState<LoginAccessDialog> {
           DetailItem('Account', a.activation.label),
           DetailItem(
             'Last login',
-            a.lastLogin == null ? 'Never' : fmt.format(a.lastLogin!),
+            a.lastLogin == null
+                ? 'Never'
+                : SchoolTime.formatInstant(a.lastLogin!),
           ),
         ],
       ),

@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -31,7 +32,7 @@ class _StaffStatusDialogState extends ConsumerState<StaffStatusDialog> {
   late final List<StaffStatus> _options = widget.staff.status.allowedTransitions
       .toList();
   late StaffStatus? _status = _options.isEmpty ? null : _options.first;
-  DateTime _effectiveDate = DateTime.now();
+  DateTime _effectiveDate = SchoolTime.wallNow();
   final _reason = TextEditingController();
   final _notes = TextEditingController();
 

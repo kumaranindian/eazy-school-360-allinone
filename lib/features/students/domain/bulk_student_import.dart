@@ -1,3 +1,4 @@
+import '../../../core/regional/school_time.dart';
 import 'blood_group.dart';
 import 'gender.dart';
 import 'relationship_type.dart';
@@ -502,7 +503,7 @@ BulkStudentParseResult parseBulkStudentCsv(
   String academicYearName = 'the chosen academic year',
   DateTime? today,
 }) {
-  final now = today ?? DateTime.now();
+  final now = today ?? SchoolTime.wallNow();
   final table = parseCsv(csvText);
   if (table.isEmpty) {
     return const BulkStudentParseResult(

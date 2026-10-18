@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -44,7 +45,7 @@ class _SchoolYearFormDialogState extends ConsumerState<SchoolYearFormDialog> {
   Future<void> _pick({required bool start}) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: (start ? _start : _end) ?? DateTime.now(),
+      initialDate: (start ? _start : _end) ?? SchoolTime.wallNow(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
     );

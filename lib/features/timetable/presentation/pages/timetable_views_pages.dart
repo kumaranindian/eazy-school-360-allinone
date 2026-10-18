@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../shared/layouts/hero_scope.dart';
@@ -157,7 +158,7 @@ class _Section extends ConsumerStatefulWidget {
 class _SectionState extends ConsumerState<_Section> {
   String? _classId;
   String? _sectionId;
-  String _monday = mondayOf(DateTime.now());
+  String _monday = mondayOf(SchoolTime.wallNow());
 
   void _shift(int weeks) {
     final m = AttendanceDate.parse(_monday);
@@ -495,7 +496,7 @@ class _TeacherPick extends ConsumerStatefulWidget {
 
 class _TeacherPickState extends ConsumerState<_TeacherPick> {
   String? _teacher;
-  String _monday = mondayOf(DateTime.now());
+  String _monday = mondayOf(SchoolTime.wallNow());
 
   void _shift(int weeks) {
     final m = AttendanceDate.parse(_monday);
@@ -630,7 +631,7 @@ class _TeacherTimetable extends ConsumerStatefulWidget {
 }
 
 class _TeacherTimetableState extends ConsumerState<_TeacherTimetable> {
-  String _monday = mondayOf(DateTime.now());
+  String _monday = mondayOf(SchoolTime.wallNow());
 
   void _shift(int weeks) {
     final m = AttendanceDate.parse(_monday);
@@ -728,7 +729,7 @@ class _ParentTimetable extends ConsumerStatefulWidget {
 
 class _ParentTimetableState extends ConsumerState<_ParentTimetable> {
   String? _childId;
-  String _monday = mondayOf(DateTime.now());
+  String _monday = mondayOf(SchoolTime.wallNow());
 
   void _shift(int weeks) {
     final m = AttendanceDate.parse(_monday);

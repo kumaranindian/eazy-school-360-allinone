@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/regional/regional_providers.dart';
@@ -110,7 +111,7 @@ class _Summary extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final now = DateTime.now();
+    final now = SchoolTime.wallNow();
     final attendance = ref.watch(
       childAttendanceMonthProvider((
         schoolId: child.schoolId,

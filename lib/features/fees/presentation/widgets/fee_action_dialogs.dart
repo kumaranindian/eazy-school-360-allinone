@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -240,7 +241,7 @@ class _CollectPaymentDialogState extends ConsumerState<CollectPaymentDialog> {
             onPressed: _busy
                 ? null
                 : () async {
-                    final now = DateTime.now();
+                    final now = SchoolTime.wallNow();
                     final picked = await showDatePicker(
                       context: context,
                       initialDate: now,

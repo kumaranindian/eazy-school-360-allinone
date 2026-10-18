@@ -1,3 +1,4 @@
+import '../../../../core/regional/currency.dart';
 import 'dart:typed_data';
 
 import 'package:pdf/pdf.dart';
@@ -16,15 +17,25 @@ import '../../domain/payment.dart';
 /// read from the stored snapshot (names, lines, amounts), never recomputed
 /// from live fee structures.
 abstract final class FeePdf {
+  /// "INR 1,500.00", "JPY 1,500", "KWD 1,500.250": the currency's own number
+  /// of decimals, thousands grouping (the built-in PDF fonts have no
+  /// currency symbols, so the code is printed instead).
   static String _money(int minor, String currency) {
+    final decimals = Currencies.of(currency).decimals;
     final negative = minor < 0;
     final abs = minor.abs();
-    final major = abs ~/ 100;
-    final grouped = major.toString().replaceAllMapped(
+    var unit = 1;
+    for (var i = 0; i < decimals; i++) {
+      unit *= 10;
+    }
+    final grouped = (abs ~/ unit).toString().replaceAllMapped(
       RegExp(r'\B(?=(\d{3})+(?!\d))'),
       (m) => ',',
     );
-    return '${negative ? '-' : ''}$currency $grouped.${(abs % 100).toString().padLeft(2, '0')}';
+    final fraction = decimals == 0
+        ? ''
+        : '.${(abs % unit).toString().padLeft(decimals, '0')}';
+    return '${negative ? '-' : ''}$currency $grouped$fraction';
   }
 
   static pw.Widget _kv(String k, String v, {bool bold = false}) => pw.Padding(

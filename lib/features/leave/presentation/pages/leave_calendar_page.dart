@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -50,7 +51,10 @@ class _Calendar extends ConsumerStatefulWidget {
 }
 
 class _CalendarState extends ConsumerState<_Calendar> {
-  late DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+  late DateTime _month = DateTime(
+    SchoolTime.wallNow().year,
+    SchoolTime.wallNow().month,
+  );
   LeaveKind _kind = LeaveKind.student;
   String? _classId;
   String? _sectionId;

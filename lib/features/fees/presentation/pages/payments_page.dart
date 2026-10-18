@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import '../../../../core/utils/date_formatting.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -79,7 +80,7 @@ class _PaymentsState extends ConsumerState<_Payments> {
   }
 
   Future<void> _pick(bool from) async {
-    final now = DateTime.now();
+    final now = SchoolTime.wallNow();
     final picked = await showDatePicker(
       context: context,
       initialDate: now,

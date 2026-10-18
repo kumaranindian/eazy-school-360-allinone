@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -74,7 +75,7 @@ class _Hub extends ConsumerStatefulWidget {
 }
 
 class _HubState extends ConsumerState<_Hub> {
-  DateTime _date = AttendanceDate.dateOnly(DateTime.now());
+  DateTime _date = AttendanceDate.dateOnly(SchoolTime.wallNow());
   String? _yearId;
   String? _classId;
   String? _sectionId;
@@ -341,7 +342,7 @@ class _HubState extends ConsumerState<_Hub> {
   /// ‹ date › : step a day at a time, or tap the date to pick one. Attendance
   /// cannot be marked in the future, so "next" stops at today.
   Widget _dateStepper(BuildContext context) {
-    final today = AttendanceDate.dateOnly(DateTime.now());
+    final today = AttendanceDate.dateOnly(SchoolTime.wallNow());
     final isToday = !_date.isBefore(today);
     return Row(
       children: [
@@ -361,7 +362,7 @@ class _HubState extends ConsumerState<_Hub> {
                 context: context,
                 initialDate: _date,
                 firstDate: DateTime(2000),
-                lastDate: DateTime.now(),
+                lastDate: SchoolTime.wallNow(),
               );
               if (picked != null) {
                 setState(() => _date = AttendanceDate.dateOnly(picked));

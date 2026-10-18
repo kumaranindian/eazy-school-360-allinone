@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -457,7 +458,7 @@ class _BalanceSummaryState extends ConsumerState<_BalanceSummary> {
   Widget build(BuildContext context) {
     final leave = widget.leave;
     final theme = Theme.of(context);
-    final today = AttendanceDate.key(DateTime.now());
+    final today = AttendanceDate.key(SchoolTime.wallNow());
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

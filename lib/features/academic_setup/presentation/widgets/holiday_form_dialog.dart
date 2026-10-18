@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -41,7 +42,7 @@ class _HolidayFormDialogState extends ConsumerState<HolidayFormDialog> {
     text: widget.existing?.description,
   );
   late DateTime _date =
-      widget.existing?.date ?? widget.initialDate ?? DateTime.now();
+      widget.existing?.date ?? widget.initialDate ?? SchoolTime.wallNow();
   // A multi-day holiday or vacation has a last day; a single day does not.
   late bool _multiDay = widget.existing?.isRange ?? false;
   late DateTime _endDate = widget.existing?.endDate ?? _date;

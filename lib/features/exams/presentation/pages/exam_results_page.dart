@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -102,7 +103,7 @@ class _ResultsState extends ConsumerState<_Results> {
     final from = year == null
         ? exam.startDateKey
         : AttendanceDate.key(year.startDate.toUtc());
-    final to = AttendanceDate.key(DateTime.now());
+    final to = AttendanceDate.key(SchoolTime.wallNow());
     final out = <String, AttendanceSnapshot?>{};
     var failed = 0;
     var done = 0;

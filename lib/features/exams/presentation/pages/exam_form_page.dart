@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -86,7 +87,7 @@ class _FormState extends ConsumerState<_Form> {
   }
 
   Future<void> _pick(bool start) async {
-    final now = DateTime.now();
+    final now = SchoolTime.wallNow();
     final initial = (start ? _start : _end) ?? _start ?? now;
     final picked = await showDatePicker(
       context: context,

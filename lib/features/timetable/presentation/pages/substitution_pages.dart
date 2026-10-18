@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import '../../../../core/utils/date_formatting.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,7 +21,7 @@ import '../providers/timetable_providers.dart';
 import '../widgets/timetable_format.dart';
 import '../widgets/timetable_scope.dart';
 
-String _today() => AttendanceDate.key(DateTime.now());
+String _today() => AttendanceDate.key(SchoolTime.wallNow());
 
 String _plusDays(String key, int days) {
   final d = AttendanceDate.parse(key);

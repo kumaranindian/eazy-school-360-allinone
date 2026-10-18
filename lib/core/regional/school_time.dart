@@ -92,18 +92,16 @@ abstract final class SchoolTime {
   static DateTime instantFromWall(DateTime wall) {
     final loc = _location;
     if (loc == null) return wall;
-    return tz
-        .TZDateTime(
-          loc,
-          wall.year,
-          wall.month,
-          wall.day,
-          wall.hour,
-          wall.minute,
-          wall.second,
-          wall.millisecond,
-        )
-        .toUtc();
+    return tz.TZDateTime(
+      loc,
+      wall.year,
+      wall.month,
+      wall.day,
+      wall.hour,
+      wall.minute,
+      wall.second,
+      wall.millisecond,
+    ).toUtc();
   }
 
   /// A civil date as the school writes it (its date-format setting).

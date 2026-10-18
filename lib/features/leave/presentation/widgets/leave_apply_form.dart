@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -129,7 +130,7 @@ class _LeaveApplyFormState extends ConsumerState<LeaveApplyForm> {
       y.endDate.toUtc().month,
       y.endDate.toUtc().day,
     );
-    final today = DateTime.now();
+    final today = SchoolTime.wallNow();
     var initial =
         (start ? _start : _end) ??
         DateTime.utc(today.year, today.month, today.day);
@@ -378,7 +379,7 @@ class _LeaveApplyFormState extends ConsumerState<LeaveApplyForm> {
             employmentType: widget.employmentType,
             balance: balance,
             pendingUnits: pendingUnits,
-            todayKey: AttendanceDate.key(DateTime.now()),
+            todayKey: AttendanceDate.key(SchoolTime.wallNow()),
             ignoreApplicationId: _applicationId,
           );
 

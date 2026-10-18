@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -141,7 +142,7 @@ class _HomeworkFormState extends ConsumerState<_HomeworkForm> {
   }
 
   Future<void> _pickDate({DateTime? first}) async {
-    final today = DateTime.now();
+    final today = SchoolTime.wallNow();
     final start = first ?? DateTime(today.year, today.month, today.day);
     final picked = await showDatePicker(
       context: context,
@@ -215,7 +216,7 @@ class _HomeworkFormState extends ConsumerState<_HomeworkForm> {
 
   /// The homework documents this form would create.
   List<Homework> _buildNew(List<HomeworkOption> options) {
-    final today = AttendanceDate.key(DateTime.now());
+    final today = AttendanceDate.key(SchoolTime.wallNow());
     final dueKey = AttendanceDate.key(_dueDate!);
     final max = int.tryParse(_marks.text.trim());
     return [
@@ -277,7 +278,7 @@ class _HomeworkFormState extends ConsumerState<_HomeworkForm> {
       );
     }
     final list = _buildNew(options);
-    final todayKey = AttendanceDate.key(DateTime.now());
+    final todayKey = AttendanceDate.key(SchoolTime.wallNow());
     for (final h in list) {
       final problem = HomeworkRules.validate(h, todayKey: todayKey);
       if (problem != null) return setState(() => _error = problem);
@@ -396,7 +397,7 @@ class _HomeworkFormState extends ConsumerState<_HomeworkForm> {
         );
         final problem = HomeworkRules.validate(
           edited,
-          todayKey: AttendanceDate.key(DateTime.now()),
+          todayKey: AttendanceDate.key(SchoolTime.wallNow()),
         );
         if (problem != null) {
           setState(() => _error = problem);
@@ -513,7 +514,7 @@ class _HomeworkFormState extends ConsumerState<_HomeworkForm> {
   Widget _formBody(Homework? existing, List<HomeworkOption> options) {
     final published = existing?.status == HomeworkStatus.published;
     final fixed = published; // policy/marks/title fixed once published
-    final todayStart = DateTime.now();
+    final todayStart = SchoolTime.wallNow();
     return PageColumn(
       child: Form(
         key: _formKey,
@@ -808,7 +809,7 @@ class _HomeworkFormState extends ConsumerState<_HomeworkForm> {
         )
         .value;
     if (bundles == null) return const SizedBox.shrink();
-    final today = Weekday.fromDateTimeWeekday(DateTime.now().weekday);
+    final today = Weekday.fromDateTimeWeekday(SchoolTime.wallNow().weekday);
     final scheduled = <String, HomeworkOption>{};
     for (final b in bundles) {
       for (final e in b.entries) {

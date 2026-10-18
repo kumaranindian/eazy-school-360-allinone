@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -140,7 +141,7 @@ class _InvoicesState extends ConsumerState<_Invoices> {
   }
 
   Future<void> _pick(bool from) async {
-    final now = DateTime.now();
+    final now = SchoolTime.wallNow();
     final picked = await showDatePicker(
       context: context,
       initialDate: now,

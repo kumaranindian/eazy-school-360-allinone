@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -218,7 +219,7 @@ class _YearSection extends ConsumerWidget {
     WidgetRef ref,
     TeacherAssignment assignment,
   ) async {
-    final now = DateTime.now();
+    final now = SchoolTime.wallNow();
     final endDate = await showDatePicker(
       context: context,
       helpText: 'Assignment end date',

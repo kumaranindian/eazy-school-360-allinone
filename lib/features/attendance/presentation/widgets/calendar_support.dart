@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../academic_setup/domain/academic_year.dart';
@@ -57,7 +58,7 @@ String? attendanceDateError(
   DateTime? today,
 }) {
   final day = AttendanceDate.dateOnly(date);
-  final now = AttendanceDate.dateOnly(today ?? DateTime.now());
+  final now = AttendanceDate.dateOnly(today ?? SchoolTime.wallNow());
   if (day.isAfter(now)) return 'Attendance cannot be marked for a future date.';
   if (year != null) {
     final start = AttendanceDate.dateOnly(year.startDate);

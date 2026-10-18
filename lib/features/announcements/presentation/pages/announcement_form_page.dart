@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -164,8 +165,13 @@ class _FormState extends ConsumerState<_Form> {
     );
   }
 
-  Future<DateTime?> _pickDateTime(DateTime? initial) async {
-    final now = DateTime.now();
+  /// Date and time are entered as the school's wall clock and stored as the
+  /// real moment they denote in the school's time zone.
+  Future<DateTime?> _pickDateTime(DateTime? initialInstant) async {
+    final now = SchoolTime.wallNow();
+    final initial = initialInstant == null
+        ? null
+        : SchoolTime.wallOf(initialInstant);
     final date = await showDatePicker(
       context: context,
       initialDate: initial ?? now,
@@ -178,7 +184,9 @@ class _FormState extends ConsumerState<_Form> {
       initialTime: TimeOfDay.fromDateTime(initial ?? now),
     );
     if (time == null) return null;
-    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    return SchoolTime.instantFromWall(
+      DateTime(date.year, date.month, date.day, time.hour, time.minute),
+    );
   }
 
   Future<void> _addFiles() async {

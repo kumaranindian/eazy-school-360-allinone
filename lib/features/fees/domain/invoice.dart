@@ -1,3 +1,4 @@
+import '../../../core/regional/school_time.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/constants/firestore_fields.dart';
@@ -183,7 +184,7 @@ class Invoice {
   /// academic year's starting year, reused for this invoice's receipts.
   int get numberYear =>
       int.tryParse(invoiceNumber.split('-').elementAtOrNull(1) ?? '') ??
-      DateTime.now().year;
+      SchoolTime.wallNow().year;
 
   /// Overdue is derived: still owing and past the due date.
   bool isOverdue(String todayKey) =>

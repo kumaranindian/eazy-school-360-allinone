@@ -1,3 +1,4 @@
+import '../../../core/regional/school_time.dart';
 import '../../students/domain/blood_group.dart';
 import '../../students/domain/bulk_student_import.dart'
     show
@@ -246,7 +247,7 @@ BulkStaffParseResult parseBulkStaffCsv(
   bool defaultIsTeacher = false,
   DateTime? today,
 }) {
-  final now = today ?? DateTime.now();
+  final now = today ?? SchoolTime.wallNow();
   final table = parseCsv(csvText);
   if (table.isEmpty) {
     return const BulkStaffParseResult(

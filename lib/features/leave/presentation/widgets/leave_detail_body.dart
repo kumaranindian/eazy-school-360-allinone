@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import '../../../../core/utils/date_formatting.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -129,7 +130,7 @@ class _LeaveApplicationDetailState
             reviewer: _actor,
             remarks: remarks,
             subjectUserId: await _subjectUserId(a),
-            todayKey: AttendanceDate.key(DateTime.now()),
+            todayKey: AttendanceDate.key(SchoolTime.wallNow()),
           ),
       switch (target) {
         LeaveStatus.approved => 'Leave approved.',

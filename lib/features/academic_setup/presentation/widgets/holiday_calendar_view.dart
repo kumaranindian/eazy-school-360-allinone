@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_spacing.dart';
@@ -31,8 +32,8 @@ class HolidayCalendarView extends StatefulWidget {
 
 class _HolidayCalendarViewState extends State<HolidayCalendarView> {
   late DateTime _visibleMonth = DateTime(
-    DateTime.now().year,
-    DateTime.now().month,
+    SchoolTime.wallNow().year,
+    SchoolTime.wallNow().month,
   );
 
   SchoolDayInfo _info(DateTime day) => SchoolCalendar.evaluate(

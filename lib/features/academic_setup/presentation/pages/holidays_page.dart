@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -245,7 +246,7 @@ class _HolidaysPageState extends ConsumerState<HolidaysPage> {
                         );
                       }
 
-                      final today = DateTime.now();
+                      final today = SchoolTime.wallNow();
                       final upcoming = holidays
                           .where(
                             (h) => !h.lastDate.isBefore(

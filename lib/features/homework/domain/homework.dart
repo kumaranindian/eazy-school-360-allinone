@@ -1,3 +1,4 @@
+import '../../../core/regional/school_time.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/constants/firestore_fields.dart';
@@ -93,11 +94,15 @@ class Homework {
   bool get isGraded => maxMarks != null;
   bool get isDraft => status == HomeworkStatus.draft;
 
-  /// The deadline instant for a civil date and optional time.
+  /// The deadline instant for a civil date and optional time: 17:00 means
+  /// 17:00 **in the school's time zone**, whatever zone the teacher's or the
+  /// parent's device is set to.
   static DateTime dueInstant(String dueDateKey, int? dueTimeMin) {
     final d = AttendanceDate.parse(dueDateKey);
     final minutes = dueTimeMin ?? (23 * 60 + 59);
-    return DateTime(d.year, d.month, d.day, minutes ~/ 60, minutes % 60);
+    return SchoolTime.instantFromWall(
+      DateTime(d.year, d.month, d.day, minutes ~/ 60, minutes % 60),
+    );
   }
 
   bool isPastDue(DateTime now) => now.isAfter(dueAt);

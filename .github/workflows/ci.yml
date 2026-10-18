@@ -36,7 +36,7 @@ jobs:
       - name: Date-sensitive tests in other time zones
         run: |
           for tz in Asia/Kolkata America/Los_Angeles Pacific/Auckland; do
-            TZ=$tz flutter test test/academic_setup test/leave test/timetable test/attendance test/exams
+            TZ=$tz flutter test test/academic_setup test/leave test/timetable test/attendance test/exams test/regional
           done
       - name: Dependency advisories (OSV, Dart packages)
         run: python3 tool/osv_scan_pub.py

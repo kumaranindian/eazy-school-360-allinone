@@ -1,6 +1,6 @@
+import '../../../../core/regional/school_time.dart';
 import 'dart:typed_data';
 
-import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -54,7 +54,7 @@ abstract final class ReportCardPdf {
     final doc = pw.Document(title: 'Report card - ${r.studentName}');
     final published = d.publishedAt == null
         ? '-'
-        : DateFormat('d MMM y, h:mm a').format(d.publishedAt!.toLocal());
+        : SchoolTime.formatInstant(d.publishedAt!);
 
     pw.Widget kv(String k, String v) => pw.Padding(
       padding: const pw.EdgeInsets.symmetric(vertical: 2),

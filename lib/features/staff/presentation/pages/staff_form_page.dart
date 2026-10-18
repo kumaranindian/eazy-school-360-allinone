@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -115,7 +116,8 @@ class _StaffFormState extends ConsumerState<_StaffForm> {
   );
 
   late DateTime? _dateOfBirth = widget.existing?.dateOfBirth;
-  late DateTime? _joiningDate = widget.existing?.joiningDate ?? DateTime.now();
+  late DateTime? _joiningDate =
+      widget.existing?.joiningDate ?? SchoolTime.wallNow();
   late Gender? _gender = widget.existing?.gender;
   late BloodGroup? _bloodGroup = widget.existing?.bloodGroup;
   late EmploymentType _employmentType =
@@ -337,7 +339,7 @@ class _StaffFormState extends ConsumerState<_StaffForm> {
                   onChanged: (d) => _dateOfBirth = d,
                   format: formatDisplayDate,
                   firstDate: DateTime(1940),
-                  lastDate: DateTime.now(),
+                  lastDate: SchoolTime.wallNow(),
                   initialPickerDate: DateTime(1990),
                 ),
                 DropdownButtonFormField<Gender>(
@@ -444,7 +446,7 @@ class _StaffFormState extends ConsumerState<_StaffForm> {
                   onChanged: (d) => _joiningDate = d,
                   format: formatDisplayDate,
                   firstDate: DateTime(1980),
-                  lastDate: DateTime.now().add(const Duration(days: 365)),
+                  lastDate: SchoolTime.wallNow().add(const Duration(days: 365)),
                 ),
                 DropdownButtonFormField<EmploymentType>(
                   isExpanded: true,

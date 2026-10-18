@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -102,7 +103,7 @@ class _WorkingDaysPageState extends ConsumerState<WorkingDaysPage> {
   _Draft? _draft;
 
   Future<void> _pickStart(_Draft current) async {
-    final now = DateTime.now();
+    final now = SchoolTime.wallNow();
     final picked = await showDatePicker(
       context: context,
       initialDate: current.startsOn ?? DateTime(now.year, now.month, now.day),
@@ -148,7 +149,7 @@ class _WorkingDaysPageState extends ConsumerState<WorkingDaysPage> {
     required bool configured,
     required _Draft draft,
   }) async {
-    final startsOn = draft.startsOn ?? DateTime.now();
+    final startsOn = draft.startsOn ?? SchoolTime.wallNow();
     final startKey = WorkingDays.keyOf(startsOn);
     if (draft.mode == _SaturdayMode.selected && draft.selectedWeeks.isEmpty) {
       context.showSnackBar(
@@ -479,7 +480,8 @@ class _WorkingDaysPageState extends ConsumerState<WorkingDaysPage> {
                                       icon: const Icon(Icons.event),
                                       label: Text(
                                         formatDisplayDate(
-                                          draft.startsOn ?? DateTime.now(),
+                                          draft.startsOn ??
+                                              SchoolTime.wallNow(),
                                         ),
                                       ),
                                     ),

@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -60,12 +61,12 @@ class _MyAttendancePageState extends ConsumerState<MyAttendancePage> {
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
+    final now = SchoolTime.wallNow();
     _month = DateTime(now.year, now.month);
   }
 
   bool get _isCurrentMonth {
-    final now = DateTime.now();
+    final now = SchoolTime.wallNow();
     return _month.year == now.year && _month.month == now.month;
   }
 

@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -80,8 +81,8 @@ class _GenerateState extends ConsumerState<_Generate> {
             months
                 .indexWhere(
                   (m) =>
-                      m.$1 == DateTime.now().year &&
-                      m.$2 == DateTime.now().month,
+                      m.$1 == SchoolTime.wallNow().year &&
+                      m.$2 == SchoolTime.wallNow().month,
                 )
                 .clamp(0, months.length - 1);
         return BillingPeriod.monthly(months[i].$1, months[i].$2);
@@ -335,14 +336,14 @@ class _GenerateState extends ConsumerState<_Generate> {
                 _monthIndex ??
                     (months.indexWhere(
                               (m) =>
-                                  m.$1 == DateTime.now().year &&
-                                  m.$2 == DateTime.now().month,
+                                  m.$1 == SchoolTime.wallNow().year &&
+                                  m.$2 == SchoolTime.wallNow().month,
                             ) >=
                             0
                         ? months.indexWhere(
                             (m) =>
-                                m.$1 == DateTime.now().year &&
-                                m.$2 == DateTime.now().month,
+                                m.$1 == SchoolTime.wallNow().year &&
+                                m.$2 == SchoolTime.wallNow().month,
                           )
                         : 0),
                 [
@@ -404,7 +405,7 @@ class _GenerateState extends ConsumerState<_Generate> {
               onPressed: busy
                   ? null
                   : () async {
-                      final now = DateTime.now();
+                      final now = SchoolTime.wallNow();
                       final picked = await showDatePicker(
                         context: context,
                         initialDate: now,

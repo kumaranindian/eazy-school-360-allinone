@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -46,7 +47,7 @@ class _AcademicYearFormDialogState
   Future<void> _pickDate({required bool isStart}) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: (isStart ? _startDate : _endDate) ?? DateTime.now(),
+      initialDate: (isStart ? _startDate : _endDate) ?? SchoolTime.wallNow(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
     );

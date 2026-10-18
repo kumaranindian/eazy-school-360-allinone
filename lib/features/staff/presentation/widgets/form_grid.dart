@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_spacing.dart';
@@ -74,7 +75,7 @@ class DateFormField extends FormField<DateTime> {
                  final picked = await showDatePicker(
                    context: context,
                    initialDate:
-                       state.value ?? initialPickerDate ?? DateTime.now(),
+                       state.value ?? initialPickerDate ?? SchoolTime.wallNow(),
                    firstDate: firstDate,
                    lastDate: lastDate,
                  );

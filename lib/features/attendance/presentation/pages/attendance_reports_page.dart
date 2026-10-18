@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -69,8 +70,12 @@ class _ReportsState extends ConsumerState<_Reports> {
   late _ReportKind _kind = widget.tenant.can(Permission.markStudentAttendance)
       ? _ReportKind.students
       : _ReportKind.staff;
-  late DateTime _from = DateTime(DateTime.now().year, DateTime.now().month, 1);
-  late DateTime _to = AttendanceDate.dateOnly(DateTime.now());
+  late DateTime _from = DateTime(
+    SchoolTime.wallNow().year,
+    SchoolTime.wallNow().month,
+    1,
+  );
+  late DateTime _to = AttendanceDate.dateOnly(SchoolTime.wallNow());
   String? _yearId;
   String? _classId;
   String? _sectionId;
@@ -436,7 +441,7 @@ class _ReportsState extends ConsumerState<_Reports> {
             context: context,
             initialDate: value,
             firstDate: DateTime(2000),
-            lastDate: DateTime.now(),
+            lastDate: SchoolTime.wallNow(),
           );
           if (picked != null) {
             setState(() => onPicked(AttendanceDate.dateOnly(picked)));
@@ -479,7 +484,7 @@ class _ReportsState extends ConsumerState<_Reports> {
             dateButton('To', _to, (d) => _to = d),
             TextButton(
               onPressed: () => setState(() {
-                final now = DateTime.now();
+                final now = SchoolTime.wallNow();
                 _from = DateTime(now.year, now.month, 1);
                 _to = AttendanceDate.dateOnly(now);
               }),
@@ -487,7 +492,7 @@ class _ReportsState extends ConsumerState<_Reports> {
             ),
             TextButton(
               onPressed: () => setState(() {
-                final now = DateTime.now();
+                final now = SchoolTime.wallNow();
                 _from = DateTime(now.year, now.month - 1, 1);
                 _to = DateTime(now.year, now.month, 0);
               }),

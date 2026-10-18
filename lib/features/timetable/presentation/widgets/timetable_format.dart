@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import '../../../academic_setup/domain/weekday.dart';
 import '../../../attendance/domain/attendance_date.dart';
 import '../../domain/timetable.dart';
@@ -21,6 +22,6 @@ List<Weekday> orderedDays(Iterable<String> wires) {
   ];
 }
 
-String todayKey() => AttendanceDate.key(DateTime.now());
+String todayKey() => AttendanceDate.key(SchoolTime.wallNow());
 
 String statusLabel(TimetableStatus s) => s.displayName;

@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import '../../../leave/domain/leave_enums.dart';
 import '../../../leave/domain/leave_submission.dart';
 import '../../../leave/presentation/providers/leave_providers.dart';
@@ -68,7 +69,7 @@ class _StudentAttendanceState extends ConsumerState<_StudentAttendance> {
   String? _yearId;
   String? _classId;
   String? _sectionId;
-  DateTime _date = AttendanceDate.dateOnly(DateTime.now());
+  DateTime _date = AttendanceDate.dateOnly(SchoolTime.wallNow());
 
   StudentRegister? _register;
   AttendanceSheet? _sheet;
@@ -149,7 +150,7 @@ class _StudentAttendanceState extends ConsumerState<_StudentAttendance> {
       context: context,
       initialDate: _date,
       firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
+      lastDate: SchoolTime.wallNow(),
     );
     if (picked != null) {
       setState(() => _date = AttendanceDate.dateOnly(picked));

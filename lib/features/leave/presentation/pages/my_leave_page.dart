@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../shared/layouts/hero_scope.dart';
@@ -338,7 +339,7 @@ class _StaffBody extends ConsumerWidget {
             .value ??
         const [];
     final typeNames = {for (final t in types) t.typeId: t.name};
-    final today = AttendanceDate.key(DateTime.now());
+    final today = AttendanceDate.key(SchoolTime.wallNow());
 
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),

@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import '../../../../core/utils/date_formatting.dart';
 import 'dart:async';
 
@@ -364,7 +365,7 @@ class _StaffBalancesState extends ConsumerState<_StaffBalances> {
             )
             .value ??
         const <LeaveBalance>[];
-    final today = AttendanceDate.key(DateTime.now());
+    final today = AttendanceDate.key(SchoolTime.wallNow());
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -539,7 +540,7 @@ class _AdjustFormState extends ConsumerState<_AdjustForm> {
     final units = LeaveUnits.parse(_days.text)!;
     final f = LeaveBalanceMath.figures(
       balance: widget.balance,
-      todayKey: AttendanceDate.key(DateTime.now()),
+      todayKey: AttendanceDate.key(SchoolTime.wallNow()),
     );
     if (f.available + units < 0) {
       setState(() => _error = 'That would make the balance negative.');

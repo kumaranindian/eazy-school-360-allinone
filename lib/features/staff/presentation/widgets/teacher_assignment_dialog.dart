@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -39,7 +40,7 @@ class _TeacherAssignmentDialogState
   String? _sectionId;
   String? _subjectId;
   bool _isClassTeacher = false;
-  DateTime _startDate = DateTime.now();
+  DateTime _startDate = SchoolTime.wallNow();
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(

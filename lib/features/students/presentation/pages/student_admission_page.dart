@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -52,7 +53,7 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
   final _phone = TextEditingController();
   final _addressLine1 = TextEditingController();
   final _city = TextEditingController();
-  DateTime _admissionDate = DateTime.now();
+  DateTime _admissionDate = SchoolTime.wallNow();
 
   _ParentMode _parentMode = _ParentMode.skip;
   final _parentSearchController = TextEditingController();
@@ -377,9 +378,9 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
                             context: context,
                             initialDate:
                                 _dateOfBirth ??
-                                DateTime(DateTime.now().year - 10),
+                                DateTime(SchoolTime.wallNow().year - 10),
                             firstDate: DateTime(1990),
-                            lastDate: DateTime.now(),
+                            lastDate: SchoolTime.wallNow(),
                           );
                           if (picked != null) {
                             setState(() => _dateOfBirth = picked);

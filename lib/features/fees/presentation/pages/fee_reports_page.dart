@@ -1,3 +1,4 @@
+import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,7 +50,7 @@ class _Reports extends ConsumerStatefulWidget {
 
 class _ReportsState extends ConsumerState<_Reports> {
   late String _from = FeeDates.todayKey(
-    DateTime(DateTime.now().year, DateTime.now().month, 1),
+    DateTime(SchoolTime.wallNow().year, SchoolTime.wallNow().month, 1),
   );
   late String _to = FeeDates.todayKey();
   CollectionSummary? _collections;
@@ -135,7 +136,7 @@ class _ReportsState extends ConsumerState<_Reports> {
   }
 
   Future<void> _pick(bool from) async {
-    final now = DateTime.now();
+    final now = SchoolTime.wallNow();
     final picked = await showDatePicker(
       context: context,
       initialDate: now,
