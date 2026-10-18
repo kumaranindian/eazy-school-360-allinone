@@ -18,6 +18,7 @@ import '../../../staff/presentation/widgets/staff_branch_scope.dart';
 import '../../../../shared/layouts/stat_chips.dart';
 import '../../domain/exam_enums.dart';
 import '../../domain/exam_repositories.dart';
+import '../../domain/attendance_gap.dart';
 import '../../domain/exam_rules.dart';
 import '../../domain/examination.dart';
 import '../../domain/result_calculator.dart';
@@ -83,9 +84,8 @@ class _ResultsState extends ConsumerState<_Results> {
   Examination get exam => widget.data.exam;
   ExamActor get _actor => examActorFor(widget.tenant);
 
-  Future<Map<String, AttendanceSnapshot?>> _attendance(
-    List<StudentResult> results,
-  ) async {
+  Future<({Map<String, AttendanceSnapshot?> snapshots, int failed})>
+  _attendance(List<StudentResult> results) async {
     final repo = ref.read(studentAttendanceRepositoryProvider);
     final years = ref
         .read(
@@ -103,6 +103,7 @@ class _ResultsState extends ConsumerState<_Results> {
         : AttendanceDate.key(year.startDate.toUtc());
     final to = AttendanceDate.key(DateTime.now());
     final out = <String, AttendanceSnapshot?>{};
+    var failed = 0;
     for (var i = 0; i < results.length; i++) {
       final r = results[i];
       if (mounted) {
@@ -128,11 +129,13 @@ class _ResultsState extends ConsumerState<_Results> {
         );
       } catch (_) {
         // Attendance is optional on a report card; absence of a snapshot is
-        // printed as nothing rather than as 0%.
+        // printed as nothing rather than as 0%. A failed read is counted so
+        // the user can decide before the results are frozen (UI-2).
         out[r.studentId] = null;
+        failed++;
       }
     }
-    return out;
+    return (snapshots: out, failed: failed);
   }
 
   String _classLabel(String sectionId) {
@@ -196,7 +199,22 @@ class _ResultsState extends ConsumerState<_Results> {
       final remarks = await ref
           .read(resultRepositoryProvider)
           .fetchRemarks(exam);
-      final attendance = await _attendance(widget.data.results);
+      final collected = await _attendance(widget.data.results);
+      final gap = AttendanceGap.warning(
+        failed: collected.failed,
+        total: widget.data.results.length,
+      );
+      if (gap != null &&
+          !(mounted &&
+              await confirmAction(
+                context,
+                title: 'Attendance is incomplete',
+                body: gap,
+                action: 'Continue without it',
+              ))) {
+        return;
+      }
+      final attendance = collected.snapshots;
       if (mounted) setState(() => _progress = 'Writing results…');
       final version = await ref
           .read(resultRepositoryProvider)
@@ -241,7 +259,22 @@ class _ResultsState extends ConsumerState<_Results> {
       final remarks = await ref
           .read(resultRepositoryProvider)
           .fetchRemarks(exam);
-      final attendance = await _attendance(widget.data.results);
+      final collected = await _attendance(widget.data.results);
+      final gap = AttendanceGap.warning(
+        failed: collected.failed,
+        total: widget.data.results.length,
+      );
+      if (gap != null &&
+          !(mounted &&
+              await confirmAction(
+                context,
+                title: 'Attendance is incomplete',
+                body: gap,
+                action: 'Continue without it',
+              ))) {
+        return;
+      }
+      final attendance = collected.snapshots;
       await ref
           .read(resultRepositoryProvider)
           .completeResults(
