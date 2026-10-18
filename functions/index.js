@@ -140,10 +140,11 @@ exports.notifyHolidayWritten = onDocumentWritten(
       .catch(swallow('holiday notice')),
 );
 
-// Daily at 08:00 school time (Asia/Kolkata): remind parents of invoices due in
-// 3 days and today. Idempotent, so a re-run sends nothing new.
+// Hourly; each school is handled at 08:00 in ITS OWN time zone (Regional
+// settings): invoices due in 3 days and today. Idempotent, so a re-run (or the
+// next hour's retry) sends nothing new.
 exports.feeDueReminders = onSchedule(
-  { schedule: 'every day 08:00', timeZone: 'Asia/Kolkata' },
+  { schedule: 'every 1 hours', timeZone: 'UTC' },
   async () => {
     try {
       const r = await notifyEvents.runFeeDueReminders(events());

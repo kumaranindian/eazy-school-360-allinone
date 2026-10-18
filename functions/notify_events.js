@@ -235,18 +235,64 @@ function dueKeyFor(now, offsetDays, timeZone) {
 const INVOICE_PAGE = 500;
 const MAX_INVOICE_PAGES = 200;
 
+const DEFAULT_ZONE = 'Asia/Kolkata'; // schools that predate Regional settings
+const REMIND_HOUR = 8; // local time
+const REMIND_WINDOW_H = 3; // retried hourly for this long, so one missed run is not a missed reminder
+
+/** The hour (0-23) in [timeZone] at [now]. */
+function localHour(now, timeZone) {
+  const h = new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', hourCycle: 'h23' }).format(now);
+  return Number(h);
+}
+
+function validZone(z) {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: z });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** school id -> time zone, from the school documents (default for any unknown). */
+async function schoolZones(db) {
+  const snap = await db.collection('schools').get();
+  const zones = new Map();
+  for (const d of snap.docs) {
+    const z = d.data().timezone;
+    zones.set(d.id, typeof z === 'string' && validZone(z) ? z : DEFAULT_ZONE);
+  }
+  return zones;
+}
+
 /**
- * Reminds the parents of open invoices that fall due [offset] days from now
- * (the default policy is 3 days before and on the day; set FEE_REMINDER_DAYS).
- * Once per invoice, offset and parent — running it twice, or twice a day,
- * sends nothing new. The text states no amount.
+ * Reminds the parents of open invoices that fall due [offsets] days from now
+ * (the default policy is 3 days before and on the day), **at 08:00 in each
+ * school's own time zone** (Regional settings). Meant to run hourly: a school
+ * is handled while its local time is in [REMIND_HOUR, REMIND_HOUR + window),
+ * so a missed run is retried the next hour. Once per invoice, offset and
+ * parent — running it again sends nothing new. The text states no amount.
  */
-async function runFeeDueReminders({ db, now }, { today = new Date(), offsets = [3, 0], timeZone = 'Asia/Kolkata' } = {}) {
+async function runFeeDueReminders({ db, now }, { today = new Date(), offsets = [3, 0] } = {}) {
+  const zones = await schoolZones(db);
+  const zoneOf = (schoolId) => zones.get(schoolId) || DEFAULT_ZONE;
+  const active = [...new Set([...zones.values(), DEFAULT_ZONE])].filter((z) => {
+    const h = localHour(today, z);
+    return h >= REMIND_HOUR && h < REMIND_HOUR + REMIND_WINDOW_H;
+  });
+  // due key -> the (zone, offset) pairs that look for it
+  const wanted = new Map();
+  for (const z of active) {
+    for (const offset of offsets) {
+      const key = dueKeyFor(today, offset, z);
+      if (!wanted.has(key)) wanted.set(key, []);
+      wanted.get(key).push({ zone: z, offset });
+    }
+  }
   let created = 0;
   let scanned = 0;
   let truncated = false;
-  for (const offset of offsets) {
-    const dueKey = dueKeyFor(today, offset, timeZone);
+  for (const [dueKey, targets] of wanted) {
     let after = null;
     for (let page = 0; ; page++) {
       if (page >= MAX_INVOICE_PAGES) {
@@ -261,25 +307,30 @@ async function runFeeDueReminders({ db, now }, { today = new Date(), offsets = [
         if (!OPEN_INVOICE.has(inv.status) || !(inv.balanceMinor > 0)) continue;
         const m = /^schools\/([^/]+)\/branches\/([^/]+)\/invoices\/([^/]+)$/.exec(d.ref.path);
         if (!m || !inv.studentId) continue;
-        scanned++;
         const [, schoolId, branchId, invoiceId] = m;
+        // Only for the offsets this school's own zone is due for right now.
+        const mine = targets.filter((t) => t.zone === zoneOf(schoolId));
+        if (mine.length === 0) continue;
+        scanned++;
         const uids = await parentUserIdsOfStudent(db, schoolId, branchId, inv.studentId);
-        for (const uid of uids) {
-          const ok = await createOnce(
-            notificationsOf(db, schoolId, branchId).doc(`FEE_DUE__${invoiceId}__${offset}__${uid}`),
-            targeted({
-              now,
-              schoolId,
-              branchId,
-              uid,
-              type: 'FEE_DUE_REMINDER',
-              title: offset === 0 ? 'Fee due today' : 'Fee due soon',
-              body: `A fee invoice is due on ${dateText(dueKey)}.`,
-              refType: 'INVOICE',
-              refId: invoiceId,
-            }),
-          );
-          if (ok) created++;
+        for (const { offset } of mine) {
+          for (const uid of uids) {
+            const ok = await createOnce(
+              notificationsOf(db, schoolId, branchId).doc(`FEE_DUE__${invoiceId}__${offset}__${uid}`),
+              targeted({
+                now,
+                schoolId,
+                branchId,
+                uid,
+                type: 'FEE_DUE_REMINDER',
+                title: offset === 0 ? 'Fee due today' : 'Fee due soon',
+                body: `A fee invoice is due on ${dateText(dueKey)}.`,
+                refType: 'INVOICE',
+                refId: invoiceId,
+              }),
+            );
+            if (ok) created++;
+          }
         }
       }
       if (snap.docs.length < INVOICE_PAGE) break;
@@ -294,6 +345,7 @@ module.exports = {
   onRegisterFinalized,
   onHolidayWritten,
   runFeeDueReminders,
+  localHour,
   holidayChange,
   parentUserIdsOfStudent,
   createOnce,

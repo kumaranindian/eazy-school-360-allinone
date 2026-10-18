@@ -229,3 +229,62 @@ test('SEC-4: more invoices than one page are all reminded, none skipped', async 
   const r = await run(db, { offsets: [3] });
   assert.deepStrictEqual(r, { created: 1200, scanned: 1200 });
 });
+
+// ---- multi-country: reminders follow each school's own time zone -----------
+
+/** Two schools, same due date, different zones; each with one parent. */
+function twoSchools(zones = {}) {
+  const fam = (sid) => ({
+    [`schools/${sid}/branches/b1/students/st1/parentLinks/p1`]: { parentId: 'p1', status: 'ACTIVE', canAccessPortal: true },
+    [`users/pu-${sid}`]: { schoolId: sid, status: 'ACTIVE', role: 'PARENT', linkedParentId: 'p1' },
+    [`schools/${sid}/branches/b1/invoices/i1`]: inv({ dueDateKey: '2026-08-06' }),
+  });
+  return fakeDb({
+    'schools/dxb': { name: 'Dubai', timezone: 'Asia/Dubai', ...zones.dxb },
+    'schools/nyc': { name: 'New York', timezone: 'America/New_York', ...zones.nyc },
+    ...fam('dxb'),
+    ...fam('nyc'),
+  });
+}
+const sent = (db) => docsIn(db, 'schools/').filter((k) => k.includes('/notifications/FEE_DUE__')).map((k) => k.split('/')[1]).sort();
+const at = (iso) => ({ today: new Date(iso) });
+
+test('each school is reminded at 08:00 in its own zone, not at one fixed hour', async () => {
+  const db = twoSchools();
+  // 04:30Z = 08:30 in Dubai, 00:30 in New York: only Dubai is due.
+  assert.deepStrictEqual(await ev.runFeeDueReminders(ctx(db), at('2026-08-03T04:30:00Z')), { created: 1, scanned: 1 });
+  assert.deepStrictEqual(sent(db), ['dxb']);
+  // 12:30Z = 08:30 in New York (UTC-4): now New York is due; Dubai is not repeated.
+  assert.deepStrictEqual(await ev.runFeeDueReminders(ctx(db), at('2026-08-03T12:30:00Z')), { created: 1, scanned: 1 });
+  assert.deepStrictEqual(sent(db), ['dxb', 'nyc']);
+});
+
+test('the due date is judged on the school\'s own calendar day', async () => {
+  // New York 2026-08-02 23:30 (03:30Z on the 3rd) is still the 2nd there: its
+  // "3 days before 6 Aug" is the 3rd, not the 2nd. Nothing is due in that hour
+  // (also outside 08:00), so nothing is sent for either school.
+  const db = twoSchools();
+  assert.deepStrictEqual(await ev.runFeeDueReminders(ctx(db), at('2026-08-03T03:30:00Z')), { created: 0, scanned: 0 });
+  assert.deepStrictEqual(sent(db), []);
+});
+
+test('a missed run is retried within the window, and a repeat sends nothing new', async () => {
+  const db = twoSchools();
+  await ev.runFeeDueReminders(ctx(db), at('2026-08-03T05:30:00Z')); // Dubai 09:30, a retry hour
+  assert.deepStrictEqual(sent(db), ['dxb']);
+  assert.strictEqual((await ev.runFeeDueReminders(ctx(db), at('2026-08-03T06:30:00Z'))).created, 0); // 10:30, repeat
+  assert.deepStrictEqual(await ev.runFeeDueReminders(ctx(db), at('2026-08-03T08:30:00Z')), { created: 0, scanned: 0 }); // 12:30, window over
+});
+
+test('a school without a zone (created before Regional settings) keeps the Indian schedule', async () => {
+  const db = twoSchools({ dxb: { timezone: undefined } });
+  // 03:00Z = 08:30 IST: the zone-less school is reminded; Dubai (07:00 there) would not be.
+  await ev.runFeeDueReminders(ctx(db), at('2026-08-03T03:00:00Z'));
+  assert.deepStrictEqual(sent(db), ['dxb']);
+});
+
+test('localHour', () => {
+  assert.strictEqual(ev.localHour(new Date('2026-08-03T04:30:00Z'), 'Asia/Dubai'), 8);
+  assert.strictEqual(ev.localHour(new Date('2026-08-03T04:30:00Z'), 'America/New_York'), 0);
+  assert.strictEqual(ev.localHour(new Date('2026-01-03T05:30:00Z'), 'America/New_York'), 0); // standard time
+});
