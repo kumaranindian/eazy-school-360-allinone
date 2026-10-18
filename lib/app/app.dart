@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/config/env_config_provider.dart';
+import '../core/regional/school_time.dart';
 import '../core/routing/app_router.dart';
 import '../core/tenant/tenant_context_provider.dart';
 import '../core/theme/app_theme.dart';
@@ -29,6 +30,22 @@ class App extends ConsumerWidget {
     final accountSwitching =
         signedInUid != null && loadedUid != null && signedInUid != loadedUid;
 
+    // The school's regional setup (time zone, date format) for plain functions
+    // that have no `ref`; cleared when nobody is signed in to a school. The
+    // navigator is re-keyed when it changes so every open screen redraws with
+    // the new zone/format instead of keeping old text.
+    final school = accountSwitching
+        ? null
+        : ref.watch(tenantContextProvider).value?.school;
+    if (school != null) {
+      SchoolTime.use(school.regional);
+    } else {
+      SchoolTime.reset();
+    }
+    final regionalKey = school == null
+        ? 'none'
+        : '${school.regional.timezone}|${school.regional.dateFormat}';
+
     return MaterialApp.router(
       title: envConfig.appName,
       debugShowCheckedModeBanner: false,
@@ -40,7 +57,10 @@ class App extends ConsumerWidget {
         child: _BrandPrecache(
           child: accountSwitching
               ? const Scaffold(body: LoadingIndicator())
-              : (child ?? const SizedBox.shrink()),
+              : KeyedSubtree(
+                  key: ValueKey(regionalKey),
+                  child: child ?? const SizedBox.shrink(),
+                ),
         ),
       ),
     );

@@ -1,21 +1,22 @@
+import '../../../core/regional/school_time.dart';
 import '../../attendance/domain/attendance_date.dart';
 
 /// Civil dates as `yyyy-MM-dd` keys (the same convention attendance uses), so
 /// due-date comparisons and ranges involve no timezone arithmetic.
 abstract final class FeeDates {
+  /// Today in the **school's** time zone (Regional settings).
   static String todayKey([DateTime? now]) =>
-      AttendanceDate.key(now ?? DateTime.now());
+      AttendanceDate.key(now ?? SchoolTime.wallNow());
 
   static String addDays(String key, int days) {
     final d = AttendanceDate.parse(key);
     return AttendanceDate.key(DateTime.utc(d.year, d.month, d.day + days));
   }
 
-  /// "10/06/2026" for display.
+  /// A date key in the school's date format ("10/06/2026" by default).
   static String display(String key) {
     if (!AttendanceDate.keyPattern.hasMatch(key)) return key;
-    final p = key.split('-');
-    return '${p[2]}/${p[1]}/${p[0]}';
+    return SchoolTime.formatKey(key);
   }
 }
 
