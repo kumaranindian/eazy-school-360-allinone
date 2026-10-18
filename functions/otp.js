@@ -20,6 +20,8 @@ const RESEND_COOLDOWN_MS = 60 * 1000;
 const WINDOW_MS = 60 * 60 * 1000;
 const MAX_PER_PHONE = 5;
 const MAX_PER_IP = 20;
+// Documents are removed by a Firestore TTL policy on `expireAt` (SEC-3).
+const RETAIN_MS = 24 * 60 * 60 * 1000;
 
 const hmac = (pepper, text) => crypto.createHmac('sha256', pepper).update(text).digest('hex');
 const safeEqual = (a, b) => {
@@ -46,7 +48,7 @@ async function hit(db, key, max, nowMs, cooldownMs) {
       return { error: 'RESEND_COOLDOWN', retryAfterSec: Math.ceil((cooldownMs - (nowMs - d.lastSentAt)) / 1000) };
     }
     if (d.count >= max) return { error: 'RATE_LIMITED', retryAfterSec: Math.ceil((WINDOW_MS - (nowMs - d.windowStart)) / 1000) };
-    tx.set(ref, { windowStart: d.windowStart, count: d.count + 1, lastSentAt: nowMs });
+    tx.set(ref, { windowStart: d.windowStart, count: d.count + 1, lastSentAt: nowMs, expireAt: new Date(d.windowStart + WINDOW_MS + RETAIN_MS) });
     return null;
   });
 }
@@ -100,6 +102,7 @@ async function requestOtp(ctx, { phone, ip }) {
     status: 'PENDING',
     createdAt: nowMs,
     expiresAt: nowMs + TTL_MS,
+    expireAt: new Date(nowMs + TTL_MS + RETAIN_MS),
   });
   await batch.commit();
   try {

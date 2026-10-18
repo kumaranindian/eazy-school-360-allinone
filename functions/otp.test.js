@@ -166,3 +166,15 @@ test('whatsapp: maps provider failures to actionable codes', async () => {
   );
   assert.strictEqual(await createWhatsAppSender({}, async () => resp(200, {})).sendOtp({ to: PHONE, code: '1' }).catch((e) => e.code), 'NOT_CONFIGURED');
 });
+
+test('SEC-3: challenges and rate counters carry a TTL date, so they are cleaned up', async () => {
+  const { db, ctx } = setup();
+  await otp.requestOtp(ctx, { phone: PHONE, ip: '1.1.1.1' });
+  const docs = [...db.store.entries()];
+  const challenge = docs.find(([k]) => k.startsWith('otpChallenges/'))[1];
+  const rates = docs.filter(([k]) => k.startsWith('otpRate/')).map(([, v]) => v);
+  assert.ok(challenge.expireAt instanceof Date);
+  assert.ok(challenge.expireAt.getTime() > challenge.expiresAt);
+  assert.strictEqual(rates.length, 2); // phone + ip
+  for (const r of rates) assert.ok(r.expireAt instanceof Date && r.expireAt.getTime() > r.windowStart);
+});

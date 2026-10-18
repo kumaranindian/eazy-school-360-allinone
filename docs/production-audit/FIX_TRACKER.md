@@ -42,7 +42,7 @@ None confirmed.
 | ROUTE-2 | No deep-link / refresh restoration | 2 | ✔ (?from= carried through splash/sign-in; safe-target check) |
 | STATE-3 | Sign-out can hang on the unregister callable | 1 | ✔ |
 | SEC-2 | App Check off by default | 0/1 | ⚑ |
-| SEC-3 | OTP: victim lock-out, IP source, no TTL | 3 | ☐ |
+| SEC-3 | OTP: victim lock-out, IP source, no TTL | 3 | ◐ TTL on otpChallenges/otpRate done (⚑ TTL policies are applied by `firebase deploy --only firestore:indexes`); victim lock-out and IP trust need App Check enforcement (SEC-2, ⚑) |
 | SEC-4 | `feeDueReminders` global scan, silent cap | 2 | ✔ |
 | CFG-4 | No Content-Security-Policy | 3 | ☐ |
 | CFG-6 | Missing staff composite indexes | 2 | ✔ re-assessed: Firestore index merging serves chained equality filters from the existing (field, displayNameLower) composites; guard test added (tool/indexes.test.js); ⚑ confirm one combined filter on dev |
@@ -70,7 +70,7 @@ None confirmed.
 | CFG-9 | `.gitignore` lacks key/cert/service-account patterns | 3 | ✔ |
 | CFG-3 | Android `allowBackup` default; INTERNET permission check | 3 | ✔ (allowBackup=false, INTERNET declared); iOS privacy manifest is CFG-10 (⊘) |
 | CFG-10 | No `PrivacyInfo.xcprivacy`; shared app id dev/prod | 3 | ⊘ |
-| SEC-6 | SVG uploads allowed; no self-signup spam control | 3 | ☐ |
+| SEC-6 | SVG uploads allowed; no self-signup spam control | 3 | ◐ SVG refused (done); self-signup spam control needs App Check/CAPTCHA (⚑ owner decision) |
 | PERF-3 | Bulk import one query per row | 3 | ☐ |
 | CFG-8 | CI builds `main.dart` not prod entry; no Android job; no dependabot | 3 | ☐ |
 
