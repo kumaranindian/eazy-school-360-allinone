@@ -1,0 +1,16 @@
+# Keeps third-party actions and dependencies current, so advisories are fixed
+# by a reviewed PR instead of waiting for someone to notice (CFG-7/8).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+  - package-ecosystem: npm
+    directory: /functions
+    schedule: { interval: weekly }
+  - package-ecosystem: npm
+    directory: /firestore-tests
+    schedule: { interval: weekly }
+  - package-ecosystem: pub
+    directory: /
+    schedule: { interval: weekly }

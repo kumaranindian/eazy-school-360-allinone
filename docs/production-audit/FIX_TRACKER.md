@@ -46,7 +46,7 @@ None confirmed.
 | SEC-4 | `feeDueReminders` global scan, silent cap | 2 | ✔ |
 | CFG-4 | No Content-Security-Policy | 3 | ◐ CSP added as Report-Only (script/wasm/CanvasKit/Google sign-in loading verified violation-free in headless Chromium; post-login flows could not be exercised here). ⚑ watch the console on the dev site, then rename the header to Content-Security-Policy |
 | CFG-6 | Missing staff composite indexes | 2 | ✔ re-assessed: Firestore index merging serves chained equality filters from the existing (field, displayNameLower) composites; guard test added (tool/indexes.test.js); ⚑ confirm one combined filter on dev |
-| CFG-7 | CI hardening (permissions, pinning, timeouts) | 3 | ☐ |
+| CFG-7 | CI hardening (permissions, pinning, timeouts) | 3 | ◐ permissions, concurrency, timeouts, pinned firebase-tools, dependabot done; pin actions by SHA left to the owner (needs verified SHAs; dependabot will propose updates) |
 | DEP-1 | Functions dependency advisories (firebase-admin 12) | 2 | ✔ firebase-admin 13 (2 high → 0); 8 moderate remain: transitive `uuid` buf-bounds advisory, code path (v3/v5/v6 with a caller buffer) not used; ⚑ deploy to dev and smoke-test callables |
 | PERF-1 | Finalise results: per-student attendance reads | 2 | ✔ latency (8 parallel); a section-level query was rejected because it would drop a mover's earlier-section attendance |
 | PERF-2 | Refresh parent access sequential, no guard | 2 | ✔ |
@@ -72,7 +72,7 @@ None confirmed.
 | CFG-10 | No `PrivacyInfo.xcprivacy`; shared app id dev/prod | 3 | ⊘ |
 | SEC-6 | SVG uploads allowed; no self-signup spam control | 3 | ◐ SVG refused (done); self-signup spam control needs App Check/CAPTCHA (⚑ owner decision) |
 | PERF-3 | Bulk import one query per row | 3 | ☐ |
-| CFG-8 | CI builds `main.dart` not prod entry; no Android job; no dependabot | 3 | ☐ |
+| CFG-8 | CI builds `main.dart` not prod entry; no Android job; no dependabot | 3 | ✔ prod-entry web build, Android debug-build job, dependabot, branch-transfer fixture in the export step |
 
 ## Potentials / unknowns (verify first, fix only if reproduced)
 | ID | Title | Status |
