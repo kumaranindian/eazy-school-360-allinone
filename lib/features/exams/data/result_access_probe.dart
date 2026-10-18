@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 
 import '../../../core/constants/firestore_fields.dart';
 
@@ -24,6 +24,8 @@ class ResultAccessProbe {
     required String classId,
     required String? sectionId,
   }) async {
+    // It prints a family's access keys: never in a release build (LOG-2).
+    if (!kDebugMode) return;
     final branch = _firestore
         .collection(FirestoreFields.schoolsCollection)
         .doc(schoolId)

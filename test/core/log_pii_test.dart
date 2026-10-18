@@ -31,4 +31,25 @@ void main() {
     }
     expect(offenders, isEmpty, reason: offenders.join('\n'));
   });
+
+  test('LOG-2: debugPrint (printed in release) carries no error bodies', () {
+    final call = RegExp(r'debugPrint\(([^;]*?)\);', dotAll: true);
+    final body = RegExp(r'\.details|\.message|\$error|\$stackTrace');
+    final offenders = <String>[];
+    for (final f in Directory('lib').listSync(recursive: true)) {
+      if (f is! File || !f.path.endsWith('.dart')) continue;
+      if (f.path.endsWith('app_logger.dart')) continue; // debug-only itself
+      final src = f.readAsStringSync();
+      final wholeFileDebugOnly = src.contains('if (!kDebugMode) return;');
+      for (final m in call.allMatches(src)) {
+        final text = m.group(1)!;
+        if (body.hasMatch(text) &&
+            !text.contains('kDebugMode') &&
+            !wholeFileDebugOnly) {
+          offenders.add('${f.path}: ${text.trim()}');
+        }
+      }
+    }
+    expect(offenders, isEmpty, reason: offenders.join('\n'));
+  });
 }
