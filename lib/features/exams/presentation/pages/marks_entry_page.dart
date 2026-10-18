@@ -336,7 +336,7 @@ class _SheetState extends ConsumerState<_Sheet> {
     )) {
       return;
     }
-    if (!await _save()) return;
+    if (!await _save() || !mounted) return;
     setState(() => _busy = true);
     try {
       final repo = ref.read(marksRepositoryProvider);

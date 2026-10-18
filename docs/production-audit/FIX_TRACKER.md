@@ -62,7 +62,7 @@ None confirmed.
 | NOTIF-7 | `ALL` pushes to staff who cannot open the notice | 3 | ⊘ |
 | ACAD-5 | NaN / multi-decimal marks components pass client validation | 2 | ✔ |
 | STATE-4 | `addReadIds` lost update | 2 | ✔ |
-| STATE-5 | Small lifecycle gaps (marks submit, conversation, generate dialogs) | 3 | ☐ |
+| STATE-5 | Small lifecycle gaps (marks submit, conversation, generate dialogs) | 3 | ✔ (marks submit and invoice date picker guarded; the other flagged spots were checked and are guarded or in callbacks that cannot outlive the widget) |
 | STATE-6 | Late `switchBranch` overwrites tenant after sign-out | 2 | ✔ |
 | ROUTE-1 | Three routes missing from `requiredPermissions` | 3 | ✔ (settingsSchoolYears added; guard test fails for any future unlisted route) |
 | LOG-2 | Raw `debugPrint` of callable error bodies in release | 3 | ✔ |
@@ -71,7 +71,7 @@ None confirmed.
 | CFG-3 | Android `allowBackup` default; INTERNET permission check | 3 | ✔ (allowBackup=false, INTERNET declared); iOS privacy manifest is CFG-10 (⊘) |
 | CFG-10 | No `PrivacyInfo.xcprivacy`; shared app id dev/prod | 3 | ⊘ |
 | SEC-6 | SVG uploads allowed; no self-signup spam control | 3 | ◐ SVG refused (done); self-signup spam control needs App Check/CAPTCHA (⚑ owner decision) |
-| PERF-3 | Bulk import one query per row | 3 | ☐ |
+| PERF-3 | Bulk import one query per row | 3 | ⊘ accepted: admin-only, idempotent, shows progress; correctness now comes from the create-only reservation (ACAD-2), the per-row check only improves the message |
 | CFG-8 | CI builds `main.dart` not prod entry; no Android job; no dependabot | 3 | ✔ prod-entry web build, Android debug-build job, dependabot, branch-transfer fixture in the export step |
 
 ## Potentials / unknowns (verify first, fix only if reproduced)

@@ -411,7 +411,7 @@ class _GenerateState extends ConsumerState<_Generate> {
                         firstDate: DateTime(now.year - 1),
                         lastDate: DateTime(now.year + 1),
                       );
-                      if (picked != null) {
+                      if (picked != null && mounted) {
                         setState(() {
                           _issueKey = FeeDates.todayKey(picked);
                           _plan = null;
