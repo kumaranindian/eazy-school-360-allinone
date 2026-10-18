@@ -1611,6 +1611,26 @@ service cloud.firestore {
     // same atomic write, creating (1) a school that did not exist before
     // and that they author, and (2) their own SCHOOL_ADMIN profile
     // pointing at exactly that school.
+    // Regional settings of a school (country, currency, time zone, date
+    // format): shape only. Which currency is allowed once money exists is
+    // schoolRegionalChangeOk below.
+    function validRegional(d) {
+      return (!('countryCode' in d) || (d.countryCode is string && d.countryCode.matches('^[A-Z]{2}$')))
+        && (!('currency' in d) || (d.currency is string && d.currency.matches('^[A-Z]{3}$')))
+        && (!('timezone' in d) || (d.timezone is string && d.timezone.size() <= 64
+            && d.timezone.matches('^(UTC|[A-Za-z]+(/[A-Za-z0-9_+-]+){1,2})$')))
+        && (!('dateFormat' in d) || d.dateFormat in ['dd/MM/yyyy', 'MM/dd/yyyy', 'yyyy-MM-dd',
+            'dd.MM.yyyy', 'yyyy/MM/dd', 'yyyy.MM.dd', 'dd-MM-yyyy']);
+    }
+
+    // Once the server has marked the school's currency locked (the first fee
+    // structure, invoice or payment exists) it can no longer change. A school
+    // that predates the setting is implicitly INR.
+    function currencyUnchangedOrOpen(before, after) {
+      return !before.get('currencyLocked', false)
+        || after.get('currency', 'INR') == before.get('currency', 'INR');
+    }
+
     function isSelfSignupBatchFor(schoolId) {
       return isSignedIn()
         && !hasProfile()
@@ -1724,6 +1744,8 @@ service cloud.firestore {
 
       allow create: if validCreateAudit()
         && nd().status == 'ACTIVE'
+        && validRegional(nd())
+        && !('currencyLocked' in nd())
         && isSelfSignupBatchFor(schoolId);
 
       allow update: if isSignedIn() && validUpdateAudit() && (
@@ -1733,8 +1755,11 @@ service cloud.firestore {
           && changedOnly([
             'name', 'shortName', 'code', 'logoUrl', 'email', 'phone', 'alternatePhone', 'website',
             'addressLine1', 'addressLine2', 'city', 'state', 'country', 'postalCode', 'defaultBranchId',
+            'countryCode', 'currency', 'timezone', 'dateFormat',
             'updatedAt', 'updatedBy',
-          ]))
+          ])
+          && validRegional(nd())
+          && currencyUnchangedOrOpen(resource.data, nd()))
         ||
         isPlatformAdmin()
       );
