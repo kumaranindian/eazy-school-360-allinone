@@ -18,7 +18,7 @@ None confirmed.
 |---|---|---|---|
 | SEC-1 | Rules ruleset at the release-size edge; deployability unknown | 1 | ✔ repo side (built artifact 146 KB + CI gate); ⚑ run `tool/deploy_rules.sh <project> --dry-run` on dev/prod |
 | NOTIF-1 | Previous user keeps pushes after non-button sign-out | 1 | ✔ |
-| NOTIF-3 | Failed push deliveries never retried/redriven | 1 | ☐ |
+| NOTIF-3 | Failed push deliveries never retried/redriven | 1 | ✔ |
 | ACAD-1 | Academic-year dates off by one day in UTC+ zones | 1 | ✔ code/rules/tests/CI TZ matrix; ⚑ run `tool/migrate_year_dates.js --zone <zone>` (dry-run first) on existing data |
 | CFG-1 | Release builds may be debug-signed | 1 | ☐ |
 | OPS-2 | Crash reporting incomplete on Android/iOS | 1 | ⚑ |
@@ -37,7 +37,7 @@ None confirmed.
 | ACAD-7 | In-branch student transfer not transactional | 2 | ☐ |
 | ACAD-9 | Attendance rules trust client section/date | 2 | ☐ |
 | NOTIF-2 | Disabled-login users still pushed / can register devices | 2 | ✔ |
-| NOTIF-4 | Push recipients silently truncated at 2000 | 1 | ☐ |
+| NOTIF-4 | Push recipients silently truncated at 2000 | 1 | ✔ |
 | LOG-1 | PII (email, student name) reaches Crashlytics | 1 | ☐ |
 | ROUTE-2 | No deep-link / refresh restoration | 2 | ☐ |
 | STATE-3 | Sign-out can hang on the unregister callable | 1 | ✔ |
@@ -57,7 +57,7 @@ None confirmed.
 ## P3 — low
 | ID | Title | Phase | Status |
 |---|---|---|---|
-| NOTIF-5 | Stale-claim takeover not atomic | 1 | ☐ |
+| NOTIF-5 | Stale-claim takeover not atomic | 1 | ✔ |
 | NOTIF-6 | Lock-screen content visibility | 3 | ⊘ |
 | NOTIF-7 | `ALL` pushes to staff who cannot open the notice | 3 | ⊘ |
 | ACAD-5 | NaN / multi-decimal marks components pass client validation | 2 | ☐ |

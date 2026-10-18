@@ -10,9 +10,8 @@ const { getAuth } = require('firebase-admin/auth');
 const { FieldValue } = require('firebase-admin/firestore');
 const logger = require('firebase-functions/logger');
 
-const { broadcastRecipients, targetedRecipients } = require('./recipients');
-const { pushToUsers } = require('./push');
-const { claimDelivery, finishDelivery, errorCategory } = require('./delivery_log');
+const { errorCategory } = require('./delivery_log');
+const { makeDelivery } = require('./deliver');
 const devices = require('./devices');
 const notifyEvents = require('./notify_events');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
@@ -36,57 +35,51 @@ setGlobalOptions({ region: process.env.FUNCTIONS_REGION || 'asia-south1', maxIns
 const db = getFirestore();
 const messaging = getMessaging();
 
-// Pushes one notification document. Idempotent: the event id is claimed in
-// `pushDeliveries` first, so a retried or duplicated event sends nothing twice.
-// Errors are recorded and swallowed (not thrown): a thrown error would make the
-// platform redeliver the event; the claim already makes that safe, but a
-// permanent failure would just loop. The in-app feed is the record.
-async function deliver(event, resolve) {
+// Pushes one notification document. Idempotent and retryable: see deliver.js
+// (claims in `pushDeliveries`, device-level de-duplication on re-runs, and the
+// `pushRedrive` sweep below for anything that did not finish).
+const delivery = makeDelivery({ db, messaging, logger });
+const PUSH_TIMEOUT_S = 300;
+
+const deliverEvent = (kind) => (event) => {
   const snap = event.data;
   if (!snap) return;
-  const n = snap.data();
   const { schoolId, branchId } = event.params;
-  const doc = { ...n, schoolId, branchId };
-  let claim = null;
-  try {
-    claim = await claimDelivery(db, event.id, { schoolId, branchId, path: snap.ref.path, type: n.type || '' });
-    if (!claim) {
-      logger.info('push skipped: event already handled', { path: snap.ref.path });
-      return;
-    }
-    const userIds = await resolve(doc);
-    const sent = await pushToUsers({
-      db,
-      messaging,
-      schoolId,
-      userIds,
-      exclude: n.createdBy,
-      type: n.type,
-      title: n.title,
-      body: n.body,
-      notificationId: snap.id,
-      data: { refType: n.refType || '', refId: n.refId || '', branchId, schoolId },
-    });
-    const transient = sent.transientFailed > 0;
-    await finishDelivery(claim, { status: transient ? 'PARTIAL' : 'SENT', ...sent });
-    logger.info('push delivered', { path: snap.ref.path, type: n.type, ...sent });
-  } catch (e) {
-    const category = errorCategory(e);
-    logger.error('push failed', { path: snap.ref.path, category });
-    await finishDelivery(claim, { status: 'FAILED', errorCategory: category }).catch(() => {});
-  }
-}
+  return delivery.runDelivery({
+    eventId: event.id,
+    schoolId,
+    branchId,
+    ref: snap.ref,
+    id: snap.id,
+    data: snap.data(),
+    kind,
+  });
+};
 
 // Announcements, homework, results, holidays: audience-addressed notices.
 exports.pushBroadcastNotice = onDocumentCreated(
-  'schools/{schoolId}/branches/{branchId}/broadcastNotices/{noticeId}',
-  (event) => deliver(event, (doc) => broadcastRecipients(db, doc)),
+  { document: 'schools/{schoolId}/branches/{branchId}/broadcastNotices/{noticeId}', timeoutSeconds: PUSH_TIMEOUT_S },
+  deliverEvent('broadcastNotices'),
 );
 
 // Leave decisions, messages, payments, attendance, fee reminders: per-user.
 exports.pushNotification = onDocumentCreated(
-  'schools/{schoolId}/branches/{branchId}/notifications/{notificationId}',
-  (event) => deliver(event, (doc) => targetedRecipients(db, doc)),
+  { document: 'schools/{schoolId}/branches/{branchId}/notifications/{notificationId}', timeoutSeconds: PUSH_TIMEOUT_S },
+  deliverEvent('notifications'),
+);
+
+// Finishes deliveries that failed, were cut short or were abandoned by a
+// crashed invocation. Frequent and cheap when there is nothing to do.
+exports.pushRedrive = onSchedule(
+  { schedule: 'every 5 minutes', timeZone: 'Asia/Kolkata', timeoutSeconds: 540 },
+  async () => {
+    try {
+      const r = await delivery.redrive();
+      if (r.due > 0) logger.info('push redrive', r);
+    } catch (e) {
+      logger.error('push redrive failed', { category: errorCategory(e) });
+    }
+  },
 );
 
 // ---- Device registration (push tokens) -------------------------------------

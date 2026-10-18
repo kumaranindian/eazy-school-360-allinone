@@ -5,7 +5,10 @@ const { allowsPush, categoryFor } = require('./categories');
 const { chunk } = require('./recipients');
 const { canReceive, isStaleDevice } = require('./device_cleanup');
 
-const MAX_RECIPIENTS = 2000;
+// Hard safety cap (a school with more active users than this is flagged
+// `truncated`, never silently cut). Recipients are processed in pages; a long
+// fan-out stops at `deadlineAt` and is finished by the redrive sweep.
+const MAX_RECIPIENTS = 20000;
 const FCM_BATCH = 500; // sendEachForMulticast limit
 const ANDROID_CHANNEL = 'eazyschool_general'; // created by the app (see docs/push-notifications.md)
 // Where a tap goes. The payload only ever carries one of these, and the app
@@ -25,6 +28,7 @@ const TRANSIENT = new Set([
   'messaging/server-unavailable',
   'messaging/unknown-error',
   'messaging/message-rate-exceeded',
+  'messaging/quota-exceeded', // retried later by the redrive sweep, not dropped
   'messaging/device-message-rate-exceeded',
   'messaging/topics-message-rate-exceeded',
 ]);
@@ -32,6 +36,9 @@ const MAX_ATTEMPTS = 3;
 const BACKOFF_MS = [250, 1000];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Opaque, stable id of a registration (never the token itself). */
+const deviceKey = (ref) => crypto.createHash('sha256').update(ref.path).digest('hex').slice(0, 16);
 
 /** APNs collapse ids are limited to 64 bytes; hash anything longer. */
 function collapseId(notificationId) {
@@ -97,7 +104,7 @@ function buildMessage({ type, title, body, data, notificationId }) {
  * failed transiently, a bounded number of times. Dead tokens are collected.
  */
 async function sendBatch(messaging, targets, message, wait = sleep) {
-  const result = { accepted: 0, stale: [], transient: 0, permanent: 0 };
+  const result = { accepted: 0, acceptedKeys: [], stale: [], transient: 0, permanent: 0 };
   let pending = targets;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS && pending.length > 0; attempt++) {
     let res;
@@ -117,6 +124,7 @@ async function sendBatch(messaging, targets, message, wait = sleep) {
     res.responses.forEach((r, i) => {
       if (r.success) {
         result.accepted++;
+        if (pending[i].ref) result.acceptedKeys.push(deviceKey(pending[i].ref));
         return;
       }
       const code = r.error?.code;
@@ -168,8 +176,13 @@ async function pushToUsers({
   data,
   notificationId,
   wait,
+  skipDevices,
+  deadlineAt,
 }) {
   const summary = {
+    truncated: false,
+    incomplete: false,
+    doneDevices: [],
     requested: 0,
     ineligible: 0,
     muted: 0,
@@ -180,7 +193,9 @@ async function pushToUsers({
     permanentFailed: 0,
   };
   const category = categoryFor(type);
-  const candidates = [...userIds].filter((u) => u && u !== exclude).slice(0, MAX_RECIPIENTS);
+  const all = [...userIds].filter((u) => u && u !== exclude);
+  summary.truncated = all.length > MAX_RECIPIENTS;
+  const candidates = all.slice(0, MAX_RECIPIENTS);
   summary.requested = candidates.length;
   if (candidates.length === 0) return summary;
 
@@ -188,10 +203,15 @@ async function pushToUsers({
   summary.ineligible = candidates.length - eligible.length;
   if (eligible.length === 0) return summary;
 
-  const prefDocs = await db.getAll(
-    ...eligible.map((u) => db.collection('users').doc(u).collection('preferences').doc('notifications')),
-  );
-  const allowed = eligible.filter((_, i) => allowsPush(prefDocs[i].exists ? prefDocs[i].data() : null, category));
+  const allowed = [];
+  for (const part of chunk(eligible, 300)) {
+    const prefDocs = await db.getAll(
+      ...part.map((u) => db.collection('users').doc(u).collection('preferences').doc('notifications')),
+    );
+    part.forEach((u, i) => {
+      if (allowsPush(prefDocs[i].exists ? prefDocs[i].data() : null, category)) allowed.push(u);
+    });
+  }
   summary.muted = eligible.length - allowed.length;
 
   const targets = []; // { token, ref }
@@ -206,6 +226,12 @@ async function pushToUsers({
         // A registration that stopped checking in is not trusted (NOTIF-1).
         if (!dev.token || dev.status === 'INACTIVE' || seen.has(dev.token) || isStaleDevice(dev)) continue;
         seen.add(dev.token);
+        // A re-run (retry, takeover) must not send twice to a device FCM
+        // already accepted for this notification.
+        if (skipDevices && skipDevices.has(deviceKey(d.ref))) {
+          summary.alreadySent = (summary.alreadySent || 0) + 1;
+          continue;
+        }
         targets.push({ token: dev.token, ref: d.ref });
       }
     }
@@ -215,8 +241,14 @@ async function pushToUsers({
 
   const message = buildMessage({ type, title, body, data, notificationId });
   for (const part of chunk(targets, FCM_BATCH)) {
+    if (deadlineAt && Date.now() > deadlineAt) {
+      // Out of time: report what is left; the redrive sweep finishes it.
+      summary.incomplete = true;
+      break;
+    }
     const r = await sendBatch(messaging, part, message, wait);
     summary.accepted += r.accepted;
+    for (const k of r.acceptedKeys) summary.doneDevices.push(k);
     summary.transientFailed += r.transient;
     summary.permanentFailed += r.permanent;
     const removed = await Promise.allSettled(r.stale.map((t) => t.ref.delete()));
@@ -231,6 +263,8 @@ module.exports = {
   sendBatch,
   eligibleUsers,
   collapseId,
+  deviceKey,
+  MAX_RECIPIENTS,
   safeData,
   STALE,
   TRANSIENT,
