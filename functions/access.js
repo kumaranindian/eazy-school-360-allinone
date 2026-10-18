@@ -19,6 +19,7 @@
 const crypto = require('node:crypto');
 const { removeAllDevices } = require('./device_cleanup');
 
+const { dialCodeFor } = require('./dial_codes');
 const METHODS = ['PASSWORD', 'GOOGLE', 'PHONE_OTP'];
 // What accounts could use before this feature existed. Materialised for
 // legacy users only when a school changes its settings.
@@ -42,9 +43,13 @@ function normalizePhone(raw, defaultCountryCode = process.env.DEFAULT_PHONE_COUN
   const digits = trimmed.replace(/\D/g, '');
   let e164;
   if (trimmed.startsWith('+')) e164 = `+${digits}`;
-  else if (digits.length === 10) e164 = `+${defaultCountryCode}${digits}`;
-  else if (digits.length === 11 && digits.startsWith('0')) e164 = `+${defaultCountryCode}${digits.slice(1)}`;
-  else if (digits.length >= 11 && digits.length <= 15) e164 = `+${digits}`;
+  else if (digits.startsWith('0') && digits.length >= 8 && digits.length <= 12) {
+    // National format with the trunk "0" (0501234567, 09876543210): drop it.
+    e164 = `+${defaultCountryCode}${digits.slice(1)}`;
+  } else if (digits.length >= 7 && digits.length <= 10) {
+    // National number without the trunk prefix (9876543210, 501234567).
+    e164 = `+${defaultCountryCode}${digits}`;
+  } else if (digits.length >= 11 && digits.length <= 15) e164 = `+${digits}`;
   else return null;
   return /^\+[1-9]\d{7,14}$/.test(e164) ? e164 : null;
 }
@@ -106,6 +111,12 @@ function displayName(d) {
   return [d.firstName, d.middleName, d.lastName].filter(Boolean).join(' ');
 }
 
+/** The dialling code of the school's country (Regional settings). */
+async function schoolDialCode(db, schoolId) {
+  const snap = await db.collection('schools').doc(schoolId).get();
+  return dialCodeFor(snap.exists ? snap.data().countryCode : null);
+}
+
 async function loadRecord(db, { schoolId, branchId, kind, id }) {
   const coll = kind === 'STAFF' ? 'staff' : 'parents';
   const ref = branchRef(db, schoolId, branchId).collection(coll).doc(id);
@@ -118,7 +129,7 @@ async function loadRecord(db, { schoolId, branchId, kind, id }) {
     uid: (kind === 'STAFF' ? d.userId : d.linkedUserId) || null,
     name: displayName(d),
     email: normalizeEmail(d.email || ''),
-    phone: normalizePhone(d.phone || ''),
+    phone: normalizePhone(d.phone || '', await schoolDialCode(db, schoolId)),
   };
 }
 
@@ -236,7 +247,7 @@ async function setLoginAccess(ctx, callerUid, token, data) {
   // the record's registered mobile.
   let phone = null;
   if (methods.includes('PHONE_OTP')) {
-    phone = data.phone != null && data.phone !== '' ? normalizePhone(data.phone) : rec.phone;
+    phone = data.phone != null && data.phone !== '' ? normalizePhone(data.phone, await schoolDialCode(db, schoolId)) : rec.phone;
     if (data.phone != null && data.phone !== '' && !phone) return { error: 'INVALID_PHONE' };
   }
   const problem = validateGrant({ enabled: data.enabled, methods, school, email: rec.email, phone });

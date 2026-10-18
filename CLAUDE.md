@@ -51,6 +51,8 @@ Entry points are explicit: `lib/main_dev.dart`, `main_prod.dart` (optionally wit
 
 **Login access**: `/users/{uid}.login` (server-written) + school `authSettings` gate sign-in per method; enforced in `firestore.rules`/`storage.rules` (`loginAllowed()`) and Cloud Functions (`functions/access.js`, `otp.js`, `whatsapp.js`). Phone OTP goes through Meta WhatsApp; see `docs/authentication-access-management.md` before touching auth.
 
+**Multi-country**: country, currency, time zone and date format are one setting per school (`schools/{id}`, edited in Settings → Regional settings; `docs/multi-country.md`). Money is integer minor units whose decimals depend on the currency (`Money.*` always takes the currency); "today"/deadlines/display use the school's zone via `SchoolTime` (`lib/core/regional`), never `DateTime.now()` for a school day; the currency locks once money exists (server-written `currencyLocked`).
+
 **Notifications**: the app writes `broadcastNotices` / `notifications` docs; Cloud Functions in `functions/` fan these out to FCM (`docs/push-notifications.md`). Despite older text in `PROJECT_ARCHITECTURE.md` saying Cloud Functions weren't added, they now exist for push. Web push is not supported.
 
 **Routing**: `go_router` with `StatefulShellRoute.indexedStack`; per-feature route files (e.g. `fees_routes.dart`) plug into `lib/core/routing`.

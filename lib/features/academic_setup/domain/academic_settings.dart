@@ -11,6 +11,10 @@ import '../../../core/constants/firestore_fields.dart';
 /// `schoolWorkingDays` is *not* duplicated here — that's
 /// [WorkingDays]' own document; storing it twice would just be two
 /// sources of truth that can disagree.
+/// NOTE: `timezone`, `dateFormat` and `currency` here are **superseded** by the
+/// school's Regional settings (`School.regional`, see docs/multi-country.md);
+/// nothing reads them any more. They are kept so existing documents still
+/// parse.
 class AcademicSettings {
   final String schoolId;
   final String branchId;

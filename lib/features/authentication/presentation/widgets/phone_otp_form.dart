@@ -102,6 +102,7 @@ class _PhoneOtpFormState extends ConsumerState<PhoneOtpForm> {
               textInputAction: TextInputAction.done,
               decoration: const InputDecoration(
                 labelText: 'Registered mobile number',
+                helperText: 'Include your country code, e.g. +971 50 123 4567',
                 prefixIcon: Icon(Icons.phone_outlined),
               ),
               validator: validatePhoneNumber,

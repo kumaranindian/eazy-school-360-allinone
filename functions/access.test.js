@@ -228,3 +228,17 @@ test('NOTIF-1: signing a user out everywhere also removes their push devices', a
   assert.strictEqual(db.store.has('users/tuid/devices/d1'), false);
   assert.strictEqual(db.store.has('users/other/devices/d2'), true, 'other accounts are untouched');
 });
+
+// ---- multi-country: national numbers follow the school's country ----------
+test('a national-format mobile is completed with the school\'s own dialling code', () => {
+  const { normalizePhone } = a;
+  const { dialCodeFor } = require('./dial_codes');
+  assert.strictEqual(normalizePhone('050 123 4567', dialCodeFor('AE')), '+971501234567'); // trunk 0 dropped
+  assert.strictEqual(normalizePhone('501234567', dialCodeFor('AE')), '+971501234567'); // 9-digit national
+  assert.strictEqual(normalizePhone('0501234567', dialCodeFor('AE')), '+971501234567');
+  assert.strictEqual(normalizePhone('4155550123', dialCodeFor('US')), '+14155550123');
+  assert.strictEqual(normalizePhone('9876543210', dialCodeFor('IN')), '+919876543210');
+  assert.strictEqual(normalizePhone('+447911123456', dialCodeFor('AE')), '+447911123456'); // explicit + wins
+  assert.strictEqual(dialCodeFor('ZZ', '91'), '91'); // unknown country falls back
+  assert.strictEqual(dialCodeFor(undefined, '91'), '91');
+});
