@@ -17,6 +17,7 @@
 // deliver, and only for the account it was registered under.
 
 const crypto = require('node:crypto');
+const { canReceive } = require('./device_cleanup');
 
 const PLATFORMS = ['android', 'ios', 'web'];
 const TOKEN_RE = /^[A-Za-z0-9:_.\-]{20,4096}$/;
@@ -36,7 +37,7 @@ function validToken(data) {
 async function activeSchoolUser(db, uid) {
   const snap = await db.collection('users').doc(uid).get();
   const u = snap.exists ? snap.data() : null;
-  if (!u || u.status !== 'ACTIVE' || typeof u.schoolId !== 'string' || !u.schoolId) return null;
+  if (!canReceive(u) || typeof u.schoolId !== 'string' || !u.schoolId) return null;
   return u;
 }
 

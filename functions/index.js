@@ -4,7 +4,7 @@ const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 const { setGlobalOptions } = require('firebase-functions/v2');
-const { onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
+const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { getAuth } = require('firebase-admin/auth');
 const { FieldValue } = require('firebase-admin/firestore');
@@ -24,6 +24,7 @@ const teacherAccess = require('./teacher_access');
 const parentAccess = require('./parent_access');
 const examScope = require('./exam_scope');
 const branchAccess = require('./branch_access');
+const deviceCleanup = require('./device_cleanup');
 const { requestOtp, verifyOtp } = require('./otp');
 const { createWhatsAppSender } = require('./whatsapp');
 const { callOptions } = require('./call_options');
@@ -476,3 +477,19 @@ exports.staffBranchAccessSync = onDocumentWritten(
     }
   },
 );
+
+// When an account stops being allowed to sign in (status no longer ACTIVE, or
+// its login switched off) its phones stop receiving its notices at once,
+// whichever screen or function made the change (NOTIF-1 / NOTIF-2).
+exports.dropDevicesOnAccessLoss = onDocumentUpdated('users/{uid}', async (event) => {
+  const before = event.data && event.data.before.data();
+  const after = event.data && event.data.after.data();
+  if (!deviceCleanup.lostAccess(before, after)) return;
+  try {
+    const n = await deviceCleanup.removeAllDevices(db, event.params.uid);
+    logger.info('devices removed after access loss', { removed: n });
+  } catch (e) {
+    logger.error('device cleanup failed', { error: String(e.message || e) });
+    throw e; // let the platform retry the trigger
+  }
+});

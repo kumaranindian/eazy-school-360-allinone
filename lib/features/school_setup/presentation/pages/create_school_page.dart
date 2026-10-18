@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/responsive.dart';
-import '../../../authentication/presentation/providers/auth_providers.dart';
+import '../../../authentication/presentation/sign_out.dart';
 import '../widgets/create_school_form.dart';
 
 /// Onboarding destination for a signed-in account with no `/users/{uid}`
@@ -20,7 +20,7 @@ class CreateSchoolPage extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Sign out',
-            onPressed: () => ref.read(authRepositoryProvider).signOut(),
+            onPressed: () => signOutWithCleanup(ref),
           ),
         ],
       ),

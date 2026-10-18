@@ -5,7 +5,7 @@ import '../../../../core/tenant/account_inactive_exception.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../users/domain/user_status.dart';
-import '../providers/auth_providers.dart';
+import '../sign_out.dart';
 import '../widgets/auth_scaffold.dart';
 
 /// Shown when the signed-in user's profile is not ACTIVE. The account is
@@ -70,7 +70,7 @@ class AccountInactivePage extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.lg),
           FilledButton(
-            onPressed: () => ref.read(authRepositoryProvider).signOut(),
+            onPressed: () => signOutWithCleanup(ref),
             child: const Text('Sign out'),
           ),
         ],

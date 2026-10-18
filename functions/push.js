@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const { allowsPush, categoryFor } = require('./categories');
 const { chunk } = require('./recipients');
+const { canReceive, isStaleDevice } = require('./device_cleanup');
 
 const MAX_RECIPIENTS = 2000;
 const FCM_BATCH = 500; // sendEachForMulticast limit
@@ -137,7 +138,9 @@ async function eligibleUsers(db, schoolId, uids) {
     const docs = await db.getAll(...part.map((u) => db.collection('users').doc(u)));
     docs.forEach((d, i) => {
       const u = d.exists ? d.data() : null;
-      if (u && u.status === 'ACTIVE' && u.schoolId === schoolId) eligible.push(part[i]);
+      // ACTIVE, of this school, and still allowed to sign in (a disabled login
+      // keeps status ACTIVE but must not keep receiving notices).
+      if (u && canReceive(u) && u.schoolId === schoolId) eligible.push(part[i]);
     });
   }
   return eligible;
@@ -200,7 +203,8 @@ async function pushToUsers({
         const dev = d.data();
         // A token registered under two accounts is sent once; deactivated
         // registrations are skipped.
-        if (!dev.token || dev.status === 'INACTIVE' || seen.has(dev.token)) continue;
+        // A registration that stopped checking in is not trusted (NOTIF-1).
+        if (!dev.token || dev.status === 'INACTIVE' || seen.has(dev.token) || isStaleDevice(dev)) continue;
         seen.add(dev.token);
         targets.push({ token: dev.token, ref: d.ref });
       }

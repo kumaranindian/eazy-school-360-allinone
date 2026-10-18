@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/authentication/presentation/providers/auth_providers.dart';
-import '../../features/notifications/presentation/providers/push_providers.dart';
+import '../../features/authentication/presentation/sign_out.dart';
 import '../../features/notifications/presentation/widgets/notification_alerts.dart';
 import '../../features/notifications/presentation/widgets/notification_bell.dart';
 import '../../shared/branding/page_hero.dart';
@@ -418,10 +417,7 @@ class AppShell extends ConsumerWidget {
         IconButton(
           icon: const Icon(Icons.logout),
           tooltip: 'Sign out',
-          onPressed: () async {
-            await unregisterPushDevice(ref);
-            await ref.read(authRepositoryProvider).signOut();
-          },
+          onPressed: () => signOutWithCleanup(ref),
         ),
       ],
     );

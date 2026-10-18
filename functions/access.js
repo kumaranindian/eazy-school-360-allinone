@@ -17,6 +17,7 @@
 // A profile without `login` is a legacy account: allowed as before.
 
 const crypto = require('node:crypto');
+const { removeAllDevices } = require('./device_cleanup');
 
 const METHODS = ['PASSWORD', 'GOOGLE', 'PHONE_OTP'];
 // What accounts could use before this feature existed. Materialised for
@@ -306,6 +307,9 @@ async function setLoginAccess(ctx, callerUid, token, data) {
   if (narrowed || data.revokeSessions === true) {
     await auth.revokeRefreshTokens(uid);
     revoked = true;
+    // Signed out everywhere / access narrowed: this person's phones must stop
+    // receiving their notices too (they re-register on their next sign-in).
+    await removeAllDevices(db, uid).catch(() => {});
   }
   // A family's class/section-scoped screens (homework, leave, results,
   // timetable) are authorised by the `parentAccess` index, which is only built
@@ -450,7 +454,10 @@ async function recomputeSchool({ db, auth, now }, schoolId, school, by) {
     }
     if (n) await batch.commit();
     touched += n;
-    for (const uid of narrowed.splice(0)) await auth.revokeRefreshTokens(uid);
+    for (const uid of narrowed.splice(0)) {
+      await auth.revokeRefreshTokens(uid);
+      await removeAllDevices(db, uid).catch(() => {});
+    }
     if (page.docs.length < MAX_LOGIN_ADMIN_BATCH) break;
   }
   return touched;

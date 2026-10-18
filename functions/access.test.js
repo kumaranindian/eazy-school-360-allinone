@@ -216,3 +216,15 @@ test('a branch admin through a per-branch role may administer that branch, but n
   assert.equal(await assertAdmin(db, 'multi', 's1', 'b3', {}), null);
   assert.equal(await assertAdmin(db, 'plain', 's1', 'b2', {}), null);
 });
+
+test('NOTIF-1: signing a user out everywhere also removes their push devices', async () => {
+  const { db, auth, ctx } = mk();
+  await set(ctx, {});
+  db.store.set('users/tuid/devices/d1', { token: 'tok-aaaaaaaaaaaaaaaaaaaaaaaa' });
+  db.store.set('users/other/devices/d2', { token: 'tok-bbbbbbbbbbbbbbbbbbbbbbbb' });
+  const r = await set(ctx, { revokeSessions: true });
+  assert.strictEqual(r.result.revoked, true);
+  assert.ok(auth.revoked.includes('tuid'));
+  assert.strictEqual(db.store.has('users/tuid/devices/d1'), false);
+  assert.strictEqual(db.store.has('users/other/devices/d2'), true, 'other accounts are untouched');
+});

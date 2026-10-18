@@ -84,16 +84,31 @@ final pushRegistrationProvider = FutureProvider.autoDispose<void>((ref) async {
 
 /// Called before sign-out: stops this device receiving the user's
 /// notifications. Failures are swallowed so sign-out always proceeds.
+///
+/// The server removes the registration of the *authenticated caller* from the
+/// token alone, so this must work even when the tenant cannot be resolved
+/// (the "account inactive" and "create school" pages) — the user id below is
+/// informational only.
 Future<void> unregisterPushDevice(WidgetRef ref) async {
   try {
     final gateway = ref.read(pushGatewayProvider);
     if (!gateway.supported) return;
-    final scope = await ref.read(notificationScopeProvider.future);
+    var userId = '';
+    try {
+      userId =
+          (await ref
+                  .read(notificationScopeProvider.future)
+                  .timeout(const Duration(seconds: 2)))
+              ?.userId ??
+          '';
+    } catch (_) {
+      // Tenant not resolvable (inactive account, still loading): go on.
+    }
     final token = await gateway.getToken();
-    if (scope != null && token != null) {
+    if (token != null) {
       await ref
           .read(notificationRepositoryProvider)
-          .removeDevice(userId: scope.userId, token: token);
+          .removeDevice(userId: userId, token: token);
     }
     await gateway.deleteToken();
   } catch (e) {
