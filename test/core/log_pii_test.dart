@@ -24,8 +24,9 @@ void main() {
             .group(2)!
             .split(RegExp(r',\s*(tag|error|stackTrace):'))
             .first;
-        if (pii.hasMatch(message))
+        if (pii.hasMatch(message)) {
           offenders.add('${f.path}: ${message.trim()}');
+        }
       }
     }
     expect(offenders, isEmpty, reason: offenders.join('\n'));
