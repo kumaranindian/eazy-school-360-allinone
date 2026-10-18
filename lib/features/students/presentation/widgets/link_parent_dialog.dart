@@ -53,26 +53,41 @@ class _LinkParentDialogState extends ConsumerState<LinkParentDialog> {
   bool _isEmergencyContact = false;
   bool _canAccessPortal = false;
 
+  int _searchGeneration = 0;
+
   Future<void> _search(String query) async {
+    // Only the newest search may write results or clear the spinner.
+    final generation = ++_searchGeneration;
     if (query.trim().isEmpty) {
-      setState(() => _searchResults = const []);
+      setState(() {
+        _searchResults = const [];
+        _searching = false;
+      });
       return;
     }
     setState(() => _searching = true);
-    final page = await ref
-        .read(parentRepositoryProvider)
-        .searchParentsByName(
-          schoolId: widget.schoolId,
-          branchId: widget.branchId,
-          query: query.trim(),
-        );
-    if (!mounted) return;
-    setState(() {
-      _searching = false;
-      _searchResults = page.items
-          .where((p) => !widget.alreadyLinkedParentIds.contains(p.parentId))
-          .toList();
-    });
+    try {
+      final page = await ref
+          .read(parentRepositoryProvider)
+          .searchParentsByName(
+            schoolId: widget.schoolId,
+            branchId: widget.branchId,
+            query: query.trim(),
+          );
+      if (!mounted || generation != _searchGeneration) return;
+      setState(() {
+        _searchResults = page.items
+            .where((p) => !widget.alreadyLinkedParentIds.contains(p.parentId))
+            .toList();
+      });
+    } catch (_) {
+      if (!mounted || generation != _searchGeneration) return;
+      setState(() => _searchResults = const []);
+    } finally {
+      if (mounted && generation == _searchGeneration) {
+        setState(() => _searching = false);
+      }
+    }
   }
 
   Future<void> _submit() async {

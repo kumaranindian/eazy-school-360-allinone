@@ -71,23 +71,35 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
 
   bool _saving = false;
 
+  int _parentSearchGeneration = 0;
+
   Future<void> _searchParents(
     String schoolId,
     String branchId,
     String query,
   ) async {
+    // An older search that answers late must not replace a newer one.
+    final generation = ++_parentSearchGeneration;
     if (query.trim().isEmpty) {
       setState(() => _parentSearchResults = const []);
       return;
     }
-    final page = await ref
-        .read(parentRepositoryProvider)
-        .searchParentsByName(
-          schoolId: schoolId,
-          branchId: branchId,
-          query: query.trim(),
-        );
-    if (mounted) setState(() => _parentSearchResults = page.items);
+    try {
+      final page = await ref
+          .read(parentRepositoryProvider)
+          .searchParentsByName(
+            schoolId: schoolId,
+            branchId: branchId,
+            query: query.trim(),
+          );
+      if (mounted && generation == _parentSearchGeneration) {
+        setState(() => _parentSearchResults = page.items);
+      }
+    } catch (_) {
+      if (mounted && generation == _parentSearchGeneration) {
+        setState(() => _parentSearchResults = const []);
+      }
+    }
   }
 
   bool get _canGoToParentStep =>

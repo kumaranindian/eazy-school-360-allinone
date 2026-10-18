@@ -67,10 +67,17 @@ class _BalancesState extends ConsumerState<_Balances> {
     _debounce = Timer(const Duration(milliseconds: 350), _run);
   }
 
+  int _generation = 0;
+
   Future<void> _run() async {
     final q = _search.text.trim();
+    // Only the newest search may write its results or clear the spinner.
+    final generation = ++_generation;
     if (q.length < 2) {
-      setState(() => _results = const []);
+      setState(() {
+        _results = const [];
+        _searching = false;
+      });
       return;
     }
     setState(() {
@@ -86,11 +93,17 @@ class _BalancesState extends ConsumerState<_Balances> {
             field: StaffSearchField.name,
             query: q,
           );
-      if (mounted) setState(() => _results = page.items);
+      if (mounted && generation == _generation) {
+        setState(() => _results = page.items);
+      }
     } catch (e) {
-      if (mounted) setState(() => _error = userMessageFor(e));
+      if (mounted && generation == _generation) {
+        setState(() => _error = userMessageFor(e));
+      }
     } finally {
-      if (mounted) setState(() => _searching = false);
+      if (mounted && generation == _generation) {
+        setState(() => _searching = false);
+      }
     }
   }
 
