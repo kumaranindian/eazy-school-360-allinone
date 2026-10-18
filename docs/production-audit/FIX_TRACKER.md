@@ -62,7 +62,7 @@ None confirmed.
 | NOTIF-7 | `ALL` pushes to staff who cannot open the notice | 3 | ⊘ |
 | ACAD-5 | NaN / multi-decimal marks components pass client validation | 2 | ✔ |
 | STATE-4 | `addReadIds` lost update | 2 | ✔ |
-| STATE-5 | Small lifecycle gaps (marks submit, conversation, generate dialogs) | 3 | ✔ (marks submit and invoice date picker guarded; the other flagged spots were checked and are guarded or in callbacks that cannot outlive the widget) |
+| STATE-5 | Small lifecycle gaps (marks submit, conversation, generate dialogs) | 3 | ◐ marks submit and the invoice date picker are guarded. A crude scan lists ~40 other `setState` calls after an `await` with no `mounted` check in the same method; they were NOT individually reviewed (impact is a debug-mode assertion only) - worth a sweep with the `use_build_context_synchronously`-style lint |
 | STATE-6 | Late `switchBranch` overwrites tenant after sign-out | 2 | ✔ |
 | ROUTE-1 | Three routes missing from `requiredPermissions` | 3 | ✔ (settingsSchoolYears added; guard test fails for any future unlisted route) |
 | LOG-2 | Raw `debugPrint` of callable error bodies in release | 3 | ✔ |
