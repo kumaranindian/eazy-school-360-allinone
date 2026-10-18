@@ -1,3 +1,4 @@
+import '../../../core/regional/regional_settings.dart';
 import 'branch.dart';
 import 'school.dart';
 
@@ -10,6 +11,10 @@ abstract class SchoolRepository {
   /// Updates the editable profile fields of a school — see
   /// `School.toFirestoreProfileUpdate` for exactly which fields that is.
   Future<void> updateSchoolProfile(School school, {required String updatedBy});
+
+  /// Saves the school's country, currency, time zone and date format. The
+  /// rules refuse a currency change once the server has locked it.
+  Future<void> updateSchoolRegional(School school, {required String updatedBy});
 
   /// Uploads [fileBytes] as the school's logo to Firebase Storage and
   /// updates `School.logoUrl` to point at it, replacing any existing logo.
@@ -43,5 +48,6 @@ abstract class SchoolRepository {
     required String schoolName,
     required String schoolEmail,
     String? schoolPhone,
+    required RegionalSettings regional,
   });
 }

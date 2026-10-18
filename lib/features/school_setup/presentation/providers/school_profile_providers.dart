@@ -22,6 +22,13 @@ class SchoolProfileWriteController extends AsyncNotifier<void> {
             .updateSchoolProfile(school, updatedBy: updatedBy),
       );
 
+  Future<bool> updateRegional(School school, {required String updatedBy}) =>
+      _run(
+        () => ref
+            .read(schoolRepositoryProvider)
+            .updateSchoolRegional(school, updatedBy: updatedBy),
+      );
+
   Future<bool> uploadLogo({
     required String schoolId,
     required List<int> fileBytes,

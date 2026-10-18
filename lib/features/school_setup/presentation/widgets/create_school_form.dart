@@ -7,6 +7,9 @@ import '../../../../core/logging/app_logger.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/validators/validators.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
+import '../../../../core/regional/country.dart';
+import '../../../../core/regional/regional_settings.dart';
+import '../../../../shared/regional/regional_settings_editor.dart';
 import '../providers/create_school_providers.dart';
 
 /// Self-serve onboarding form: a brand-new (profile-less) account becomes
@@ -25,6 +28,7 @@ class _CreateSchoolFormState extends ConsumerState<CreateSchoolForm> {
   final _schoolNameController = TextEditingController();
   final _schoolEmailController = TextEditingController();
   final _schoolPhoneController = TextEditingController();
+  RegionalSettings _regional = RegionalSettings.forCountry(Countries.all.first);
 
   @override
   void initState() {
@@ -52,6 +56,7 @@ class _CreateSchoolFormState extends ConsumerState<CreateSchoolForm> {
           schoolPhone: _schoolPhoneController.text.trim().isEmpty
               ? null
               : _schoolPhoneController.text.trim(),
+          regional: _regional,
         );
 
     final state = ref.read(createSchoolControllerProvider);
@@ -115,6 +120,14 @@ class _CreateSchoolFormState extends ConsumerState<CreateSchoolForm> {
               prefixIcon: Icon(Icons.phone_outlined),
             ),
             onFieldSubmitted: (_) => _submit(),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          // Country, currency and time zone drive fees, dates and reminders
+          // for the whole school; they can be reviewed later in Settings.
+          RegionalSettingsEditor(
+            value: _regional,
+            enabled: !isSubmitting,
+            onChanged: (v) => setState(() => _regional = v),
           ),
           const SizedBox(height: AppSpacing.lg),
           FilledButton(

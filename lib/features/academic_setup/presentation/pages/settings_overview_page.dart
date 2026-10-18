@@ -119,6 +119,16 @@ class SettingsOverviewPage extends ConsumerWidget {
         setupLabel: 'Holiday Calendar',
       ),
     ]),
+    _Group('Region', 'Where the school is and what it bills in', [
+      _Section(
+        label: 'Regional settings',
+        description: 'Country, currency, time zone and date format',
+        icon: Icons.public_outlined,
+        route: AppRoutes.settingsRegional,
+        permission: Permission.manageSchool,
+        setupLabel: 'Regional settings',
+      ),
+    ]),
     _Group('Security', 'Who can sign in, and how', [
       _Section(
         label: 'Authentication',

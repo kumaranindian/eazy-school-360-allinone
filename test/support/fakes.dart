@@ -1,3 +1,4 @@
+import 'package:eazy_school_360/core/regional/regional_settings.dart';
 import 'package:eazy_school_360/features/authentication/domain/app_user.dart';
 import 'package:eazy_school_360/features/authentication/domain/auth_repository.dart';
 import 'package:eazy_school_360/features/authentication/domain/login_method.dart';
@@ -146,6 +147,14 @@ class FakeSchoolRepository implements SchoolRepository {
   }
 
   @override
+  Future<void> updateSchoolRegional(
+    School school, {
+    required String updatedBy,
+  }) async {
+    schools[school.schoolId] = school;
+  }
+
+  @override
   Future<String> uploadSchoolLogo({
     required String schoolId,
     required List<int> fileBytes,
@@ -188,6 +197,7 @@ class FakeSchoolRepository implements SchoolRepository {
     required String schoolName,
     required String schoolEmail,
     String? schoolPhone,
+    required RegionalSettings regional,
   }) async {
     throw UnimplementedError('Not needed by current tests');
   }

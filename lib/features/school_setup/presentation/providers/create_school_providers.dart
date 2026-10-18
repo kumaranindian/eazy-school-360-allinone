@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/app_failure.dart';
 import '../../../../core/logging/app_logger.dart';
+import '../../../../core/regional/regional_settings.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
 import 'school_providers.dart';
@@ -17,6 +18,7 @@ class CreateSchoolController extends AsyncNotifier<void> {
     required String schoolName,
     required String schoolEmail,
     String? schoolPhone,
+    required RegionalSettings regional,
   }) async {
     final currentUser = ref.read(authRepositoryProvider).currentUser;
     if (currentUser == null) {
@@ -36,6 +38,7 @@ class CreateSchoolController extends AsyncNotifier<void> {
             schoolName: schoolName,
             schoolEmail: schoolEmail,
             schoolPhone: schoolPhone,
+            regional: regional,
           );
       ref.invalidate(tenantContextProvider);
     });

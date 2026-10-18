@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/regional/country.dart';
+import '../../../core/regional/regional_settings.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -76,6 +78,20 @@ class FirebaseSchoolRepository implements SchoolRepository {
       await _schoolDoc(
         school.schoolId,
       ).update(school.toFirestoreProfileUpdate(updatedBy: updatedBy));
+    } catch (error, stackTrace) {
+      throw mapExceptionToFailure(error, stackTrace);
+    }
+  }
+
+  @override
+  Future<void> updateSchoolRegional(
+    School school, {
+    required String updatedBy,
+  }) async {
+    try {
+      await _schoolDoc(
+        school.schoolId,
+      ).update(school.toFirestoreRegionalUpdate(updatedBy: updatedBy));
     } catch (error, stackTrace) {
       throw mapExceptionToFailure(error, stackTrace);
     }
@@ -217,6 +233,7 @@ class FirebaseSchoolRepository implements SchoolRepository {
     required String schoolName,
     required String schoolEmail,
     String? schoolPhone,
+    required RegionalSettings regional,
   }) async {
     try {
       final existingProfile = await _userDoc(userId).get();
@@ -242,6 +259,8 @@ class FirebaseSchoolRepository implements SchoolRepository {
         name: schoolName,
         email: schoolEmail,
         phone: schoolPhone,
+        country: Countries.byCode(regional.countryCode)?.name,
+        regional: regional,
         status: SchoolStatus.active,
       );
       final adminProfile = UserProfile(

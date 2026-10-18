@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/app_routes.dart';
 import '../../school_setup/presentation/pages/branches_page.dart';
+import '../../school_setup/presentation/pages/regional_settings_page.dart';
 import '../../users/presentation/pages/auth_settings_page.dart';
 import 'pages/academic_years_page.dart';
 import 'pages/classes_page.dart';
@@ -56,6 +57,10 @@ List<RouteBase> academicSetupRoutes() => [
       GoRoute(
         path: 'holidays',
         builder: (context, state) => const HolidaysPage(),
+      ),
+      GoRoute(
+        path: 'regional',
+        builder: (context, state) => const RegionalSettingsPage(),
       ),
       GoRoute(
         path: 'authentication',
