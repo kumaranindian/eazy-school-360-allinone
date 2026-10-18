@@ -16,6 +16,7 @@ import '../../domain/blood_group.dart';
 import '../../domain/gender.dart';
 import '../../domain/parent.dart';
 import '../../domain/relationship_type.dart';
+import '../../domain/admission_outcome.dart';
 import '../../domain/student.dart';
 import '../../domain/student_status.dart';
 import '../providers/parent_providers.dart';
@@ -176,6 +177,8 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
       return;
     }
 
+    var guardianLinked = true;
+    Object? guardianError;
     if (_parentMode != _ParentMode.skip) {
       var parentId = _selectedParent?.parentId;
       if (_parentMode == _ParentMode.newParent) {
@@ -191,9 +194,13 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
         parentId = await ref
             .read(parentWriteControllerProvider.notifier)
             .createParent(newParent, createdBy: currentUserId);
+        if (parentId == null) {
+          guardianLinked = false;
+          guardianError = ref.read(parentWriteControllerProvider).error;
+        }
       }
       if (parentId != null) {
-        await ref
+        guardianLinked = await ref
             .read(studentWriteControllerProvider.notifier)
             .linkParent(
               schoolId: schoolId,
@@ -205,12 +212,24 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
               isEmergencyContact: _isEmergencyContact,
               createdBy: currentUserId,
             );
+        if (!guardianLinked) {
+          guardianError = ref.read(studentWriteControllerProvider).error;
+        }
       }
     }
 
     if (!mounted) return;
+    // The student exists either way; say so, and say plainly when the
+    // guardian is not linked yet (UI-1) - the profile page can link one.
     context.showSnackBar(
-      '${student.firstName} ${student.lastName} admitted successfully.',
+      AdmissionOutcome.message(
+        studentName: '${student.firstName} ${student.lastName}',
+        guardianLinked: guardianLinked,
+        guardianError: guardianError == null
+            ? null
+            : userMessageFor(guardianError),
+      ),
+      isError: !guardianLinked,
     );
     context.go('/students/$newStudentId');
   }
