@@ -241,8 +241,8 @@ class FirebaseInvoiceRepository implements InvoiceRepository {
       } catch (error, stackTrace) {
         failed += chunk.length;
         AppLogger.error(
-          'Invoice chunk failed (${chunk.length} students, e.g. '
-          '${chunk.first.student.name})',
+          'Invoice chunk failed (${chunk.length} students, e.g. id '
+          '${chunk.first.student.studentId})',
           tag: 'Fees',
           error: error,
           stackTrace: stackTrace,

@@ -146,7 +146,7 @@ class FirebaseAuthRepository implements AuthRepository {
     } catch (error, stackTrace) {
       // Log detailed error information for debugging
       AppLogger.error(
-        'Sign up failed for email: $email',
+        'Sign up failed',
         error: error,
         stackTrace: stackTrace,
         tag: 'Auth',

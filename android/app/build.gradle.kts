@@ -9,11 +9,13 @@ plugins {
 
 // Release signing comes from android/key.properties (git-ignored; see
 // DEVELOPMENT_GUIDE.md "Release signing"). Without it a release build is
-// signed with the debug key, which is fine for local checks and NOT
-// installable from a store - the build says so loudly.
+// signed with the debug key, which a store rejects - so a release build now
+// FAILS unless you opt in with -PallowDebugSignedRelease=true (local checks).
 val keyProperties = Properties()
 val keyPropertiesFile = rootProject.file("key.properties")
 val hasReleaseKey = keyPropertiesFile.exists()
+val allowDebugSignedRelease =
+    (project.findProperty("allowDebugSignedRelease") as String?) == "true"
 if (hasReleaseKey) {
     keyPropertiesFile.inputStream().use { keyProperties.load(it) }
 }
@@ -59,7 +61,7 @@ android {
         release {
             if (hasReleaseKey) {
                 signingConfig = signingConfigs.getByName("release")
-            } else {
+            } else if (allowDebugSignedRelease) {
                 logger.warn(
                     "WARNING: android/key.properties not found - this release " +
                         "build is signed with the DEBUG key and must not be published."
@@ -67,6 +69,22 @@ android {
                 signingConfig = signingConfigs.getByName("debug")
             }
         }
+    }
+}
+
+// CFG-1: never produce a store artifact without the release key.
+gradle.taskGraph.whenReady {
+    val buildsRelease = allTasks.any {
+        it.project == project &&
+            Regex("^(assemble|bundle|package)Release$").matches(it.name)
+    }
+    if (buildsRelease && !hasReleaseKey && !allowDebugSignedRelease) {
+        throw GradleException(
+            "android/key.properties is missing: refusing to build a release " +
+                "signed with the debug key. Add the upload keystore " +
+                "(DEVELOPMENT_GUIDE.md, Release signing) or pass " +
+                "-PallowDebugSignedRelease=true for a local, non-publishable build."
+        )
     }
 }
 
