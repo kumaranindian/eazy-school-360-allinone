@@ -1,6 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Declared here, not only in the debug/profile manifests, so a release
+         build can reach the network even if no library happens to merge it. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- No Auto Backup: cached school data and sign-in state must not be copied
+         to a cloud backup or restored onto another device (CFG-3). -->
     <application
+        android:allowBackup="false"
         android:label="EazySchool 360"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

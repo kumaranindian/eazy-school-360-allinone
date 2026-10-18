@@ -67,8 +67,8 @@ None confirmed.
 | ROUTE-1 | Three routes missing from `requiredPermissions` | 3 | ✔ (settingsSchoolYears added; guard test fails for any future unlisted route) |
 | LOG-2 | Raw `debugPrint` of callable error bodies in release | 3 | ✔ |
 | CFG-5 | `storage.cors.json` `origin:*` | 3 | ⚑ |
-| CFG-9 | `.gitignore` lacks key/cert/service-account patterns | 3 | ☐ |
-| CFG-3 | Android `allowBackup` default; INTERNET permission check | 3 | ☐ |
+| CFG-9 | `.gitignore` lacks key/cert/service-account patterns | 3 | ✔ |
+| CFG-3 | Android `allowBackup` default; INTERNET permission check | 3 | ✔ (allowBackup=false, INTERNET declared); iOS privacy manifest is CFG-10 (⊘) |
 | CFG-10 | No `PrivacyInfo.xcprivacy`; shared app id dev/prod | 3 | ⊘ |
 | SEC-6 | SVG uploads allowed; no self-signup spam control | 3 | ☐ |
 | PERF-3 | Bulk import one query per row | 3 | ☐ |

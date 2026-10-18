@@ -70,3 +70,15 @@ android/app/*.keystore
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+
+# More key / credential material (CFG-9)
+*.pem
+*.p8
+*.p12
+*.pfx
+*.mobileprovision
+*.cer
+**/serviceAccount*.json
+**/service-account*.json
+**/*-adminsdk-*.json
+**/.runtimeconfig.json
