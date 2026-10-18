@@ -33,7 +33,7 @@ None confirmed.
 | UI-2 | Results finalised with silently missing attendance | 2 | ✔ |
 | ACAD-2 | Admission-number uniqueness is check-then-write | 2 | ✔ code+rules+tests; ⚑ run `tool/backfill_admission_numbers.js` (dry-run first) on existing data |
 | ACAD-3 | Marks save partial failure; retry impossible | 2 | ✔ |
-| ACAD-4 | `approvedSheets` read-modify-write outside transaction | 2 | ☐ |
+| ACAD-4 | `approvedSheets` read-modify-write outside transaction | 2 | ✔ |
 | ACAD-7 | In-branch student transfer not transactional | 2 | ☐ |
 | ACAD-9 | Attendance rules trust client section/date | 2 | ☐ |
 | NOTIF-2 | Disabled-login users still pushed / can register devices | 2 | ✔ |

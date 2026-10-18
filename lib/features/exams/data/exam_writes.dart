@@ -71,6 +71,12 @@ abstract final class ExamWrites {
     ...stamp(uid),
   };
 
+  /// Moves a counter by [delta] on the server, so two people changing it at
+  /// the same time both count (an absolute value read earlier would lose one
+  /// of them, ACAD-4). The rules accept exactly `before + 1` / `before - 1`.
+  static Map<String, dynamic> counterBy(String field, int delta, String uid) =>
+      {field: FieldValue.increment(delta), ...stamp(uid)};
+
   static Map<String, dynamic> subjectEdit(
     ExaminationSubject s,
     int revision,

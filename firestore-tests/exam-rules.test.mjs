@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { test, before, after } from 'node:test';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import {
-  collection, doc, getDoc, getDocs, query, orderBy, limit, serverTimestamp, setDoc, updateDoc, deleteDoc, where, writeBatch,
+  collection, doc, getDoc, getDocs, increment, query, orderBy, limit, serverTimestamp, setDoc, updateDoc, deleteDoc, where, writeBatch,
 } from 'firebase/firestore';
 
 let testEnv;
@@ -640,4 +640,30 @@ test('Examination sectionScope must agree with sectionId, so a family filter can
   await assertFails(make({ sectionScope: 'ALL' }).commit()); // a section exam claiming to be class-wide
   await assertFails(make({ sectionScope: 'sa' }).commit()); // another section's scope
   await assertSucceeds(make({}).commit());
+});
+
+test('ACAD-4: two sheets approved at the same time both count (relative counter)', async () => {
+  await seedWorld({ exam: { sheetCount: 2 } });
+  const t1 = asUser('t1');
+  const t2 = asUser('t2');
+  await assertSucceeds(saveEntries(t1, 't1', [entryDoc({ uid: 't1' })], { withSheet: false }).commit());
+  await assertSucceeds(saveEntries(t2, 't2', [entryDoc({ uid: 't2', subject: 'sci', marks: 85, overrides: { theory: 60, practical: 25, marks: 85 } })], { subject: 'sci' }).commit());
+  const step = (db, uid, sid, patch, rev, event, toStatus, extra = null) => {
+    const b = writeBatch(db);
+    b.update(ref(db, 'marksSheets', sid), { status: toStatus, revision: rev, lastEvent: event, ...stamp(uid), ...patch });
+    if (extra) b.update(ref(db, 'examinations', EXAM), { ...extra, ...stamp(uid) });
+    b.set(ref(db, 'marksSheetHistory', `${sid}__${rev}`), sheetHist({ sid, rev, event, toStatus, uid }));
+    return b;
+  };
+  const math = sheetId('math');
+  const sci = sheetId('sci');
+  await assertSucceeds(step(t1, 't1', math, { submittedBy: 't1', submittedAt: serverTimestamp() }, 2, 'SUBMITTED', 'SUBMITTED').commit());
+  await assertSucceeds(step(t2, 't2', sci, { submittedBy: 't2', submittedAt: serverTimestamp() }, 2, 'SUBMITTED', 'SUBMITTED').commit());
+  const admin = asUser('ex-admin');
+  const approve = (sid) => step(admin, 'ex-admin', sid, { approvedBy: 'ex-admin', approvedAt: serverTimestamp() }, 3, 'APPROVED', 'APPROVED', { approvedSheets: increment(1) });
+  const results = await Promise.allSettled([approve(math).commit(), approve(sci).commit()]);
+  if (results.some((r) => r.status === 'rejected')) throw new Error(`a concurrent approval was refused: ${results.map((r) => r.reason?.message).join('; ')}`);
+  let exam;
+  await seed(async (db) => { exam = (await getDoc(ref(db, 'examinations', EXAM))).data(); });
+  if (exam.approvedSheets !== 2) throw new Error(`counter is ${exam.approvedSheets}, expected 2`);
 });

@@ -778,9 +778,6 @@ class FirebaseMarksRepository implements MarksRepository {
         approverIsSchoolAdmin: actor.isSchoolAdmin,
       );
       if (problem != null) throw ConflictFailure(problem);
-      final examSnap = await c.exams.doc(exam.examId).get();
-      final approved =
-          (examSnap.data()?['approvedSheets'] as num?)?.toInt() ?? 0;
       final rev = fresh.revision + 1;
       final batch = _firestore.batch();
       batch.update(
@@ -789,7 +786,7 @@ class FirebaseMarksRepository implements MarksRepository {
       );
       batch.update(
         c.exams.doc(exam.examId),
-        ExamWrites.counter('approvedSheets', approved + 1, actor.userId),
+        ExamWrites.counterBy('approvedSheets', 1, actor.userId),
       );
       batch.set(
         c.sheetHistory.doc(ExamWrites.sheetHistoryId(fresh.id, rev)),
@@ -829,12 +826,9 @@ class FirebaseMarksRepository implements MarksRepository {
         ExamWrites.sheetReturn(rev, actor.userId, note),
       );
       if (fresh.status == SheetStatus.approved) {
-        final examSnap = await c.exams.doc(exam.examId).get();
-        final approved =
-            (examSnap.data()?['approvedSheets'] as num?)?.toInt() ?? 0;
         batch.update(
           c.exams.doc(exam.examId),
-          ExamWrites.counter('approvedSheets', approved - 1, actor.userId),
+          ExamWrites.counterBy('approvedSheets', -1, actor.userId),
         );
       }
       batch.set(
