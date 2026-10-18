@@ -15,7 +15,10 @@ enum ProvisionOutcome {
   alreadyLinked('ALREADY_LINKED', 'Already has a login'),
   noEmail('NO_EMAIL', 'No email on the record'),
   invalidEmail('INVALID_EMAIL', 'Email is not valid'),
-  emailInUse('EMAIL_IN_USE', 'Email already belongs to another account'),
+  emailInUse(
+    'EMAIL_IN_USE',
+    'Email already belongs to another login (use a different email)',
+  ),
   inactive('INACTIVE', 'Record is inactive'),
   notFound('NOT_FOUND', 'Record not found'),
   failed('FAILED', 'Could not be created');

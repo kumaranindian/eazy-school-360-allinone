@@ -37,7 +37,9 @@ String accessMessageFor(String reason, {String? cause, int? retryAfterSec}) {
     case 'ALREADY_LINKED':
       return 'This record already has a login.';
     case 'EMAIL_IN_USE':
-      return 'That email already belongs to another account.';
+      return 'That email already belongs to another login. A person who is '
+          'both staff and a parent needs a separate login for each role: use '
+          'a different email (or phone number) for this one.';
     case 'RECORD_INACTIVE':
       return 'The record is inactive. Reactivate it before enabling login.';
     case 'CALLER_LOCKOUT':
