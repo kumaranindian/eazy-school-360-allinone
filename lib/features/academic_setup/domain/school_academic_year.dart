@@ -49,16 +49,24 @@ class SchoolAcademicYear {
     schoolYearId: id,
     schoolId: schoolId,
     name: data[FirestoreFields.name] as String? ?? '',
-    startDate: (data['startDate'] as Timestamp).toDate(),
-    endDate: (data['endDate'] as Timestamp).toDate(),
+    startDate: AcademicDates.read(
+      data['startDate'] as Timestamp,
+      data['startDateKey'] as String?,
+    ),
+    endDate: AcademicDates.read(
+      data['endDate'] as Timestamp,
+      data['endDateKey'] as String?,
+    ),
     status: SchoolYearStatus.fromWire(data[FirestoreFields.status]),
   );
 
   Map<String, dynamic> toFirestoreCreate({required String createdBy}) => {
     FirestoreFields.schoolId: schoolId,
     FirestoreFields.name: name,
-    'startDate': Timestamp.fromDate(startDate),
-    'endDate': Timestamp.fromDate(endDate),
+    'startDate': Timestamp.fromDate(AcademicDates.civil(startDate)),
+    'endDate': Timestamp.fromDate(AcademicDates.civil(endDate)),
+    'startDateKey': AcademicDates.key(startDate),
+    'endDateKey': AcademicDates.key(endDate),
     FirestoreFields.status: SchoolYearStatus.active.wireValue,
     FirestoreFields.createdAt: FieldValue.serverTimestamp(),
     FirestoreFields.updatedAt: FieldValue.serverTimestamp(),

@@ -22,6 +22,12 @@ jobs:
         run: flutter analyze
       - name: Unit and widget tests
         run: flutter test
+      # Dates are civil dates; a UTC-only run hides time-zone bugs (ACAD-1).
+      - name: Date-sensitive tests in other time zones
+        run: |
+          for tz in Asia/Kolkata America/Los_Angeles Pacific/Auckland; do
+            TZ=$tz flutter test test/academic_setup test/leave test/timetable test/attendance test/exams
+          done
       - name: Dependency advisories (OSV, Dart packages)
         run: python3 tool/osv_scan_pub.py
       - name: Web release build

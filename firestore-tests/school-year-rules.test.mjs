@@ -11,7 +11,7 @@ let env;
 before(async () => {
   env = await initializeTestEnvironment({
     projectId: 'demo-eazy-school-360',
-    firestore: { rules: readFileSync('../firestore.rules', 'utf8') },
+    firestore: { rules: readFileSync(process.env.RULES_FILE || '../firestore.rules', 'utf8') },
   });
   await seed();
 });
@@ -26,9 +26,11 @@ const D2 = Timestamp.fromDate(new Date('2027-03-31T00:00:00Z'));
 const audit = (uid) => ({ createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: uid, updatedBy: uid });
 const regRef = (d, s, id) => doc(d, 'schools', s, 'academicYears', id);
 const yearRef = (d, s, b, id) => doc(d, 'schools', s, 'branches', b, 'academicYears', id);
-const reg = (s, o = {}) => ({ schoolId: s, name: '2026-27', startDate: D1, endDate: D2, status: 'ACTIVE', ...o });
+const reg = (s, o = {}) => ({
+  schoolId: s, name: '2026-27', startDate: D1, endDate: D2, startDateKey: '2026-06-01', endDateKey: '2027-03-31', status: 'ACTIVE', ...o,
+});
 const branchYear = (s, b, o = {}) => ({
-  schoolId: s, branchId: b, name: '2026-27', startDate: D1, endDate: D2, status: 'DRAFT', schoolYearId: 'y2026', ...o,
+  schoolId: s, branchId: b, name: '2026-27', startDate: D1, endDate: D2, startDateKey: '2026-06-01', endDateKey: '2027-03-31', status: 'DRAFT', schoolYearId: 'y2026', ...o,
 });
 
 async function seed() {
@@ -154,4 +156,33 @@ test('opening a year in another school is impossible even for a school admin the
   const d = as('sy-admin-z');
   await assertFails(setDoc(yearRef(d, Z, 'north', 'y2026'), { ...branchYear(Z, 'north'), ...audit('sy-admin-z') })); // Z has no such registry year
   await assertFails(setDoc(yearRef(d, A, 'north', 'zz'), { ...branchYear(A, 'north'), ...audit('sy-admin-z') }));
+});
+
+
+test('year dates are civil dates: keys must be present and match the UTC date (ACAD-1)', async () => {
+  const a = as('sy-admin');
+  const ok = (id, o) => setDoc(regRef(a, A, id), { ...reg(A), ...audit('sy-admin'), name: id, ...o });
+  // a key that disagrees with the stored date (what a local-midnight write would produce)
+  await assertFails(ok('k1', { startDateKey: '2026-05-31' }));
+  await assertFails(ok('k2', { endDateKey: '2027-04-01' }));
+  // a year without keys is no longer accepted (the old, ambiguous shape)
+  const { startDateKey, endDateKey, ...bare } = reg(A);
+  await assertFails(setDoc(regRef(a, A, 'k3'), { ...bare, ...audit('sy-admin'), name: 'k3' }));
+  // malformed keys
+  await assertFails(ok('k4', { startDateKey: '2026-6-1' }));
+  await assertSucceeds(ok('k5', {}));
+  // a branch copy must carry the registry's keys too
+  const b = as('sy-ba-s');
+  await assertFails(setDoc(yearRef(b, A, 'south', 'y2026'), { ...branchYear(A, 'south', { startDateKey: '2026-05-31' }), ...audit('sy-ba-s') }));
+  const { startDateKey: _s, ...noKey } = branchYear(A, 'south');
+  await assertFails(setDoc(yearRef(b, A, 'south', 'y2026'), { ...noKey, ...audit('sy-ba-s') }));
+});
+
+test('editing a legacy branch year: changed dates need matching keys', async () => {
+  const d = as('sy-ba-n');
+  const r = yearRef(d, A, 'north', 'legacy');
+  const upd = (o) => updateDoc(r, { updatedAt: serverTimestamp(), updatedBy: 'sy-ba-n', ...o });
+  await assertFails(upd({ startDate: D2 })); // date moved, no key
+  await assertFails(upd({ startDate: D2, startDateKey: '2026-06-01', endDateKey: '2027-03-31' })); // key for the old date
+  await assertSucceeds(upd({ startDate: D1, endDate: D2, startDateKey: '2026-06-01', endDateKey: '2027-03-31' })); // normalises it
 });

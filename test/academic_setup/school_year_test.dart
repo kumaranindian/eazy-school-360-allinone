@@ -110,6 +110,8 @@ void main() {
       'name',
       'startDate',
       'endDate',
+      'startDateKey',
+      'endDateKey',
       'status',
       'createdAt',
       'updatedAt',

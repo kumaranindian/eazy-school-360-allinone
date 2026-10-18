@@ -147,6 +147,18 @@ service cloud.firestore {
 
     // A branch academic year is the branch's copy of an ACTIVE school-wide
     // year: same id, same name and dates, and it says which one it is.
+    // yyyy-MM-dd of a timestamp's UTC date (years are stored as UTC-midnight
+    // civil dates with a matching key — see AcademicDates in the app).
+    function dayKey(t) {
+      return string(t.year()) + '-' + (t.month() < 10 ? '0' : '') + string(t.month())
+        + '-' + (t.day() < 10 ? '0' : '') + string(t.day());
+    }
+
+    function yearKeysConsistent(d) {
+      return d.get('startDateKey', null) == dayKey(d.startDate)
+        && d.get('endDateKey', null) == dayKey(d.endDate);
+    }
+
     function branchYearMatchesSchoolYear(schoolId, yearId, d) {
       let sy = /databases/$(database)/documents/schools/$(schoolId)/academicYears/$(yearId);
       return exists(sy)
@@ -154,7 +166,9 @@ service cloud.firestore {
         && d.get('schoolYearId', null) == yearId
         && d.name == get(sy).data.name
         && d.startDate == get(sy).data.startDate
-        && d.endDate == get(sy).data.endDate;
+        && d.endDate == get(sy).data.endDate
+        && d.get('startDateKey', null) == get(sy).data.get('startDateKey', null)
+        && d.get('endDateKey', null) == get(sy).data.get('endDateKey', null);
     }
 
     // A profile existing is not enough — status must be ACTIVE. INVITED
@@ -1757,7 +1771,8 @@ service cloud.firestore {
           && nd().startDate is timestamp
           && nd().endDate is timestamp
           && nd().endDate > nd().startDate
-          && nd().keys().hasOnly(['schoolId', 'name', 'startDate', 'endDate', 'status',
+          && yearKeysConsistent(nd())
+          && nd().keys().hasOnly(['schoolId', 'name', 'startDate', 'endDate', 'startDateKey', 'endDateKey', 'status',
                'createdAt', 'updatedAt', 'createdBy', 'updatedBy']);
         allow update: if isSchoolAdminOf(schoolId) && validUpdateAudit()
           && changedOnly(['status', 'updatedAt', 'updatedBy'])
@@ -1811,7 +1826,9 @@ service cloud.firestore {
           // years remain fully editable.
           allow update: if canManageAcademicSetup(schoolId, branchId) && validUpdateAudit()
             && (resource.data.get('schoolYearId', null) == null
-                ? changedOnly(['name', 'startDate', 'endDate', 'status', 'updatedAt', 'updatedBy'])
+                ? (changedOnly(['name', 'startDate', 'endDate', 'startDateKey', 'endDateKey', 'status', 'updatedAt', 'updatedBy'])
+                   && (!nd().diff(resource.data).affectedKeys().hasAny(['startDate', 'endDate', 'startDateKey', 'endDateKey'])
+                       || yearKeysConsistent(nd())))
                 : changedOnly(['status', 'updatedAt', 'updatedBy']));
           allow delete: if false;
 
