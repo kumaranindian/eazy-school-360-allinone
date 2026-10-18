@@ -60,7 +60,7 @@ None confirmed.
 | NOTIF-5 | Stale-claim takeover not atomic | 1 | ✔ |
 | NOTIF-6 | Lock-screen content visibility | 3 | ⊘ |
 | NOTIF-7 | `ALL` pushes to staff who cannot open the notice | 3 | ⊘ |
-| ACAD-5 | NaN / multi-decimal marks components pass client validation | 2 | ☐ |
+| ACAD-5 | NaN / multi-decimal marks components pass client validation | 2 | ✔ |
 | STATE-4 | `addReadIds` lost update | 2 | ☐ |
 | STATE-5 | Small lifecycle gaps (marks submit, conversation, generate dialogs) | 3 | ☐ |
 | STATE-6 | Late `switchBranch` overwrites tenant after sign-out | 2 | ☐ |

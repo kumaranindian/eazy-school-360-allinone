@@ -99,6 +99,11 @@ class MarksEntry {
   String? validate(ExaminationSubject subject) {
     switch (status) {
       case MarkStatus.entered:
+        // "NaN" and "Infinity" parse as numbers and slip past every
+        // comparison below (ACAD-5).
+        for (final v in [marks, theory, practical]) {
+          if (v != null && !v.isFinite) return 'Enter a valid number.';
+        }
         if (subject.hasComponents) {
           if (theory == null || practical == null) {
             return 'Enter theory and practical marks.';
@@ -119,7 +124,11 @@ class MarksEntry {
             return 'Marks cannot exceed ${_fmt(subject.maxMarks)}.';
           }
         }
-        if (_decimals(marks ?? 0) > 2) return 'Use at most 2 decimal places.';
+        for (final v in [marks, theory, practical]) {
+          if (v != null && _decimals(v) > 2) {
+            return 'Use at most 2 decimal places.';
+          }
+        }
       case MarkStatus.absent:
       case MarkStatus.exempted:
       case MarkStatus.pending:

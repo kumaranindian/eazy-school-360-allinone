@@ -819,4 +819,60 @@ void main() {
       expect(back.overallGrade, s.result.overallGrade);
     });
   });
+
+  group('ACAD-5 marks that are not real numbers', () {
+    final plain = _sub('math', max: 100, pass: 35);
+    final split = _sub('sci', max: 100, pass: 35, theory: 70, practical: 30);
+
+    test('NaN and Infinity are refused, with or without components', () {
+      for (final v in [double.nan, double.infinity, double.negativeInfinity]) {
+        expect(
+          _e('math', MarkStatus.entered, marks: v).validate(plain),
+          isNotNull,
+          reason: '$v',
+        );
+        expect(
+          _e(
+            'sci',
+            MarkStatus.entered,
+            theory: v,
+            practical: 10,
+          ).validate(split),
+          isNotNull,
+          reason: '$v',
+        );
+        expect(
+          _e(
+            'sci',
+            MarkStatus.entered,
+            theory: 10,
+            practical: v,
+          ).validate(split),
+          isNotNull,
+          reason: '$v',
+        );
+      }
+    });
+
+    test('theory and practical obey the 2-decimal limit too', () {
+      expect(
+        _e(
+          'sci',
+          MarkStatus.entered,
+          theory: 10.123,
+          practical: 5,
+        ).validate(split),
+        contains('2 decimal'),
+      );
+      expect(
+        _e(
+          'sci',
+          MarkStatus.entered,
+          theory: 10.12,
+          practical: 5.5,
+        ).validate(split),
+        isNull,
+      );
+    });
+  });
 }
