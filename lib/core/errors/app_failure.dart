@@ -45,6 +45,14 @@ final class ConflictFailure extends AppFailure {
   ]);
 }
 
+/// A multi-step save stopped part-way: [savedIds] are already stored (and
+/// their revision moved on), the rest were not written. Retrying must send
+/// only the rest, against the new revisions.
+final class PartialSaveFailure extends AppFailure {
+  final Set<String> savedIds;
+  const PartialSaveFailure(super.message, this.savedIds);
+}
+
 /// Input failed validation before it was ever sent to a backend.
 final class ValidationFailure extends AppFailure {
   const ValidationFailure(super.message);

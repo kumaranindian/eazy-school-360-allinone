@@ -1006,6 +1006,36 @@ void main() {
       },
     );
 
+    testWidgets('ACAD-3: after a partial save, retry sends only the rest', (
+      tester,
+    ) async {
+      final o = open();
+      final w = await _pump(
+        tester,
+        role: UserRole.teacher,
+        ownStaffId: 't1',
+        exams: o.exams,
+      );
+      await w.go(tester, '/exams/marks/${o.exam.examId}/math/sa');
+      final dropdowns = find.byType(DropdownButton<MarkStatus>);
+      for (var i = 0; i < 2; i++) {
+        await tester.tap(dropdowns.at(i));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Absent').last);
+        await tester.pumpAndSettle();
+      }
+      w.marks.failAfterFirst = true;
+      await _tap(tester, _btn('Save draft (2)'));
+      expect(find.textContaining('Saved 1 of 2'), findsOneWidget);
+      expect(w.marks.saves.single.endsWith(':1'), isTrue);
+      // Only the entry that did not save is offered again.
+      expect(_btn('Save draft (1)'), findsOneWidget);
+      await _tap(tester, _btn('Save draft (1)'));
+      expect(w.marks.saves.length, 2);
+      expect(w.marks.saves.last.endsWith(':1'), isTrue);
+      expect(w.marks.entries.length, 2);
+    });
+
     testWidgets('a submitted sheet is read-only', (tester) async {
       final o = open();
       final w = await _pump(

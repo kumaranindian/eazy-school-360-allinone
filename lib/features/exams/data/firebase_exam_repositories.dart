@@ -622,8 +622,9 @@ class FirebaseMarksRepository implements MarksRepository {
         }
       }
       var written = 0;
+      final savedIds = <String>{};
       for (var i = 0; i < changed.length; i += kMarksBatchSize) {
-        final chunk = changed.skip(i).take(kMarksBatchSize);
+        final chunk = changed.skip(i).take(kMarksBatchSize).toList();
         final batch = _firestore.batch();
         if (!sheetExists) {
           batch.set(
@@ -681,9 +682,22 @@ class FirebaseMarksRepository implements MarksRepository {
             ),
           );
         }
-        await batch.commit();
+        try {
+          await batch.commit();
+        } catch (error, stackTrace) {
+          // Earlier chunks are stored with a new revision. Say so, so a retry
+          // sends only what is left instead of failing on stale revisions.
+          if (savedIds.isEmpty) rethrow;
+          final cause = mapExceptionToFailure(error, stackTrace);
+          throw PartialSaveFailure(
+            'Saved ${savedIds.length} of ${changed.length} marks before '
+            'this failed (${cause.message}). Press save again to finish.',
+            savedIds,
+          );
+        }
         sheetExists = true;
         written += chunk.length;
+        savedIds.addAll(chunk.map((e) => e.id));
       }
       // Keep the sheet's roster size current (no state change).
       final data = (await c.sheets.doc(sheetId).get()).data();

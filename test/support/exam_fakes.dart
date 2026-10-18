@@ -441,6 +441,9 @@ class FakeMarksRepository implements MarksRepository {
   final List<String> returns = [];
   final Map<String, int> revisions = {};
 
+  /// Makes the next save store only its first entry, then fail (ACAD-3).
+  bool failAfterFirst = false;
+
   FakeMarksRepository(this.exams);
 
   @override
@@ -540,7 +543,12 @@ class FakeMarksRepository implements MarksRepository {
         rosterCount: rosterCount,
       ),
     );
-    for (final e in changed) {
+    var partial = false;
+    if (failAfterFirst && changed.length > 1) {
+      failAfterFirst = false;
+      partial = true;
+    }
+    for (final e in partial ? changed.take(1) : changed) {
       final rev = (revisions[e.id] ?? 0) + 1;
       revisions[e.id] = rev;
       final body = e.body(components: subject.hasComponents);
@@ -564,6 +572,12 @@ class FakeMarksRepository implements MarksRepository {
         revision: rev,
         updatedBy: actor.userId,
       );
+    }
+    if (partial) {
+      saves.add('$id:1');
+      throw PartialSaveFailure('Saved 1 of ${changed.length} marks.', {
+        changed.first.id,
+      });
     }
     saves.add('$id:${changed.length}');
     return changed.length;

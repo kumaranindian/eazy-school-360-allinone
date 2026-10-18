@@ -72,6 +72,7 @@ class MarksEntry {
     double? practical,
     bool clearComponents = false,
     String? remark,
+    int? revision,
   }) => MarksEntry(
     sheetId: sheetId,
     examId: examId,
@@ -89,7 +90,7 @@ class MarksEntry {
     theory: clearComponents ? null : (theory ?? this.theory),
     practical: clearComponents ? null : (practical ?? this.practical),
     remark: remark ?? this.remark,
-    revision: revision,
+    revision: revision ?? this.revision,
     updatedBy: updatedBy,
     updatedAt: updatedAt,
   );

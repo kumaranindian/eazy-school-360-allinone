@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/errors/app_failure.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/responsive.dart';
@@ -292,6 +293,17 @@ class _SheetState extends ConsumerState<_Sheet> {
       ref.invalidate(sheetDataProvider);
       return true;
     } catch (e) {
+      if (e is PartialSaveFailure) {
+        // Move the stored copy of what did save forward, so the retry sends
+        // only the rest and with the right revisions (ACAD-3).
+        for (final id in e.savedIds) {
+          final w = _work.values.where((x) => x.id == id).firstOrNull;
+          if (w == null) continue;
+          final saved = w.copyWith(revision: w.revision + 1);
+          _stored[w.studentId] = saved;
+          _work[w.studentId] = saved;
+        }
+      }
       if (mounted) setState(() => _error = userMessageFor(e));
       return false;
     } finally {
