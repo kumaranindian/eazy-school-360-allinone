@@ -45,7 +45,7 @@ None confirmed.
 | SEC-3 | OTP: victim lock-out, IP source, no TTL | 3 | ☐ |
 | SEC-4 | `feeDueReminders` global scan, silent cap | 2 | ✔ |
 | CFG-4 | No Content-Security-Policy | 3 | ☐ |
-| CFG-6 | Missing staff composite indexes | 2 | ☐ |
+| CFG-6 | Missing staff composite indexes | 2 | ✔ re-assessed: Firestore index merging serves chained equality filters from the existing (field, displayNameLower) composites; guard test added (tool/indexes.test.js); ⚑ confirm one combined filter on dev |
 | CFG-7 | CI hardening (permissions, pinning, timeouts) | 3 | ☐ |
 | DEP-1 | Functions dependency advisories (firebase-admin 12) | 2 | ☐ |
 | PERF-1 | Finalise results: per-student attendance reads | 2 | ☐ |
