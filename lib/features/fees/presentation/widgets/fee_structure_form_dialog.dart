@@ -253,8 +253,9 @@ class _FeeStructureFormDialogState
             ),
             validator: (v) {
               final minor = Money.parseMinor(v ?? '', currency: fee.currency);
-              if (minor == null)
+              if (minor == null) {
                 return Money.invalidAmountMessage(fee.currency);
+              }
               if (minor <= 0) return 'The amount must be greater than zero.';
               if (minor > FeeStructure.maxAmountMinor) {
                 return 'The amount is too large.';
