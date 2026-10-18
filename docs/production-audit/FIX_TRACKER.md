@@ -64,7 +64,7 @@ None confirmed.
 | STATE-4 | `addReadIds` lost update | 2 | ✔ |
 | STATE-5 | Small lifecycle gaps (marks submit, conversation, generate dialogs) | 3 | ☐ |
 | STATE-6 | Late `switchBranch` overwrites tenant after sign-out | 2 | ✔ |
-| ROUTE-1 | Three routes missing from `requiredPermissions` | 3 | ☐ |
+| ROUTE-1 | Three routes missing from `requiredPermissions` | 3 | ✔ (settingsSchoolYears added; guard test fails for any future unlisted route) |
 | LOG-2 | Raw `debugPrint` of callable error bodies in release | 3 | ☐ |
 | CFG-5 | `storage.cors.json` `origin:*` | 3 | ⚑ |
 | CFG-9 | `.gitignore` lacks key/cert/service-account patterns | 3 | ☐ |

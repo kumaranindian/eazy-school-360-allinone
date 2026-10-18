@@ -169,6 +169,7 @@ abstract final class AppRoutes {
     settings: Permission.viewAcademicSetup,
     settingsBranches: Permission.manageBranches,
     settingsAcademicYears: Permission.viewAcademicSetup,
+    settingsSchoolYears: Permission.viewAcademicSetup,
     settingsClasses: Permission.viewAcademicSetup,
     settingsSections: Permission.viewAcademicSetup,
     settingsSubjects: Permission.viewAcademicSetup,
