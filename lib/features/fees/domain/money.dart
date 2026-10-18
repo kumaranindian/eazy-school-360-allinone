@@ -1,23 +1,37 @@
+import '../../../core/regional/currency.dart';
+
 /// All money in this module is an **integer number of minor units** (paise,
 /// cents) — never a double. Sums, balances and comparisons are exact, and
 /// `firestore.rules` can check the arithmetic because it is integer
 /// arithmetic.
 abstract final class Money {
-  static const _symbols = {'INR': '₹', 'USD': r'$', 'EUR': '€', 'GBP': '£'};
-
-  /// "₹1,234.50". Unknown currencies are shown as their code.
-  static String format(int minor, {String currency = 'INR'}) {
+  /// "₹1,234.50", "¥1,234", "KWD 1,234.500". Digits after the point follow the
+  /// currency (0, 2 or 3). The currency is always explicit: a default here
+  /// would silently show another country's money as rupees.
+  static String format(int minor, {required String currency}) {
+    final c = Currencies.of(currency);
     final negative = minor < 0;
     final abs = minor.abs();
-    final major = _group('${abs ~/ 100}', indian: currency == 'INR');
-    final text =
-        '${_symbols[currency] ?? '$currency '}$major.${(abs % 100).toString().padLeft(2, '0')}';
+    final unit = _pow10(c.decimals);
+    final major = _group('${abs ~/ unit}', indian: c.indianGrouping);
+    final fraction = c.decimals == 0
+        ? ''
+        : '.${(abs % unit).toString().padLeft(c.decimals, '0')}';
+    final text = '${c.symbol}$major$fraction';
     return negative ? '-$text' : text;
   }
 
+  static int _pow10(int n) {
+    var v = 1;
+    for (var i = 0; i < n; i++) {
+      v *= 10;
+    }
+    return v;
+  }
+
   /// Digit grouping done by hand so it is identical on every platform and
-  /// needs no locale data: Indian (12,34,567) for INR, otherwise thousands
-  /// (1,234,567).
+  /// needs no locale data: Indian (12,34,567) where the currency uses it,
+  /// otherwise thousands (1,234,567).
   static String _group(String digits, {required bool indian}) {
     if (digits.length <= 3) return digits;
     final last3 = digits.substring(digits.length - 3);
@@ -33,20 +47,38 @@ abstract final class Money {
   }
 
   /// Parses what a person types ("1500", "1,500.5", "1500.50") into minor
-  /// units. Returns null for anything that is not a non-negative amount with
-  /// at most two decimals — it never rounds silently.
-  static int? parseMinor(String input) {
+  /// units of [currency]. Returns null for anything that is not a
+  /// non-negative amount with at most the currency's decimals (no decimals at
+  /// all for yen, three for dinars) — it never rounds silently.
+  static int? parseMinor(String input, {required String currency}) {
+    final decimals = Currencies.of(currency).decimals;
     final cleaned = input.trim().replaceAll(',', '');
-    final match = RegExp(r'^(\d{1,12})(?:\.(\d{1,2}))?$').firstMatch(cleaned);
+    final pattern = decimals == 0
+        ? RegExp(r'^(\d{1,12})$')
+        : RegExp('^(\\d{1,12})(?:\\.(\\d{1,$decimals}))?\$');
+    final match = pattern.firstMatch(cleaned);
     if (match == null) return null;
     final major = int.parse(match.group(1)!);
-    final fraction = (match.group(2) ?? '').padRight(2, '0');
-    return major * 100 + int.parse(fraction.isEmpty ? '0' : fraction);
+    if (decimals == 0) return major;
+    final fraction = (match.group(2) ?? '').padRight(decimals, '0');
+    return major * _pow10(decimals) + int.parse(fraction);
   }
 
-  /// A plain "1500.00" for editing fields.
-  static String plain(int minor) =>
-      '${minor ~/ 100}.${(minor % 100).toString().padLeft(2, '0')}';
+  /// What to tell a person whose amount did not parse.
+  static String invalidAmountMessage(String currency) {
+    final d = Currencies.of(currency).decimals;
+    return d == 0
+        ? 'Enter a whole amount (no decimals).'
+        : 'Enter a valid amount, up to $d decimals.';
+  }
+
+  /// A plain "1500.00" for editing fields ("1500" for yen).
+  static String plain(int minor, {required String currency}) {
+    final decimals = Currencies.of(currency).decimals;
+    if (decimals == 0) return '$minor';
+    final unit = _pow10(decimals);
+    return '${minor ~/ unit}.${(minor % unit).toString().padLeft(decimals, '0')}';
+  }
 
   /// **Rounding rule for percentage concessions:** `amount × basisPoints ÷
   /// 10,000`, rounded **half up** to the nearest minor unit, computed in

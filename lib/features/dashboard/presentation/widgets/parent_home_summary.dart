@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/regional/regional_providers.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/error_mapper.dart';
@@ -42,7 +43,8 @@ final _childFeeNowProvider = FutureProvider.autoDispose
       return _FeeNow(
         summary.balanceMinor,
         summary.overdueMinor,
-        invoices.firstOrNull?.currency ?? 'INR',
+        invoices.firstOrNull?.currency ??
+            ref.read(regionalSettingsProvider).currency,
       );
     });
 

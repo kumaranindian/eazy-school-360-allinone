@@ -73,7 +73,10 @@ class _CollectPaymentDialogState extends ConsumerState<CollectPaymentDialog> {
   final _key = newPaymentKey();
   final _formKey = GlobalKey<FormState>();
   late final _amount = TextEditingController(
-    text: Money.plain(widget.invoice.balanceMinor),
+    text: Money.plain(
+      widget.invoice.balanceMinor,
+      currency: widget.invoice.currency,
+    ),
   );
   final _reference = TextEditingController();
   final _methodLabel = TextEditingController();
@@ -85,7 +88,10 @@ class _CollectPaymentDialogState extends ConsumerState<CollectPaymentDialog> {
   Future<void> _submit() async {
     if (_busy) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    final amount = Money.parseMinor(_amount.text)!;
+    final amount = Money.parseMinor(
+      _amount.text,
+      currency: widget.invoice.currency,
+    )!;
     final problem = PaymentRules.checkCollect(
       status: widget.invoice.status,
       balanceMinor: widget.invoice.balanceMinor,
@@ -177,9 +183,12 @@ class _CollectPaymentDialogState extends ConsumerState<CollectPaymentDialog> {
                   'Partial payments are fine; not more than the balance.',
             ),
             validator: (v) {
-              final minor = Money.parseMinor(v ?? '');
+              final minor = Money.parseMinor(
+                v ?? '',
+                currency: invoice.currency,
+              );
               if (minor == null) {
-                return 'Enter a valid amount, up to 2 decimals.';
+                return Money.invalidAmountMessage(invoice.currency);
               }
               if (minor <= 0) return 'Enter an amount greater than zero.';
               if (minor > invoice.balanceMinor) {
@@ -293,7 +302,7 @@ class ReasonDialog extends StatefulWidget {
     this.destructive = false,
     this.amountLabel,
     this.maxAmountMinor,
-    this.currency = 'INR',
+    required this.currency,
     this.kinds,
     required this.onConfirm,
   });
@@ -308,7 +317,7 @@ class _ReasonDialogState extends State<ReasonDialog> {
   late final _amount = TextEditingController(
     text: widget.maxAmountMinor == null
         ? ''
-        : Money.plain(widget.maxAmountMinor!),
+        : Money.plain(widget.maxAmountMinor!, currency: widget.currency),
   );
   late ReversalKind? _kind = widget.kinds?.first;
   bool _busy = false;
@@ -319,7 +328,9 @@ class _ReasonDialogState extends State<ReasonDialog> {
     try {
       await widget.onConfirm(
         _reason.text.trim(),
-        widget.amountLabel == null ? null : Money.parseMinor(_amount.text),
+        widget.amountLabel == null
+            ? null
+            : Money.parseMinor(_amount.text, currency: widget.currency),
         _kind,
       );
       if (mounted) Navigator.of(context).pop(true);
@@ -379,7 +390,10 @@ class _ReasonDialogState extends State<ReasonDialog> {
               ),
               decoration: InputDecoration(labelText: widget.amountLabel),
               validator: (v) {
-                final minor = Money.parseMinor(v ?? '');
+                final minor = Money.parseMinor(
+                  v ?? '',
+                  currency: widget.currency,
+                );
                 if (minor == null || minor <= 0) {
                   return 'Enter an amount greater than zero.';
                 }

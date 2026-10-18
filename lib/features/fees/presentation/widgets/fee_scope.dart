@@ -9,7 +9,7 @@ import '../../../../shared/error/error_view.dart';
 import '../../../academic_setup/domain/academic_year.dart';
 import '../../../academic_setup/domain/academic_year_status.dart';
 import '../../../academic_setup/presentation/providers/academic_setup_keys.dart';
-import '../../../academic_setup/presentation/providers/academic_settings_providers.dart';
+import '../../../../core/regional/regional_providers.dart';
 import '../../../academic_setup/presentation/providers/academic_structure_providers.dart';
 import '../../../staff/presentation/widgets/staff_branch_scope.dart';
 import '../../domain/fee_repositories.dart';
@@ -101,9 +101,8 @@ class _FeeScopeState extends ConsumerState<FeeScope> {
             orElse: () => years.first,
           ),
         );
-        final currency =
-            ref.watch(academicSettingsProvider(branchKey)).value?.currency ??
-            'INR';
+        // One currency for the whole school (Regional settings).
+        final currency = ref.watch(regionalSettingsProvider).currency;
         final info = InvoiceSchoolInfo(
           schoolName: tenant.school?.name ?? '',
           branchName: tenant.branch?.name ?? '',

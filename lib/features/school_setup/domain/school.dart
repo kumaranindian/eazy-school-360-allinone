@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/constants/firestore_fields.dart';
+import '../../../core/regional/regional_settings.dart';
 import 'school_status.dart';
 
 /// The `/schools/{schoolId}` document — the tenant root. Every
@@ -28,6 +29,16 @@ class School {
   /// never required for tenant isolation itself.
   final String? defaultBranchId;
   final SchoolStatus status;
+
+  /// Country, currency, time zone and date format; every branch follows it.
+  /// [regionalConfigured] is false for a school that predates the setting
+  /// (it then behaves as [RegionalSettings.legacy]).
+  final RegionalSettings regional;
+  final bool regionalConfigured;
+
+  /// Set by the server when the first fee structure, invoice or payment is
+  /// created: from then on the currency can no longer be changed.
+  final bool currencyLocked;
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final String? createdBy;
@@ -51,6 +62,9 @@ class School {
     this.postalCode,
     this.defaultBranchId,
     required this.status,
+    this.regional = RegionalSettings.legacy,
+    this.regionalConfigured = false,
+    this.currencyLocked = false,
     this.createdAt,
     this.updatedAt,
     this.createdBy,
@@ -73,6 +87,7 @@ class School {
     String? country,
     String? postalCode,
     String? defaultBranchId,
+    RegionalSettings? regional,
   }) {
     return School(
       schoolId: schoolId,
@@ -92,6 +107,9 @@ class School {
       postalCode: postalCode ?? this.postalCode,
       defaultBranchId: defaultBranchId ?? this.defaultBranchId,
       status: status,
+      regional: regional ?? this.regional,
+      regionalConfigured: regional != null || regionalConfigured,
+      currencyLocked: currencyLocked,
       createdAt: createdAt,
       updatedAt: updatedAt,
       createdBy: createdBy,
@@ -120,6 +138,9 @@ class School {
       status: SchoolStatus.fromWireValue(
         data[FirestoreFields.status] as String,
       ),
+      regional: RegionalSettings.fromSchoolMap(data),
+      regionalConfigured: data['currency'] is String,
+      currencyLocked: data['currencyLocked'] == true,
       createdAt: (data[FirestoreFields.createdAt] as Timestamp?)?.toDate(),
       updatedAt: (data[FirestoreFields.updatedAt] as Timestamp?)?.toDate(),
       createdBy: data[FirestoreFields.createdBy] as String?,
@@ -130,6 +151,7 @@ class School {
   Map<String, dynamic> toFirestoreCreate({required String createdBy}) {
     return {
       ..._profileFields(),
+      ...regional.toMap(),
       FirestoreFields.status: status.wireValue,
       FirestoreFields.createdAt: FieldValue.serverTimestamp(),
       FirestoreFields.updatedAt: FieldValue.serverTimestamp(),
@@ -145,6 +167,17 @@ class School {
   Map<String, dynamic> toFirestoreProfileUpdate({required String updatedBy}) {
     return {
       ..._profileFields(),
+      FirestoreFields.updatedAt: FieldValue.serverTimestamp(),
+      FirestoreFields.updatedBy: updatedBy,
+    };
+  }
+
+  /// The regional settings only (country, currency, time zone, date format).
+  /// Must match the keys `firestore.rules` lets a school admin change; the
+  /// currency is refused once the server has set [currencyLocked].
+  Map<String, dynamic> toFirestoreRegionalUpdate({required String updatedBy}) {
+    return {
+      ...regional.toMap(),
       FirestoreFields.updatedAt: FieldValue.serverTimestamp(),
       FirestoreFields.updatedBy: updatedBy,
     };

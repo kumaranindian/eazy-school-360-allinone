@@ -58,7 +58,7 @@ class _StudentFeesDialogState extends ConsumerState<StudentFeesDialog> {
       final n = double.tryParse(_value.text.trim());
       return n == null ? null : (n * 100).round();
     }
-    return Money.parseMinor(_value.text);
+    return Money.parseMinor(_value.text, currency: widget.fee.currency);
   }
 
   @override

@@ -1,3 +1,4 @@
+import 'package:eazy_school_360/core/regional/currency.dart';
 import 'package:eazy_school_360/features/fees/domain/billing_period.dart';
 import 'package:eazy_school_360/features/fees/domain/fee_dates.dart';
 import 'package:eazy_school_360/features/fees/domain/fee_enums.dart';
@@ -11,13 +12,13 @@ void main() {
       test(
         'accepts whole, one- and two-decimal amounts, with thousands separators',
         () {
-          expect(Money.parseMinor('1500'), 150000);
-          expect(Money.parseMinor('1,500'), 150000);
-          expect(Money.parseMinor('1500.5'), 150050);
-          expect(Money.parseMinor('1500.05'), 150005);
-          expect(Money.parseMinor('0.99'), 99);
-          expect(Money.parseMinor('  250 '), 25000);
-          expect(Money.parseMinor('0'), 0);
+          expect(Money.parseMinor('1500', currency: 'INR'), 150000);
+          expect(Money.parseMinor('1,500', currency: 'INR'), 150000);
+          expect(Money.parseMinor('1500.5', currency: 'INR'), 150050);
+          expect(Money.parseMinor('1500.05', currency: 'INR'), 150005);
+          expect(Money.parseMinor('0.99', currency: 'INR'), 99);
+          expect(Money.parseMinor('  250 ', currency: 'INR'), 25000);
+          expect(Money.parseMinor('0', currency: 'INR'), 0);
         },
       );
 
@@ -36,14 +37,20 @@ void main() {
             '1,2,3.456',
             '99999999999999',
           ]) {
-            expect(Money.parseMinor(bad), isNull, reason: bad);
+            expect(Money.parseMinor(bad, currency: 'INR'), isNull, reason: bad);
           }
         },
       );
 
       test('round-trips through plain()', () {
         for (final minor in [0, 1, 99, 100, 150050, 123456789]) {
-          expect(Money.parseMinor(Money.plain(minor)), minor);
+          expect(
+            Money.parseMinor(
+              Money.plain(minor, currency: 'INR'),
+              currency: 'INR',
+            ),
+            minor,
+          );
         }
       });
     },
@@ -51,19 +58,19 @@ void main() {
 
   group('Money.format', () {
     test('uses the currency symbol and Indian digit grouping', () {
-      expect(Money.format(150000), '₹1,500.00');
-      expect(Money.format(123456789), '₹12,34,567.89');
-      expect(Money.format(5), '₹0.05');
-      expect(Money.format(0), '₹0.00');
+      expect(Money.format(150000, currency: 'INR'), '₹1,500.00');
+      expect(Money.format(123456789, currency: 'INR'), '₹12,34,567.89');
+      expect(Money.format(5, currency: 'INR'), '₹0.05');
+      expect(Money.format(0, currency: 'INR'), '₹0.00');
     });
 
     test('other currencies and unknown codes', () {
       expect(Money.format(1050, currency: 'USD'), r'$10.50');
       expect(Money.format(1050, currency: 'XYZ'), 'XYZ 10.50');
-      expect(Money.format(-250), '-₹2.50');
+      expect(Money.format(-250, currency: 'INR'), '-₹2.50');
       expect(Money.format(123456789, currency: 'USD'), r'$1,234,567.89');
-      expect(Money.format(99999900), '₹9,99,999.00');
-      expect(Money.format(100000), '₹1,000.00');
+      expect(Money.format(99999900, currency: 'INR'), '₹9,99,999.00');
+      expect(Money.format(100000, currency: 'INR'), '₹1,000.00');
     });
   });
 
@@ -229,6 +236,58 @@ void main() {
         FeeNumbers.invoice(2026, 10),
         FeeNumbers.invoice(2026, 33),
       ]);
+    });
+  });
+
+  group('currencies with 0 and 3 decimals (multi-country)', () {
+    test('yen has no fraction: minor units are whole yen', () {
+      expect(Money.format(1500, currency: 'JPY'), '¥1,500');
+      expect(Money.format(0, currency: 'JPY'), '¥0');
+      expect(Money.plain(1500, currency: 'JPY'), '1500');
+      expect(Money.parseMinor('1,500', currency: 'JPY'), 1500);
+      expect(Money.parseMinor('1500.5', currency: 'JPY'), isNull);
+      expect(Money.parseMinor('1500.0', currency: 'JPY'), isNull);
+    });
+
+    test('dinars have three decimals', () {
+      expect(Money.format(1234567, currency: 'KWD'), 'KWD 1,234.567');
+      expect(Money.format(5, currency: 'KWD'), 'KWD 0.005');
+      expect(Money.plain(1234567, currency: 'KWD'), '1234.567');
+      expect(Money.parseMinor('1234.567', currency: 'KWD'), 1234567);
+      expect(Money.parseMinor('1.5', currency: 'KWD'), 1500);
+      expect(Money.parseMinor('1.5678', currency: 'KWD'), isNull);
+    });
+
+    test('a two-decimal currency refuses a third decimal', () {
+      expect(Money.parseMinor('1.234', currency: 'USD'), isNull);
+    });
+
+    test('grouping follows the currency, not the country of the viewer', () {
+      expect(Money.format(123456789, currency: 'USD'), r'$1,234,567.89');
+      expect(Money.format(123456789, currency: 'PKR'), 'Rs 12,34,567.89');
+      expect(Money.format(123456789, currency: 'EUR'), '€1,234,567.89');
+    });
+
+    test('every parsed amount prints back to the same number (round trip)', () {
+      for (final c in ['INR', 'JPY', 'KWD', 'USD', 'BHD']) {
+        for (final minor in [0, 1, 9, 10, 99, 100, 1234567, 99999999]) {
+          expect(
+            Money.parseMinor(Money.plain(minor, currency: c), currency: c),
+            minor,
+            reason: '$c $minor',
+          );
+        }
+      }
+    });
+
+    test('every offered currency has a plausible exponent', () {
+      for (final c in Currencies.all) {
+        expect([0, 2, 3], contains(c.decimals), reason: c.code);
+      }
+      expect(Currencies.of('JPY').decimals, 0);
+      expect(Currencies.of('KWD').decimals, 3);
+      expect(Currencies.isSupported('INR'), isTrue);
+      expect(Currencies.isSupported('XXX'), isFalse);
     });
   });
 }

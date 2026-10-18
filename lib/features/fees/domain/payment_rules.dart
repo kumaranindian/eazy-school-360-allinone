@@ -18,7 +18,7 @@ abstract final class PaymentRules {
     String? referenceNo,
     required String paymentDateKey,
     required String todayKey,
-    String currency = 'INR',
+    required String currency,
   }) {
     if (status == InvoiceStatus.voided) {
       return 'This invoice is void and cannot receive payments.';

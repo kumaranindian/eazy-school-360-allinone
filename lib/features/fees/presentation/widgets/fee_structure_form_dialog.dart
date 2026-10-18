@@ -35,7 +35,10 @@ class _FeeStructureFormDialogState
   late final _amount = TextEditingController(
     text: widget.existing == null
         ? ''
-        : Money.plain(widget.existing!.amountMinor),
+        : Money.plain(
+            widget.existing!.amountMinor,
+            currency: widget.fee.currency,
+          ),
   );
   late final _customCategory = TextEditingController(
     text: widget.existing?.customCategoryLabel,
@@ -96,7 +99,7 @@ class _FeeStructureFormDialogState
           ? null
           : _customCategory.text.trim(),
       frequency: _frequency,
-      amountMinor: Money.parseMinor(_amount.text)!,
+      amountMinor: Money.parseMinor(_amount.text, currency: fee.currency)!,
       classId: _classId,
       sectionId: _classId == null ? null : _sectionId,
       isOptional: _optional,
@@ -249,10 +252,9 @@ class _FeeStructureFormDialogState
               helperText: 'Per billing period.',
             ),
             validator: (v) {
-              final minor = Money.parseMinor(v ?? '');
-              if (minor == null) {
-                return 'Enter a valid amount, up to 2 decimals.';
-              }
+              final minor = Money.parseMinor(v ?? '', currency: fee.currency);
+              if (minor == null)
+                return Money.invalidAmountMessage(fee.currency);
               if (minor <= 0) return 'The amount must be greater than zero.';
               if (minor > FeeStructure.maxAmountMinor) {
                 return 'The amount is too large.';

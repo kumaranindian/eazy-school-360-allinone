@@ -245,6 +245,7 @@ class _Detail extends ConsumerWidget {
                   context: context,
                   barrierDismissible: false,
                   builder: (context) => ReasonDialog(
+                    currency: invoice.currency,
                     title: 'Void this invoice?',
                     description:
                         'The invoice stays on record but no longer counts. Its fees can be billed again on a corrected invoice.',
@@ -391,6 +392,7 @@ class _Detail extends ConsumerWidget {
       context: context,
       barrierDismissible: false,
       builder: (context) => ReasonDialog(
+        currency: invoice.currency,
         title: 'Reverse or refund ${payment.receiptNumber}?',
         description:
             '${Money.format(payment.amountMinor, currency: invoice.currency)} will be taken off this invoice, which then owes it again. The payment and receipt are kept, marked reversed.',

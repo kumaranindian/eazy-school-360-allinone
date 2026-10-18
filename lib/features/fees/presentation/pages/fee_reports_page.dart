@@ -177,17 +177,25 @@ class _ReportsState extends ConsumerState<_Reports> {
     [
       [
         'Collected (active payments)',
-        Money.plain(c.collectedMinor),
+        Money.plain(c.collectedMinor, currency: widget.fee.currency),
         c.paymentCount,
       ],
       for (final e in c.byMethodMinor.entries)
         [
           '  ${PaymentMethod.fromWireValue(e.key).displayName}',
-          Money.plain(e.value),
+          Money.plain(e.value, currency: widget.fee.currency),
           '',
         ],
-      ['Reversed', Money.plain(c.reversedMinor), ''],
-      ['Refunded', Money.plain(c.refundedMinor), ''],
+      [
+        'Reversed',
+        Money.plain(c.reversedMinor, currency: widget.fee.currency),
+        '',
+      ],
+      [
+        'Refunded',
+        Money.plain(c.refundedMinor, currency: widget.fee.currency),
+        '',
+      ],
     ],
   );
 
@@ -339,7 +347,7 @@ class _ReportsState extends ConsumerState<_Reports> {
                         s.className,
                         s.sectionName,
                         s.invoiceCount,
-                        Money.plain(s.outstandingMinor),
+                        Money.plain(s.outstandingMinor, currency: c),
                       ],
                   ],
                 );

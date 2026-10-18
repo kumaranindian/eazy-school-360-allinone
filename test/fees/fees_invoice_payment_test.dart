@@ -286,6 +286,7 @@ void main() {
       referenceNo: reference,
       paymentDateKey: date,
       todayKey: today,
+      currency: 'INR',
     );
 
     test('full and partial payments are accepted', () {

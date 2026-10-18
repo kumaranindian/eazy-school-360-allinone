@@ -1,5 +1,6 @@
 import '../../../../core/utils/date_formatting.dart';
 import 'package:flutter/material.dart';
+import '../../../../core/regional/regional_providers.dart';
 
 import '../../../../core/theme/app_colors.dart';
 
@@ -202,7 +203,9 @@ class _Child extends ConsumerWidget {
             )
             .toList();
         final summary = StudentFeeSummary.of(invoices, todayKey: today);
-        final currency = invoices.firstOrNull?.currency ?? 'INR';
+        final currency =
+            invoices.firstOrNull?.currency ??
+            ref.watch(regionalSettingsProvider).currency;
 
         return ListView(
           padding: const EdgeInsets.all(AppSpacing.md),
