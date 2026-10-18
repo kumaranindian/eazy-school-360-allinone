@@ -50,6 +50,9 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
   String? _schoolId;
   String? _branchId;
 
+  // A second "Refresh parent access" while one runs would only repeat the work.
+  bool _refreshingAccess = false;
+
   // Choosing people to give logins to (one or many).
   bool _selecting = false;
   final _selected = <String>{};
@@ -173,7 +176,11 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
         ],
       ),
     );
-    if (ok != true) return;
+    if (ok != true || _refreshingAccess) return;
+    _refreshingAccess = true;
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Refreshing parent access…')),
+    );
     try {
       final n = await ref
           .read(parentAccessSyncProvider)
@@ -187,6 +194,8 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
       );
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(userMessageFor(e))));
+    } finally {
+      _refreshingAccess = false;
     }
   }
 

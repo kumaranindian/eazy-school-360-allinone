@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/constants/firestore_fields.dart';
+import '../../../core/utils/bounded_parallel.dart';
 import '../../../core/errors/error_mapper.dart';
 import '../../../core/logging/app_logger.dart';
 import '../domain/parent_access_keys.dart';
@@ -150,7 +151,8 @@ class ParentAccessSync {
       if (cursor != null) q = q.startAfterDocument(cursor);
       final page = await q.get();
       if (page.docs.isEmpty) break;
-      for (final p in page.docs) {
+      // Independent documents: a few at a time instead of one by one (PERF-2).
+      await forEachBounded(page.docs, 8, (p) async {
         await refreshParent(
           schoolId: schoolId,
           branchId: branchId,
@@ -158,7 +160,7 @@ class ParentAccessSync {
           updatedBy: updatedBy,
         );
         count++;
-      }
+      });
       cursor = page.docs.last;
       if (page.docs.length < 100) break;
     }

@@ -48,8 +48,8 @@ None confirmed.
 | CFG-6 | Missing staff composite indexes | 2 | ✔ re-assessed: Firestore index merging serves chained equality filters from the existing (field, displayNameLower) composites; guard test added (tool/indexes.test.js); ⚑ confirm one combined filter on dev |
 | CFG-7 | CI hardening (permissions, pinning, timeouts) | 3 | ☐ |
 | DEP-1 | Functions dependency advisories (firebase-admin 12) | 2 | ✔ firebase-admin 13 (2 high → 0); 8 moderate remain: transitive `uuid` buf-bounds advisory, code path (v3/v5/v6 with a caller buffer) not used; ⚑ deploy to dev and smoke-test callables |
-| PERF-1 | Finalise results: per-student attendance reads | 2 | ☐ |
-| PERF-2 | Refresh parent access sequential, no guard | 2 | ☐ |
+| PERF-1 | Finalise results: per-student attendance reads | 2 | ✔ latency (8 parallel); a section-level query was rejected because it would drop a mover's earlier-section attendance |
+| PERF-2 | Refresh parent access sequential, no guard | 2 | ✔ |
 | ACAD-6 | Scheduled announcements push immediately | 2 | ✔ |
 | OPS-3 | No alert policies / budget alerts | 0 | ⚑ |
 | OPS-4 | Single-document invoice/receipt counters | — | ⊘ |

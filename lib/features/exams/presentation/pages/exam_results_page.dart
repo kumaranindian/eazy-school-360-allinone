@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/permissions/user_role.dart';
+import '../../../../core/utils/bounded_parallel.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/tenant/tenant_context.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -104,13 +105,11 @@ class _ResultsState extends ConsumerState<_Results> {
     final to = AttendanceDate.key(DateTime.now());
     final out = <String, AttendanceSnapshot?>{};
     var failed = 0;
-    for (var i = 0; i < results.length; i++) {
-      final r = results[i];
-      if (mounted) {
-        setState(
-          () => _progress = 'Collecting attendance ${i + 1}/${results.length}',
-        );
-      }
+    var done = 0;
+    // A student's whole-year attendance (across sections, so a student who
+    // moved section keeps it) is one query each; they are independent, so a
+    // few run at a time instead of one after the other (PERF-1).
+    await forEachBounded(results, 8, (r) async {
       try {
         final range = await repo.fetchStudentRange(
           schoolId: exam.schoolId,
@@ -134,7 +133,13 @@ class _ResultsState extends ConsumerState<_Results> {
         out[r.studentId] = null;
         failed++;
       }
-    }
+      done++;
+      if (mounted) {
+        setState(
+          () => _progress = 'Collecting attendance $done/${results.length}',
+        );
+      }
+    });
     return (snapshots: out, failed: failed);
   }
 
