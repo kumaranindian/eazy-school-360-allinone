@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/account_deletion/presentation/pages/account_deletion_page.dart';
 import '../../features/authentication/presentation/pages/account_inactive_page.dart';
 import '../../features/authentication/presentation/pages/change_initial_password_page.dart';
 import '../../features/authentication/presentation/providers/initial_password_providers.dart';
@@ -182,6 +183,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.accountInactive,
         builder: (context, state) => const AccountInactivePage(),
+      ),
+      GoRoute(
+        path: AppRoutes.deleteAccount,
+        builder: (context, state) => const AccountDeletionPage(),
       ),
       GoRoute(
         path: AppRoutes.createSchool,

@@ -11,6 +11,9 @@ abstract final class AppRoutes {
   static const String accountInactive = '/account-inactive';
   static const String changePassword = '/change-password';
   static const String createSchool = '/create-school';
+
+  /// Asks Avail404 to delete the signed-in person's own account.
+  static const String deleteAccount = '/delete-account';
   static const String dashboard = '/dashboard';
   static const String school = '/school';
   static const String users = '/users';

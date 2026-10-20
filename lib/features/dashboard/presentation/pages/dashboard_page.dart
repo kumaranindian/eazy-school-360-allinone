@@ -211,6 +211,15 @@ const _sections = [
       path: AppRoutes.settings,
     ),
   ]),
+  _Section('Account', 'Your own sign-in and data', [
+    _Shortcut(
+      'Delete account',
+      'Ask to delete your account and personal data',
+      Icons.delete_outline,
+      AppColors.error,
+      path: AppRoutes.deleteAccount,
+    ),
+  ]),
   _Section('Coming soon', 'Planned for a future release', [
     _Shortcut(
       'Transport',

@@ -14,6 +14,8 @@ void main() {
       'accountInactive',
       'changePassword',
       'createSchool',
+      // Every signed-in person may ask to delete their own account.
+      'deleteAccount',
       'dashboard',
     };
     final src = File('lib/core/routing/app_routes.dart').readAsStringSync();
