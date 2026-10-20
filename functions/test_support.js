@@ -124,6 +124,7 @@ function fakeDb(seed = {}) {
   const writer = (ops) => ({
     set: (r, d) => ops.push(() => r.set(d)),
     update: (r, d) => ops.push(() => r.update(d)),
+    delete: (r) => ops.push(() => r.delete()),
   });
   return {
     store,
@@ -181,7 +182,14 @@ function fakeAuth(existing = {}) {
       add(uid, o);
       return { uid };
     },
-    updateUser: async (uid, o) => void Object.assign(users[uid], o, { passwordReset: !!o.password }),
+    updateUser: async (uid, o) => {
+      if (!users[uid]) throw Object.assign(new Error('nf'), { code: 'auth/user-not-found' });
+      Object.assign(users[uid], o, { passwordReset: !!o.password });
+    },
+    deleteUser: async (uid) => {
+      if (!users[uid]) throw Object.assign(new Error('nf'), { code: 'auth/user-not-found' });
+      delete users[uid];
+    },
     revokeRefreshTokens: async (uid) => void revoked.push(uid),
     createCustomToken: async (uid, claims) => `token:${uid}:${claims.via}`,
   };

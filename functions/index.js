@@ -28,6 +28,10 @@ const currencyLock = require('./currency_lock');
 const { requestOtp, verifyOtp } = require('./otp');
 const { createWhatsAppSender } = require('./whatsapp');
 const { callOptions } = require('./call_options');
+const accountDeletion = require('./account_deletion');
+const deletionProcessor = require('./deletion_processor');
+const { bucketStorage } = require('./storage_adapter');
+const { getStorage } = require('firebase-admin/storage');
 
 initializeApp();
 // Must match the Firestore database region (Firestore triggers are regional).
@@ -247,6 +251,7 @@ const STATUS = {
   RESEND_COOLDOWN: 'resource-exhausted',
   DELIVERY_FAILED: 'unavailable',
   OTP_UNAVAILABLE: 'failed-precondition',
+  VERIFICATION_FAILED: 'permission-denied',
 };
 // Turns a core { error, ... } into an HttpsError whose details.reason the app
 // maps to a message. No identifiers or secrets are included.
@@ -543,3 +548,128 @@ exports.dropDevicesOnAccessLoss = onDocumentUpdated('users/{uid}', async (event)
     throw e; // let the platform retry the trigger
   }
 });
+
+// ---- Account deletion requests ---------------------------------------------
+// Records, verifies and reviews requests (docs/account-deletion.md). Nothing
+// here deletes an account: executing an approved request is a separate step.
+
+const deletionCtx = () => ({ db, now: () => new Date() });
+// First hop of X-Forwarded-For (Cloud Run puts the client there), else the socket.
+const clientIp = (request) => {
+  const req = request.rawRequest;
+  const fwd = req && req.headers && req.headers['x-forwarded-for'];
+  return (typeof fwd === 'string' && fwd.split(',')[0].trim()) || (req && req.ip) || 'unknown';
+};
+const deletionLog = (what, out) => logger.info(what, { reference: out.result && out.result.reference, status: out.result && out.result.status });
+
+exports.requestAccountDeletion = onCall(callOptions(), async (request) => {
+  const a = signedIn(request);
+  const out = await accountDeletion.requestOwn(deletionCtx(), a.uid, a.token, request.data);
+  if (out.error) fail(out);
+  deletionLog('account deletion requested', out);
+  return { ...out.result, duplicate: out.duplicate === true };
+});
+
+exports.getMyDeletionRequests = onCall(callOptions(), async (request) => {
+  const a = signedIn(request);
+  return (await accountDeletion.listOwn(deletionCtx(), a.uid)).result;
+});
+
+exports.cancelAccountDeletion = onCall(callOptions(), async (request) => {
+  const a = signedIn(request);
+  const out = await accountDeletion.cancelOwn(deletionCtx(), a.uid, request.data);
+  if (out.error) fail(out);
+  deletionLog('account deletion cancelled', out);
+  return out.result;
+});
+
+// Public (no sign-in): the web form. Same answer for any address; the e-mail
+// link, not this call, proves ownership.
+exports.requestAccountDeletionPublic = onCall(callOptions(), async (request) => {
+  const out = await accountDeletion.requestPublic(deletionCtx(), request.data, clientIp(request));
+  if (out.error) fail(out);
+  deletionLog('public account deletion submitted', out);
+  return out.result;
+});
+
+// Public: the category of a request, by its unguessable reference.
+exports.getDeletionRequestStatus = onCall(callOptions(), async (request) => {
+  const out = await accountDeletion.statusPublic(deletionCtx(), request.data);
+  if (out.error) fail(out);
+  return out.result;
+});
+
+// Signed in via the e-mail link: proves the address and opens the request.
+exports.confirmAccountDeletionRequest = onCall(callOptions(), async (request) => {
+  const a = signedIn(request);
+  const out = await accountDeletion.confirmPublic(deletionCtx(), a.uid, a.token, request.data, getAuth());
+  if (out.error) fail(out);
+  deletionLog('public account deletion confirmed', out);
+  return { ...out.result, duplicate: out.duplicate === true };
+});
+
+// Avail404 only (an ACTIVE PLATFORM_ADMIN profile, checked on the server).
+exports.reviewAccountDeletion = onCall(callOptions(), async (request) => {
+  const a = signedIn(request);
+  const out = await accountDeletion.review(deletionCtx(), a.uid, request.data);
+  if (out.error) fail(out);
+  deletionLog('account deletion reviewed', out);
+  return out.result;
+});
+
+exports.expireDeletionRequests = onSchedule(
+  { schedule: 'every 24 hours', timeZone: 'Asia/Kolkata', timeoutSeconds: 120 },
+  async () => {
+    try {
+      const n = await accountDeletion.expireUnverified(deletionCtx());
+      logger.info('unverified deletion requests expired', { expired: n });
+    } catch (e) {
+      logger.error('expire deletion requests failed', { category: errorCategory(e) });
+    }
+  },
+);
+
+// ---- Carrying out approved requests -------------------------------------------
+// Off unless ACCOUNT_DELETION_PROCESSING_ENABLED=true in the project's functions
+// env. Deleting needs the pepper only to derive the non-identifying audit token.
+
+const PROCESS_BUDGET_MS = 8 * 60 * 1000;
+const processingCtx = () => ({
+  db,
+  auth: getAuth(),
+  storage: bucketStorage(getStorage().bucket()),
+  now: () => new Date(),
+  key: OTP_PEPPER.value(),
+  deadline: Date.now() + PROCESS_BUDGET_MS,
+});
+
+exports.processDeletionRequests = onSchedule(
+  { schedule: 'every 60 minutes', timeZone: 'Asia/Kolkata', timeoutSeconds: 540, memory: '512MiB', secrets: [OTP_PEPPER] },
+  async () => {
+    try {
+      const r = await deletionProcessor.sweep(processingCtx());
+      logger.info('deletion sweep', r.skipped ? { skipped: true } : { processed: r.results.map((x) => ({ reference: x.reference, status: x.status })) });
+    } catch (e) {
+      logger.error('deletion sweep failed', { category: errorCategory(e) });
+    }
+  },
+);
+
+// Avail404 only: run one approved request now instead of waiting for the sweep.
+exports.processAccountDeletion = onCall(
+  callOptions({ secrets: [OTP_PEPPER], timeoutSeconds: 540, memory: '512MiB' }),
+  async (request) => {
+    const a = signedIn(request);
+    if (!(await accountDeletion.platformReviewer(deletionCtx(), a.uid))) {
+      throw new HttpsError('permission-denied', 'Not allowed.');
+    }
+    const reference = request.data && request.data.reference;
+    if (typeof reference !== 'string' || !/^DEL-[A-Z2-7]{16}$/.test(reference)) {
+      throw new HttpsError('invalid-argument', 'INVALID_ARGUMENT', { reason: 'INVALID_ARGUMENT' });
+    }
+    const out = await deletionProcessor.processRequest(processingCtx(), reference);
+    if (out.error) fail(out);
+    logger.info('account deletion processed', { reference, status: out.status });
+    return { reference, status: out.status, done: out.done === true };
+  },
+);
