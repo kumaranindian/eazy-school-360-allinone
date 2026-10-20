@@ -1,0 +1,6 @@
+# Copy to android/key.properties (git-ignored) and fill in. Never commit the
+# real file or the keystore. See docs/android-release.md.
+storeFile=/ABSOLUTE/PATH/TO/eazyschool360-upload.jks
+storePassword=
+keyAlias=eazyschool360-upload
+keyPassword=

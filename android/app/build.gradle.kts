@@ -22,7 +22,9 @@ if (hasReleaseKey) {
 
 android {
     namespace = "com.avail404.eazyschool.eazyschool360"
-    compileSdk = flutter.compileSdkVersion
+    // Google Play requires targetSdk 36 for new apps and updates (from
+    // 2026-08-31); Flutter 3.32 still defaults to 35, so both are pinned here.
+    compileSdk = 36
     // Firebase plugins require a newer NDK than the Flutter default.
     ndkVersion = "27.0.12077973"
 
@@ -39,9 +41,9 @@ android {
         applicationId = "com.avail404.eazyschool.eazyschool360"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        // firebase_auth requires minSdk 23.
-        minSdk = 23
-        targetSdk = flutter.targetSdkVersion
+        // firebase_auth requires minSdk 23; Play automatic protection requires 24.
+        minSdk = 24
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
