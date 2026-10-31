@@ -15,6 +15,13 @@ Use for staging first, then production. Tick only with recorded evidence (comman
 ## B. Release order
 1. Indexes (wait until Enabled) → 2. Functions (`firebase deploy --only functions`) → 3. Back-fill jobs where needed (`Refresh teacher access` per branch, `Refresh parent access` per branch) → 4. Rules/Storage rules → 5. Hosting build `flutter build web --release -t lib/main_prod.dart --dart-define=APP_ENV=prod --dart-define=FCM_VAPID_KEY=… --dart-define=APP_CHECK_ENABLED=true --dart-define=APP_CHECK_WEB_KEY=…` → 6. Mobile builds (`flutter build appbundle` / `ipa`, signed) → 7. only then `ENFORCE_APP_CHECK=true`
 - [ ] Each step's output saved; versions/commit hash recorded
+- [ ] **After every functions deploy: callable preflight gate.** A deploy where any function build failed and was retried can leave a service without the public invoker role (the CLI only grants it on *create*); the browser then shows a CORS error. Every line must print 204 (read-only, no credentials):
+  ```
+  P=<project-id>; for f in $(grep -oE "^exports\.[A-Za-z]+ = onCall" functions/index.js | sed -E 's/exports\.([A-Za-z]+).*/\1/'); do
+    echo "$f $(curl -s -o /dev/null -w '%{http_code}' -X OPTIONS https://asia-south1-$P.cloudfunctions.net/$f \
+      -H 'Origin: https://eazyschool-360.avail404.com' -H 'Access-Control-Request-Method: POST')"; done
+  ```
+  Any 403: `gcloud run services add-iam-policy-binding <lowercased-function-name> --region=asia-south1 --project=$P --member=allUsers --role=roles/run.invoker` (callables only; never schedulers or Firestore triggers). See `docs/DEV_PROD_INFRASTRUCTURE_COMPARISON.md`.
 
 ## C. Smoke test (staging, then production canary school)
 - [ ] Sign in as school admin, branch admin, finance, teacher, parent (email, Google, OTP if enabled); sign out; sign in as another user on the same device
