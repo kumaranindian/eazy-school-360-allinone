@@ -16,6 +16,10 @@ void main() {
       'createSchool',
       // Every signed-in person may ask to delete their own account.
       'deleteAccount',
+      // The user manual is for every signed-in role; each guide is filtered
+      // by the person's own permissions inside the manual.
+      'help',
+      'helpGuide',
       'dashboard',
     };
     final src = File('lib/core/routing/app_routes.dart').readAsStringSync();

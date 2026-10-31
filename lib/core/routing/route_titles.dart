@@ -52,4 +52,5 @@ const Map<String, String> _titles = {
   AppRoutes.messages: 'Messages',
   AppRoutes.myProfile: 'My Profile',
   AppRoutes.users: 'User Management',
+  AppRoutes.help: 'Help & User Manual',
 };

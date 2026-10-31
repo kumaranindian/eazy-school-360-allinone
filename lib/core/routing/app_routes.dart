@@ -12,6 +12,11 @@ abstract final class AppRoutes {
   static const String changePassword = '/change-password';
   static const String createSchool = '/create-school';
 
+  /// The in-app user manual (every signed-in role).
+  static const String help = '/help';
+  static const String helpGuide = '/help/guides/:guideId';
+  static String helpGuidePath(String guideId) => '/help/guides/$guideId';
+
   /// Asks Avail404 to delete the signed-in person's own account.
   static const String deleteAccount = '/delete-account';
   static const String dashboard = '/dashboard';

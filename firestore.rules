@@ -4112,6 +4112,14 @@ service cloud.firestore {
         && nd().ids is list && nd().ids.size() <= 500;
     }
 
+    // User manual progress: the user's own place in each guide. Content is
+    // bundled with the app; only this is stored.
+    match /users/{userId}/manualProgress/{guideId} {
+      allow read, delete: if isSignedIn() && request.auth.uid == userId;
+      allow create, update: if isSignedIn() && request.auth.uid == userId
+        && nd().completed is list && nd().completed.size() <= 60;
+    }
+
     // Notification preferences (Milestone 11): the user's own document. A
     // category may be muted unless it is critical (administrative notices
     // cannot be silenced); pushEnabled is the user's own on/off for push.

@@ -92,7 +92,7 @@ const FINANCIAL = [
 // Handled by dedicated steps, not the generic scan.
 const SPECIAL = ['notifications'];
 
-const USER_SUBCOLLECTIONS = ['devices', 'preferences', 'noticeReads'];
+const USER_SUBCOLLECTIONS = ['devices', 'preferences', 'noticeReads', 'manualProgress'];
 
 const STEPS = ['DISABLE', 'USER_DATA', 'NOTIFICATIONS', 'LINKED_RECORDS', 'SCRUB', 'STORAGE', 'PROFILE', 'AUTH'];
 

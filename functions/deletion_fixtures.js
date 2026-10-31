@@ -43,6 +43,7 @@ const seed = () => ({
   'users/parent/devices/d2': { token: 't2' },
   'users/parent/preferences/notifications': { push: true },
   'users/parent/noticeReads/state': { lastRead: 1 },
+  'users/parent/manualProgress/invoices': { completed: [0, 1], version: 1 },
   'users/other/devices/d9': { token: 'keep-me' },
   [`${S}`]: { name: 'School' },
   [B1]: { name: 'Main' },

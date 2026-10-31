@@ -33,7 +33,7 @@ A user belongs to **one school** (`/users/{uid}.schoolId`); several branches pos
 | A1 | Sign-in account: email, phone, password hash, Google link | Firebase Authentication | **DELETE** (Admin SDK). Irreversible; also revokes sessions | The account is the core of the request | No | None |
 | A2 | Profile: name, email, phone, photo, login settings, `linkedParentId` | `/users/{uid}` | **ANONYMIZE** to a stub: keep the document id, school and role; `status: DISABLED` plus `deleted: true` (a status every screen already understands); clear name, email, phone, photo, login, links | The stub keeps audit references valid without identifying anyone | No | stub kept (opaque) |
 | A3 | Push tokens | `/users/{uid}/devices/*` | **DELETE** | Only for delivering that person's notices | No | None |
-| A4 | Personal notifications and preferences | `notifications` (audience USER, `recipientUserId`), preferences | **DELETE** | The person's own inbox | No | None |
+| A4 | Personal notifications, preferences and user-manual progress | `notifications` (audience USER, `recipientUserId`), preferences, `users/{uid}/manualProgress` | **DELETE** | The person's own inbox | No | None |
 | A5 | OTP challenge and rate records | `otpChallenges`, `otpRate` | none (hashes only, expire on their own TTL) | Not readable as personal data | No | 24 h TTL |
 | A6 | Push delivery records | `pushDeliveries/{eventId}` | verify in Phase 5 that none carries a user id; if so, ANONYMIZE | Delivery bookkeeping | No | PENDING |
 

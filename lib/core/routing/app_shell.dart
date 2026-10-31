@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/authentication/presentation/sign_out.dart';
+import '../../features/help/presentation/widgets/contextual_help_button.dart';
 import '../../features/notifications/presentation/widgets/notification_alerts.dart';
 import '../../features/notifications/presentation/widgets/notification_bell.dart';
 import '../../shared/branding/page_hero.dart';
@@ -215,6 +216,14 @@ class AppShell extends ConsumerWidget {
       ),
       AppRoutes.users,
     ),
+    (
+      NavDestination(
+        label: 'Help',
+        icon: Icons.help_outline,
+        selectedIcon: Icons.help,
+      ),
+      AppRoutes.help,
+    ),
   ];
 
   /// Title, subtitle and icon of each top-level screen's hero. Titles are
@@ -414,6 +423,7 @@ class AppShell extends ConsumerWidget {
       actions: [
         if (tenant?.can(Permission.viewNotifications) ?? false)
           const NotificationBell(),
+        ContextualHelpButton(path: path),
         IconButton(
           icon: const Icon(Icons.logout),
           tooltip: 'Sign out',
