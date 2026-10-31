@@ -7,11 +7,38 @@ import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/validators/validators.dart';
 import '../../domain/parent.dart';
+import '../../domain/parent_duplicates.dart';
 import '../providers/parent_providers.dart';
+import 'parent_duplicates_dialog.dart';
 
-/// Create/edit a Parent/Guardian contact record (brief §8). Portal access
-/// and children are managed elsewhere (Parent profile page) — this dialog
-/// is contact information only.
+/// How [ParentFormDialog] closed (null: cancelled).
+class ParentFormResult {
+  final String parentId;
+
+  /// False when the person chose an existing parent instead of adding one.
+  final bool created;
+
+  /// "Give login access now" was ticked on a new parent.
+  final bool giveLogin;
+
+  final String name;
+  final String? email;
+
+  const ParentFormResult({
+    required this.parentId,
+    required this.name,
+    this.email,
+    this.created = true,
+    this.giveLogin = false,
+  });
+}
+
+/// Create/edit a Parent/Guardian contact record (brief §8). Children are
+/// linked from the student profile / admission. Before saving, an existing
+/// parent of the branch with the same email (refused) or phone (asked) is
+/// shown, so one person keeps one record and one login. A new parent can
+/// be given a login straight after saving ([ParentFormResult.giveLogin]);
+/// the caller opens the server-backed "Give login access" dialog.
 class ParentFormDialog extends ConsumerStatefulWidget {
   final String schoolId;
   final String branchId;
@@ -54,8 +81,69 @@ class _ParentFormDialogState extends ConsumerState<ParentFormDialog> {
 
   bool get _isEditing => widget.existing != null;
 
+  bool _giveLogin = false;
+  bool _checking = false;
+
+  /// False when the person went back to change details (or picked an
+  /// existing parent, in which case the dialog has closed).
+  Future<bool> _noDuplicates() async {
+    setState(() => _checking = true);
+    List<ParentMatch> matches;
+    try {
+      matches = await ref
+          .read(parentDuplicateFinderProvider)
+          .find(
+            schoolId: widget.schoolId,
+            branchId: widget.branchId,
+            email: _email.text,
+            phone: _phone.text,
+            displayName: _isEditing
+                ? ''
+                : '${_firstName.text.trim()} ${_lastName.text.trim()}',
+            excludeParentId: widget.existing?.parentId,
+          );
+    } catch (error) {
+      if (mounted) {
+        setState(() => _checking = false);
+        context.showSnackBar(
+          'Could not check for an existing parent: ${userMessageFor(error)}',
+          isError: true,
+        );
+      }
+      return false;
+    }
+    if (!mounted) return false;
+    setState(() => _checking = false);
+    // Editing: only a clash of email matters (another record's sign-in).
+    if (_isEditing) matches = matches.where((m) => m.blocksCreate).toList();
+    if (matches.isEmpty) return true;
+    final choice = await showParentDuplicatesDialog(
+      context: context,
+      matches: matches,
+      useLabel: _isEditing ? 'Open this parent' : 'Use this parent',
+    );
+    if (!mounted) return false;
+    switch (choice) {
+      case UseExistingParent(:final parent):
+        Navigator.of(context).pop(
+          ParentFormResult(
+            parentId: parent.parentId,
+            name: parent.displayName,
+            email: parent.email,
+            created: false,
+          ),
+        );
+        return false;
+      case CreateParentAnyway():
+        return true;
+      case null:
+        return false;
+    }
+  }
+
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!await _noDuplicates()) return;
 
     final parent = Parent(
       parentId: widget.existing?.parentId ?? '',
@@ -70,7 +158,8 @@ class _ParentFormDialogState extends ConsumerState<ParentFormDialog> {
       alternatePhone: _alternatePhone.text.trim().isEmpty
           ? null
           : _alternatePhone.text.trim(),
-      email: _email.text.trim().isEmpty ? null : _email.text.trim(),
+      // Lowercase, as bulk import saves it: it becomes the sign-in email.
+      email: ParentContact.normalizeEmail(_email.text),
       occupation: _occupation.text.trim().isEmpty
           ? null
           : _occupation.text.trim(),
@@ -82,17 +171,29 @@ class _ParentFormDialogState extends ConsumerState<ParentFormDialog> {
     );
 
     final controller = ref.read(parentWriteControllerProvider.notifier);
-    final success = _isEditing
-        ? await controller.updateParent(parent, updatedBy: widget.currentUserId)
-        : (await controller.createParent(
+    final savedId = _isEditing
+        ? (await controller.updateParent(
                 parent,
-                createdBy: widget.currentUserId,
-              )) !=
-              null;
+                updatedBy: widget.currentUserId,
+              ))
+              ? parent.parentId
+              : null
+        : await controller.createParent(
+            parent,
+            createdBy: widget.currentUserId,
+          );
 
     if (!mounted) return;
-    if (success) {
-      Navigator.of(context).pop(true);
+    if (savedId != null) {
+      Navigator.of(context).pop(
+        ParentFormResult(
+          parentId: savedId,
+          name: parent.displayName,
+          email: parent.email,
+          created: !_isEditing,
+          giveLogin: !_isEditing && _giveLogin,
+        ),
+      );
     } else {
       final error = ref.read(parentWriteControllerProvider).error;
       context.showSnackBar(
@@ -122,7 +223,8 @@ class _ParentFormDialogState extends ConsumerState<ParentFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final isSaving = ref.watch(parentWriteControllerProvider).isLoading;
+    final isSaving =
+        ref.watch(parentWriteControllerProvider).isLoading || _checking;
 
     return Form(
       key: _formKey,
@@ -172,8 +274,14 @@ class _ParentFormDialogState extends ConsumerState<ParentFormDialog> {
           const SizedBox(height: AppSpacing.sm),
           TextFormField(
             controller: _email,
-            decoration: const InputDecoration(labelText: 'Email (optional)'),
+            decoration: const InputDecoration(
+              labelText: 'Email (optional)',
+              helperText: 'Needed for a parent login. One email per parent.',
+              helperMaxLines: 3,
+            ),
             keyboardType: TextInputType.emailAddress,
+            validator: (v) =>
+                (v ?? '').trim().isEmpty ? null : Validators.email(v),
           ),
           const SizedBox(height: AppSpacing.sm),
           TextFormField(
@@ -192,14 +300,25 @@ class _ParentFormDialogState extends ConsumerState<ParentFormDialog> {
             controller: _city,
             decoration: const InputDecoration(labelText: 'City (optional)'),
           ),
+          if (!_isEditing)
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _giveLogin,
+              onChanged: isSaving
+                  ? null
+                  : (v) => setState(() => _giveLogin = v ?? false),
+              title: const Text('Give login access after saving'),
+              subtitle: const Text(
+                'You choose how the first password is set. Needs an email.',
+              ),
+              controlAffinity: ListTileControlAffinity.leading,
+            ),
           const SizedBox(height: AppSpacing.lg),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               TextButton(
-                onPressed: isSaving
-                    ? null
-                    : () => Navigator.of(context).pop(false),
+                onPressed: isSaving ? null : () => Navigator.of(context).pop(),
                 child: const Text('Cancel'),
               ),
               const SizedBox(width: AppSpacing.sm),

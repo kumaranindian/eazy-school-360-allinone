@@ -159,7 +159,7 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
     String userId, {
     Parent? existing,
   }) async {
-    final saved = await showAdaptiveAppDialog<bool>(
+    final saved = await showAdaptiveAppDialog<ParentFormResult>(
       context: context,
       builder: (context) => ParentFormDialog(
         schoolId: schoolId,
@@ -168,8 +168,22 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
         existing: existing,
       ),
     );
-    if (saved == true) {
-      _resetAndLoad(schoolId, branchId);
+    if (saved == null || !mounted) return;
+    if (!saved.created && existing == null) {
+      // The person picked an existing parent instead of adding a duplicate.
+      this.context.push('/parents/${saved.parentId}');
+      return;
+    }
+    _resetAndLoad(schoolId, branchId);
+    if (saved.giveLogin) {
+      final given = await showProvisionLoginsDialog(
+        context: this.context,
+        schoolId: schoolId,
+        branchId: branchId,
+        kind: LoginKind.parent,
+        people: [(id: saved.parentId, name: saved.name, email: saved.email)],
+      );
+      if (given == true && mounted) _resetAndLoad(schoolId, branchId);
     }
   }
 

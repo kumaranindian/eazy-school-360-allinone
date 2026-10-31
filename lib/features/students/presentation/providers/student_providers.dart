@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../users/presentation/providers/user_providers.dart';
+import '../../data/firebase_admission_number_source.dart';
 import '../../data/firebase_student_repository.dart';
 import '../../data/parent_access_repair.dart';
 import '../../data/parent_access_sync.dart';
 import '../../domain/academic_record_status.dart';
+import '../../domain/admission_number_format.dart';
 import '../../domain/parent_student_link.dart';
 import '../../domain/relationship_type.dart';
 import '../../domain/student.dart';
@@ -38,6 +40,11 @@ final studentRepositoryProvider = Provider<StudentRepository>((ref) {
     ref.watch(firebaseStorageProvider),
   );
 });
+
+/// Hands out the next standard admission number (`ADM-0001`).
+final admissionNumberSourceProvider = Provider<AdmissionNumberSource>(
+  (ref) => FirebaseAdmissionNumberSource(ref.watch(firestoreProvider)),
+);
 
 final studentProvider = StreamProvider.autoDispose.family<Student?, StudentKey>(
   (ref, key) {

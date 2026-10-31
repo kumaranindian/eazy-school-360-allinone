@@ -33,13 +33,6 @@ class BulkStudentColumn {
 
 const List<BulkStudentColumn> bulkStudentColumns = [
   BulkStudentColumn(
-    'admission_number',
-    'Admission number',
-    'ADM-1001',
-    'Unique per branch',
-    required: true,
-  ),
-  BulkStudentColumn(
     'first_name',
     'First name',
     'Asha',
@@ -297,7 +290,6 @@ class BulkParentData {
 }
 
 class BulkStudentData {
-  final String admissionNumber;
   final String firstName;
   final String? middleName;
   final String lastName;
@@ -315,7 +307,6 @@ class BulkStudentData {
   final BulkParentData? parent;
 
   const BulkStudentData({
-    required this.admissionNumber,
     required this.firstName,
     this.middleName,
     required this.lastName,
@@ -343,7 +334,7 @@ class BulkStudentRow {
   final List<BulkCellError> errors;
   final BulkStudentData? data;
 
-  /// "Admission no / name" for display next to errors.
+  /// Student name for display next to errors.
   final String who;
 
   const BulkStudentRow({
@@ -543,7 +534,6 @@ BulkStudentParseResult parseBulkStudentCsv(
       header: header,
     );
   }
-  final seenAdmission = <String, int>{};
   final rows = <BulkStudentRow>[];
 
   for (var i = 0; i < dataRows.length; i++) {
@@ -580,21 +570,6 @@ BulkStudentParseResult parseBulkStudentCsv(
           'is empty.',
           'Enter the ${c.label.toLowerCase()} — it is required.',
         );
-      }
-    }
-
-    final admission = get('admission_number');
-    if (admission.isNotEmpty) {
-      final k = admission.toLowerCase();
-      final first = seenAdmission[k];
-      if (first != null) {
-        err(
-          'admission_number',
-          '"$admission" is already used on line $first of this file.',
-          'Give every student a different admission number.',
-        );
-      } else {
-        seenAdmission[k] = line;
       }
     }
 
@@ -776,7 +751,6 @@ BulkStudentParseResult parseBulkStudentCsv(
     if (errors.isEmpty) {
       String? opt(String k) => get(k).isEmpty ? null : get(k);
       data = BulkStudentData(
-        admissionNumber: admission,
         firstName: get('first_name'),
         middleName: opt('middle_name'),
         lastName: get('last_name'),
@@ -796,7 +770,6 @@ BulkStudentParseResult parseBulkStudentCsv(
     }
 
     final who = [
-      if (admission.isNotEmpty) admission,
       [
         get('first_name'),
         get('last_name'),

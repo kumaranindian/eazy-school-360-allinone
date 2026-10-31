@@ -1,8 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../users/presentation/providers/user_providers.dart';
+import '../../data/firebase_parent_duplicate_finder.dart';
 import '../../data/firebase_parent_repository.dart';
 import '../../domain/parent.dart';
+import '../../domain/parent_duplicates.dart';
 import '../../domain/parent_repository.dart';
 import '../../domain/student.dart';
 import 'student_keys.dart';
@@ -13,6 +15,13 @@ final parentRepositoryProvider = Provider<ParentRepository>((ref) {
     ref.watch(firebaseStorageProvider),
   );
 });
+
+/// Existing parents of the branch that look like the one being entered
+/// (same email or phone) — the single-entry forms ask before creating a
+/// second record for the same person.
+final parentDuplicateFinderProvider = Provider<ParentDuplicateFinder>(
+  (ref) => FirebaseParentDuplicateFinder(ref.watch(firestoreProvider)),
+);
 
 final parentProvider = StreamProvider.autoDispose.family<Parent?, ParentKey>((
   ref,

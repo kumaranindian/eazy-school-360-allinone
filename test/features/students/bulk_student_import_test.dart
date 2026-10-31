@@ -1,4 +1,5 @@
 import 'package:eazy_school_360/features/students/data/bulk_student_importer.dart';
+import 'package:eazy_school_360/features/students/domain/admission_number_format.dart';
 import 'package:eazy_school_360/features/students/domain/bulk_student_import.dart';
 import 'package:eazy_school_360/features/students/domain/parent.dart';
 import 'package:eazy_school_360/features/students/domain/parent_repository.dart';
@@ -27,10 +28,10 @@ BulkStudentParseResult _parse(String body) => parseBulkStudentCsv(
   today: _today,
 );
 
-// admission,first,middle,last,dob,gender,blood,email,phone,address,city,
+// first,middle,last,dob,gender,blood,email,phone,address,city,
 // adm date,class,section,roll,pfirst,plast,pphone,prel
 const _good =
-    'ADM-1,Asha,,Kumar,2015-06-30,Female,O+,,,,,2026-06-01,Grade 1,A,1,Ravi,Kumar,98765 43210,Father';
+    'Asha,,Kumar,2015-06-30,Female,O+,,,,,2026-06-01,Grade 1,A,1,Ravi,Kumar,98765 43210,Father';
 
 void main() {
   group('parent / student email', () {
@@ -52,10 +53,7 @@ void main() {
 
     test('siblings of one parent (same phone) may repeat the email', () {
       final r = _parse(
-        [
-          '$_good,dad@example.com',
-          '${_good.replaceFirst('ADM-1', 'ADM-2')},DAD@example.com',
-        ].join('\n'),
+        ['$_good,dad@example.com', '$_good,DAD@example.com'].join('\n'),
       );
       expect(r.rows.map((x) => x.isValid), [true, true]);
     });
@@ -64,7 +62,7 @@ void main() {
       final r = _parse(
         [
           '$_good,dad@example.com',
-          '${_good.replaceFirst('ADM-1', 'ADM-2').replaceFirst('98765 43210', '90000 11111')},dad@example.com',
+          '${_good.replaceFirst('98765 43210', '90000 11111')},dad@example.com',
         ].join('\n'),
       );
       expect(r.rows.map((x) => x.isValid), [true, false]);
@@ -75,12 +73,13 @@ void main() {
       final importer = BulkStudentImporter(
         _FakeStudents(),
         _FakeParents(),
+        _FakeNumbers(),
         _Emails({'dad@example.com'}),
       );
       final rows = _parse(
         [
           '$_good,dad@example.com',
-          '${_good.replaceFirst('ADM-1', 'ADM-2').replaceFirst('98765 43210', '90000 11111')},new@example.com',
+          '${_good.replaceFirst('98765 43210', '90000 11111')},new@example.com',
         ].join('\n'),
       ).rows;
       final checked = await importer.flagExistingParentEmails(
@@ -157,14 +156,13 @@ void main() {
 
     test('reports every problem on a row with the sheet line number', () {
       final r = _parse(
-        ',Asha,,,2999-01-01,Robot,Z+,not-mail,12,,,,Grade 9,A,,Ravi,,,Aunt',
+        'Asha,,,2999-01-01,Robot,Z+,not-mail,12,,,,Grade 9,A,,Ravi,,,Aunt',
       );
       final row = r.rows.single;
       expect(row.line, 2);
       expect(row.isValid, isFalse);
       final all = row.errors.join('|');
       for (final s in [
-        'Admission number: is empty',
         'Last name: is empty',
         'Date of birth: "2999-01-01" is in the future',
         'Gender: "Robot" is not recognised',
@@ -180,25 +178,22 @@ void main() {
       }
     });
 
-    test('unknown section and in-file duplicate admission numbers', () {
-      final r = _parse(
-        '$_good\n${_good.replaceFirst(',A,1,', ',Z,2,')}\n$_good',
-      );
+    test('an unknown section is reported on its row', () {
+      final r = _parse('$_good\n${_good.replaceFirst(',A,1,', ',Z,2,')}');
       expect(r.rows[0].isValid, isTrue);
       expect(
         r.rows[1].errors.join(),
         contains('Class Grade 1 has no section named "Z"'),
       );
-      expect(r.rows[2].errors.join(), contains('already used on line 2'));
     });
 
     test('unknown class/section errors list what exists and suggest a fix', () {
       final r = _parse(
         '$_good\n'
-        '${_good.replaceFirst('ADM-1', 'ADM-5').replaceFirst('Grade 1,A', 'Grade1,A')}\n'
-        '${_good.replaceFirst('ADM-1', 'ADM-6').replaceFirst('Grade 1,A', 'Grade 1,C')}\n'
-        '${_good.replaceFirst('ADM-1', 'ADM-7').replaceFirst('Grade 1,A', 'Grade 7,A')}\n'
-        '${_good.replaceFirst('ADM-1', 'ADM-8').replaceFirst('Grade 1,A', 'Grade 2,A')}',
+        '${_good.replaceFirst('Grade 1,A', 'Grade1,A')}\n'
+        '${_good.replaceFirst('Grade 1,A', 'Grade 1,C')}\n'
+        '${_good.replaceFirst('Grade 1,A', 'Grade 7,A')}\n'
+        '${_good.replaceFirst('Grade 1,A', 'Grade 2,A')}',
       );
       final typo = r.rows[1].errors.single;
       expect(typo.column, 'class');
@@ -214,7 +209,7 @@ void main() {
 
       final emptyClass = r.rows[4].errors.single;
       expect(emptyClass.fix, contains('(none set up)'));
-      expect(r.rows[4].who, 'ADM-8 · Asha Kumar');
+      expect(r.rows[4].who, 'Asha Kumar');
     });
 
     test('names match regardless of case and extra spaces', () {
@@ -226,7 +221,7 @@ void main() {
       'a year with no classes still lists every row with a clear reason',
       () {
         final r = parseBulkStudentCsv(
-          '$_header\n$_good\n${_good.replaceFirst('ADM-1', 'ADM-2')}',
+          '$_header\n$_good\n$_good',
           placements: const PlacementLookup({}),
           academicYearName: 'academic year "2026-27"',
           today: _today,
@@ -243,7 +238,7 @@ void main() {
     test('inline edit of one cell or all equal values re-validates', () {
       final csv =
           '$_header\n${_good.replaceFirst('Grade 1', 'Grade9')}\n'
-          '${_good.replaceFirst('ADM-1', 'ADM-2').replaceFirst('Grade 1', 'Grade9')}';
+          '${_good.replaceFirst('Grade 1', 'Grade9')}';
       final fixedOne = editCsvCells(
         csv,
         columnKey: 'class',
@@ -289,7 +284,7 @@ void main() {
     });
 
     test('blank optional cells and missing trailing cells are fine', () {
-      final r = _parse('ADM-2,Bo,,Lee,2014-01-02,m,,,,,,,Grade 1,B');
+      final r = _parse('Bo,,Lee,2014-01-02,m,,,,,,,Grade 1,B');
       expect(r.rows.single.errors, isEmpty);
       expect(r.rows.single.data!.parent, isNull);
       expect(r.rows.single.data!.admissionDate, DateTime(2026, 10, 11));
@@ -298,38 +293,39 @@ void main() {
 
   group('errors csv', () {
     test('keeps original cells and appends the error column', () {
-      final r = _parse(',Asha,,Kumar,2015-06-30,Female,,,,,,,Grade 1,A');
+      final r = _parse('Asha,,Kumar,2015-06-30,Female,,,,,,,Grade 1,A');
       final out = bulkStudentErrorsCsv(r.header, [
-        (row: r.rows.single, error: 'admission_number is required'),
+        (row: r.rows.single, error: 'class is required'),
       ]);
       final table = parseCsv(out);
       expect(table.first.last, 'error');
-      expect(table[1].last, 'admission_number is required');
-      expect(table[1][1], 'Asha');
+      expect(table[1].last, 'class is required');
+      expect(table[1][0], 'Asha');
     });
   });
 
   group('importer', () {
     test('shares one parent per phone; isolates a failing row', () async {
-      final students = _FakeStudents(failAdmission: 'ADM-2');
+      final students = _FakeStudents(failAdmission: 'ADM-0002');
       final parents = _FakeParents();
       final rows = _parse(
         [
           _good,
-          _good.replaceFirst('ADM-1,Asha', 'ADM-2,Bela'),
-          _good.replaceFirst('ADM-1,Asha', 'ADM-3,Chitra'),
+          _good.replaceFirst('Asha', 'Bela'),
+          _good.replaceFirst('Asha', 'Chitra'),
         ].join('\n'),
       ).rows;
 
       final progress = <int>[];
-      final results = await BulkStudentImporter(students, parents).import(
-        schoolId: 's',
-        branchId: 'b',
-        academicYearId: 'y',
-        createdBy: 'u',
-        rows: rows,
-        onProgress: (d, t) => progress.add(d),
-      );
+      final results =
+          await BulkStudentImporter(students, parents, _FakeNumbers()).import(
+            schoolId: 's',
+            branchId: 'b',
+            academicYearId: 'y',
+            createdBy: 'u',
+            rows: rows,
+            onProgress: (d, t) => progress.add(d),
+          );
 
       expect(results.map((r) => r.status), [
         BulkImportStatus.imported,
@@ -363,6 +359,7 @@ void main() {
           await BulkStudentImporter(
             _FakeStudents(),
             _FakeParents(fail: true),
+            _FakeNumbers(),
           ).import(
             schoolId: 's',
             branchId: 'b',
@@ -373,28 +370,48 @@ void main() {
       expect(results.single.status, BulkImportStatus.importedParentFailed);
     });
 
-    test('flags admission numbers that already exist', () async {
-      final rows = _parse(_good).rows;
-      final out = await BulkStudentImporter(
-        _FakeStudents(existing: {'ADM-1'}),
-        _FakeParents(),
-      ).flagExistingAdmissionNumbers(schoolId: 's', branchId: 'b', rows: rows);
-      expect(out.single.isValid, isFalse);
-      expect(
-        out.single.errors.single.message,
-        contains('already belongs to a student'),
-      );
-    });
+    test(
+      'assigns standard admission numbers, continuing after the last',
+      () async {
+        final students = _FakeStudents();
+        final rows = _parse(
+          [_good, _good.replaceFirst('Asha', 'Bela')].join('\n'),
+        ).rows;
+        await BulkStudentImporter(
+          students,
+          _FakeParents(),
+          _FakeNumbers(highest: 1001),
+        ).import(
+          schoolId: 's',
+          branchId: 'b',
+          academicYearId: 'y',
+          createdBy: 'u',
+          rows: rows,
+        );
+        expect(students.admitted, ['ADM-1002', 'ADM-1003']);
+      },
+    );
   });
+}
+
+class _FakeNumbers extends AdmissionNumberSource {
+  final int highest;
+  _FakeNumbers({this.highest = 0});
+
+  @override
+  Future<int> highestSequence({
+    required String schoolId,
+    required String branchId,
+  }) async => highest;
 }
 
 class _FakeStudents implements StudentRepository {
   final String? failAdmission;
-  final Set<String> existing;
   int linked = 0;
   int _n = 0;
+  final admitted = <String>[];
 
-  _FakeStudents({this.failAdmission, this.existing = const {}});
+  _FakeStudents({this.failAdmission});
 
   @override
   Future<String> admitStudent({
@@ -405,6 +422,7 @@ class _FakeStudents implements StudentRepository {
     String? rollNumber,
     required String createdBy,
   }) async {
+    admitted.add(student.admissionNumber);
     if (student.admissionNumber == failAdmission) {
       throw StateError('boom');
     }
@@ -417,7 +435,7 @@ class _FakeStudents implements StudentRepository {
     String branchId,
     String admissionNumber, {
     String? excludingStudentId,
-  }) async => !existing.contains(admissionNumber);
+  }) async => true;
 
   @override
   Future<void> linkParentToStudent({

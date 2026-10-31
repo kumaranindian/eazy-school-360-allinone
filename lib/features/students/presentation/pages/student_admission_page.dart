@@ -17,12 +17,16 @@ import '../../../academic_setup/presentation/providers/academic_structure_provid
 import '../../domain/blood_group.dart';
 import '../../domain/gender.dart';
 import '../../domain/parent.dart';
+import '../../domain/parent_duplicates.dart';
 import '../../domain/relationship_type.dart';
 import '../../domain/admission_outcome.dart';
 import '../../domain/student.dart';
 import '../../domain/student_status.dart';
 import '../providers/parent_providers.dart';
 import '../providers/student_providers.dart';
+import '../widgets/parent_duplicates_dialog.dart';
+import '../../../users/domain/login_provisioning.dart';
+import '../../../users/presentation/widgets/provision_logins_dialog.dart';
 
 enum _ParentMode { skip, existing, newParent }
 
@@ -63,6 +67,12 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
   final _newParentFirstName = TextEditingController();
   final _newParentLastName = TextEditingController();
   final _newParentPhone = TextEditingController();
+  final _newParentEmail = TextEditingController();
+  final _parentFormKey = GlobalKey<FormState>();
+
+  /// Open "Give login access" for the guardian once the student is saved.
+  bool _giveParentLogin = false;
+  bool _checkingParent = false;
   RelationshipType _relationshipType = RelationshipType.guardian;
   bool _isPrimary = true;
   bool _isEmergencyContact = true;
@@ -74,7 +84,33 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
 
   bool _saving = false;
 
+  /// The admission number is generated (`ADM-0001`), never typed. It is
+  /// looked up per branch, and looked up again at save.
+  String? _numberKey;
+  bool _numberFailed = false;
+
   int _parentSearchGeneration = 0;
+
+  Future<void> _loadAdmissionNumber(String schoolId, String branchId) async {
+    final key = '$schoolId/$branchId';
+    _numberKey = key;
+    setState(() {
+      _numberFailed = false;
+      _admissionNumber.clear();
+    });
+    try {
+      final number = await ref
+          .read(admissionNumberSourceProvider)
+          .nextNumber(schoolId: schoolId, branchId: branchId);
+      if (mounted && _numberKey == key) {
+        setState(() => _admissionNumber.text = number);
+      }
+    } catch (_) {
+      if (mounted && _numberKey == key) {
+        setState(() => _numberFailed = true);
+      }
+    }
+  }
 
   Future<void> _searchParents(
     String schoolId,
@@ -108,17 +144,97 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
   bool get _canGoToParentStep =>
       _basicFormKey.currentState?.validate() ?? false;
 
-  bool get _canGoToPlacementStep {
-    if (_parentMode == _ParentMode.existing && _selectedParent == null) {
-      return false;
+  bool get _selectedParentHasLogin =>
+      _parentMode == _ParentMode.existing &&
+      (_selectedParent?.hasPortalAccess ?? false);
+
+  /// Leaving the guardian step: an existing parent must be picked; a new one
+  /// must be valid and must not duplicate a parent already in the branch
+  /// (same email: refused, as in bulk import; same phone: asked).
+  Future<bool> _guardianStepDone(String schoolId, String branchId) async {
+    switch (_parentMode) {
+      case _ParentMode.skip:
+        return true;
+      case _ParentMode.existing:
+        if (_selectedParent != null) return true;
+        context.showSnackBar(
+          'Search for the parent and select them, or choose "Add later".',
+          isError: true,
+        );
+        return false;
+      case _ParentMode.newParent:
+        if (!(_parentFormKey.currentState?.validate() ?? false)) return false;
+        setState(() => _checkingParent = true);
+        List<ParentMatch> matches;
+        try {
+          matches = await ref
+              .read(parentDuplicateFinderProvider)
+              .find(
+                schoolId: schoolId,
+                branchId: branchId,
+                email: _newParentEmail.text,
+                phone: _newParentPhone.text,
+                displayName:
+                    '${_newParentFirstName.text.trim()} '
+                    '${_newParentLastName.text.trim()}',
+              );
+        } catch (error) {
+          if (mounted) {
+            setState(() => _checkingParent = false);
+            context.showSnackBar(
+              'Could not check for an existing parent: '
+              '${userMessageFor(error)}',
+              isError: true,
+            );
+          }
+          return false;
+        }
+        if (!mounted) return false;
+        setState(() => _checkingParent = false);
+        if (matches.isEmpty) return true;
+        final choice = await showParentDuplicatesDialog(
+          context: context,
+          matches: matches,
+        );
+        if (!mounted) return false;
+        switch (choice) {
+          case UseExistingParent(:final parent):
+            setState(() {
+              _parentMode = _ParentMode.existing;
+              _selectedParent = parent;
+              _parentSearchResults = [parent];
+              _parentSearchController.text = parent.displayName;
+              if (parent.hasPortalAccess) _giveParentLogin = false;
+            });
+            return true;
+          case CreateParentAnyway():
+            return true;
+          case null:
+            return false;
+        }
     }
-    if (_parentMode == _ParentMode.newParent &&
-        (_newParentFirstName.text.trim().isEmpty ||
-            _newParentLastName.text.trim().isEmpty ||
-            _newParentPhone.text.trim().isEmpty)) {
-      return false;
+  }
+
+  Future<void> _continue(
+    String schoolId,
+    String branchId,
+    String currentUserId,
+  ) async {
+    if (_step == 0 && !_canGoToParentStep) return;
+    if (_step == 1 && !await _guardianStepDone(schoolId, branchId)) return;
+    if (!mounted) return;
+    if (_step == 2 && !_canReview) {
+      context.showSnackBar(
+        'Please choose an academic year, class, and section.',
+        isError: true,
+      );
+      return;
     }
-    return true;
+    if (_step == 3) {
+      await _save(schoolId, branchId, currentUserId);
+      return;
+    }
+    setState(() => _step += 1);
   }
 
   bool get _canReview =>
@@ -131,11 +247,11 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
   ) async {
     setState(() => _saving = true);
 
-    final student = Student(
+    Student studentWith(String admissionNumber) => Student(
       studentId: '',
       schoolId: schoolId,
       branchId: branchId,
-      admissionNumber: _admissionNumber.text.trim(),
+      admissionNumber: admissionNumber,
       studentCode: '',
       firstName: _firstName.text.trim(),
       middleName: _middleName.text.trim().isEmpty
@@ -155,23 +271,47 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
       status: StudentStatus.active,
     );
 
-    final newStudentId = await ref
-        .read(studentWriteControllerProvider.notifier)
-        .admitStudent(
-          student: student,
-          academicYearId: _academicYearId!,
-          classId: _classId!,
-          sectionId: _sectionId!,
-          rollNumber: _rollNumber.text.trim().isEmpty
-              ? null
-              : _rollNumber.text.trim(),
-          createdBy: currentUserId,
-        );
+    // The next number is read again now: another admin may have used the
+    // one shown. If it is taken between the read and the write, ask again.
+    String? newStudentId;
+    Object? admitError;
+    Student? student;
+    for (var attempt = 0; attempt < 3 && newStudentId == null; attempt++) {
+      admitError = null;
+      try {
+        final number = await ref
+            .read(admissionNumberSourceProvider)
+            .nextNumber(schoolId: schoolId, branchId: branchId);
+        student = studentWith(number);
+        newStudentId = await ref
+            .read(studentWriteControllerProvider.notifier)
+            .admitStudent(
+              student: student,
+              academicYearId: _academicYearId!,
+              classId: _classId!,
+              sectionId: _sectionId!,
+              rollNumber: _rollNumber.text.trim().isEmpty
+                  ? null
+                  : _rollNumber.text.trim(),
+              createdBy: currentUserId,
+            );
+        if (newStudentId == null) {
+          admitError = ref.read(studentWriteControllerProvider).error;
+          if (!userMessageFor(admitError ?? '').contains('already in use')) {
+            break;
+          }
+        }
+      } catch (error) {
+        // Never leave the spinner running on an unexpected failure.
+        admitError = error;
+        break;
+      }
+    }
 
     if (newStudentId == null) {
       if (!mounted) return;
       setState(() => _saving = false);
-      final error = ref.read(studentWriteControllerProvider).error;
+      final error = admitError;
       context.showSnackBar(
         error == null ? 'Unable to admit this student.' : userMessageFor(error),
         isError: true,
@@ -181,56 +321,101 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
 
     var guardianLinked = true;
     Object? guardianError;
+    String? parentId;
     if (_parentMode != _ParentMode.skip) {
-      var parentId = _selectedParent?.parentId;
-      if (_parentMode == _ParentMode.newParent) {
-        final newParent = Parent(
-          parentId: '',
-          schoolId: schoolId,
-          branchId: branchId,
-          firstName: _newParentFirstName.text.trim(),
-          lastName: _newParentLastName.text.trim(),
-          phone: _newParentPhone.text.trim(),
-          status: ActivationStatus.active,
-        );
-        parentId = await ref
-            .read(parentWriteControllerProvider.notifier)
-            .createParent(newParent, createdBy: currentUserId);
-        if (parentId == null) {
-          guardianLinked = false;
-          guardianError = ref.read(parentWriteControllerProvider).error;
+      try {
+        parentId = _selectedParent?.parentId;
+        if (_parentMode == _ParentMode.newParent) {
+          final newParent = Parent(
+            parentId: '',
+            schoolId: schoolId,
+            branchId: branchId,
+            firstName: _newParentFirstName.text.trim(),
+            lastName: _newParentLastName.text.trim(),
+            phone: _newParentPhone.text.trim(),
+            // Lowercase, as bulk import saves it: it becomes the sign-in email.
+            email: ParentContact.normalizeEmail(_newParentEmail.text),
+            status: ActivationStatus.active,
+          );
+          parentId = await ref
+              .read(parentWriteControllerProvider.notifier)
+              .createParent(newParent, createdBy: currentUserId);
+          if (parentId == null) {
+            guardianLinked = false;
+            guardianError = ref.read(parentWriteControllerProvider).error;
+          }
         }
-      }
-      if (parentId != null) {
-        guardianLinked = await ref
-            .read(studentWriteControllerProvider.notifier)
-            .linkParent(
-              schoolId: schoolId,
-              branchId: branchId,
-              studentId: newStudentId,
-              parentId: parentId,
-              relationshipType: _relationshipType,
-              isPrimary: _isPrimary,
-              isEmergencyContact: _isEmergencyContact,
-              createdBy: currentUserId,
-            );
-        if (!guardianLinked) {
-          guardianError = ref.read(studentWriteControllerProvider).error;
+        if (parentId != null) {
+          guardianLinked = await ref
+              .read(studentWriteControllerProvider.notifier)
+              .linkParent(
+                schoolId: schoolId,
+                branchId: branchId,
+                studentId: newStudentId,
+                parentId: parentId,
+                relationshipType: _relationshipType,
+                isPrimary: _isPrimary,
+                isEmergencyContact: _isEmergencyContact,
+                // A parent who already signs in (another child) must see this
+                // child too; a login given below turns it on anyway.
+                canAccessPortal: _selectedParentHasLogin || _giveParentLogin,
+                createdBy: currentUserId,
+              );
+          if (!guardianLinked) {
+            guardianError = ref.read(studentWriteControllerProvider).error;
+          }
         }
+      } catch (error) {
+        // The student is already saved; report the guardian step as not
+        // done instead of hanging or skipping the message.
+        guardianLinked = false;
+        guardianError = error;
       }
     }
 
     if (!mounted) return;
+
+    // Same path as after a bulk import (Parents → Give login access): the
+    // server creates or maps the account; nothing privileged runs here.
+    var loginNote = '';
+    if (guardianLinked && parentId != null && _giveParentLogin) {
+      final given = await showProvisionLoginsDialog(
+        context: context,
+        schoolId: schoolId,
+        branchId: branchId,
+        kind: LoginKind.parent,
+        people: [
+          (
+            id: parentId,
+            name: _parentMode == _ParentMode.newParent
+                ? '${_newParentFirstName.text.trim()} '
+                      '${_newParentLastName.text.trim()}'
+                : _selectedParent!.displayName,
+            email: _parentMode == _ParentMode.newParent
+                ? ParentContact.normalizeEmail(_newParentEmail.text)
+                : _selectedParent!.email,
+          ),
+        ],
+      );
+      if (!mounted) return;
+      if (given != true) {
+        loginNote =
+            ' No parent login was given; you can give it later from Parents '
+            '(key icon).';
+      }
+    }
+
     // The student exists either way; say so, and say plainly when the
     // guardian is not linked yet (UI-1) - the profile page can link one.
     context.showSnackBar(
       AdmissionOutcome.message(
-        studentName: '${student.firstName} ${student.lastName}',
-        guardianLinked: guardianLinked,
-        guardianError: guardianError == null
-            ? null
-            : userMessageFor(guardianError),
-      ),
+            studentName: '${student!.firstName} ${student.lastName}',
+            guardianLinked: guardianLinked,
+            guardianError: guardianError == null
+                ? null
+                : userMessageFor(guardianError),
+          ) +
+          loginNote,
       isError: !guardianLinked,
     );
     context.go('/students/$newStudentId');
@@ -251,6 +436,7 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
       _newParentFirstName,
       _newParentLastName,
       _newParentPhone,
+      _newParentEmail,
       _rollNumber,
     ]) {
       c.dispose();
@@ -261,6 +447,11 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
   @override
   Widget build(BuildContext context) {
     final tenantState = ref.watch(tenantContextProvider);
+    // Both write controllers are auto-dispose and are only `read` in _save:
+    // without a listener Riverpod disposes them while a write is in flight
+    // and the save fails with an unmounted-ref error. Keep them alive here.
+    ref.watch(studentWriteControllerProvider);
+    ref.watch(parentWriteControllerProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Admit student')),
@@ -275,6 +466,11 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
           }
           final schoolId = tenant!.school!.schoolId;
           final branchId = tenant.branch!.branchId;
+          if (_numberKey != '$schoolId/$branchId') {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _loadAdmissionNumber(schoolId, branchId);
+            });
+          }
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -291,29 +487,8 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
               Expanded(
                 child: Stepper(
                   currentStep: _step,
-                  onStepContinue: () {
-                    if (_step == 0 && !_canGoToParentStep) return;
-                    if (_step == 1 && !_canGoToParentStep) return;
-                    if (_step == 1 && !_canGoToPlacementStep) {
-                      context.showSnackBar(
-                        'Please complete the parent details or choose to skip.',
-                        isError: true,
-                      );
-                      return;
-                    }
-                    if (_step == 2 && !_canReview) {
-                      context.showSnackBar(
-                        'Please choose an academic year, class, and section.',
-                        isError: true,
-                      );
-                      return;
-                    }
-                    if (_step == 3) {
-                      _save(schoolId, branchId, tenant.user.userId);
-                      return;
-                    }
-                    setState(() => _step += 1);
-                  },
+                  onStepContinue: () =>
+                      _continue(schoolId, branchId, tenant.user.userId),
                   onStepCancel: _step == 0
                       ? null
                       : () => setState(() => _step -= 1),
@@ -322,8 +497,10 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
                     child: Row(
                       children: [
                         FilledButton(
-                          onPressed: _saving ? null : details.onStepContinue,
-                          child: _saving
+                          onPressed: _saving || _checkingParent
+                              ? null
+                              : details.onStepContinue,
+                          child: _saving || _checkingParent
                               ? const SizedBox(
                                   height: 18,
                                   width: 18,
@@ -384,14 +561,30 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
                             const SizedBox(height: AppSpacing.sm),
                             TextFormField(
                               controller: _admissionNumber,
-                              decoration: const InputDecoration(
+                              readOnly: true,
+                              decoration: InputDecoration(
                                 labelText: 'Admission number',
-                                hintText: 'e.g. ADM-2026-001',
+                                helperText: _numberFailed
+                                    ? null
+                                    : 'Generated automatically',
+                                errorText: _numberFailed
+                                    ? 'Could not generate the number.'
+                                    : null,
+                                suffixIcon: _numberFailed
+                                    ? IconButton(
+                                        tooltip: 'Try again',
+                                        icon: const Icon(Icons.refresh),
+                                        onPressed: () => _loadAdmissionNumber(
+                                          schoolId,
+                                          branchId,
+                                        ),
+                                      )
+                                    : const Icon(Icons.lock_outline),
                               ),
-                              validator: (v) => Validators.required(
-                                v,
-                                fieldName: 'Admission number',
-                              ),
+                              validator: (v) => (v ?? '').trim().isEmpty
+                                  ? 'The admission number is still being '
+                                        'generated.'
+                                  : null,
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             OutlinedButton(
@@ -545,32 +738,70 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
                                 onChanged: (p) =>
                                     setState(() => _selectedParent = p),
                                 title: Text(parent.displayName),
-                                subtitle: Text(parent.phone),
+                                subtitle: Text(
+                                  [
+                                    if (parent.phone.isNotEmpty) parent.phone,
+                                    if (parent.email != null) parent.email!,
+                                    if (parent.hasPortalAccess) 'Has login',
+                                  ].join(' · '),
+                                ),
                               ),
                           ],
-                          if (_parentMode == _ParentMode.newParent) ...[
-                            TextField(
-                              controller: _newParentFirstName,
-                              decoration: const InputDecoration(
-                                labelText: 'First name',
+                          if (_parentMode == _ParentMode.newParent)
+                            Form(
+                              key: _parentFormKey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  TextFormField(
+                                    controller: _newParentFirstName,
+                                    decoration: const InputDecoration(
+                                      labelText: 'First name',
+                                    ),
+                                    validator: (v) => Validators.required(
+                                      v,
+                                      fieldName: 'First name',
+                                    ),
+                                  ),
+                                  const SizedBox(height: AppSpacing.sm),
+                                  TextFormField(
+                                    controller: _newParentLastName,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Last name',
+                                    ),
+                                    validator: (v) => Validators.required(
+                                      v,
+                                      fieldName: 'Last name',
+                                    ),
+                                  ),
+                                  const SizedBox(height: AppSpacing.sm),
+                                  TextFormField(
+                                    controller: _newParentPhone,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Phone',
+                                    ),
+                                    keyboardType: TextInputType.phone,
+                                    validator: (v) =>
+                                        Validators.phone(v, required: true),
+                                  ),
+                                  const SizedBox(height: AppSpacing.sm),
+                                  TextFormField(
+                                    controller: _newParentEmail,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Email (optional)',
+                                      helperText:
+                                          'Needed for a parent login. One '
+                                          'email per parent.',
+                                      helperMaxLines: 3,
+                                    ),
+                                    keyboardType: TextInputType.emailAddress,
+                                    validator: (v) => (v ?? '').trim().isEmpty
+                                        ? null
+                                        : Validators.email(v),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(height: AppSpacing.sm),
-                            TextField(
-                              controller: _newParentLastName,
-                              decoration: const InputDecoration(
-                                labelText: 'Last name',
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            TextField(
-                              controller: _newParentPhone,
-                              decoration: const InputDecoration(
-                                labelText: 'Phone',
-                              ),
-                              keyboardType: TextInputType.phone,
-                            ),
-                          ],
                           if (_parentMode != _ParentMode.skip) ...[
                             const SizedBox(height: AppSpacing.sm),
                             DropdownButtonFormField<RelationshipType>(
@@ -606,6 +837,33 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
                               title: const Text('Emergency contact'),
                               controlAffinity: ListTileControlAffinity.leading,
                             ),
+                            if (_selectedParentHasLogin)
+                              const ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(Icons.verified_user_outlined),
+                                title: Text(
+                                  'This parent already has a login. They '
+                                  'will see this child in the parent app; '
+                                  'no new login is needed.',
+                                ),
+                              )
+                            else
+                              CheckboxListTile(
+                                value: _giveParentLogin,
+                                onChanged: (v) => setState(
+                                  () => _giveParentLogin = v ?? false,
+                                ),
+                                title: const Text(
+                                  'Give this parent a login after admission',
+                                ),
+                                subtitle: const Text(
+                                  'You choose how the first password is set. '
+                                  'Needs an email; you can also do this later '
+                                  'from Parents.',
+                                ),
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                              ),
                           ],
                         ],
                       ),
@@ -773,6 +1031,14 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
                                 ? (_selectedParent?.displayName ?? '—')
                                 : '${_newParentFirstName.text} ${_newParentLastName.text}'}',
                           ),
+                          if (_parentMode != _ParentMode.skip)
+                            Text(
+                              'Parent login: ${_selectedParentHasLogin
+                                  ? 'already has one'
+                                  : _giveParentLogin
+                                  ? 'will be set up after admission'
+                                  : 'not now (can be given later from Parents)'}',
+                            ),
                           const SizedBox(height: AppSpacing.sm),
                           const Text(
                             'Review the details above, then admit this student.',

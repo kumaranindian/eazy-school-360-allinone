@@ -1,6 +1,7 @@
 import '../../../core/constants/activation_status.dart';
 import '../../../core/errors/error_mapper.dart';
 import '../../../core/logging/app_logger.dart';
+import '../domain/admission_number_format.dart';
 import '../domain/bulk_student_import.dart';
 import '../../users/domain/email_lookup.dart';
 import '../domain/parent.dart';
@@ -27,9 +28,15 @@ class BulkStudentImporter {
   final StudentRepository _students;
   final ParentRepository _parents;
 
+  final AdmissionNumberSource _numbers;
   final EmailLookup? _emails;
 
-  BulkStudentImporter(this._students, this._parents, [this._emails]);
+  BulkStudentImporter(
+    this._students,
+    this._parents,
+    this._numbers, [
+    this._emails,
+  ]);
 
   /// Preview-time check: a parent email that already belongs to a parent
   /// record is flagged instead of silently creating a second record for the
@@ -87,75 +94,6 @@ class BulkStudentImporter {
     return out;
   }
 
-  /// Preview-time check: marks valid rows whose admission number already
-  /// exists in the branch. Returns the same rows with extra errors.
-  Future<List<BulkStudentRow>> flagExistingAdmissionNumbers({
-    required String schoolId,
-    required String branchId,
-    required List<BulkStudentRow> rows,
-    void Function(int done, int total)? onProgress,
-
-    /// admission number -> available?, kept by the caller across re-checks
-    /// so an inline fix only queries the numbers it changed.
-    Map<String, bool>? cache,
-  }) async {
-    final out = <BulkStudentRow>[];
-    for (var i = 0; i < rows.length; i++) {
-      final r = rows[i];
-      if (!r.isValid) {
-        out.add(r);
-      } else {
-        try {
-          final number = r.data!.admissionNumber;
-          final free =
-              cache?[number] ??
-              await _students.isAdmissionNumberAvailable(
-                schoolId,
-                branchId,
-                number,
-              );
-          cache?[number] = free;
-          out.add(
-            free
-                ? r
-                : r.withErrors([
-                    BulkCellError(
-                      column: 'admission_number',
-                      label: 'Admission number',
-                      value: r.data!.admissionNumber,
-                      message:
-                          '"${r.data!.admissionNumber}" already belongs to a student in this branch.',
-                      fix:
-                          'Use a different admission number, or delete this row if the student is already admitted.',
-                    ),
-                  ]),
-          );
-        } catch (error, stackTrace) {
-          AppLogger.error(
-            'Bulk import: admission-number check failed (line ${r.line})',
-            tag: 'BulkImport',
-            error: error,
-            stackTrace: stackTrace,
-          );
-          out.add(
-            r.withErrors([
-              BulkCellError(
-                column: 'admission_number',
-                label: 'Admission number',
-                value: r.data!.admissionNumber,
-                message: 'could not be checked against existing students.',
-                fix:
-                    'Check your connection and upload again (${userMessageFor(error)}).',
-              ),
-            ]),
-          );
-        }
-      }
-      onProgress?.call(i + 1, rows.length);
-    }
-    return out;
-  }
-
   Future<List<BulkImportRowResult>> import({
     required String schoolId,
     required String branchId,
@@ -169,6 +107,22 @@ class BulkStudentImporter {
     final parentIds = <String, String>{};
     final todo = rows.where((r) => r.isValid).toList();
 
+    // Admission numbers are assigned here, in the same `ADM-0001` series as
+    // a single admission: the highest one is read once, then counted up
+    // locally. If another admin takes one meanwhile the admission is refused
+    // as "already in use" and the count is read again.
+    int? last;
+    Future<String> nextNumber({bool reread = false}) async {
+      if (reread || last == null) {
+        last = await _numbers.highestSequence(
+          schoolId: schoolId,
+          branchId: branchId,
+        );
+      }
+      last = last! + 1;
+      return AdmissionNumberFormat.format(last!);
+    }
+
     AppLogger.debug(
       'Bulk import: start rows=${todo.length} year=$academicYearId',
       tag: 'BulkImport',
@@ -179,12 +133,12 @@ class BulkStudentImporter {
       final d = row.data!;
       String? studentId;
       try {
-        studentId = await _students.admitStudent(
+        Future<String> admit(String number) => _students.admitStudent(
           student: Student(
             studentId: '',
             schoolId: schoolId,
             branchId: branchId,
-            admissionNumber: d.admissionNumber,
+            admissionNumber: number,
             studentCode: '',
             firstName: d.firstName,
             middleName: d.middleName,
@@ -205,6 +159,16 @@ class BulkStudentImporter {
           rollNumber: d.rollNumber,
           createdBy: createdBy,
         );
+        for (var attempt = 0; studentId == null; attempt++) {
+          try {
+            studentId = await admit(await nextNumber(reread: attempt > 0));
+          } catch (error) {
+            if (attempt >= 2 ||
+                !userMessageFor(error).contains('already in use')) {
+              rethrow;
+            }
+          }
+        }
       } catch (error, stackTrace) {
         AppLogger.error(
           'Bulk import: admit failed (line ${row.line})',

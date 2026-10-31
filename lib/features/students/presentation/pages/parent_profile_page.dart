@@ -69,15 +69,16 @@ class ParentProfilePage extends ConsumerWidget {
                         IconButton(
                           icon: const Icon(Icons.edit_outlined),
                           tooltip: 'Edit',
-                          onPressed: () => showAdaptiveAppDialog<bool>(
-                            context: context,
-                            builder: (context) => ParentFormDialog(
-                              schoolId: schoolId,
-                              branchId: branchId,
-                              currentUserId: tenant.user.userId,
-                              existing: parent,
-                            ),
-                          ),
+                          onPressed: () =>
+                              showAdaptiveAppDialog<ParentFormResult>(
+                                context: context,
+                                builder: (context) => ParentFormDialog(
+                                  schoolId: schoolId,
+                                  branchId: branchId,
+                                  currentUserId: tenant.user.userId,
+                                  existing: parent,
+                                ),
+                              ),
                         ),
                       ]
                     : null,

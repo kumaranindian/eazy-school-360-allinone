@@ -9,6 +9,7 @@ import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/permissions/user_role.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../../../core/errors/app_failure.dart';
+import '../../../../shared/dialogs/app_dialog.dart';
 import '../../domain/login_provisioning.dart';
 import '../../domain/resilient_batches.dart';
 import '../providers/login_provisioning_providers.dart';
@@ -16,6 +17,28 @@ import 'password_setup_picker.dart';
 
 /// One person to give a login to, as the list pages know them.
 typedef LoginCandidate = ({String id, String name, String? email});
+
+/// Opens [ProvisionLoginsDialog] (it cannot be dismissed mid-run). True
+/// when the admin closed it with "Done" after a run; null when they
+/// cancelled before giving any login.
+Future<bool?> showProvisionLoginsDialog({
+  required BuildContext context,
+  required String schoolId,
+  required String branchId,
+  required LoginKind kind,
+  required List<LoginCandidate> people,
+  bool canGrantBranchAdmin = false,
+}) => showAdaptiveAppDialog<bool>(
+  context: context,
+  barrierDismissible: false,
+  builder: (_) => ProvisionLoginsDialog(
+    schoolId: schoolId,
+    branchId: branchId,
+    kind: kind,
+    people: people,
+    canGrantBranchAdmin: canGrantBranchAdmin,
+  ),
+);
 
 /// Confirms, runs and reports "give login access" for one or many staff or
 /// parents. Each person ends up with their own outcome; nobody is changed
@@ -282,6 +305,39 @@ class _ProvisionLoginsDialogState extends ConsumerState<ProvisionLoginsDialog> {
     );
   }
 
+  /// One person (e.g. a parent added from the admission form): say exactly
+  /// how they sign in. A temporary password is never put on screen; it is
+  /// only in the one-time CSV download below.
+  Widget _signInDetails(ThemeData theme, ProvisionResult r) {
+    final how = r.tempPassword != null || r.passwordSet
+        ? 'They sign in with this email and the temporary password '
+              '(download it below if it was generated), then must choose a '
+              'new password.'
+        : _option.sendsEmail
+        ? 'They set their own password from the emailed link (or "Forgot '
+              'password" on the sign-in page).'
+        : 'They sign in with this email.';
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Sign-in details', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 4),
+              if (r.email != null) SelectableText('Sign-in email: ${r.email}'),
+              const SizedBox(height: 4),
+              Text(how, style: theme.textTheme.bodySmall),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _passwordSection() => PasswordSetupPicker(
     heading: 'How should the first password be set?',
     option: _option,
@@ -401,6 +457,10 @@ class _ProvisionLoginsDialogState extends ConsumerState<ProvisionLoginsDialog> {
                 ],
               ),
             ),
+          if (results.length == 1 &&
+              (results.single.outcome == ProvisionOutcome.created ||
+                  results.single.outcome == ProvisionOutcome.emailUpdated))
+            _signInDetails(theme, results.single),
           if (temps.isNotEmpty) ...[
             const SizedBox(height: 12),
             Text(

@@ -10,6 +10,7 @@ import '../../domain/parent.dart';
 import '../../domain/relationship_type.dart';
 import '../providers/parent_providers.dart';
 import '../providers/student_providers.dart';
+import 'parent_duplicates_dialog.dart';
 
 /// Links a parent/guardian to a student (brief §9) — either an existing
 /// parent record (searched by name) or a newly-created one, then sets the
@@ -96,6 +97,53 @@ class _LinkParentDialogState extends ConsumerState<LinkParentDialog> {
 
     if (_isNewParent) {
       if (!(_formKey.currentState?.validate() ?? false)) return;
+      // Same check as admission and "Add parent": one person, one record.
+      try {
+        final matches = await ref
+            .read(parentDuplicateFinderProvider)
+            .find(
+              schoolId: widget.schoolId,
+              branchId: widget.branchId,
+              email: null,
+              phone: _phone.text,
+              displayName: '${_firstName.text.trim()} ${_lastName.text.trim()}',
+            );
+        if (!mounted) return;
+        if (matches.isNotEmpty) {
+          final choice = await showParentDuplicatesDialog(
+            context: context,
+            matches: matches,
+          );
+          if (!mounted) return;
+          switch (choice) {
+            case UseExistingParent(:final parent):
+              if (widget.alreadyLinkedParentIds.contains(parent.parentId)) {
+                context.showSnackBar(
+                  '${parent.displayName} is already linked to this student.',
+                );
+                return;
+              }
+              setState(() {
+                _isNewParent = false;
+                _selected = parent;
+                _searchResults = [parent];
+                if (parent.hasPortalAccess) _canAccessPortal = true;
+              });
+              return;
+            case CreateParentAnyway():
+              break;
+            case null:
+              return;
+          }
+        }
+      } catch (error) {
+        if (!mounted) return;
+        context.showSnackBar(
+          'Could not check for an existing parent: ${userMessageFor(error)}',
+          isError: true,
+        );
+        return;
+      }
       final newParent = Parent(
         parentId: '',
         schoolId: widget.schoolId,
@@ -226,7 +274,14 @@ class _LinkParentDialogState extends ConsumerState<LinkParentDialog> {
                       RadioListTile<Parent>(
                         value: parent,
                         groupValue: _selected,
-                        onChanged: (p) => setState(() => _selected = p),
+                        // A parent who already signs in (for a sibling)
+                        // should see this child too; still untickable.
+                        onChanged: (p) => setState(() {
+                          _selected = p;
+                          if (p?.hasPortalAccess ?? false) {
+                            _canAccessPortal = true;
+                          }
+                        }),
                         title: Text(parent.displayName),
                         subtitle: Text(parent.phone),
                         dense: true,

@@ -46,7 +46,6 @@ class _StudentBulkImportPageState extends ConsumerState<StudentBulkImportPage> {
   BulkStudentParseResult? _parsed;
   List<BulkStudentRow> _rows = const [];
   List<BulkImportRowResult>? _results;
-  final Map<String, bool> _availability = {};
   final Map<String, bool> _parentEmailInUse = {};
 
   bool _checking = false;
@@ -121,7 +120,6 @@ class _StudentBulkImportPageState extends ConsumerState<StudentBulkImportPage> {
       _parsed = null;
       _rows = const [];
       _results = null;
-      _availability.clear();
       _parentEmailInUse.clear();
     });
   }
@@ -178,19 +176,6 @@ class _StudentBulkImportPageState extends ConsumerState<StudentBulkImportPage> {
       );
       var rows = parsed.rows;
       if (parsed.fileError == null) {
-        rows = await _importer().flagExistingAdmissionNumbers(
-          schoolId: schoolId,
-          branchId: branchId,
-          rows: rows,
-          cache: _availability,
-          onProgress: (d, t) {
-            if (!mounted) return;
-            setState(() {
-              _progressDone = d;
-              _progressTotal = t;
-            });
-          },
-        );
         rows = await _importer().flagExistingParentEmails(
           schoolId: schoolId,
           branchId: branchId,
@@ -224,6 +209,7 @@ class _StudentBulkImportPageState extends ConsumerState<StudentBulkImportPage> {
   BulkStudentImporter _importer() => BulkStudentImporter(
     ref.read(studentRepositoryProvider),
     ref.read(parentRepositoryProvider),
+    ref.read(admissionNumberSourceProvider),
     ref.read(emailLookupProvider),
   );
 
@@ -947,9 +933,9 @@ class _ResultCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.xs),
             const Text(
               'Fix the rows marked "Not imported" in your sheet (keep only '
-              'those rows if you like) and upload the corrected file — '
-              'already imported students are detected by admission number '
-              'and cannot be added twice.',
+              'those rows only) and upload the corrected file. Do not upload '
+              'rows that were already imported: admission numbers are '
+              'assigned automatically, so they would be added a second time.',
             ),
             const SizedBox(height: AppSpacing.sm),
             Wrap(
