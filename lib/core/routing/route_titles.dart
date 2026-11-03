@@ -26,6 +26,7 @@ String? screenTitleForPath(String path) {
 }
 
 const Map<String, String> _titles = {
+  AppRoutes.dashboardMore: 'More Tools',
   AppRoutes.school: 'School Profile',
   AppRoutes.settings: 'School Settings',
   AppRoutes.students: 'Students',

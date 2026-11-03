@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../shared/dashboard/home_widgets.dart' show HomePanel;
 import '../../../../shared/layouts/hub_layout.dart' show HubBadge;
 import '../../domain/fee_dates.dart';
 import '../../domain/fee_enums.dart';
@@ -153,42 +154,28 @@ class MetricCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: 220,
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        child: DecoratedBox(
-          // Brand accent bar: the figure's own colour, else the primary.
-          decoration: BoxDecoration(
-            border: Border(
-              left: BorderSide(
-                color: color ?? Theme.of(context).colorScheme.primary,
-                width: 4,
-              ),
+      child: HomePanel(
+        accent: color ?? Theme.of(context).colorScheme.primary,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(color: color),
             ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: Theme.of(context).textTheme.bodySmall),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(color: color),
+            if (hint != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  hint!,
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
-                if (hint != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      hint!,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-              ],
-            ),
-          ),
+              ),
+          ],
         ),
       ),
     );

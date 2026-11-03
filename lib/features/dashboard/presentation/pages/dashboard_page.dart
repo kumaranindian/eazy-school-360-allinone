@@ -8,11 +8,11 @@ import '../../../../core/tenant/tenant_context.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../shared/branding/school_brand_logo.dart';
-import '../../../../shared/branding/page_hero.dart';
+import '../../../../shared/dashboard/home_widgets.dart';
 import '../../../../shared/layouts/hub_layout.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../widgets/parent_home_summary.dart';
+import '../widgets/staff_home.dart';
 
 /// One shortcut on the dashboard.
 ///
@@ -269,6 +269,87 @@ const _sections = [
   ]),
 ];
 
+bool _isAdmin(UserRole role) =>
+    role == UserRole.platformAdmin ||
+    role == UserRole.schoolAdmin ||
+    role == UserRole.branchAdmin;
+
+bool _visible(TenantContext tenant, _Shortcut item) {
+  if (item.adminsOnly && !_isAdmin(tenant.role)) return false;
+  final path = item.path;
+  if (path == null) return true;
+  return _canOpen(tenant, path);
+}
+
+bool _canOpen(TenantContext tenant, String path) {
+  final needed = AppRoutes.requiredPermissions[path];
+  return needed == null || tenant.can(needed);
+}
+
+/// The shortcut groups this role may see, empty groups dropped.
+List<(_Section, List<_Shortcut>)> _groupsFor(TenantContext tenant) => [
+  for (final section in _sections)
+    (
+      section,
+      [
+        for (final item in section.items)
+          if (_visible(tenant, item)) item,
+      ],
+    ),
+].where((g) => g.$2.isNotEmpty).toList();
+
+Widget _hubGroup(
+  BuildContext context,
+  _Section section,
+  List<_Shortcut> items,
+) => HubGroup(
+  title: section.title,
+  subtitle: section.subtitle,
+  tiles: [for (final item in items) _tile(context, item)],
+);
+
+Widget _tile(BuildContext context, _Shortcut item) {
+  if (item.comingSoon) {
+    return HubTile(
+      icon: item.icon,
+      title: item.label,
+      description: item.hint,
+      accent: item.accent,
+      comingSoon: true,
+      onTap: () => _comingSoon(context, item.label),
+    );
+  }
+  return HubTile(
+    icon: item.icon,
+    title: item.label,
+    description: item.hint,
+    accent: item.accent,
+    onTap: () => context.go(item.path!),
+  );
+}
+
+void _comingSoon(BuildContext context, String label) =>
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text('$label is coming soon.')));
+
+/// Page body: content centred to a readable width with the standard gutter.
+class _HomeScroll extends StatelessWidget {
+  final List<Widget> children;
+  const _HomeScroll({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      ),
+    );
+  }
+}
+
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
 
@@ -285,100 +366,75 @@ class DashboardPage extends ConsumerWidget {
           // while that redirect takes effect.
           return const SizedBox.shrink();
         }
+        final phone = MediaQuery.sizeOf(context).width < 600;
+        final isParent = tenant.role == UserRole.parent;
+        final place = [
+          tenant.school?.name,
+          tenant.branch?.name,
+        ].whereType<String>().where((e) => e.isNotEmpty).join(' · ');
 
-        final groups = <(_Section, List<_Shortcut>)>[
-          for (final section in _sections)
-            (
-              section,
-              [
-                for (final item in section.items)
-                  if (_visible(tenant, item)) item,
-              ],
-            ),
-        ].where((g) => g.$2.isNotEmpty).toList();
+        final banner = WelcomeBanner(
+          name: isParent ? tenant.user.name : tenant.user.name,
+          roleLabel: tenant.role.displayName,
+          subtitle: isParent || place.isEmpty ? null : place,
+        );
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _Hero(tenant: tenant),
-              if (tenant.role == UserRole.parent) ...[
-                const SizedBox(height: AppSpacing.md),
-                ParentHomeSummary(tenant: tenant),
-              ],
-              for (final (section, items) in groups) ...[
-                const SizedBox(height: AppSpacing.md),
-                HubGroup(
-                  title: section.title,
-                  subtitle: section.subtitle,
-                  tiles: [for (final item in items) _tile(context, item)],
-                ),
-              ],
-              const SizedBox(height: AppSpacing.md),
+        // On a phone every module lives under the More tab, as in the
+        // design; wider screens keep the full grouped list under the home
+        // cards, since there is room and no extra tap.
+        final groups = phone
+            ? const <(_Section, List<_Shortcut>)>[]
+            : _groupsFor(tenant);
+
+        final home = isParent
+            ? ParentHome(tenant: tenant, banner: banner)
+            : StaffHome(tenant: tenant, banner: banner);
+
+        return _HomeScroll(
+          children: [
+            home,
+            for (final (section, items) in groups) ...[
+              const SizedBox(height: AppSpacing.lg),
+              _hubGroup(context, section, items),
             ],
-          ),
+            const SizedBox(height: AppSpacing.md),
+          ],
         );
       },
     );
   }
-
-  static bool _visible(TenantContext tenant, _Shortcut item) {
-    if (item.adminsOnly && !_isAdmin(tenant.role)) return false;
-    final path = item.path;
-    if (path == null) return true;
-    final needed = AppRoutes.requiredPermissions[path];
-    return needed == null || tenant.can(needed);
-  }
-
-  static bool _isAdmin(UserRole role) =>
-      role == UserRole.platformAdmin ||
-      role == UserRole.schoolAdmin ||
-      role == UserRole.branchAdmin;
-
-  static Widget _tile(BuildContext context, _Shortcut item) {
-    if (item.comingSoon) {
-      return HubTile(
-        icon: item.icon,
-        title: item.label,
-        description: item.hint,
-        accent: item.accent,
-        comingSoon: true,
-        onTap: () => ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(content: Text('${item.label} is coming soon.')),
-          ),
-      );
-    }
-    return HubTile(
-      icon: item.icon,
-      title: item.label,
-      description: item.hint,
-      accent: item.accent,
-      onTap: () => context.go(item.path!),
-    );
-  }
 }
 
-class _Hero extends StatelessWidget {
-  final TenantContext tenant;
-  const _Hero({required this.tenant});
+/// The phone's "More" tab: every module the role may open, grouped as in the
+/// Settings hub, plus the planned modules.
+class MoreToolsPage extends ConsumerWidget {
+  const MoreToolsPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final place = [
-      tenant.school?.name,
-      tenant.branch?.name,
-    ].whereType<String>().where((e) => e.isNotEmpty).join(' · ');
-
-    return PageHero(
-      title: 'Welcome, ${tenant.user.name}',
-      pills: [
-        HeroPill(tenant.role.displayName, filled: true),
-        if (place.isNotEmpty) HeroPill(place),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tenant = ref.watch(tenantContextProvider).value;
+    if (tenant == null) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    return _HomeScroll(
+      children: [
+        Text(
+          'More Tools',
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        Text(
+          'Manage school operations and settings',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        for (final (section, items) in _groupsFor(tenant)) ...[
+          const SizedBox(height: AppSpacing.lg),
+          _hubGroup(context, section, items),
+        ],
+        const SizedBox(height: AppSpacing.md),
       ],
-      trailing: const SchoolEmblem(size: 56),
     );
   }
 }

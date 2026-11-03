@@ -7,7 +7,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/permissions/permission.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../shared/dashboard/home_widgets.dart';
 import '../../../../shared/layouts/hub_layout.dart';
 import '../../domain/leave_enums.dart';
 import '../providers/leave_providers.dart';
@@ -64,40 +66,35 @@ class _Hub extends ConsumerWidget {
     ) {
       return SizedBox(
         width: 240,
-        child: Card(
-          margin: EdgeInsets.zero,
-          child: InkWell(
-            onTap: () => context.go(
-              '/leave/applications?kind=${kind.wireValue}&status=PENDING',
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: Row(
-                children: [
-                  Icon(icon, size: 32),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        value.when(
-                          loading: () => const SizedBox(
-                            height: 28,
-                            width: 28,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          error: (e, _) =>
-                              Text('—', style: theme.textTheme.headlineSmall),
-                          data: (n) =>
-                              Text('$n', style: theme.textTheme.headlineSmall),
-                        ),
-                        Text(label, style: theme.textTheme.bodySmall),
-                      ],
+        child: HomePanel(
+          accent: AppColors.gold,
+          onTap: () => context.go(
+            '/leave/applications?kind=${kind.wireValue}&status=PENDING',
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 32, color: AppColors.gold),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    value.when(
+                      loading: () => const SizedBox(
+                        height: 28,
+                        width: 28,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      error: (e, _) =>
+                          Text('—', style: theme.textTheme.headlineSmall),
+                      data: (n) =>
+                          Text('$n', style: theme.textTheme.headlineSmall),
                     ),
-                  ),
-                ],
+                    Text(label, style: theme.textTheme.bodySmall),
+                  ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       );

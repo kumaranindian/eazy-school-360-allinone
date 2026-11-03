@@ -172,4 +172,40 @@ void main() {
       });
     }
   }
+
+  for (final role in [
+    UserRole.schoolAdmin,
+    UserRole.parent,
+    UserRole.teacher,
+  ]) {
+    for (final (name, size) in [
+      ('small phone', const Size(320, 640)),
+      ('phone', const Size(390, 844)),
+      ('tablet', const Size(820, 1180)),
+      ('desktop', const Size(1440, 900)),
+    ]) {
+      testWidgets('More page lays out without overflow: ${role.name}, $name', (
+        tester,
+      ) async {
+        final container = await _pump(tester, role, size, 1.5);
+        container.read(appRouterProvider).go(AppRoutes.dashboardMore);
+        await tester.pumpAndSettle();
+        expect(find.text('More Tools'), findsWidgets);
+        await tester.drag(
+          find.byType(Scrollable).first,
+          const Offset(0, -6000),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('home lays out without overflow: ${role.name}, $name', (
+        tester,
+      ) async {
+        await _pump(tester, role, size, 1.5);
+        expect(find.text('Welcome,'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
 }

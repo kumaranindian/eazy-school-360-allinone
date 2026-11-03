@@ -20,6 +20,7 @@ import 'package:eazy_school_360/features/users/domain/user_status.dart';
 import 'package:eazy_school_360/features/users/presentation/providers/user_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:eazy_school_360/features/staff/domain/employee_code_format.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fakes.dart';
@@ -99,6 +100,7 @@ Future<_World> _pump(
         ),
       ),
       staffRepositoryProvider.overrideWithValue(staff),
+      employeeCodeSourceProvider.overrideWithValue(_FixedCodes()),
       staffSetupRepositoryProvider.overrideWithValue(
         FakeStaffSetupRepository(),
       ),
@@ -741,7 +743,10 @@ void main() {
 
           await tester.tap(find.text('Create staff member'));
           await tester.pumpAndSettle();
-          expect(find.text('Employee code is required.'), findsOneWidget);
+          // The code is generated, not typed.
+          expect(find.text('Employee code is required.'), findsNothing);
+          expect(find.text('EMP-0008'), findsOneWidget);
+          expect(find.text('Generated automatically'), findsOneWidget);
           expect(find.text('First name is required.'), findsOneWidget);
           expect(find.text('Last name is required.'), findsOneWidget);
           expect(find.text('Date of birth is required.'), findsOneWidget);
@@ -754,4 +759,12 @@ void main() {
       );
     }
   });
+}
+
+class _FixedCodes extends EmployeeCodeSource {
+  @override
+  Future<int> highestSequence({
+    required String schoolId,
+    required String branchId,
+  }) async => 7;
 }

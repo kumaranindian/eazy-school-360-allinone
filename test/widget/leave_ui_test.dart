@@ -1,3 +1,4 @@
+import 'package:eazy_school_360/shared/layouts/hub_layout.dart';
 import 'dart:async';
 
 import 'package:eazy_school_360/shared/branding/page_hero.dart';
@@ -463,14 +464,15 @@ void main() {
         );
         await tester.tap(find.text('More'));
         await tester.pumpAndSettle();
-        // The dashboard also has a "Leave" quick link; scope to the sheet.
-        final inSheet = find.descendant(
-          of: find.byType(BottomSheet),
-          matching: find.text('Leave'),
+        // "More" opens the all-modules page rather than a pop-up list.
+        expect(w.location, '/dashboard/more');
+        final tile = find.widgetWithText(HubTile, 'Leave');
+        await tester.scrollUntilVisible(
+          tile,
+          300,
+          scrollable: find.byType(Scrollable).first,
         );
-        expect(inSheet, findsOneWidget);
-        expect(find.text('My Leave'), findsOneWidget);
-        await tester.tap(inSheet);
+        await tester.tap(tile);
         await tester.pumpAndSettle();
         expect(w.location, '/leave');
         expect(tester.takeException(), isNull);
@@ -1044,8 +1046,9 @@ void main() {
       );
       await w.go(tester, '/my-leave');
       expect(find.text('Leave for Anil Kumar'), findsOneWidget);
-      expect(find.text('Pending'), findsOneWidget);
-      expect(find.text('Approved'), findsOneWidget);
+      // Once in the summary tiles, once on the application's status chip.
+      expect(find.text('Pending'), findsNWidgets(2));
+      expect(find.text('Approved'), findsNWidgets(2));
       expect(find.text('Apply for leave'), findsOneWidget);
       expect(find.text('Approve'), findsNothing);
     });

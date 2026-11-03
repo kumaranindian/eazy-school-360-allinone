@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../dashboard/home_widgets.dart' show HomePanel;
 
 /// A titled group of [HubTile]s laid out as a grid that follows the width it
 /// is given (1 column on a phone, 2 on a tablet, 3+ on a desktop) and the
@@ -120,70 +121,65 @@ class HubTile extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final tint = comingSoon ? scheme.outline : accent;
-    return Card(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: tint != null
-                      ? tint.withValues(alpha: 0.14)
-                      : scheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                ),
-                child: Icon(icon, color: tint ?? scheme.onPrimaryContainer),
-              ),
-              const SizedBox(width: AppSpacing.sm + 4),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        color: comingSoon ? scheme.onSurfaceVariant : null,
-                      ),
-                    ),
-                    if (description != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        description!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                    if (comingSoon) ...[
-                      const SizedBox(height: AppSpacing.sm),
-                      const HubBadge(
-                        label: 'Coming soon',
-                        icon: Icons.hourglass_top,
-                      ),
-                    ] else if (badge != null) ...[
-                      const SizedBox(height: AppSpacing.sm),
-                      HubBadge(label: badge!, tone: badgeTone),
-                    ],
-                  ],
-                ),
-              ),
-              if (!comingSoon) ...[
-                const SizedBox(width: AppSpacing.xs),
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Icon(Icons.chevron_right, color: scheme.outline),
-                ),
-              ],
-            ],
+    return HomePanel(
+      accent: comingSoon ? null : accent,
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: tint != null
+                  ? tint.withValues(alpha: 0.14)
+                  : scheme.primaryContainer,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: Icon(icon, color: tint ?? scheme.onPrimaryContainer),
           ),
-        ),
+          const SizedBox(width: AppSpacing.sm + 4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: comingSoon ? scheme.onSurfaceVariant : null,
+                  ),
+                ),
+                if (description != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    description!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+                if (comingSoon) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  const HubBadge(
+                    label: 'Coming soon',
+                    icon: Icons.hourglass_top,
+                  ),
+                ] else if (badge != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  HubBadge(label: badge!, tone: badgeTone),
+                ],
+              ],
+            ),
+          ),
+          if (!comingSoon) ...[
+            const SizedBox(width: AppSpacing.xs),
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Icon(Icons.chevron_right, color: scheme.outline),
+            ),
+          ],
+        ],
       ),
     );
   }

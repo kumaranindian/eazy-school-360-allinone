@@ -123,7 +123,7 @@ void main() {
           UncontrolledProviderScope(container: container, child: const App()),
         );
         await tester.pumpAndSettle();
-        expect(find.text('Welcome, Ada Admin'), findsOneWidget);
+        expect(find.text('Ada Admin'), findsOneWidget);
         expect(find.text('Users'), findsWidgets); // admin-only navigation
 
         // A different account signs in; its profile is slow to load.
@@ -133,7 +133,7 @@ void main() {
         await tester.pump(
           const Duration(milliseconds: 500),
         ); // route transition
-        expect(find.text('Welcome, Ada Admin'), findsNothing);
+        expect(find.text('Ada Admin'), findsNothing);
         expect(find.text('Users'), findsNothing);
         final router = container.read(appRouterProvider);
         expect(
@@ -143,7 +143,7 @@ void main() {
 
         users.release('parent-1');
         await tester.pumpAndSettle();
-        expect(find.text('Welcome, Pam Parent'), findsOneWidget);
+        expect(find.text('Pam Parent'), findsOneWidget);
         expect(find.text('Users'), findsNothing);
       },
     );
@@ -175,10 +175,10 @@ void main() {
         UncontrolledProviderScope(container: container, child: const App()),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Welcome, Ada Admin'), findsOneWidget);
+      expect(find.text('Ada Admin'), findsOneWidget);
       auth.emit(null);
       await tester.pumpAndSettle();
-      expect(find.text('Welcome, Ada Admin'), findsNothing);
+      expect(find.text('Ada Admin'), findsNothing);
       expect(
         container
             .read(appRouterProvider)

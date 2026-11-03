@@ -202,6 +202,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: AppRoutes.dashboard,
                 builder: (context, state) => const DashboardPage(),
+                routes: [
+                  GoRoute(
+                    path: 'more',
+                    builder: (context, state) => const MoreToolsPage(),
+                  ),
+                ],
               ),
             ],
           ),

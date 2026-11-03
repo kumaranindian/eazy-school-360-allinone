@@ -361,6 +361,32 @@ test('A whole class save (records + history + session) is one batch the rules ac
   await assertSucceeds(batch.commit());
 });
 
+test('Finalizing after a save, and finalizing with edits in one batch, are accepted for the class teacher', async () => {
+  await seedWorld();
+  const ct = asUser('att-teacher-ct');
+  // 1. save as draft
+  const first = writeBatch(ct);
+  for (const sid of ['stu-1', 'stu-2']) {
+    first.set(attRef(ct, sid), studentAtt({ studentId: sid, uid: 'att-teacher-ct' }));
+    first.set(doc(ct, ...branch(A, NORTH), 'studentAttendance', `${DATE}_${sid}`, 'history', '1'), historyDoc({ uid: 'att-teacher-ct', studentId: sid }));
+  }
+  first.set(sessRef(ct), sessionDoc({ uid: 'att-teacher-ct' }));
+  await assertSucceeds(first.commit());
+
+  // 2. finalize with one edited record, exactly the fields the app sends
+  const second = writeBatch(ct);
+  second.update(attRef(ct, 'stu-1'), {
+    status: 'ABSENT', remarks: null, revision: 2, lastChangeReason: null, updatedAt: serverTimestamp(), updatedBy: 'att-teacher-ct',
+  });
+  second.set(doc(ct, ...branch(A, NORTH), 'studentAttendance', `${DATE}_stu-1`, 'history', '2'), historyDoc({ uid: 'att-teacher-ct', studentId: 'stu-1', revision: 2 }));
+  second.update(sessRef(ct), {
+    dateKey: DATE, attendanceDate: new Date(`${DATE}T00:00:00Z`), status: 'FINALIZED', enrolled: 3, present: 1, absent: 2, late: 0,
+    halfDay: 0, notMarked: 0, dayKind: 'workingDay', overrideReason: null, revision: 2,
+    finalizedAt: serverTimestamp(), finalizedBy: 'att-teacher-ct', updatedAt: serverTimestamp(), updatedBy: 'att-teacher-ct',
+  });
+  await assertSucceeds(second.commit());
+});
+
 // ---------------------------------------------------------------------
 // Staff attendance
 // ---------------------------------------------------------------------

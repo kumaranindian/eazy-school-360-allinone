@@ -182,9 +182,9 @@ void main() {
         }),
       );
       expect(find.text('Asha Kumar'), findsOneWidget);
-      expect(find.text('Attendance this month'), findsOneWidget);
-      expect(find.text('100% present'), findsOneWidget);
-      expect(find.text('Fees due'), findsOneWidget);
+      expect(find.text('Days Present'), findsOneWidget);
+      expect(find.text('100%'), findsOneWidget);
+      expect(find.text('Fees'), findsOneWidget);
       expect(find.textContaining('600'), findsWidgets); // balance 60,000 minor
       // One child: no switcher chips.
       expect(find.byType(ChoiceChip), findsNothing);
@@ -205,10 +205,10 @@ void main() {
       attendance: repo,
     );
     expect(find.byType(ChoiceChip), findsNWidgets(2));
-    expect(find.text('100% present'), findsOneWidget);
+    expect(find.text('100%'), findsOneWidget);
     await tester.tap(find.widgetWithText(ChoiceChip, 'Ravi'));
     await tester.pumpAndSettle();
-    expect(find.text('0% present'), findsOneWidget);
+    expect(find.text('0%'), findsOneWidget);
     expect(repo.askedFor, containsAll(['stu-1', 'stu-2']));
   });
 

@@ -11,6 +11,8 @@ import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/tenant/tenant_context.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../shared/branding/page_hero.dart';
+import '../../../../shared/dashboard/home_widgets.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/error/error_view.dart';
 import '../../../../shared/loading/async_value_widget.dart';
@@ -147,7 +149,7 @@ class _ParentFeesPageState extends ConsumerState<ParentFeesPage> {
   }
 }
 
-class _Child extends ConsumerWidget {
+class _Child extends ConsumerStatefulWidget {
   final TenantContext tenant;
   final List<Student> children;
   final Student child;
@@ -165,7 +167,21 @@ class _Child extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_Child> createState() => _ChildState();
+}
+
+enum _FeeTab { overview, invoices, receipts }
+
+class _ChildState extends ConsumerState<_Child> {
+  _FeeTab _tab = _FeeTab.overview;
+
+  @override
+  Widget build(BuildContext context) {
+    final child = widget.child;
+    final children = widget.children;
+    final yearId = widget.yearId;
+    final onChild = widget.onChild;
+    final onYear = widget.onYear;
     final key = (
       schoolId: child.schoolId,
       branchId: child.branchId,
@@ -208,137 +224,271 @@ class _Child extends ConsumerWidget {
             invoices.firstOrNull?.currency ??
             ref.watch(regionalSettingsProvider).currency;
 
+        final theme = Theme.of(context);
+        final clear = summary.balanceMinor == 0;
+        final showInvoices = _tab != _FeeTab.receipts;
+        final showPayments = _tab != _FeeTab.invoices;
         return ListView(
           padding: const EdgeInsets.all(AppSpacing.md),
           children: [
-            if (children.length > 1)
-              Wrap(
-                spacing: AppSpacing.sm,
-                children: [
-                  for (final c in children)
-                    ChoiceChip(
-                      label: Text(c.displayName),
-                      selected: c.studentId == child.studentId,
-                      onSelected: (_) => onChild(c.studentId),
-                    ),
-                ],
-              ),
-            const SizedBox(height: AppSpacing.sm),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    child.displayName,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ),
-                if (years.length > 1)
-                  DropdownButton<String>(
-                    value: selectedYear,
-                    items: [
-                      for (final e in years.entries)
-                        DropdownMenuItem(value: e.key, child: Text(e.value)),
-                    ],
-                    onChanged: onYear,
-                  ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                MetricCard(
-                  label: 'Total billed',
-                  value: Money.format(summary.payableMinor, currency: currency),
-                ),
-                MetricCard(
-                  label: 'Paid',
-                  value: Money.format(summary.paidMinor, currency: currency),
-                  color: AppColors.success,
-                ),
-                MetricCard(
-                  label: 'Balance due',
-                  value: Money.format(summary.balanceMinor, currency: currency),
-                ),
-                MetricCard(
-                  label: 'Overdue',
-                  value: Money.format(summary.overdueMinor, currency: currency),
-                  color: summary.overdueMinor > 0
-                      ? Theme.of(context).colorScheme.error
-                      : null,
-                ),
-                MetricCard(
-                  label: 'Upcoming',
-                  value: Money.format(
-                    summary.upcomingMinor,
-                    currency: currency,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _Assigned(child: child, yearId: selectedYear),
-            const SizedBox(height: AppSpacing.md),
-            Text('Invoices', style: Theme.of(context).textTheme.titleMedium),
-            if (invoices.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(AppSpacing.md),
-                child: Text('No invoices yet.'),
-              ),
-            for (final i in invoices)
-              Card(
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 820),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    ListTile(
-                      title: Text('${i.invoiceNumber} · ${i.periodLabel}'),
-                      subtitle: Text(
-                        'Due ${FeeDates.display(i.dueDateKey)} · Balance ${Money.format(i.balanceMinor, currency: i.currency)} of ${Money.format(i.payableMinor, currency: i.currency)}',
-                      ),
-                      trailing: InvoiceStatusChip(invoice: i, todayKey: today),
-                      onTap: () => context.push(
-                        '/my-fees/invoices/${i.invoiceId}?b=${i.branchId}',
+                    const PageHero(
+                      title: 'Fees & Payments',
+                      subtitle: 'Invoices, payments and receipts',
+                      icon: Icons.account_balance_wallet_outlined,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    HomePanel(
+                      accent: AppColors.brandBlue,
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: theme.colorScheme.primaryContainer,
+                            child: Text(
+                              child.firstName.isEmpty
+                                  ? '?'
+                                  : child.firstName.characters.first
+                                        .toUpperCase(),
+                              style: TextStyle(
+                                color: theme.colorScheme.onPrimaryContainer,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Text(
+                              child.displayName,
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          if (years.length > 1)
+                            DropdownButton<String>(
+                              value: selectedYear,
+                              underline: const SizedBox.shrink(),
+                              items: [
+                                for (final e in years.entries)
+                                  DropdownMenuItem(
+                                    value: e.key,
+                                    child: Text(e.value),
+                                  ),
+                              ],
+                              onChanged: onYear,
+                            ),
+                        ],
                       ),
                     ),
-                    if (invoiceAwaitsPayment(i))
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          AppSpacing.md,
-                          0,
-                          AppSpacing.md,
-                          AppSpacing.sm,
-                        ),
-                        child: PayOnlineComingSoon(),
+                    if (children.length > 1) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      Wrap(
+                        spacing: AppSpacing.sm,
+                        children: [
+                          for (final c in children)
+                            ChoiceChip(
+                              label: Text(c.displayName),
+                              selected: c.studentId == child.studentId,
+                              onSelected: (_) => onChild(c.studentId),
+                            ),
+                        ],
                       ),
+                    ],
+                    const SizedBox(height: AppSpacing.sm),
+                    HomePanel(
+                      accent: AppColors.brandBlue,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                        horizontal: 8,
+                      ),
+                      child: Column(
+                        children: [
+                          IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(
+                                  child: _Figure(
+                                    icon: Icons.receipt_long_outlined,
+                                    color: AppColors.brandBlue,
+                                    label: 'Total billed',
+                                    value: Money.format(
+                                      summary.payableMinor,
+                                      currency: currency,
+                                    ),
+                                  ),
+                                ),
+                                VerticalDivider(
+                                  width: 1,
+                                  color: theme.colorScheme.outlineVariant,
+                                ),
+                                Expanded(
+                                  child: _Figure(
+                                    icon: Icons.check_circle_outline,
+                                    color: AppColors.success,
+                                    label: 'Paid',
+                                    value: Money.format(
+                                      summary.paidMinor,
+                                      currency: currency,
+                                    ),
+                                  ),
+                                ),
+                                VerticalDivider(
+                                  width: 1,
+                                  color: theme.colorScheme.outlineVariant,
+                                ),
+                                Expanded(
+                                  child: _Figure(
+                                    icon: Icons.balance_outlined,
+                                    color: clear
+                                        ? AppColors.success
+                                        : AppColors.warning,
+                                    label: 'Balance due',
+                                    value: Money.format(
+                                      summary.balanceMinor,
+                                      currency: currency,
+                                    ),
+                                    pill: clear ? 'All clear' : null,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Divider(height: 20),
+                          IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(
+                                  child: _Figure(
+                                    icon: Icons.warning_amber_rounded,
+                                    color: summary.overdueMinor > 0
+                                        ? theme.colorScheme.error
+                                        : theme.colorScheme.outline,
+                                    label: 'Overdue',
+                                    value: Money.format(
+                                      summary.overdueMinor,
+                                      currency: currency,
+                                    ),
+                                    small: true,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: _Figure(
+                                    icon: Icons.event_outlined,
+                                    color: theme.colorScheme.outline,
+                                    label: 'Upcoming',
+                                    value: Money.format(
+                                      summary.upcomingMinor,
+                                      currency: currency,
+                                    ),
+                                    small: true,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    _FeeTabs(
+                      selected: _tab,
+                      onSelected: (t) => setState(() => _tab = t),
+                    ),
+                    if (_tab == _FeeTab.overview) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      _StatusBanner(
+                        clear: clear,
+                        overdue: summary.overdueMinor > 0,
+                      ),
+                    ],
+                    if (_tab == _FeeTab.overview) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      _Assigned(child: child, yearId: selectedYear),
+                    ],
+                    if (showInvoices) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        'Invoices',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      if (invoices.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.all(AppSpacing.md),
+                          child: Text('No invoices yet.'),
+                        ),
+                      for (final i in invoices)
+                        Card(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ListTile(
+                                title: Text(
+                                  '${i.invoiceNumber} · ${i.periodLabel}',
+                                ),
+                                subtitle: Text(
+                                  'Due ${FeeDates.display(i.dueDateKey)} · Balance ${Money.format(i.balanceMinor, currency: i.currency)} of ${Money.format(i.payableMinor, currency: i.currency)}',
+                                ),
+                                trailing: InvoiceStatusChip(
+                                  invoice: i,
+                                  todayKey: today,
+                                ),
+                                onTap: () => context.push(
+                                  '/my-fees/invoices/${i.invoiceId}?b=${i.branchId}',
+                                ),
+                              ),
+                              if (invoiceAwaitsPayment(i))
+                                const Padding(
+                                  padding: EdgeInsets.fromLTRB(
+                                    AppSpacing.md,
+                                    0,
+                                    AppSpacing.md,
+                                    AppSpacing.sm,
+                                  ),
+                                  child: PayOnlineComingSoon(),
+                                ),
+                            ],
+                          ),
+                        ),
+                    ],
+                    if (showPayments) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        'Payments & receipts',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      if (payments.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.all(AppSpacing.md),
+                          child: Text('No payments yet.'),
+                        ),
+                      for (final p in payments)
+                        Card(
+                          child: ListTile(
+                            title: Text(
+                              '${p.receiptNumber} · ${Money.format(p.amountMinor, currency: currency)}',
+                            ),
+                            subtitle: Text(
+                              '${FeeDates.display(p.paymentDateKey)} · ${p.methodDisplay} · ${p.invoiceNumber} · Recorded ${formatInstant(p.createdAt)}',
+                            ),
+                            trailing: PaymentStatusChip(status: p.status),
+                            onTap: () => context.push(
+                              '/my-fees/receipts/${p.paymentId}?b=${p.branchId}',
+                            ),
+                          ),
+                        ),
+                    ],
                   ],
                 ),
               ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              'Payments & receipts',
-              style: Theme.of(context).textTheme.titleMedium,
             ),
-            if (payments.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(AppSpacing.md),
-                child: Text('No payments yet.'),
-              ),
-            for (final p in payments)
-              Card(
-                child: ListTile(
-                  title: Text(
-                    '${p.receiptNumber} · ${Money.format(p.amountMinor, currency: currency)}',
-                  ),
-                  subtitle: Text(
-                    '${FeeDates.display(p.paymentDateKey)} · ${p.methodDisplay} · ${p.invoiceNumber} · Recorded ${formatInstant(p.createdAt)}',
-                  ),
-                  trailing: PaymentStatusChip(status: p.status),
-                  onTap: () => context.push(
-                    '/my-fees/receipts/${p.paymentId}?b=${p.branchId}',
-                  ),
-                ),
-              ),
           ],
         );
       },
@@ -456,6 +606,186 @@ class ParentReceiptPage extends ConsumerWidget {
             receiptId: receiptId,
           );
         },
+      ),
+    );
+  }
+}
+
+/// One headline figure of the fee summary: icon, label, amount (and an
+/// optional "All clear" pill).
+class _Figure extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final String value;
+  final String? pill;
+  final bool small;
+
+  const _Figure({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.value,
+    this.pill,
+    this.small = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: small ? 20 : 28),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall,
+          ),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style:
+                  (small
+                          ? theme.textTheme.titleSmall
+                          : theme.textTheme.titleLarge)
+                      ?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: pill != null ? color : null,
+                      ),
+            ),
+          ),
+          if (pill != null) ...[
+            const SizedBox(height: 4),
+            StatusPill(pill!, icon: Icons.check),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Overview / Invoices / Receipts switch.
+class _FeeTabs extends StatelessWidget {
+  final _FeeTab selected;
+  final ValueChanged<_FeeTab> onSelected;
+
+  const _FeeTabs({required this.selected, required this.onSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    Widget tab(_FeeTab t, IconData icon, String label) {
+      final on = t == selected;
+      final fg = on ? Colors.white : theme.colorScheme.onSurface;
+      return Expanded(
+        child: Semantics(
+          button: true,
+          selected: on,
+          child: Material(
+            color: on ? AppColors.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              onTap: () => onSelected(t),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 4,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, size: 18, color: fg),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: fg,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          tab(_FeeTab.overview, Icons.bar_chart_rounded, 'Overview'),
+          tab(_FeeTab.invoices, Icons.description_outlined, 'Invoices'),
+          tab(_FeeTab.receipts, Icons.receipt_outlined, 'Receipts'),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusBanner extends StatelessWidget {
+  final bool clear;
+  final bool overdue;
+
+  const _StatusBanner({required this.clear, required this.overdue});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = clear
+        ? AppColors.success
+        : (overdue ? theme.colorScheme.error : AppColors.warning);
+    return HomePanel(
+      accent: color,
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: color,
+            child: Icon(
+              clear ? Icons.check : Icons.priority_high,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  clear
+                      ? 'No outstanding fees'
+                      : (overdue ? 'Some fees are overdue' : 'Fees are due'),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  clear
+                      ? "You're all caught up"
+                      : 'See the invoices below for amounts and due dates',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

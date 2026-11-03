@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/activation_status.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/extensions/context_extensions.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../academic_setup/presentation/providers/academic_structure_providers.dart';
 import '../../domain/fee_dates.dart';
@@ -13,6 +14,30 @@ import '../../domain/fee_structure.dart';
 import '../../domain/money.dart';
 import '../providers/fee_providers.dart';
 import 'fee_scope.dart';
+
+/// Opens the fee form: a full-screen page on a phone, a wide two-pane dialog
+/// (step list on the left, form on the right) on tablet and desktop.
+Future<bool?> showFeeStructureForm(
+  BuildContext context, {
+  required FeeContext fee,
+  FeeStructure? existing,
+}) {
+  final phone = MediaQuery.sizeOf(context).width < 600;
+  final form = FeeStructureFormDialog(fee: fee, existing: existing);
+  return showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => phone
+        ? Dialog.fullscreen(child: form)
+        : Dialog(
+            insetPadding: const EdgeInsets.all(32),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 900),
+              child: form,
+            ),
+          ),
+  );
+}
 
 /// Create or edit a fee structure. The code (with the academic year) is the
 /// document id, so it is chosen once. Changes apply to invoices generated
@@ -63,6 +88,8 @@ class _FeeStructureFormDialogState
   late String? _from = widget.existing?.effectiveFromKey;
   late String? _to = widget.existing?.effectiveToKey;
   bool _busy = false;
+  int _step = 0;
+  final _stepKeys = [GlobalKey(), GlobalKey(), GlobalKey()];
 
   bool get _editing => widget.existing != null;
 
@@ -146,9 +173,76 @@ class _FeeStructureFormDialogState
     super.dispose();
   }
 
+  Widget _field(Widget a, [Widget? b]) {
+    if (b == null) return a;
+    return LayoutBuilder(
+      builder: (context, c) => c.maxWidth >= 480
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: a),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(child: b),
+              ],
+            )
+          : Column(
+              children: [
+                a,
+                const SizedBox(height: AppSpacing.sm),
+                b,
+              ],
+            ),
+    );
+  }
+
+  Widget _section(
+    int index,
+    String title, {
+    String? subtitle,
+    required List<Widget> children,
+  }) {
+    final theme = Theme.of(context);
+    return Column(
+      key: _stepKeys[index],
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        if (subtitle != null)
+          Text(
+            subtitle,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        const SizedBox(height: AppSpacing.sm + 4),
+        for (var i = 0; i < children.length; i++) ...[
+          if (i > 0) const SizedBox(height: AppSpacing.sm),
+          children[i],
+        ],
+      ],
+    );
+  }
+
+  void _goTo(int i) {
+    setState(() => _step = i);
+    final ctx = _stepKeys[i].currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 250),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final fee = widget.fee;
+    final theme = Theme.of(context);
     final classes = (ref.watch(classesProvider(fee.yearKey)).value ?? const [])
         .where((c) => c.status.wireValue == 'ACTIVE')
         .toList();
@@ -168,50 +262,49 @@ class _FeeStructureFormDialogState
               .where((s) => s.status.wireValue == 'ACTIVE')
               .toList();
 
-    return Form(
-      key: _formKey,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            _editing ? 'Edit fee' : 'Add fee',
-            style: context.textStyles.titleLarge,
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            'Applies to invoices generated from now on. Invoices already issued keep the amounts they were billed with.',
-            style: context.textStyles.bodySmall,
-          ),
-          const SizedBox(height: AppSpacing.md),
+    final details = _section(
+      0,
+      'Fee details',
+      subtitle: _editing
+          ? 'Changes apply to invoices generated from now on. Invoices already issued keep the amounts they were billed with.'
+          : 'Create a new fee head for the selected academic year.',
+      children: [
+        _field(
           TextFormField(
             controller: _code,
             enabled: !_editing && !_busy,
             textCapitalization: TextCapitalization.characters,
             decoration: InputDecoration(
-              labelText: 'Code',
+              labelText: 'Fee code',
+              hintText: 'e.g. TUITION-5',
               helperText: _editing
                   ? 'The code cannot be changed.'
-                  : 'e.g. TUITION-5 — unique for the academic year',
+                  : 'Unique for the academic year',
             ),
             validator: (v) =>
                 FeeStructure.codePattern.hasMatch((v ?? '').trim())
                 ? null
                 : '2-20 letters, digits, "-" or "_".',
           ),
-          const SizedBox(height: AppSpacing.sm),
           TextFormField(
             controller: _name,
             enabled: !_busy,
-            decoration: const InputDecoration(labelText: 'Fee name'),
+            decoration: const InputDecoration(
+              labelText: 'Fee name',
+              hintText: 'e.g. Tuition Fee',
+            ),
             validator: (v) =>
                 (v ?? '').trim().length < 2 ? 'Enter a fee name.' : null,
           ),
-          const SizedBox(height: AppSpacing.sm),
+        ),
+        _field(
           DropdownButtonFormField<FeeCategory>(
             isExpanded: true,
             value: _category,
-            decoration: const InputDecoration(labelText: 'Category'),
+            decoration: const InputDecoration(
+              labelText: 'Category',
+              prefixIcon: Icon(Icons.school_outlined),
+            ),
             items: [
               for (final c in FeeCategory.values)
                 DropdownMenuItem(value: c, child: Text(c.displayName)),
@@ -220,21 +313,13 @@ class _FeeStructureFormDialogState
                 ? null
                 : (v) => setState(() => _category = v ?? _category),
           ),
-          if (_category == FeeCategory.other) ...[
-            const SizedBox(height: AppSpacing.sm),
-            TextFormField(
-              controller: _customCategory,
-              enabled: !_busy,
-              decoration: const InputDecoration(labelText: 'Category name'),
-              validator: (v) =>
-                  (v ?? '').trim().isEmpty ? 'Name the category.' : null,
-            ),
-          ],
-          const SizedBox(height: AppSpacing.sm),
           DropdownButtonFormField<FeeFrequency>(
             isExpanded: true,
             value: _frequency,
-            decoration: const InputDecoration(labelText: 'Billed'),
+            decoration: const InputDecoration(
+              labelText: 'Billed',
+              prefixIcon: Icon(Icons.event_repeat_outlined),
+            ),
             items: [
               for (final f in FeeFrequency.values)
                 DropdownMenuItem(value: f, child: Text(f.displayName)),
@@ -243,32 +328,68 @@ class _FeeStructureFormDialogState
                 ? null
                 : (v) => setState(() => _frequency = v ?? _frequency),
           ),
-          const SizedBox(height: AppSpacing.sm),
+        ),
+        if (_category == FeeCategory.other)
           TextFormField(
-            controller: _amount,
+            controller: _customCategory,
             enabled: !_busy,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: 'Amount (${fee.currency})',
-              helperText: 'Per billing period.',
-            ),
-            validator: (v) {
-              final minor = Money.parseMinor(v ?? '', currency: fee.currency);
-              if (minor == null) {
-                return Money.invalidAmountMessage(fee.currency);
-              }
-              if (minor <= 0) return 'The amount must be greater than zero.';
-              if (minor > FeeStructure.maxAmountMinor) {
-                return 'The amount is too large.';
-              }
-              return null;
-            },
+            decoration: const InputDecoration(labelText: 'Category name'),
+            validator: (v) =>
+                (v ?? '').trim().isEmpty ? 'Name the category.' : null,
           ),
-          const SizedBox(height: AppSpacing.sm),
+        TextFormField(
+          controller: _amount,
+          enabled: !_busy,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: 'Amount (${fee.currency})',
+            hintText: 'e.g. 2,500',
+            helperText: 'Per billing period.',
+            prefixIcon: const Icon(Icons.currency_rupee),
+          ),
+          validator: (v) {
+            final minor = Money.parseMinor(v ?? '', currency: fee.currency);
+            if (minor == null) {
+              return Money.invalidAmountMessage(fee.currency);
+            }
+            if (minor <= 0) return 'The amount must be greater than zero.';
+            if (minor > FeeStructure.maxAmountMinor) {
+              return 'The amount is too large.';
+            }
+            return null;
+          },
+        ),
+      ],
+    );
+
+    final dateStyle = theme.textTheme.bodyLarge;
+    Widget dateBox(String label, String? key, bool from) => InkWell(
+      onTap: _busy ? null : () => _pickDate(from),
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: const Icon(Icons.event_outlined),
+        ),
+        child: Text(
+          key == null ? 'Any' : FeeDates.display(key),
+          style: dateStyle,
+        ),
+      ),
+    );
+
+    final applicability = _section(
+      1,
+      'Applicability',
+      children: [
+        _field(
           DropdownButtonFormField<String?>(
             isExpanded: true,
             value: classes.any((c) => c.classId == _classId) ? _classId : null,
-            decoration: const InputDecoration(labelText: 'Class'),
+            decoration: const InputDecoration(
+              labelText: 'Class',
+              prefixIcon: Icon(Icons.groups_outlined),
+            ),
             items: [
               const DropdownMenuItem(value: null, child: Text('All classes')),
               for (final c in classes)
@@ -281,134 +402,293 @@ class _FeeStructureFormDialogState
                     _sectionId = null;
                   }),
           ),
-          if (_classId != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            DropdownButtonFormField<String?>(
-              isExpanded: true,
-              value: sections.any((s) => s.sectionId == _sectionId)
-                  ? _sectionId
-                  : null,
-              decoration: const InputDecoration(labelText: 'Section'),
-              items: [
-                const DropdownMenuItem(
-                  value: null,
-                  child: Text('All sections'),
+          _classId == null
+              ? null
+              : DropdownButtonFormField<String?>(
+                  isExpanded: true,
+                  value: sections.any((s) => s.sectionId == _sectionId)
+                      ? _sectionId
+                      : null,
+                  decoration: const InputDecoration(labelText: 'Section'),
+                  items: [
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('All sections'),
+                    ),
+                    for (final s in sections)
+                      DropdownMenuItem(value: s.sectionId, child: Text(s.name)),
+                  ],
+                  onChanged: _busy
+                      ? null
+                      : (v) => setState(() => _sectionId = v),
                 ),
-                for (final s in sections)
-                  DropdownMenuItem(value: s.sectionId, child: Text(s.name)),
-              ],
-              onChanged: _busy ? null : (v) => setState(() => _sectionId = v),
+        ),
+        _field(
+          dateBox('Effective from', _from, true),
+          dateBox('Effective to', _to, false),
+        ),
+        if (_from != null || _to != null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => setState(() => _from = _to = null),
+              child: const Text('Clear dates'),
             ),
-          ],
-          const SizedBox(height: AppSpacing.sm),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              OutlinedButton(
-                onPressed: _busy ? null : () => _pickDate(true),
-                child: Text(
-                  _from == null
-                      ? 'Effective from: any'
-                      : 'From ${FeeDates.display(_from!)}',
-                ),
-              ),
-              OutlinedButton(
-                onPressed: _busy ? null : () => _pickDate(false),
-                child: Text(
-                  _to == null
-                      ? 'Effective to: any'
-                      : 'To ${FeeDates.display(_to!)}',
-                ),
-              ),
-              if (_from != null || _to != null)
-                TextButton(
-                  onPressed: () => setState(() => _from = _to = null),
-                  child: const Text('Clear dates'),
-                ),
-            ],
           ),
-          if (_from != null && _to != null && _from!.compareTo(_to!) > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'The start date is after the end date.',
-                style: TextStyle(color: context.colors.error),
-              ),
-            ),
-          const SizedBox(height: AppSpacing.sm),
-          TextFormField(
-            controller: _dueDays,
-            enabled: !_busy,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Days until due after issue',
-            ),
-            validator: (v) {
-              final n = int.tryParse((v ?? '').trim());
-              return n == null || n < 0 || n > 365
-                  ? 'Enter a number from 0 to 365.'
-                  : null;
-            },
+        if (_from != null && _to != null && _from!.compareTo(_to!) > 0)
+          Text(
+            'The start date is after the end date.',
+            style: TextStyle(color: context.colors.error),
           ),
-          const SizedBox(height: AppSpacing.sm),
+        TextFormField(
+          controller: _dueDays,
+          enabled: !_busy,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Days until due after issue',
+            prefixIcon: Icon(Icons.event_available_outlined),
+          ),
+          validator: (v) {
+            final n = int.tryParse((v ?? '').trim());
+            return n == null || n < 0 || n > 365
+                ? 'Enter a number from 0 to 365.'
+                : null;
+          },
+        ),
+      ],
+    );
+
+    final additional = _section(
+      2,
+      'Additional information',
+      children: [
+        _field(
           TextFormField(
             controller: _description,
             enabled: !_busy,
+            maxLines: 3,
+            // The rules accept up to 500 characters; the counter shows that.
+            maxLength: 500,
             decoration: const InputDecoration(
               labelText: 'Description (shown on invoices)',
+              hintText: 'e.g. Monthly tuition fee',
+              alignLabelWithHint: true,
             ),
           ),
-          const SizedBox(height: AppSpacing.sm),
           TextFormField(
             controller: _instructions,
             enabled: !_busy,
-            maxLines: 2,
+            maxLines: 3,
+            maxLength: 500,
             decoration: const InputDecoration(
               labelText: 'Payment instructions (optional)',
+              hintText: 'e.g. Pay online or at the school office',
+              alignLabelWithHint: true,
             ),
           ),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Optional fee'),
+          subtitle: const Text(
+            'Not assigned in bulk unless chosen (e.g. transport).',
+          ),
+          value: _optional,
+          onChanged: _busy ? null : (v) => setState(() => _optional = v),
+        ),
+        if (_editing)
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Optional fee'),
-            subtitle: const Text(
-              'Not assigned in bulk unless chosen (e.g. transport).',
-            ),
-            value: _optional,
-            onChanged: _busy ? null : (v) => setState(() => _optional = v),
+            title: const Text('Active'),
+            subtitle: const Text('Inactive fees are not billed.'),
+            value: _active,
+            onChanged: _busy ? null : (v) => setState(() => _active = v),
           ),
-          if (_editing)
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Active'),
-              subtitle: const Text('Inactive fees are not billed.'),
-              value: _active,
-              onChanged: _busy ? null : (v) => setState(() => _active = v),
-            ),
-          const SizedBox(height: AppSpacing.md),
-          Wrap(
-            alignment: WrapAlignment.end,
-            spacing: AppSpacing.sm,
+      ],
+    );
+
+    final footer = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          TextButton(
+            onPressed: _busy ? null : () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          FilledButton.icon(
+            onPressed: _busy ? null : _submit,
+            icon: _busy
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.check),
+            label: const Text('Save fee'),
+          ),
+        ],
+      ),
+    );
+
+    final steps = [
+      ('Fee details', 'Basic information'),
+      ('Applicability', 'Classes & duration'),
+      ('Additional info', 'Description & instructions'),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = MediaQuery.sizeOf(context).width >= 720;
+        final scroll = SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextButton(
-                onPressed: _busy
-                    ? null
-                    : () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
+              details,
+              const SizedBox(height: AppSpacing.lg),
+              applicability,
+              const SizedBox(height: AppSpacing.lg),
+              additional,
+            ],
+          ),
+        );
+        return Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Back',
+                      onPressed: _busy
+                          ? null
+                          : () => Navigator.of(context).pop(false),
+                      icon: const Icon(Icons.arrow_back),
+                    ),
+                    Text(
+                      _editing ? 'Edit fee' : 'Add fee',
+                      style: theme.textTheme.titleLarge,
+                    ),
+                  ],
+                ),
               ),
-              FilledButton(
-                onPressed: _busy ? null : _submit,
-                child: _busy
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+              const Divider(height: 1),
+              Flexible(
+                child: wide
+                    ? ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 640),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SizedBox(
+                              width: 240,
+                              child: ListView(
+                                padding: const EdgeInsets.all(12),
+                                children: [
+                                  for (var i = 0; i < steps.length; i++)
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: _StepTile(
+                                        number: i + 1,
+                                        title: steps[i].$1,
+                                        subtitle: steps[i].$2,
+                                        selected: _step == i,
+                                        onTap: () => _goTo(i),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            const VerticalDivider(width: 1),
+                            Expanded(child: scroll),
+                          ],
+                        ),
                       )
-                    : const Text('Save'),
+                    : scroll,
+              ),
+              const Divider(height: 1),
+              footer,
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _StepTile extends StatelessWidget {
+  final int number;
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _StepTile({
+    required this.number,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final fg = selected ? Colors.white : theme.colorScheme.onSurface;
+    return Material(
+      color: selected ? AppColors.primary : Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 14,
+                backgroundColor: selected
+                    ? AppColors.primaryLight
+                    : theme.colorScheme.outlineVariant,
+                child: Text(
+                  '$number',
+                  style: TextStyle(
+                    color: selected
+                        ? Colors.white
+                        : theme.colorScheme.onSurface,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm + 4),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: fg,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: fg.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }

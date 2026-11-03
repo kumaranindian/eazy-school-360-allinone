@@ -9,7 +9,10 @@ import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/permissions/user_role.dart';
 import '../../../../core/tenant/tenant_context.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../shared/branding/page_hero.dart';
+import '../../../../shared/dashboard/home_widgets.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/error/error_view.dart';
 import '../../../../shared/loading/async_value_widget.dart';
@@ -333,7 +336,7 @@ class SectionWeek extends ConsumerWidget {
             message: 'No published timetable is in force for this week.',
           );
         }
-        return WeekAgenda(days: days, items: items);
+        return WeekAgenda(days: days, items: items, mondayKey: mondayKey);
       },
     );
   }
@@ -466,7 +469,7 @@ class TeacherWeek extends ConsumerWidget {
             message: 'No periods scheduled this week.',
           );
         }
-        return WeekAgenda(days: days, items: items);
+        return WeekAgenda(days: days, items: items, mondayKey: mondayKey);
       },
     );
   }
@@ -783,31 +786,77 @@ class _ParentTimetableState extends ConsumerState<_ParentTimetable> {
             message: 'Your child has not been placed in a class yet.',
           );
         }
+        final theme = Theme.of(context);
         return Column(
           children: [
             Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.xs,
-                crossAxisAlignment: WrapCrossAlignment.center,
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.sm,
+                AppSpacing.md,
+                AppSpacing.sm,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (list.length > 1)
-                    for (final c in list)
-                      ChoiceChip(
-                        label: Text(c.displayName),
-                        selected: c.studentId == child.studentId,
-                        onSelected: (_) =>
-                            setState(() => _childId = c.studentId),
-                      )
-                  else
-                    Text(
-                      child.displayName,
-                      style: Theme.of(context).textTheme.titleMedium,
+                  const PageHero(
+                    title: 'My Timetable',
+                    subtitle: 'Daily class schedule for your child',
+                    icon: Icons.schedule_outlined,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  HomePanel(
+                    accent: AppColors.brandBlue,
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: theme.colorScheme.primaryContainer,
+                          child: Text(
+                            child.firstName.isEmpty
+                                ? '?'
+                                : child.firstName.characters.first
+                                      .toUpperCase(),
+                            style: TextStyle(
+                              color: theme.colorScheme.onPrimaryContainer,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: Text(
+                            child.displayName,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  WeekNavigator(
-                    label: 'Week of ${ttDate(_monday)}',
-                    onShift: _shift,
+                  ),
+                  if (list.length > 1) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.xs,
+                      children: [
+                        for (final c in list)
+                          ChoiceChip(
+                            label: Text(c.displayName),
+                            selected: c.studentId == child.studentId,
+                            onSelected: (_) =>
+                                setState(() => _childId = c.studentId),
+                          ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.sm),
+                  Center(
+                    child: WeekNavigator(
+                      label: 'Week of ${ttDate(_monday)}',
+                      onShift: _shift,
+                    ),
                   ),
                 ],
               ),
@@ -820,6 +869,29 @@ class _ParentTimetableState extends ConsumerState<_ParentTimetable> {
                 classId: child.currentClassId!,
                 sectionId: child.currentSectionId!,
                 mondayKey: _monday,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                0,
+                AppSpacing.md,
+                AppSpacing.md,
+              ),
+              child: HomePanel(
+                accent: AppColors.brandBlue,
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: theme.colorScheme.primary),
+                    const SizedBox(width: AppSpacing.sm),
+                    const Expanded(
+                      child: Text(
+                        'Note: Timetable may change. You will be notified for any updates.',
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

@@ -12,6 +12,8 @@ import '../../data/firebase_teacher_assignment_repository.dart';
 import '../../domain/department.dart';
 import '../../domain/designation.dart';
 import '../../domain/staff.dart';
+import '../../data/firebase_employee_code_source.dart';
+import '../../domain/employee_code_format.dart';
 import '../../domain/staff_document.dart';
 import '../../domain/staff_repository.dart';
 import '../../domain/staff_setup_repository.dart';
@@ -26,6 +28,11 @@ final staffRepositoryProvider = Provider<StaffRepository>((ref) {
     ref.watch(firebaseStorageProvider),
   );
 });
+
+/// Hands out the next standard employee code (`EMP-0001`).
+final employeeCodeSourceProvider = Provider<EmployeeCodeSource>(
+  (ref) => FirebaseEmployeeCodeSource(ref.watch(firestoreProvider)),
+);
 
 final staffSetupRepositoryProvider = Provider<StaffSetupRepository>((ref) {
   return FirebaseStaffSetupRepository(ref.watch(firestoreProvider));

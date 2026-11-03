@@ -1,3 +1,4 @@
+import 'package:eazy_school_360/shared/layouts/hub_layout.dart';
 import 'dart:async';
 
 import 'package:eazy_school_360/features/fees/domain/invoice.dart';
@@ -345,13 +346,14 @@ void main() {
         expect(find.text('More'), findsOneWidget);
         await tester.tap(find.text('More'));
         await tester.pumpAndSettle();
-        // The dashboard also has a "Fees" quick link; scope to the sheet.
-        final inSheet = find.descendant(
-          of: find.byType(BottomSheet),
-          matching: find.text('Fees'),
+        expect(w.location, '/dashboard/more');
+        final tile = find.widgetWithText(HubTile, 'Fees');
+        await tester.scrollUntilVisible(
+          tile,
+          300,
+          scrollable: find.byType(Scrollable).first,
         );
-        expect(inSheet, findsOneWidget);
-        await tester.tap(inSheet);
+        await tester.tap(tile);
         await tester.pumpAndSettle();
         expect(w.location, '/fees');
         expect(tester.takeException(), isNull);
@@ -711,8 +713,8 @@ void main() {
         await tester.tap(find.text('Add fee'));
         await tester.pumpAndSettle();
 
-        await tester.ensureVisible(find.text('Save'));
-        await tester.tap(find.text('Save'));
+        await tester.ensureVisible(find.text('Save fee'));
+        await tester.tap(find.text('Save fee'));
         await tester.pumpAndSettle();
         expect(find.text('2-20 letters, digits, "-" or "_".'), findsOneWidget);
         expect(find.text('Enter a fee name.'), findsOneWidget);
@@ -723,7 +725,7 @@ void main() {
         expect(config.created, isEmpty);
 
         await tester.enterText(
-          find.widgetWithText(TextFormField, 'Code'),
+          find.widgetWithText(TextFormField, 'Fee code'),
           'TUITION-5',
         );
         await tester.enterText(
@@ -734,8 +736,8 @@ void main() {
           find.widgetWithText(TextFormField, 'Amount (INR)'),
           '0',
         );
-        await tester.ensureVisible(find.text('Save'));
-        await tester.tap(find.text('Save'));
+        await tester.ensureVisible(find.text('Save fee'));
+        await tester.tap(find.text('Save fee'));
         await tester.pumpAndSettle();
         expect(
           find.text('The amount must be greater than zero.'),
@@ -745,8 +747,8 @@ void main() {
           find.widgetWithText(TextFormField, 'Amount (INR)'),
           '1500.505',
         );
-        await tester.ensureVisible(find.text('Save'));
-        await tester.tap(find.text('Save'));
+        await tester.ensureVisible(find.text('Save fee'));
+        await tester.tap(find.text('Save fee'));
         await tester.pumpAndSettle();
         expect(
           find.text('Enter a valid amount, up to 2 decimals.'),
@@ -757,8 +759,8 @@ void main() {
           find.widgetWithText(TextFormField, 'Amount (INR)'),
           '1,500.50',
         );
-        await tester.ensureVisible(find.text('Save'));
-        await tester.tap(find.text('Save'));
+        await tester.ensureVisible(find.text('Save fee'));
+        await tester.tap(find.text('Save fee'));
         await tester.pumpAndSettle();
         expect(config.created, hasLength(1));
         expect(config.created.single.amountMinor, 150050);

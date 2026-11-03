@@ -128,6 +128,31 @@ class _StaffFormState extends ConsumerState<_StaffForm> {
 
   bool get _isEditing => widget.existing != null;
 
+  /// A new staff member's employee code is generated (`EMP-0001`), never
+  /// typed. It is looked up when the form opens, and again at save.
+  bool _codeFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_isEditing) _loadEmployeeCode();
+  }
+
+  Future<void> _loadEmployeeCode() async {
+    setState(() {
+      _codeFailed = false;
+      _employeeCode.clear();
+    });
+    try {
+      final code = await ref
+          .read(employeeCodeSourceProvider)
+          .nextCode(schoolId: widget.schoolId, branchId: widget.branchId);
+      if (mounted) setState(() => _employeeCode.text = code);
+    } catch (_) {
+      if (mounted) setState(() => _codeFailed = true);
+    }
+  }
+
   String? _optional(TextEditingController c) =>
       c.text.trim().isEmpty ? null : c.text.trim();
 
@@ -135,11 +160,11 @@ class _StaffFormState extends ConsumerState<_StaffForm> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     final base = widget.existing;
-    final staff = Staff(
+    Staff staffWith(String code) => Staff(
       staffId: base?.staffId ?? '',
       schoolId: widget.schoolId,
       branchId: widget.branchId,
-      employeeCode: _employeeCode.text.trim(),
+      employeeCode: code,
       firstName: _firstName.text.trim(),
       middleName: _optional(_middleName),
       lastName: _lastName.text.trim(),
@@ -166,11 +191,32 @@ class _StaffFormState extends ConsumerState<_StaffForm> {
     final controller = ref.read(staffWriteControllerProvider.notifier);
     String? savedId;
     if (_isEditing) {
-      if (await controller.updateStaff(staff, updatedBy: widget.userId)) {
+      if (await controller.updateStaff(
+        staffWith(_employeeCode.text.trim()),
+        updatedBy: widget.userId,
+      )) {
         savedId = base!.staffId;
       }
     } else {
-      savedId = await controller.createStaff(staff, createdBy: widget.userId);
+      // The next code is read again now: another admin may have used the one
+      // shown. If it is taken between the read and the write, ask again.
+      for (var attempt = 0; attempt < 3 && savedId == null; attempt++) {
+        try {
+          final code = await ref
+              .read(employeeCodeSourceProvider)
+              .nextCode(schoolId: widget.schoolId, branchId: widget.branchId);
+          if (mounted) setState(() => _employeeCode.text = code);
+          savedId = await controller.createStaff(
+            staffWith(code),
+            createdBy: widget.userId,
+          );
+        } catch (_) {
+          break;
+        }
+        if (savedId != null) break;
+        final err = ref.read(staffWriteControllerProvider).error;
+        if (!userMessageFor(err ?? '').contains('already in use')) break;
+      }
     }
 
     if (!mounted) return;
@@ -298,12 +344,30 @@ class _StaffFormState extends ConsumerState<_StaffForm> {
               children: [
                 TextFormField(
                   controller: _employeeCode,
+                  readOnly: !_isEditing,
                   textCapitalization: TextCapitalization.characters,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Employee code',
-                    helperText: 'e.g. EMP-0001 — unique in this branch',
+                    helperText: _isEditing
+                        ? 'e.g. EMP-0001 — unique in this branch'
+                        : (_codeFailed ? null : 'Generated automatically'),
+                    errorText: _codeFailed
+                        ? 'Could not generate the code.'
+                        : null,
+                    suffixIcon: _isEditing
+                        ? null
+                        : (_codeFailed
+                              ? IconButton(
+                                  tooltip: 'Try again',
+                                  icon: const Icon(Icons.refresh),
+                                  onPressed: _loadEmployeeCode,
+                                )
+                              : const Icon(Icons.lock_outline)),
                   ),
                   validator: (v) {
+                    if (!_isEditing && (v ?? '').trim().isEmpty) {
+                      return 'The employee code is still being generated.';
+                    }
                     final required = Validators.required(
                       v,
                       fieldName: 'Employee code',

@@ -21,6 +21,7 @@ void main() {
       'help',
       'helpGuide',
       'dashboard',
+      'dashboardMore',
     };
     final src = File('lib/core/routing/app_routes.dart').readAsStringSync();
     final paths = {

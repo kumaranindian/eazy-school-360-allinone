@@ -10,7 +10,10 @@ import '../../../../core/permissions/permission.dart';
 import '../../../../core/permissions/user_role.dart';
 import '../../../../core/tenant/tenant_context.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../shared/branding/page_hero.dart';
+import '../../../../shared/dashboard/home_widgets.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/error/error_view.dart';
 import '../../../../shared/loading/async_value_widget.dart';
@@ -147,53 +150,137 @@ class _ChildLeave extends ConsumerWidget {
       subjectId: child.studentId,
     );
     final applications = ref.watch(subjectLeaveProvider(key));
+    final theme = Theme.of(context);
+    int count(List<LeaveApplication> l, LeaveStatus st) =>
+        l.where((a) => a.status == st).length;
+    final list = applications.value;
+    String n(LeaveStatus st) => list == null ? '–' : '${count(list, st)}';
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
-        if (children.length > 1)
-          Wrap(
-            spacing: AppSpacing.sm,
-            children: [
-              for (final c in children)
-                ChoiceChip(
-                  label: Text(c.displayName),
-                  selected: c.studentId == child.studentId,
-                  onSelected: (_) => onSelect(c.studentId),
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 820),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const PageHero(
+                  title: 'My Leave',
+                  subtitle: 'Request, track and manage leave for your child',
+                  icon: Icons.beach_access_outlined,
                 ),
-            ],
-          ),
-        const SizedBox(height: AppSpacing.md),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Leave for ${child.displayName}',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+                const SizedBox(height: AppSpacing.sm),
+                HomePanel(
+                  accent: AppColors.brandBlue,
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: theme.colorScheme.primaryContainer,
+                        child: Text(
+                          child.firstName.isEmpty
+                              ? '?'
+                              : child.firstName.characters.first.toUpperCase(),
+                          style: TextStyle(
+                            color: theme.colorScheme.onPrimaryContainer,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Text(
+                          'Leave for ${child.displayName}',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (children.length > 1) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    children: [
+                      for (final c in children)
+                        ChoiceChip(
+                          label: Text(c.displayName),
+                          selected: c.studentId == child.studentId,
+                          onSelected: (_) => onSelect(c.studentId),
+                        ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.md),
+                const HomeSectionTitle('Leave Summary'),
+                const SizedBox(height: AppSpacing.sm),
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: OverviewStat(
+                          icon: Icons.event_available_outlined,
+                          value: n(LeaveStatus.approved),
+                          label: 'Approved',
+                          accent: AppColors.success,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: OverviewStat(
+                          icon: Icons.hourglass_bottom,
+                          value: n(LeaveStatus.pending),
+                          label: 'Pending',
+                          accent: AppColors.gold,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: OverviewStat(
+                          icon: Icons.cancel_outlined,
+                          value: n(LeaveStatus.rejected),
+                          label: 'Rejected',
+                          accent: AppColors.error,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52),
+                  ),
+                  onPressed: () => context.go(
+                    '/my-leave/apply?studentId=${child.studentId}&b=${child.branchId}',
+                  ),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Apply for leave'),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                const HomeSectionTitle('Recent Requests'),
+                const SizedBox(height: AppSpacing.sm),
+                applications.when(
+                  loading: () => const Padding(
+                    padding: EdgeInsets.all(AppSpacing.lg),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                  error: (e, _) => ErrorView(
+                    message: userMessageFor(e),
+                    onRetry: () => ref.invalidate(subjectLeaveProvider(key)),
+                  ),
+                  data: (list) => _ApplicationList(
+                    applications: list,
+                    branchId: child.branchId,
+                    emptyMessage:
+                        'No leave applications yet for ${child.firstName}.',
+                  ),
+                ),
+              ],
             ),
-            FilledButton.icon(
-              onPressed: () => context.go(
-                '/my-leave/apply?studentId=${child.studentId}&b=${child.branchId}',
-              ),
-              icon: const Icon(Icons.add),
-              label: const Text('Apply for leave'),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-        applications.when(
-          loading: () => const Padding(
-            padding: EdgeInsets.all(AppSpacing.lg),
-            child: Center(child: CircularProgressIndicator()),
-          ),
-          error: (e, _) => ErrorView(
-            message: userMessageFor(e),
-            onRetry: () => ref.invalidate(subjectLeaveProvider(key)),
-          ),
-          data: (list) => _ApplicationList(
-            applications: list,
-            branchId: child.branchId,
-            emptyMessage: 'No leave applications yet for ${child.firstName}.',
           ),
         ),
       ],
@@ -217,7 +304,26 @@ class _ApplicationList extends StatelessWidget {
     if (applications.isEmpty) {
       return Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Center(child: Text(emptyMessage)),
+        child: Column(
+          children: [
+            Icon(
+              Icons.assignment_turned_in_outlined,
+              size: 64,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              emptyMessage,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            Text(
+              "Tap 'Apply for leave' to send a request.",
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ),
       );
     }
     return Column(

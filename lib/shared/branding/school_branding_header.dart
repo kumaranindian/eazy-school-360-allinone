@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/tenant/tenant_context_provider.dart';
 import 'branch_switcher.dart';
 import 'brand_logo.dart';
 import 'school_brand_logo.dart';
@@ -63,10 +64,7 @@ class SchoolBrandingHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final showSubtitle =
-        subtitle != null &&
-        subtitle!.isNotEmpty &&
-        MediaQuery.sizeOf(context).width >= 600;
+    final showSubtitle = subtitle != null && subtitle!.isNotEmpty;
     return CustomMultiChildLayout(
       delegate: _HeaderLayout(
         gap: gap,
@@ -94,9 +92,11 @@ class SchoolBrandingHeader extends StatelessWidget {
                   softWrap: false,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: theme.colorScheme.onSurface,
-                  ),
+                  style:
+                      (showSubtitle
+                              ? theme.textTheme.titleMedium
+                              : theme.textTheme.titleLarge)
+                          ?.copyWith(color: theme.colorScheme.onSurface),
                 ),
                 if (showSubtitle)
                   Text(
@@ -107,6 +107,7 @@ class SchoolBrandingHeader extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
+                      height: 1.1,
                     ),
                   ),
               ],
@@ -212,6 +213,11 @@ class SchoolBrandingAppBar extends ConsumerWidget
     final title = (screenTitle != null && screenTitle!.isNotEmpty)
         ? screenTitle!
         : (schoolName.isNotEmpty ? schoolName : fallbackTitle);
+    // On the dashboard the branch sits under the school name, as in the
+    // design; other screens show their own title alone.
+    final branchName = (screenTitle == null || screenTitle!.isEmpty)
+        ? ref.watch(tenantContextProvider).value?.branch?.name.trim()
+        : null;
     final width = MediaQuery.sizeOf(context).width;
     final logo = width < 600 ? 32.0 : 36.0;
 
@@ -243,6 +249,7 @@ class SchoolBrandingAppBar extends ConsumerWidget
           schoolLogo: schoolLogo,
           appLogo: BrandMark(size: logo),
           title: title,
+          subtitle: branchName,
           actions: [const BranchSwitcher(), ...actions],
         ),
       ),

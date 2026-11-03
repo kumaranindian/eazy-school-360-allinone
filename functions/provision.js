@@ -542,4 +542,98 @@ async function resetOne(ctx, id) {
   return { id, name, outcome: 'RESET', ...(pw.reveal ? { tempPassword: pw.password } : {}) };
 }
 
-module.exports = { resetLoginPassword, changeInitialPassword, provisionLogins, nameMobilePassword, randomTempPassword, passwordPolicyOk, PASSWORD_OPTIONS, ensureAuthUser, enablePortalLinks, refreshParentAccess, MAX_BATCH };
+// Creates another SCHOOL_ADMIN for the caller's own school. Firestore rules
+// refuse this to every client (a school admin can never be granted by a
+// client write), so this server path is the only way, and it is deliberately
+// narrow:
+//   - the caller must be an ACTIVE, login-allowed SCHOOL_ADMIN of [schoolId]
+//     (a branch admin or platform admin cannot);
+//   - it only ever CREATES a brand-new account: an email that already has a
+//     login (staff, parent or another school's admin) is refused, so nobody
+//     is promoted or merged by accident;
+//   - the first password follows the same options as bulk logins, is never
+//     stored or logged, and the new admin must change a server-set one at
+//     first sign-in;
+//   - every creation is written to the school's authAudit trail.
+const ADMIN_PASSWORD_OPTIONS = ['ACTIVATION_EMAIL', 'RANDOM_TEMP', 'ADMIN_DEFINED', 'NAME_MOBILE'];
+
+async function createSchoolAdmin({ db, auth, now }, callerUid, data, token) {
+  const { schoolId, name, email, phone, passwordSetup } = data || {};
+  const text = (v, max) => typeof v === 'string' && v.trim().length > 0 && v.trim().length <= max;
+  if (!text(schoolId, 128) || !text(name, 100) || !text(email, 254)) return { error: 'INVALID_ARGUMENT' };
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanName = name.trim();
+  if (cleanName.length < 2 || !EMAIL.test(cleanEmail)) return { error: 'INVALID_ARGUMENT' };
+  if (phone !== undefined && phone !== null && !text(phone, 30)) return { error: 'INVALID_ARGUMENT' };
+  let setup = { option: 'ACTIVATION_EMAIL' };
+  if (passwordSetup !== undefined) {
+    if (!passwordSetup || typeof passwordSetup !== 'object' || !ADMIN_PASSWORD_OPTIONS.includes(passwordSetup.option)) {
+      return { error: 'INVALID_ARGUMENT' };
+    }
+    if (passwordSetup.option === 'ADMIN_DEFINED' && !passwordPolicyOk(passwordSetup.password)) return { error: 'INVALID_ARGUMENT' };
+    setup = { option: passwordSetup.option, ...(passwordSetup.option === 'ADMIN_DEFINED' ? { password: passwordSetup.password } : {}) };
+  }
+
+  // Branch-less on purpose: only a SCHOOL_ADMIN passes (assertAdmin returns a
+  // branch admin only when a branch is given).
+  const caller = await assertAdmin(db, callerUid, schoolId, null, token);
+  if (!caller || caller.role !== 'SCHOOL_ADMIN') return { error: 'PERMISSION_DENIED' };
+
+  const school = await schoolMethods(db, schoolId);
+  const passwordApplies = intersect(LEGACY_METHODS, school).includes('PASSWORD');
+  const pw = passwordApplies ? initialPassword(setup, cleanName, phone) : { password: null };
+  if (pw.problem) return { error: pw.problem };
+
+  const a = await ensureAuthUser(auth, db, {
+    email: cleanEmail,
+    name: cleanName,
+    schoolId,
+    branchId: caller.branchId || null,
+    kind: 'SCHOOL_ADMIN',
+    recordId: null,
+    allowedRoles: [],
+    password: pw.password,
+  });
+  // An email that already has a profile is never reused.
+  if (a.problem || a.existingProfile) return { error: 'EMAIL_IN_USE' };
+
+  const mustChange = a.passwordApplied === true;
+  const ctx = { db, auth, schoolId, by: callerUid, now, school };
+  const batch = db.batch();
+  batch.set(
+    db.collection('users').doc(a.uid),
+    profileDoc({
+      schoolId,
+      // A school admin's authority spans every branch; branchId is only a home
+      // branch, so the new admin shares the creator's.
+      branchId: caller.branchId || null,
+      name: cleanName,
+      email: cleanEmail,
+      phone,
+      role: 'SCHOOL_ADMIN',
+      login: await defaultLogin(ctx, mustChange),
+      by: callerUid,
+      now,
+    }),
+  );
+  batch.set(db.collection('schools').doc(schoolId).collection('authAudit').doc(), {
+    schoolId,
+    type: 'SCHOOL_ADMIN_CREATED',
+    actorUid: callerUid,
+    targetUid: a.uid,
+    option: setup.option,
+    createdAt: now,
+  });
+  await batch.commit();
+  return {
+    outcome: 'CREATED',
+    uid: a.uid,
+    name: cleanName,
+    email: cleanEmail,
+    newAccount: a.created,
+    passwordSet: mustChange,
+    ...(mustChange && pw.reveal ? { tempPassword: pw.password } : {}),
+  };
+}
+
+module.exports = { createSchoolAdmin, resetLoginPassword, changeInitialPassword, provisionLogins, nameMobilePassword, randomTempPassword, passwordPolicyOk, PASSWORD_OPTIONS, ensureAuthUser, enablePortalLinks, refreshParentAccess, MAX_BATCH };

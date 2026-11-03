@@ -16,7 +16,7 @@ const devices = require('./devices');
 const notifyEvents = require('./notify_events');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret, defineString } = require('firebase-functions/params');
-const { provisionLogins, changeInitialPassword, resetLoginPassword, ensureAuthUser, enablePortalLinks } = require('./provision');
+const { createSchoolAdmin, provisionLogins, changeInitialPassword, resetLoginPassword, ensureAuthUser, enablePortalLinks } = require('./provision');
 const access = require('./access');
 const { diagnoseAccess } = require('./diagnose');
 const teacherAccess = require('./teacher_access');
@@ -189,6 +189,17 @@ exports.provisionLogins = onCall(callOptions(), async (request) => {
   return out;
 });
 
+// Adds another school admin to the caller's own school. Only an existing
+// school admin may call it; the Firestore rules forbid this to clients.
+exports.createSchoolAdmin = onCall(callOptions(), async (request) => {
+  const a = signedIn(request);
+  const out = await createSchoolAdmin({ db, auth: getAuth(), now: FieldValue.serverTimestamp() }, a.uid, request.data, a.token);
+  if (out.error) fail(out);
+  // Ids and the chosen option only: never the email, name or password.
+  logger.info('createSchoolAdmin', { by: a.uid, target: out.uid, passwordSet: out.passwordSet === true });
+  return out;
+});
+
 // First sign-in after an admin-set / derived password: the person replaces it.
 // Allowed only while their profile is flagged; nothing about the password is logged.
 exports.changeInitialPassword = onCall(callOptions(), async (request) => {
@@ -246,6 +257,7 @@ const STATUS = {
   PERMISSION_DENIED: 'permission-denied',
   INVALID_ARGUMENT: 'invalid-argument',
   NOT_FOUND: 'not-found',
+  EMAIL_IN_USE: 'already-exists',
   UNAUTHENTICATED: 'unauthenticated',
   RATE_LIMITED: 'resource-exhausted',
   RESEND_COOLDOWN: 'resource-exhausted',

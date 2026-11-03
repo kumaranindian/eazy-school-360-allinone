@@ -13,6 +13,7 @@ import '../permissions/user_role.dart';
 import '../tenant/tenant_context.dart';
 import '../tenant/tenant_context_provider.dart';
 import 'app_routes.dart';
+import 'back_exit_guard.dart';
 import 'route_titles.dart';
 
 /// Hosts the authenticated area's adaptive navigation around whichever
@@ -409,27 +410,34 @@ class AppShell extends ConsumerWidget {
     final path = GoRouterState.of(context).uri.path;
     final compact = MediaQuery.sizeOf(context).width < 600;
 
-    return AdaptiveScaffold(
-      title: 'EazySchool 360',
-      screenTitle: screenTitleForPath(path),
-      header: _heroFor(path, tenant, compact: compact),
-      destinations: visibleDestinations,
-      selectedIndex: selectedVisibleIndex < 0 ? 0 : selectedVisibleIndex,
-      onDestinationSelected: (visibleIndex) =>
-          _goBranch(visibleBranchIndexes[visibleIndex]),
-      body: (tenant?.can(Permission.viewNotifications) ?? false)
-          ? NotificationAlerts(child: navigationShell)
-          : navigationShell,
-      actions: [
-        if (tenant?.can(Permission.viewNotifications) ?? false)
-          const NotificationBell(),
-        ContextualHelpButton(path: path),
-        IconButton(
-          icon: const Icon(Icons.logout),
-          tooltip: 'Sign out',
-          onPressed: () => signOutWithCleanup(ref),
-        ),
-      ],
+    final onMorePage = path == AppRoutes.dashboardMore;
+
+    return BackExitGuard(
+      path: path,
+      child: AdaptiveScaffold(
+        title: 'EazySchool 360',
+        onMore: () => context.go(AppRoutes.dashboardMore),
+        moreSelected: onMorePage,
+        screenTitle: screenTitleForPath(path),
+        header: _heroFor(path, tenant, compact: compact),
+        destinations: visibleDestinations,
+        selectedIndex: selectedVisibleIndex < 0 ? 0 : selectedVisibleIndex,
+        onDestinationSelected: (visibleIndex) =>
+            _goBranch(visibleBranchIndexes[visibleIndex]),
+        body: (tenant?.can(Permission.viewNotifications) ?? false)
+            ? NotificationAlerts(child: navigationShell)
+            : navigationShell,
+        actions: [
+          if (tenant?.can(Permission.viewNotifications) ?? false)
+            const NotificationBell(),
+          ContextualHelpButton(path: path),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sign out',
+            onPressed: () => signOutWithCleanup(ref),
+          ),
+        ],
+      ),
     );
   }
 }

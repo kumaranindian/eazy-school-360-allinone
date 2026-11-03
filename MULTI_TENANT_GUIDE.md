@@ -192,7 +192,10 @@ executable proof):
   reading its own profile (so the client can tell the user *why*).
 - A user can never change their own `role`/`schoolId`/`branchId`/`status`.
 - An admin can never grant `PLATFORM_ADMIN` or `SCHOOL_ADMIN` through a
-  client write, and can never act outside their own school. A
+  client write (the one exception is the server: the `createSchoolAdmin`
+  callable, usable only by an ACTIVE school admin of that school, creates a
+  brand-new account with the role — it never promotes an existing login and
+  writes an `authAudit` entry; the app's People & access page calls it), and can never act outside their own school. A
   `BRANCH_ADMIN` can only create/manage `TEACHER`/`FINANCE`/`PARENT` users
   in their own branch.
 - A new account can only become `SCHOOL_ADMIN` of a school it creates in

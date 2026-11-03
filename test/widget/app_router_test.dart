@@ -140,7 +140,7 @@ void main() {
       profile: _profile(role: UserRole.schoolAdmin),
     );
     expect(_location(container), AppRoutes.dashboard);
-    expect(find.text('Welcome, Grace Hopper'), findsOneWidget);
+    expect(find.text('Grace Hopper'), findsOneWidget);
     expect(find.text('School'), findsWidgets);
     expect(find.text('Users'), findsWidgets);
   });

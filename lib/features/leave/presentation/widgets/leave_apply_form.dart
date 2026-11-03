@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/error_mapper.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../shared/dashboard/home_widgets.dart';
 import '../../../academic_setup/domain/academic_year.dart';
 import '../../../academic_setup/presentation/providers/academic_setup_keys.dart';
 import '../../../academic_setup/presentation/providers/calendar_providers.dart';
@@ -393,10 +395,45 @@ class _LeaveApplyFormState extends ConsumerState<LeaveApplyForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Leave for ${s.name}'
-          '${s.className == null ? '' : ' · ${s.className}${s.sectionName == null ? '' : ' ${s.sectionName}'}'}',
-          style: theme.textTheme.titleMedium,
+        HomePanel(
+          accent: AppColors.brandBlue,
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: theme.colorScheme.primaryContainer,
+                child: Text(
+                  s.name.isEmpty ? '?' : s.name.characters.first.toUpperCase(),
+                  style: TextStyle(
+                    color: theme.colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Leave for ${s.name}',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (s.className != null)
+                      Text(
+                        '${s.className}'
+                        '${s.sectionName == null ? '' : '  |  Section ${s.sectionName}'}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: AppSpacing.md),
         DropdownButtonFormField<String>(
@@ -415,26 +452,52 @@ class _LeaveApplyFormState extends ConsumerState<LeaveApplyForm> {
                 }),
         ),
         const SizedBox(height: AppSpacing.md),
-        Wrap(
-          spacing: AppSpacing.md,
-          runSpacing: AppSpacing.sm,
-          children: [
-            OutlinedButton.icon(
-              onPressed: () => _pickDate(start: true),
-              icon: const Icon(Icons.event),
-              label: Text(
-                _start == null
-                    ? 'First day'
-                    : 'From ${leaveDate(AttendanceDate.key(_start!))}',
+        Text(
+          'Leave period',
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _DateField(
+                  icon: Icons.event,
+                  text: _start == null
+                      ? 'First day'
+                      : 'From ${leaveDate(AttendanceDate.key(_start!))}',
+                  onTap: () => _pickDate(start: true),
+                ),
               ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _DateField(
+                  icon: Icons.event_available,
+                  text: _end == null
+                      ? 'Last day'
+                      : 'To ${leaveDate(AttendanceDate.key(_end!))}',
+                  onTap: () => _pickDate(start: false),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Icon(
+              Icons.date_range_outlined,
+              size: 18,
+              color: theme.colorScheme.primary,
             ),
-            OutlinedButton.icon(
-              onPressed: () => _pickDate(start: false),
-              icon: const Icon(Icons.event_available),
-              label: Text(
-                _end == null
-                    ? 'Last day'
-                    : 'To ${leaveDate(AttendanceDate.key(_end!))}',
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Number of days: ${plan.span != null && plan.span!.isValid ? LeaveUnits.formatDays(plan.span!.units) : '–'}',
+                style: theme.textTheme.bodyMedium,
               ),
             ),
           ],
@@ -480,24 +543,48 @@ class _LeaveApplyFormState extends ConsumerState<LeaveApplyForm> {
           Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
         ],
         const SizedBox(height: AppSpacing.md),
-        Align(
-          alignment: Alignment.centerRight,
-          child: FilledButton.icon(
-            onPressed:
-                (_saving || _uploading || !plan.canSubmit || type == null)
-                ? null
-                : () => _submit(plan, type),
-            icon: _saving
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.send),
-            label: Text(
-              widget.resubmitting != null ? 'Resubmit' : 'Submit application',
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                ),
+                onPressed: _saving ? null : widget.onDone,
+                child: const Text('Cancel'),
+              ),
             ),
-          ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              flex: 2,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                ),
+                onPressed:
+                    (_saving || _uploading || !plan.canSubmit || type == null)
+                    ? null
+                    : () => _submit(plan, type),
+                icon: _saving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send),
+                label: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    widget.resubmitting != null
+                        ? 'Resubmit'
+                        : 'Submit application',
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -523,37 +610,61 @@ class _Documents extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final enabled = canAdd && !uploading;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Text(
-              required
-                  ? 'Supporting document (required)'
-                  : 'Supporting document (optional)',
-              style: Theme.of(context).textTheme.labelLarge,
-            ),
-            TextButton.icon(
-              onPressed: canAdd && !uploading ? onAdd : null,
-              icon: uploading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.attach_file),
-              label: const Text('Attach'),
-            ),
-          ],
-        ),
         Text(
-          'PDF, JPEG or PNG, up to 5 MB each, at most '
-          '${LeaveWorkflow.maxAttachments} files. Only you and the school '
-          'office can open them.',
-          style: Theme.of(context).textTheme.bodySmall,
+          required
+              ? 'Supporting document (required)'
+              : 'Supporting document (optional)',
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        CustomPaint(
+          painter: _DashedBorder(
+            theme.colorScheme.primary.withValues(alpha: 0.7),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            onTap: enabled ? onAdd : null,
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: SizedBox(
+                width: double.infinity,
+                child: Column(
+                  children: [
+                    uploading
+                        ? const SizedBox(
+                            width: 28,
+                            height: 28,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            Icons.cloud_upload_outlined,
+                            size: 34,
+                            color: theme.colorScheme.primary,
+                          ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Tap to attach files',
+                      style: theme.textTheme.titleSmall,
+                    ),
+                    Text(
+                      'PDF, JPG or PNG  •  Up to 5 MB each  •  Max '
+                      '${LeaveWorkflow.maxAttachments} files. Only you and the '
+                      'school office can open them.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
         for (final f in files)
           ListTile(
@@ -566,6 +677,63 @@ class _Documents extends StatelessWidget {
       ],
     );
   }
+}
+
+/// A tappable date box: icon and the chosen date (or a prompt).
+class _DateField extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final VoidCallback onTap;
+
+  const _DateField({
+    required this.icon,
+    required this.text,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return HomePanel(
+      accent: AppColors.brandBlue,
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      child: Row(
+        children: [
+          Icon(icon, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text)),
+        ],
+      ),
+    );
+  }
+}
+
+class _DashedBorder extends CustomPainter {
+  final Color color;
+  _DashedBorder(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rrect = RRect.fromRectAndRadius(
+      Offset.zero & size,
+      const Radius.circular(AppRadius.lg),
+    );
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+    final path = Path()..addRRect(rrect);
+    for (final metric in path.computeMetrics()) {
+      var d = 0.0;
+      while (d < metric.length) {
+        canvas.drawPath(metric.extractPath(d, d + 6), paint);
+        d += 10;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedBorder old) => old.color != color;
 }
 
 class _PlanSummary extends StatelessWidget {

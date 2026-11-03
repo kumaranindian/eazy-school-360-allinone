@@ -41,6 +41,12 @@ class AdaptiveScaffold extends StatelessWidget {
   /// Optional hero shown above the page on top-level screens.
   final Widget? header;
 
+  /// When set, the phone's last bottom-bar entry is a "More" tab that calls
+  /// this (opening the all-modules page) instead of a pop-up list of the
+  /// destinations that did not fit. [moreSelected] highlights it.
+  final VoidCallback? onMore;
+  final bool moreSelected;
+
   const AdaptiveScaffold({
     super.key,
     required this.title,
@@ -51,6 +57,8 @@ class AdaptiveScaffold extends StatelessWidget {
     required this.body,
     this.actions,
     this.header,
+    this.onMore,
+    this.moreSelected = false,
   });
 
   /// The shell's top bar stays light and carries the branding header —
@@ -114,18 +122,25 @@ class AdaptiveScaffold extends StatelessWidget {
           // destinations, the first four stay in the bar and the rest open
           // from a "More" entry, so nothing is lost and nothing is cramped.
           const maxInBar = 5;
-          final needsMore = destinations.length > maxInBar;
+          final needsMore =
+              destinations.length > maxInBar ||
+              (onMore != null && destinations.length > 1);
           final inBar = needsMore
               ? destinations.take(maxInBar - 1).toList()
               : destinations;
           final overflow = needsMore
               ? destinations.skip(maxInBar - 1).toList()
               : const <NavDestination>[];
-          final barSelected = needsMore && selectedIndex >= inBar.length
+          final barSelected =
+              needsMore && (moreSelected || selectedIndex >= inBar.length)
               ? inBar.length
               : selectedIndex;
 
           Future<void> openMore() async {
+            if (onMore != null) {
+              onMore!();
+              return;
+            }
             final picked = await showModalBottomSheet<int>(
               context: context,
               showDragHandle: true,
@@ -183,6 +198,7 @@ class AdaptiveScaffold extends StatelessWidget {
                       if (needsMore)
                         const NavigationDestination(
                           icon: Icon(Icons.more_horiz),
+                          selectedIcon: Icon(Icons.more_horiz),
                           label: 'More',
                         ),
                     ],

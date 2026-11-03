@@ -20,6 +20,10 @@ abstract final class AppRoutes {
   /// Asks Avail404 to delete the signed-in person's own account.
   static const String deleteAccount = '/delete-account';
   static const String dashboard = '/dashboard';
+
+  /// The phone's "More" tab: every module, grouped (a sub-page of the
+  /// dashboard branch, so the dashboard keeps its place in the nav).
+  static const String dashboardMore = '/dashboard/more';
   static const String school = '/school';
   static const String users = '/users';
 
