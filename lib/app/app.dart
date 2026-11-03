@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/app_update/forced_app_update.dart';
 import '../core/config/env_config_provider.dart';
 import '../core/regional/school_time.dart';
 import '../core/routing/app_router.dart';
@@ -56,17 +57,19 @@ class App extends ConsumerWidget {
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.system,
       routerConfig: router,
-      builder: (context, child) => _AdaptiveText(
-        child: _BrandPrecache(
-          child: accountSwitching
-              ? const Scaffold(body: LoadingIndicator())
-              : KeyedSubtree(
-                  key: ValueKey(regionalKey),
-                  child: _RouteProgressBar(
-                    router: router,
-                    child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => ForcedAppUpdate(
+        child: _AdaptiveText(
+          child: _BrandPrecache(
+            child: accountSwitching
+                ? const Scaffold(body: LoadingIndicator())
+                : KeyedSubtree(
+                    key: ValueKey(regionalKey),
+                    child: _RouteProgressBar(
+                      router: router,
+                      child: child ?? const SizedBox.shrink(),
+                    ),
                   ),
-                ),
+          ),
         ),
       ),
     );
