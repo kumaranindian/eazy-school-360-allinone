@@ -11,6 +11,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/dashboard/home_widgets.dart';
 import '../../../../shared/layouts/hub_layout.dart';
 import '../../../../shared/loading/async_value_widget.dart';
+import '../widgets/admin/admin_home.dart';
 import '../widgets/parent_home_summary.dart';
 import '../widgets/staff_home.dart';
 
@@ -373,10 +374,15 @@ class DashboardPage extends ConsumerWidget {
           tenant.branch?.name,
         ].whereType<String>().where((e) => e.isNotEmpty).join(' · ');
 
+        final isSchoolAdmin = tenant.role == UserRole.schoolAdmin;
+        final email = tenant.user.email;
         final banner = WelcomeBanner(
-          name: isParent ? tenant.user.name : tenant.user.name,
+          name: tenant.user.name,
           roleLabel: tenant.role.displayName,
-          subtitle: isParent || place.isEmpty ? null : place,
+          // The School Admin's welcome also names the signed-in account.
+          subtitle: isParent || place.isEmpty
+              ? null
+              : (isSchoolAdmin && email.isNotEmpty ? '$email\n$place' : place),
         );
 
         // On a phone every module lives under the More tab, as in the
@@ -388,9 +394,11 @@ class DashboardPage extends ConsumerWidget {
 
         final home = isParent
             ? ParentHome(tenant: tenant, banner: banner)
+            : isSchoolAdmin
+            ? AdminHome(tenant: tenant, banner: banner)
             : StaffHome(tenant: tenant, banner: banner);
 
-        return _HomeScroll(
+        final scroll = _HomeScroll(
           children: [
             home,
             for (final (section, items) in groups) ...[
@@ -400,6 +408,8 @@ class DashboardPage extends ConsumerWidget {
             const SizedBox(height: AppSpacing.md),
           ],
         );
+        // The School Admin's dashboard sits on its own (light) page colour.
+        return isSchoolAdmin ? AdminDashboardBackground(child: scroll) : scroll;
       },
     );
   }
