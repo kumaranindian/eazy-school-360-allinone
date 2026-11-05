@@ -1621,15 +1621,15 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "subtotalMinor",
-          "order": "ASCENDING"
-        },
-        {
           "fieldPath": "discountMinor",
           "order": "ASCENDING"
         },
         {
           "fieldPath": "payableMinor",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "subtotalMinor",
           "order": "ASCENDING"
         },
         {
@@ -1651,11 +1651,11 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "paidMinor",
+          "fieldPath": "balanceMinor",
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "balanceMinor",
+          "fieldPath": "paidMinor",
           "order": "ASCENDING"
         }
       ]
