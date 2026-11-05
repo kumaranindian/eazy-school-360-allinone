@@ -1773,24 +1773,20 @@ service cloud.firestore {
       // setLoginAccess); school admins may read them.
       match /authSettings/{docId} {
         allow read: if isSchoolAdminOrAbove(schoolId);
-        allow write: if false;
       }
       match /authAudit/{eventId} {
         allow read: if isSchoolAdminOrAbove(schoolId);
-        allow write: if false;
       }
       // The school's fee reminder policy (days before / after the due date,
       // delivery time, what the text shows). Validated and written ONLY by the
       // updateFeeReminderSettings callable; school admins may read it.
       match /feeReminderSettings/{docId} {
         allow read: if isSchoolAdminOrAbove(schoolId);
-        allow write: if false;
       }
       // Grants/revocations of per-branch roles (setBranchAccess, staff
       // deactivation). Cloud Functions write; school admins read.
       match /branchAccessAudit/{eventId} {
         allow read: if isSchoolAdminOrAbove(schoolId);
-        allow write: if false;
       }
 
       // Audit trail of student transfers between branches (written in the same
