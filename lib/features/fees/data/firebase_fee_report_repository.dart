@@ -54,17 +54,20 @@ class FirebaseFeeReportRepository implements FeeReportRepository {
         branchId,
       ).invoices.where('academicYearId', isEqualTo: academicYearId);
 
-      final totals = await invoices
-          .where(FirestoreFields.status, whereIn: _live)
+      // Firestore allows at most 5 aggregations per query, so the seven
+      // figures are fetched as two queries over the same filter.
+      final live = invoices.where(FirestoreFields.status, whereIn: _live);
+      final totals = await live
           .aggregate(
             count(),
             sum('subtotalMinor'),
             sum('discountMinor'),
             sum('payableMinor'),
             sum('waivedMinor'),
-            sum('paidMinor'),
-            sum('balanceMinor'),
           )
+          .get();
+      final settled = await live
+          .aggregate(sum('paidMinor'), sum('balanceMinor'))
           .get();
       final overdue = await invoices
           .where(FirestoreFields.status, whereIn: _open)
@@ -92,8 +95,8 @@ class FirebaseFeeReportRepository implements FeeReportRepository {
         discountMinor: _sum(totals, 'discountMinor'),
         payableMinor: _sum(totals, 'payableMinor'),
         waivedMinor: _sum(totals, 'waivedMinor'),
-        collectedMinor: _sum(totals, 'paidMinor'),
-        outstandingMinor: _sum(totals, 'balanceMinor'),
+        collectedMinor: _sum(settled, 'paidMinor'),
+        outstandingMinor: _sum(settled, 'balanceMinor'),
         overdueMinor: _sum(overdue, 'balanceMinor'),
         overdueInvoiceCount: overdue.count ?? 0,
         partiallyPaidCount: partial.count ?? 0,
