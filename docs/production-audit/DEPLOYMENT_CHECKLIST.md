@@ -31,6 +31,7 @@ Use for staging first, then production. Tick only with recorded evidence (comman
 - [ ] Mark attendance on a date; apply and approve leave **on the last day of the academic year**
 - [ ] Marks → submit → approve → finalise → publish → parent sees result
 - [ ] Generate one invoice; collect a part payment twice quickly (one payment recorded); reverse it; check balance & audit entry
+- [ ] Fee reminders (needs Blaze + functions): Settings → Fee reminders saves; a test invoice due in the configured days produces one notification per linked parent; running again adds none; an overdue step reminds only unpaid invoices (`docs/fee-reminders.md`)
 - [ ] Push: foreground/background/terminated on Android, iOS, web; sign out → no further pushes to that device
 - [ ] Crash test event appears in Crashlytics (Android + iOS release builds)
 - [ ] Deep link + browser refresh lands on the same page

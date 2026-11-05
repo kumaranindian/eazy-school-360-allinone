@@ -10,6 +10,7 @@ import 'pages/holidays_page.dart';
 import 'pages/sections_page.dart';
 import 'pages/school_years_page.dart';
 import 'pages/settings_overview_page.dart';
+import '../../fees/presentation/pages/fee_reminder_settings_page.dart';
 import 'pages/subjects_page.dart';
 import 'pages/working_days_page.dart';
 
@@ -61,6 +62,10 @@ List<RouteBase> academicSetupRoutes() => [
       GoRoute(
         path: 'regional',
         builder: (context, state) => const RegionalSettingsPage(),
+      ),
+      GoRoute(
+        path: 'fee-reminders',
+        builder: (context, state) => const FeeReminderSettingsPage(),
       ),
       GoRoute(
         path: 'authentication',

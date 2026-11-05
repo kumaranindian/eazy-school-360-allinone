@@ -42,6 +42,7 @@ abstract final class AppRoutes {
   static const String settingsHolidays = '/settings/holidays';
   static const String settingsAuthentication = '/settings/authentication';
   static const String settingsRegional = '/settings/regional';
+  static const String settingsFeeReminders = '/settings/fee-reminders';
 
   /// Student + Parent management (Milestone 3). `:studentId`/`:parentId`
   /// are the route *templates* (see note on [requiredPermissions] below),
@@ -191,6 +192,7 @@ abstract final class AppRoutes {
     settingsHolidays: Permission.viewAcademicSetup,
     settingsAuthentication: Permission.manageSchool,
     settingsRegional: Permission.manageSchool,
+    settingsFeeReminders: Permission.manageSchool,
     students: Permission.viewStudentData,
     newStudent: Permission.manageStudentData,
     studentProfile: Permission.viewStudentData,

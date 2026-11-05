@@ -30,10 +30,10 @@ event (leave, payment, register finalised, holiday, announcement…)
 | Fee payment recorded | `notifyPaymentRecorded` (payments `onCreate`, status ACTIVE) | linked parents with portal access | "A fee payment was recorded." (no amount) |
 | Student absent | `notifyRegisterFinalized` (register becomes FINALIZED) | that student's linked parents | "Your child was marked absent on 3 Aug 2026." |
 | Holiday added / changed / cancelled | `notifyHolidayWritten` | whole branch | name and dates |
-| Fee due soon / today | `feeDueReminders` (daily 08:00 Asia/Kolkata) | linked parents of open invoices due in 3 days / today | "A fee invoice is due on …" (no amount) |
+| Fee due soon / today / overdue | `feeDueReminders` (hourly; per-school delivery time and days, `docs/fee-reminders.md`) | linked parents of open invoices on the school's configured days before / on / after the due date | "Dear Parent, the fee invoice for … is due on …" (amount and invoice number only if the school switches them on) |
 
-Payloads and notification text never contain amounts, marks, or other private
-data. Event handlers (`functions/notify_events.js`) write deterministic
+Payloads and notification text never contain marks or other private data, and
+amounts only where a school opts in to showing them in fee reminders. Event handlers (`functions/notify_events.js`) write deterministic
 document ids with `create()`, so a retry or a re-run creates nothing new.
 
 ### Idempotency and retries

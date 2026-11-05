@@ -58,8 +58,9 @@ Three kinds of time are kept apart (`lib/core/regional/school_time.dart`):
   ~0.9 MB to the uncompressed web bundle; DST is correct for every year).
 
 ## Cloud Functions
-* `feeDueReminders` runs **hourly** and handles each school at 08:00 in its
-  own zone (retried for three hours; idempotent). Schools with no zone keep the
+* `feeDueReminders` runs **hourly** and handles each school at its configured
+  delivery time (default 08:00) in its own zone (retried for three hours;
+  idempotent). See `fee-reminders.md`. Schools with no zone keep the
   Indian schedule.
 * Notice texts use an unambiguous "3 Aug 2026" date.
 

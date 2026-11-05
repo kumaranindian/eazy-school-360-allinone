@@ -169,6 +169,10 @@ test('Teacher: the CLASS TEACHER of 5-A marks and reads 5-A, but not 5-B; an una
   const other = asUser('att-teacher-other'); // TEACHER role, but not class teacher of anything
   await assertFails(setDoc(attRef(other, 'stu-3'), studentAtt({ studentId: 'stu-3', uid: 'att-teacher-other' })));
   await assertFails(getDoc(attRef(other)));
+  // a record that does not exist yet can be read by any teacher (the save
+  // transaction reads before creating); an existing one stays restricted
+  await assertSucceeds(getDoc(attRef(ct, 'stu-never')));
+  await assertSucceeds(getDoc(attRef(other, 'stu-never')));
 });
 
 test('A teacher who stops being ACTIVE loses marking rights; a TEACHER role alone grants nothing', async () => {

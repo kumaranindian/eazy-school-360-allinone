@@ -12,6 +12,7 @@ const ids = { schoolId: 's1', branchId: 'b1' };
 
 /** st1's parents: pu1 (valid), plus every way a link must NOT notify. */
 const family = () => ({
+  'schools/s1': { name: 'School One' }, // no zone and no reminder settings: the Indian zone and the defaults
   [`${B}/students/st1/parentLinks/p1`]: { parentId: 'p1', status: 'ACTIVE', canAccessPortal: true },
   [`${B}/students/st1/parentLinks/p2`]: { parentId: 'p2', status: 'ACTIVE', canAccessPortal: false }, // no portal
   [`${B}/students/st1/parentLinks/p3`]: { parentId: 'p3', status: 'ACTIVE', canAccessPortal: true }, // inactive login
@@ -164,7 +165,7 @@ test('two different edits of one holiday are two notices, not one', async () => 
 
 // ---- fee due reminders ----------------------------------------------------
 
-const inv = (o = {}) => ({ studentId: 'st1', status: 'ISSUED', balanceMinor: 50000, dueDateKey: '2026-08-06', ...o });
+const inv = (o = {}) => ({ studentId: 'st1', studentName: 'Asha Rao', invoiceNumber: 'INV-7', currency: 'INR', status: 'ISSUED', balanceMinor: 50000, dueDateKey: '2026-08-06', ...o });
 const run = (db, extra = {}) => ev.runFeeDueReminders(ctx(db), { today: new Date('2026-08-03T04:00:00Z'), timeZone: 'Asia/Kolkata', ...extra });
 
 test('an invoice due in three days reminds its parent, without an amount', async () => {
@@ -174,9 +175,18 @@ test('an invoice due in three days reminds its parent, without an amount', async
   const n = db.store.get(`${B}/notifications/FEE_DUE__i1__3__pu1`);
   assert.deepStrictEqual(
     { to: n.recipientUserId, type: n.type, title: n.title, body: n.body, ref: n.refType, id: n.refId },
-    { to: 'pu1', type: 'FEE_DUE_REMINDER', title: 'Fee due soon', body: 'A fee invoice is due on 6 Aug 2026.', ref: 'INVOICE', id: 'i1' },
+    {
+      to: 'pu1',
+      type: 'FEE_DUE_REMINDER',
+      title: 'Fee due soon',
+      body: 'Dear Parent, the fee invoice for Asha Rao is due on 6 Aug 2026. Please complete the payment on time.',
+      ref: 'INVOICE',
+      id: 'i1',
+    },
   );
-  assert.ok(!/50000|500/.test(`${n.title} ${n.body}`));
+  // by default (as before this was configurable) no amount and no invoice number
+  assert.ok(!/50000|500|INV-7/.test(`${n.title} ${n.body}`));
+  assert.deepStrictEqual({ s: n.studentId, d: n.dueDateKey, o: n.reminderOffset }, { s: 'st1', d: '2026-08-06', o: 3 });
 });
 
 test('an invoice due today gets the "today" reminder', async () => {
@@ -226,7 +236,7 @@ test('SEC-4: more invoices than one page are all reminded, none skipped', async 
   const seed = { ...family() };
   for (let i = 0; i < 1200; i++) seed[`${B}/invoices/i${String(i).padStart(4, '0')}`] = inv();
   const db = fakeDb(seed);
-  const r = await run(db, { offsets: [3] });
+  const r = await run(db);
   assert.deepStrictEqual(r, { created: 1200, scanned: 1200 });
 });
 

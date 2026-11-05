@@ -23,9 +23,9 @@
 //    screen.
 
 const crypto = require('node:crypto');
+const feeReminders = require('./fee_reminders');
 
 const SYSTEM = 'system';
-const OPEN_INVOICE = new Set(['ISSUED', 'PARTIALLY_PAID']);
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const branchRef = (db, s, b) => db.collection('schools').doc(s).collection('branches').doc(b);
@@ -222,22 +222,22 @@ async function onHolidayWritten({ db, now }, { schoolId, branchId, holidayId }, 
   return { created: ok ? 1 : 0, type };
 }
 
-// ---- an invoice is coming due ---------------------------------------------
+// ---- an invoice is coming due, or is overdue ------------------------------
 
-/** yyyy-MM-dd in [timeZone] on the day [offsetDays] from [now]. */
+/**
+ * yyyy-MM-dd of the calendar day [offsetDays] from [now], on [timeZone]'s
+ * calendar. Calendar arithmetic, not 24-hour spans, so a DST change cannot move it.
+ */
 function dueKeyFor(now, offsetDays, timeZone) {
-  const t = new Date(now.getTime() + offsetDays * 24 * 3600 * 1000);
-  return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(t);
+  return feeReminders.addDays(feeReminders.civilToday(now, timeZone), offsetDays);
 }
 
 // Paged, never cut off silently (SEC-4): a run reads at most this many pages
-// per reminder day and reports `truncated` if there was more.
+// per due date and reports `truncated` if there was more.
 const INVOICE_PAGE = 500;
 const MAX_INVOICE_PAGES = 200;
 
 const DEFAULT_ZONE = 'Asia/Kolkata'; // schools that predate Regional settings
-const REMIND_HOUR = 8; // local time
-const REMIND_WINDOW_H = 3; // retried hourly for this long, so one missed run is not a missed reminder
 
 /** The hour (0-23) in [timeZone] at [now]. */
 function localHour(now, timeZone) {
@@ -245,52 +245,60 @@ function localHour(now, timeZone) {
   return Number(h);
 }
 
-function validZone(z) {
-  try {
-    new Intl.DateTimeFormat('en', { timeZone: z });
-    return true;
-  } catch {
-    return false;
-  }
-}
+const validZone = feeReminders.validZone;
 
-/** school id -> time zone, from the school documents (default for any unknown). */
-async function schoolZones(db) {
-  const snap = await db.collection('schools').get();
-  const zones = new Map();
-  for (const d of snap.docs) {
-    const z = d.data().timezone;
-    zones.set(d.id, typeof z === 'string' && validZone(z) ? z : DEFAULT_ZONE);
-  }
-  return zones;
-}
+/** One school's zone from its document (default for an unknown or invalid one). */
+const zoneOfSchool = (data) => (data && typeof data.timezone === 'string' && validZone(data.timezone) ? data.timezone : DEFAULT_ZONE);
 
 /**
- * Reminds the parents of open invoices that fall due [offsets] days from now
- * (the default policy is 3 days before and on the day), **at 08:00 in each
- * school's own time zone** (Regional settings). Meant to run hourly: a school
- * is handled while its local time is in [REMIND_HOUR, REMIND_HOUR + window),
- * so a missed run is retried the next hour. Once per invoice, offset and
- * parent — running it again sends nothing new. The text states no amount.
+ * Reminds the parents of open invoices, per each school's own policy
+ * (`schools/{s}/feeReminderSettings/config`, defaults when absent): N days
+ * before the due date, on it, and N days after it, **at the school's delivery
+ * time in its own time zone**. Meant to run hourly: a school is handled while
+ * its local time is within the 3 hours from its delivery time, so a missed run
+ * is retried the next hour. Once per invoice, step and parent — running it
+ * again sends nothing new.
+ *
+ * Isolation: one school or invoice failing is logged and skipped, never allowed
+ * to stop the rest (the next hourly run retries it, and sent ones are not repeated).
+ * [log] is an optional (event, fields) callback for structured logs; it is
+ * given counts and ids only, never names, phone numbers or amounts.
  */
-async function runFeeDueReminders({ db, now }, { today = new Date(), offsets = [3, 0] } = {}) {
-  const zones = await schoolZones(db);
-  const zoneOf = (schoolId) => zones.get(schoolId) || DEFAULT_ZONE;
-  const active = [...new Set([...zones.values(), DEFAULT_ZONE])].filter((z) => {
-    const h = localHour(today, z);
-    return h >= REMIND_HOUR && h < REMIND_HOUR + REMIND_WINDOW_H;
-  });
-  // due key -> the (zone, offset) pairs that look for it
+async function runFeeDueReminders({ db, now, log = () => {} }, { today = new Date() } = {}) {
+  const schools = await db.collection('schools').get();
+  // due key -> the reminder steps (per school) that look for it
   const wanted = new Map();
-  for (const z of active) {
-    for (const offset of offsets) {
-      const key = dueKeyFor(today, offset, z);
-      if (!wanted.has(key)) wanted.set(key, []);
-      wanted.get(key).push({ zone: z, offset });
+  const policy = new Map(); // schoolId -> effective settings of the schools being served now
+  for (const sd of schools.docs) {
+    const schoolId = sd.id;
+    try {
+      const zone = zoneOfSchool(sd.data());
+      const stored = await feeReminders.settingsDoc(db, schoolId).get();
+      const settings = feeReminders.effectiveSettings(stored.exists ? stored.data() : null);
+      if (!settings.enabled) {
+        log('fee reminders: school skipped', { schoolId, reason: 'disabled' });
+        continue;
+      }
+      if (!feeReminders.inDeliveryWindow(today, zone, settings.deliveryTime)) continue;
+      const steps = feeReminders.activeReminders(settings, feeReminders.civilToday(today, zone));
+      if (steps.length === 0) {
+        log('fee reminders: school skipped', { schoolId, reason: 'no active steps' });
+        continue;
+      }
+      policy.set(schoolId, settings);
+      log('fee reminders: school processing', { schoolId, steps: steps.length });
+      for (const st of steps) {
+        if (!wanted.has(st.dueKey)) wanted.set(st.dueKey, []);
+        wanted.get(st.dueKey).push({ schoolId, kind: st.kind, days: st.days });
+      }
+    } catch (e) {
+      log('fee reminders: school failed', { schoolId, category: String((e && e.code) || 'error') });
     }
   }
+
   let created = 0;
   let scanned = 0;
+  let failed = 0;
   let truncated = false;
   for (const [dueKey, targets] of wanted) {
     let after = null;
@@ -303,41 +311,66 @@ async function runFeeDueReminders({ db, now }, { today = new Date(), offsets = [
       if (after) q = q.startAfter(after);
       const snap = await q.get();
       for (const d of snap.docs) {
-        const inv = d.data();
-        if (!OPEN_INVOICE.has(inv.status) || !(inv.balanceMinor > 0)) continue;
         const m = /^schools\/([^/]+)\/branches\/([^/]+)\/invoices\/([^/]+)$/.exec(d.ref.path);
-        if (!m || !inv.studentId) continue;
+        if (!m) continue;
         const [, schoolId, branchId, invoiceId] = m;
-        // Only for the offsets this school's own zone is due for right now.
-        const mine = targets.filter((t) => t.zone === zoneOf(schoolId));
-        if (mine.length === 0) continue;
+        // Only the steps THIS school's own policy is due for right now.
+        const mine = targets.filter((t) => t.schoolId === schoolId);
+        if (mine.length === 0 || !feeReminders.isRemindable(d.data()) || !d.data().studentId) continue;
         scanned++;
-        const uids = await parentUserIdsOfStudent(db, schoolId, branchId, inv.studentId);
-        for (const { offset } of mine) {
-          for (const uid of uids) {
-            const ok = await createOnce(
-              notificationsOf(db, schoolId, branchId).doc(`FEE_DUE__${invoiceId}__${offset}__${uid}`),
-              targeted({
-                now,
-                schoolId,
-                branchId,
-                uid,
-                type: 'FEE_DUE_REMINDER',
-                title: offset === 0 ? 'Fee due today' : 'Fee due soon',
-                body: `A fee invoice is due on ${dateText(dueKey)}.`,
-                refType: 'INVOICE',
-                refId: invoiceId,
-              }),
-            );
-            if (ok) created++;
+        try {
+          // Payment sync: judge the invoice as it is NOW, not as the query saw it.
+          const fresh = await d.ref.get();
+          const inv = fresh.exists ? fresh.data() : null;
+          if (!feeReminders.isRemindable(inv) || inv.dueDateKey !== dueKey || !inv.studentId) {
+            log('fee reminders: invoice skipped', { schoolId, invoiceId, reason: 'no longer open' });
+            continue;
           }
+          const uids = await parentUserIdsOfStudent(db, schoolId, branchId, inv.studentId);
+          for (const step of mine) {
+            const overdue = step.kind === 'AFTER';
+            const type = overdue ? 'FEE_OVERDUE_REMINDER' : 'FEE_DUE_REMINDER';
+            const msg = feeReminders.buildMessage(step, inv, policy.get(schoolId));
+            for (const uid of uids) {
+              // Ids of the before-due steps are unchanged from the fixed-policy
+              // version, so a rollout never repeats a reminder already sent.
+              const id = `${overdue ? 'FEE_OVERDUE' : 'FEE_DUE'}__${invoiceId}__${step.days}__${uid}`;
+              const ok = await createOnce(
+                notificationsOf(db, schoolId, branchId).doc(id),
+                {
+                  ...targeted({
+                    now,
+                    schoolId,
+                    branchId,
+                    uid,
+                    type,
+                    title: msg.title,
+                    body: msg.body,
+                    refType: 'INVOICE',
+                    refId: invoiceId,
+                  }),
+                  studentId: inv.studentId,
+                  dueDateKey: dueKey,
+                  reminderOffset: overdue ? -step.days : step.days,
+                },
+              );
+              if (ok) created++;
+              else log('fee reminders: duplicate prevented', { schoolId, invoiceId, step: id.split('__')[0] + step.days });
+            }
+          }
+        } catch (e) {
+          failed++;
+          log('fee reminders: invoice failed', { schoolId, invoiceId, category: String((e && e.code) || 'error') });
         }
       }
       if (snap.docs.length < INVOICE_PAGE) break;
       after = snap.docs[snap.docs.length - 1];
     }
   }
-  return truncated ? { created, scanned, truncated } : { created, scanned };
+  const out = { created, scanned };
+  if (failed) out.failed = failed;
+  if (truncated) out.truncated = true;
+  return out;
 }
 
 module.exports = {

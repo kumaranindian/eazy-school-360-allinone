@@ -129,6 +129,16 @@ class SettingsOverviewPage extends ConsumerWidget {
         setupLabel: 'Regional settings',
       ),
     ]),
+    _Group('Finance', 'How parents are reminded about fees', [
+      _Section(
+        label: 'Fee reminders',
+        description: 'Days before and after the due date, time and wording',
+        icon: Icons.notifications_active_outlined,
+        route: AppRoutes.settingsFeeReminders,
+        permission: Permission.manageSchool,
+        setupLabel: 'Fee reminders',
+      ),
+    ]),
     _Group('Security', 'Who can sign in, and how', [
       _Section(
         label: 'Authentication',

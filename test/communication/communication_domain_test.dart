@@ -266,6 +266,10 @@ void main() {
         NotificationCategory.fees,
       );
       expect(
+        NotificationCategory.forType('FEE_OVERDUE_REMINDER'),
+        NotificationCategory.fees,
+      );
+      expect(
         NotificationCategory.forType('ATTENDANCE_ABSENT'),
         NotificationCategory.attendance,
       );

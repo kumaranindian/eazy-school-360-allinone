@@ -1779,6 +1779,13 @@ service cloud.firestore {
         allow read: if isSchoolAdminOrAbove(schoolId);
         allow write: if false;
       }
+      // The school's fee reminder policy (days before / after the due date,
+      // delivery time, what the text shows). Validated and written ONLY by the
+      // updateFeeReminderSettings callable; school admins may read it.
+      match /feeReminderSettings/{docId} {
+        allow read: if isSchoolAdminOrAbove(schoolId);
+        allow write: if false;
+      }
       // Grants/revocations of per-branch roles (setBranchAccess, staff
       // deactivation). Cloud Functions write; school admins read.
       match /branchAccessAudit/{eventId} {
@@ -2339,7 +2346,10 @@ service cloud.firestore {
           // Staff of the section, or the parent of THIS student (linked,
           // active, portal-enabled). Read-only for parents; the history
           // subcollection and the registers stay staff-only.
-          allow read: if canMarkStudentAttendance(schoolId, branchId, resource.data)
+          // A teacher may also GET a record that does not exist yet (the save
+          // transaction reads before it creates); nothing is disclosed.
+          allow read: if (resource == null && callerIsInBranchAs(schoolId, branchId, 'TEACHER'))
+            || canMarkStudentAttendance(schoolId, branchId, resource.data)
             || canAccessAsParent(schoolId, branchId, resource.data.studentId);
 
           // The id is date + student, so there is exactly one record per

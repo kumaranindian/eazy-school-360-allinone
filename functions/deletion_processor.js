@@ -70,7 +70,7 @@ const BRANCH_COLLECTIONS = [
 ];
 
 // Collections directly under schools/{s}.
-const SCHOOL_COLLECTIONS = ['academicYears', 'authAudit', 'authSettings', 'branchAccessAudit', 'studentTransfers'];
+const SCHOOL_COLLECTIONS = ['academicYears', 'authAudit', 'authSettings', 'branchAccessAudit', 'feeReminderSettings', 'studentTransfers'];
 
 // Nested collections, found with a collection-group query on a few fields each
 // (single-field indexes for these are declared in firestore.indexes.json).

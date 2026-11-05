@@ -148,6 +148,7 @@ abstract final class NotificationNavigator {
       case 'PAYMENT_RECORDED':
         return AppRoutes.myFees;
       case 'FEE_DUE_REMINDER':
+      case 'FEE_OVERDUE_REMINDER':
         final inv = n.refId;
         return inv == null
             ? AppRoutes.myFees

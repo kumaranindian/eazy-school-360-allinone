@@ -14,6 +14,7 @@ const { errorCategory } = require('./delivery_log');
 const { makeDelivery } = require('./deliver');
 const devices = require('./devices');
 const notifyEvents = require('./notify_events');
+const feeReminders = require('./fee_reminders');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret, defineString } = require('firebase-functions/params');
 const { createSchoolAdmin, provisionLogins, changeInitialPassword, resetLoginPassword, ensureAuthUser, enablePortalLinks } = require('./provision');
@@ -144,15 +145,17 @@ exports.notifyHolidayWritten = onDocumentWritten(
       .catch(swallow('holiday notice')),
 );
 
-// Hourly; each school is handled at 08:00 in ITS OWN time zone (Regional
-// settings): invoices due in 3 days and today. Idempotent, so a re-run (or the
-// next hour's retry) sends nothing new.
+// Hourly; each school is handled at ITS OWN delivery time in ITS OWN time zone
+// (Regional settings), following its Fee reminder settings (days before / on /
+// after the due date; defaults 3 and 0 before, 1, 7 and 15 after). Idempotent,
+// so a re-run (or the next hour's retry) sends nothing new.
 exports.feeDueReminders = onSchedule(
   { schedule: 'every 1 hours', timeZone: 'UTC' },
   async () => {
     try {
-      const r = await notifyEvents.runFeeDueReminders(events());
-      logger.info('fee due reminders', r);
+      const r = await notifyEvents.runFeeDueReminders({ ...events(), log: (event, f) => logger.info(event, f) });
+      if (r.failed || r.truncated) logger.warn('fee due reminders finished with problems', r);
+      else logger.info('fee due reminders', r);
     } catch (e) {
       logger.error('fee due reminders failed', { category: errorCategory(e) });
     }
@@ -308,6 +311,16 @@ exports.setLoginAccess = onCall(callOptions(), async (request) => {
   const out = await access.setLoginAccess(adminCtx(), a.uid, a.token, request.data);
   if (out.error) fail(out);
   logger.info('setLoginAccess', { by: a.uid, kind: request.data.kind, enabled: out.result.enabled });
+  return out.result;
+});
+
+// Saves a school's fee reminder policy (school admin only; validated here, the
+// rules deny client writes to the document).
+exports.updateFeeReminderSettings = onCall(callOptions(), async (request) => {
+  const a = signedIn(request);
+  const out = await feeReminders.updateFeeReminderSettings(adminCtx(), a.uid, a.token, request.data);
+  if (out.error) fail(out);
+  logger.info('updateFeeReminderSettings', { by: a.uid });
   return out.result;
 });
 
