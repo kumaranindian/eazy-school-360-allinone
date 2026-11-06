@@ -27,7 +27,8 @@ class AdmissionBanner extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     return Material(
-      color: scheme.primary,
+      color: scheme.surface,
+      shape: Border(bottom: BorderSide(color: scheme.outlineVariant)),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(4, 8, AppSpacing.md, 10),
         child: Row(
@@ -35,7 +36,7 @@ class AdmissionBanner extends StatelessWidget {
             IconButton(
               tooltip: 'Back',
               onPressed: onBack,
-              icon: Icon(Icons.arrow_back, color: scheme.onPrimary),
+              icon: Icon(Icons.arrow_back, color: scheme.onSurface),
             ),
             Expanded(
               child: Column(
@@ -49,7 +50,7 @@ class AdmissionBanner extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: text.titleLarge?.copyWith(
-                        color: scheme.onPrimary,
+                        color: scheme.onSurface,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -59,7 +60,7 @@ class AdmissionBanner extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: text.bodyMedium?.copyWith(
-                      color: scheme.onPrimary.withValues(alpha: 0.92),
+                      color: scheme.onSurfaceVariant,
                     ),
                   ),
                 ],

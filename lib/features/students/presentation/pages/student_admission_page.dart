@@ -789,12 +789,12 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
                       ? null
                       : () => context.push('/students/import'),
                   style: TextButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                    foregroundColor: Theme.of(context).colorScheme.primary,
                     minimumSize: const Size(48, 48),
                     side: BorderSide(
                       color: Theme.of(
                         context,
-                      ).colorScheme.onPrimary.withValues(alpha: 0.7),
+                      ).colorScheme.primary.withValues(alpha: 0.5),
                     ),
                   ),
                   icon: const Icon(Icons.upload_file_outlined, size: 20),
