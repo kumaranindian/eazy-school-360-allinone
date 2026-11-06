@@ -181,38 +181,41 @@ class ParentProfilePage extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  PersonPhotoPicker(
-                    photoUrl: parent.photoUrl,
-                    isUploading: ref
-                        .watch(parentWriteControllerProvider)
-                        .isLoading,
-                    readError: () =>
-                        ref.read(parentWriteControllerProvider).error,
-                    onUpload: canManage
-                        ? (bytes, extension) => ref
-                              .read(parentWriteControllerProvider.notifier)
-                              .uploadPhoto(
-                                schoolId: schoolId,
-                                branchId: branchId,
-                                parentId: parentId,
-                                fileBytes: bytes,
-                                fileExtension: extension,
-                                updatedBy: userId,
-                              )
-                        : (_, __) async => false,
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: PersonPhotoPicker(
+                      photoUrl: parent.photoUrl,
+                      isUploading: ref
+                          .watch(parentWriteControllerProvider)
+                          .isLoading,
+                      readError: () =>
+                          ref.read(parentWriteControllerProvider).error,
+                      onUpload: canManage
+                          ? (bytes, extension) => ref
+                                .read(parentWriteControllerProvider.notifier)
+                                .uploadPhoto(
+                                  schoolId: schoolId,
+                                  branchId: branchId,
+                                  parentId: parentId,
+                                  fileBytes: bytes,
+                                  fileExtension: extension,
+                                  updatedBy: userId,
+                                )
+                          : (_, __) async => false,
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Flexible(
-                        child: Text(
-                          parent.displayName,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                      Text(
+                        parent.displayName,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(width: 8),
                       ParentsBadge(
                         active ? 'Active' : 'Inactive',
                         tone: active
@@ -353,15 +356,17 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.start,
         children: [
           SizedBox(
-            width: 160,
-            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
+            width: 140,
+            child: Text(label, style: theme.textTheme.bodySmall),
           ),
-          Expanded(child: Text(value)),
+          Text(value),
         ],
       ),
     );
