@@ -97,6 +97,10 @@ abstract final class AppTheme {
     final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
     final tint = isDark ? AppColors.darkTint : AppColors.lightTint;
 
+    final disabledBg = isDark
+        ? AppColors.darkTint
+        : AppColors.disabledBackground;
+    final disabledFg = isDark ? colorScheme.outline : AppColors.disabledText;
     final buttonShape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(AppRadius.md),
     );
@@ -202,12 +206,18 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: BorderSide(color: colorScheme.error, width: 2),
         ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: BorderSide(color: border),
+        ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           padding: buttonPadding,
           shape: buttonShape,
           textStyle: AppTypography.textTheme.labelLarge,
+          disabledBackgroundColor: disabledBg,
+          disabledForegroundColor: disabledFg,
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -217,6 +227,8 @@ abstract final class AppTheme {
           elevation: 0,
           backgroundColor: colorScheme.primary,
           foregroundColor: colorScheme.onPrimary,
+          disabledBackgroundColor: disabledBg,
+          disabledForegroundColor: disabledFg,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -318,7 +330,23 @@ abstract final class AppTheme {
         ),
         textStyle: const TextStyle(color: Colors.white, fontSize: 12),
       ),
+      radioTheme: RadioThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.disabled)
+              ? disabledFg
+              : s.contains(WidgetState.selected)
+              ? colorScheme.primary
+              : colorScheme.onSurfaceVariant,
+        ),
+      ),
       checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.disabled)
+              ? disabledBg
+              : s.contains(WidgetState.selected)
+              ? colorScheme.primary
+              : null,
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
