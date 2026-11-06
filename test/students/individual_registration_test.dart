@@ -330,11 +330,12 @@ Future<void> _pumpAdmission(
   await tester.pumpAndSettle();
 }
 
-/// The vertical Stepper keeps every step's controls in the tree (and a
-/// phone viewport builds them lazily), so press the wizard's own "Next"
-/// handler rather than guessing which button is the active one.
+/// The wizard shows one step at a time with a single Next / Admit button.
 Future<void> _next(WidgetTester tester) async {
-  tester.widget<Stepper>(find.byType(Stepper)).onStepContinue!();
+  final next = find.widgetWithText(FilledButton, 'Next');
+  await tester.ensureVisible(next);
+  await tester.pumpAndSettle();
+  await tester.tap(next);
   await tester.pumpAndSettle();
 }
 
@@ -347,14 +348,10 @@ Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
 
 Future<void> _fillBasics(WidgetTester tester) async {
   await tester.enterText(
-    find.widgetWithText(TextFormField, 'First name'),
-    'Asha',
+    find.widgetWithText(TextFormField, "Enter student's full name"),
+    'Asha Nair',
   );
-  await tester.enterText(
-    find.widgetWithText(TextFormField, 'Last name'),
-    'Nair',
-  );
-  await _tapVisible(tester, find.text('Date of birth'));
+  await _tapVisible(tester, find.text('Select date'));
   await tester.tap(find.text('OK'));
   await tester.pumpAndSettle();
   await _next(tester);
@@ -366,7 +363,6 @@ Future<void> _fillNewParent(
   String email = 'Priya@Example.com',
 }) async {
   await _tapVisible(tester, find.text('New'));
-  // The basic step's fields stay in the tree; the guardian ones come last.
   await tester.enterText(
     find.widgetWithText(TextFormField, 'First name').last,
     'Priya',
@@ -402,7 +398,10 @@ Future<void> _placeAndReview(WidgetTester tester) async {
 /// No pumpAndSettle here: the save button shows a spinner until the page
 /// navigates away, and the login dialog opens on top of it.
 Future<void> _admit(WidgetTester tester) async {
-  tester.widget<Stepper>(find.byType(Stepper)).onStepContinue!();
+  final admit = find.widgetWithText(FilledButton, 'Admit student');
+  await tester.ensureVisible(admit);
+  await tester.pump();
+  await tester.tap(admit);
   for (var i = 0; i < 10; i++) {
     await tester.pump(const Duration(milliseconds: 100));
   }
@@ -594,15 +593,13 @@ void main() {
       expect(find.text('Create new anyway'), findsNothing);
       await tester.tap(find.text('Use this parent'));
       await tester.pumpAndSettle();
-      expect(
-        find.textContaining('This parent already has a login'),
-        findsOneWidget,
-      );
+      // The wizard moved on to placement; the review states the login.
       expect(
         find.text('Give this parent a login after admission'),
         findsNothing,
       );
       await _placeAndReview(tester);
+      expect(find.text('Parent login: already has one'), findsOneWidget);
       await _admit(tester);
 
       expect(h.parents.created, isEmpty);
@@ -718,6 +715,128 @@ void main() {
         await _fillNewParent(tester, email: 'lakshmi@example.com');
         await _next(tester);
         expect(find.text('This parent may already exist'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  });
+
+  group('Admission wizard: layout and student details', () {
+    testWidgets('shows the banner, the four-step tracker and Bulk upload', (
+      tester,
+    ) async {
+      await _pumpAdmission(tester, _Harness(), size: const Size(1000, 1200));
+      expect(find.text('Admit Student'), findsOneWidget);
+      expect(find.text('Add a new student to the school'), findsOneWidget);
+      for (final l in [
+        'Student Details',
+        'Parent / Guardian',
+        'Academic Placement',
+        'Review',
+      ]) {
+        expect(find.text(l), findsWidgets, reason: l);
+      }
+      expect(find.text('Admission Number'), findsOneWidget);
+      expect(find.text('ADM-0001'), findsOneWidget);
+      expect(find.text('Generated automatically'), findsOneWidget);
+      expect(find.text('Bulk upload'), findsOneWidget);
+      expect(find.text('Next'), findsOneWidget);
+      expect(find.text('Back'), findsNothing); // nothing before step 1
+    });
+
+    testWidgets('Bulk upload is a visible button that opens the import', (
+      tester,
+    ) async {
+      await _setSize(tester, const Size(1000, 1200), 1);
+      var opened = false;
+      final router = GoRouter(
+        routes: [
+          GoRoute(path: '/', builder: (_, _) => const StudentAdmissionPage()),
+          GoRoute(
+            path: '/students/import',
+            builder: (_, _) {
+              opened = true;
+              return const Scaffold(body: Text('import page'));
+            },
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: _Harness().overrides,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Bulk upload'));
+      await tester.pumpAndSettle();
+      expect(opened, isTrue);
+    });
+
+    testWidgets('the full name needs a first and a last name', (tester) async {
+      await _pumpAdmission(tester, _Harness(), size: const Size(1000, 1400));
+      await tester.enterText(
+        find.widgetWithText(TextFormField, "Enter student's full name"),
+        'Asha',
+      );
+      await _next(tester);
+      expect(find.text('Enter the first and last name'), findsOneWidget);
+      expect(find.text('Select the date of birth'), findsOneWidget);
+      // still on step 1
+      expect(find.text('Basic information of the student'), findsOneWidget);
+    });
+
+    testWidgets('the typed full name is stored as first, middle and last', (
+      tester,
+    ) async {
+      final h = _Harness();
+      await _pumpAdmission(tester, h, size: const Size(1000, 1400));
+      await tester.enterText(
+        find.widgetWithText(TextFormField, "Enter student's full name"),
+        'Mary  Anne Elizabeth Smith',
+      );
+      await _tapVisible(tester, find.text('Select date'));
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      await _next(tester); // guardian: add later
+      await _next(tester);
+      await _placeAndReview(tester);
+      expect(find.text('Mary Anne Elizabeth Smith'), findsOneWidget);
+      await _admit(tester);
+      await _settle(tester);
+      final s = h.students.admitted.single;
+      expect(s.firstName, 'Mary');
+      expect(s.middleName, 'Anne Elizabeth');
+      expect(s.lastName, 'Smith');
+      expect(s.displayName, 'Mary Anne Elizabeth Smith');
+    });
+
+    testWidgets('Back returns to the earlier step with what was typed', (
+      tester,
+    ) async {
+      await _pumpAdmission(tester, _Harness(), size: const Size(1000, 1400));
+      await _fillBasics(tester);
+      expect(find.text('Link a guardian now or add one later'), findsOneWidget);
+      await tester.tap(find.text('Back'));
+      await tester.pumpAndSettle();
+      expect(find.text('Asha Nair'), findsOneWidget);
+    });
+
+    for (final (name, size) in [
+      ('phone', const Size(360, 740)),
+      ('tablet', const Size(820, 1180)),
+      ('desktop', const Size(1440, 900)),
+    ]) {
+      testWidgets('step one lays out without overflow: $name, text x1.5', (
+        tester,
+      ) async {
+        await _pumpAdmission(tester, _Harness(), size: size, textScale: 1.5);
+        expect(tester.takeException(), isNull);
+        await tester.drag(
+          find.byType(SingleChildScrollView).first,
+          const Offset(0, -2500),
+        );
+        await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       });
     }

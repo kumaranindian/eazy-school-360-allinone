@@ -17,6 +17,7 @@ import 'package:eazy_school_360/features/school_setup/domain/school.dart';
 import 'package:eazy_school_360/features/school_setup/domain/school_status.dart';
 import 'package:eazy_school_360/features/school_setup/presentation/providers/school_providers.dart';
 import 'package:eazy_school_360/features/students/domain/student_status.dart';
+import 'package:eazy_school_360/features/students/presentation/pages/student_bulk_import_page.dart';
 import 'package:eazy_school_360/features/students/presentation/providers/student_providers.dart';
 import 'package:eazy_school_360/features/users/domain/user_profile.dart';
 import 'package:eazy_school_360/features/users/domain/user_status.dart';
@@ -152,6 +153,17 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('Bulk upload is a visible button, not hidden in a menu', (
+    tester,
+  ) async {
+    await _pump(tester);
+    expect(find.text('Bulk upload (CSV)'), findsOneWidget);
+    expect(find.byTooltip('More actions'), findsNothing);
+    await tester.tap(find.text('Bulk upload (CSV)'));
+    await tester.pumpAndSettle();
+    expect(find.byType(StudentBulkImportPage), findsOneWidget);
+  });
 
   testWidgets('a stat chip filters the roster by that status', (tester) async {
     final repo = await _pump(tester);
