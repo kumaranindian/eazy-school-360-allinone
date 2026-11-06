@@ -249,7 +249,6 @@ void main() {
       await _pump(tester, size: const Size(1440, 900));
       expect(find.byType(DirectoryToolbar), findsOneWidget);
       expect(find.byType(ParentListCard), findsWidgets);
-      expect(find.text('Parents & Guardians'), findsWidgets);
       expect(find.text('Contacts and linked children'), findsWidgets);
       expect(tester.takeException(), isNull);
     });

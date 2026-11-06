@@ -332,12 +332,6 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const ParentsHeading(
-                    icon: Icons.family_restroom_outlined,
-                    title: 'Parents & Guardians',
-                    subtitle: 'Contacts and linked children',
-                  ),
-                  SizedBox(height: DirectoryLayout.sectionGap(layout)),
                   DirectoryToolbar(
                     layout: layout,
                     trailing: PageActionsMenu(
