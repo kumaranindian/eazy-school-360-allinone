@@ -197,7 +197,7 @@ class _SchoolScenePainter extends CustomPainter {
       Rect.fromLTWH(bx + bw / 2 - 9, by + bh - 24, 18, 24),
       p(const Color(0xFF5B3A1E)),
     );
-    final win = p(const Color(0xFF7CC4FF));
+    final win = p(const Color(0xFFEAF4EE));
     for (final dx in [0.12, 0.28, 0.62, 0.78]) {
       canvas.drawRect(
         Rect.fromLTWH(bx + bw * dx, by + bh * 0.22, bw * 0.1, bh * 0.26),

@@ -106,16 +106,17 @@ class _BranchSelector extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.14),
+              color: HeroColors.pill(context),
+              border: Border.all(color: HeroColors.border(context)),
               borderRadius: BorderRadius.circular(AppRadius.pill),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
+                Icon(
                   Icons.account_tree_outlined,
                   size: 16,
-                  color: Colors.white,
+                  color: HeroColors.title(context),
                 ),
                 const SizedBox(width: 6),
                 Flexible(
@@ -123,17 +124,17 @@ class _BranchSelector extends StatelessWidget {
                     current ?? 'Branch',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                      color: HeroColors.title(context),
                     ),
                   ),
                 ),
-                const Icon(
+                Icon(
                   Icons.arrow_drop_down,
                   size: 20,
-                  color: Colors.white,
+                  color: HeroColors.title(context),
                 ),
               ],
             ),

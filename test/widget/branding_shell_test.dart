@@ -129,7 +129,8 @@ void main() {
       );
       expect(mark.left, greaterThan(title.right - 1));
       expect(mark.right, lessThanOrEqualTo(bar.right));
-      expect(title.center.dx, closeTo(bar.center.dx, 20));
+      // The title sits between the school badge and the EazySchool mark.
+      expect(title.left, greaterThan(tester.getRect(badge).right - 1));
       expect(tester.takeException(), isNull);
     });
   }

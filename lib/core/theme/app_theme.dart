@@ -123,20 +123,20 @@ abstract final class AppTheme {
         bodyColor: colorScheme.onSurface,
         displayColor: colorScheme.onSurface,
       ),
-      // Inner screens (the ones that push their own AppBar) get the same
-      // navy as the dashboard hero. The shell's own top bar overrides this
-      // to stay light — see AdaptiveScaffold.
+      // Inner screens (the ones that push their own AppBar) use the same
+      // white header as the shell's top bar: dark text, a hairline border.
       appBarTheme: AppBarTheme(
-        backgroundColor: isDark ? AppColors.darkTint : AppColors.ink,
-        foregroundColor: Colors.white,
+        backgroundColor: surface,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
         surfaceTintColor: Colors.transparent,
-        iconTheme: const IconThemeData(color: Colors.white),
-        actionsIconTheme: const IconThemeData(color: Colors.white),
+        shape: Border(bottom: BorderSide(color: border)),
+        iconTheme: IconThemeData(color: colorScheme.onSurface),
+        actionsIconTheme: IconThemeData(color: colorScheme.onSurface),
         titleTextStyle: AppTypography.textTheme.titleLarge?.copyWith(
-          color: Colors.white,
+          color: colorScheme.onSurface,
         ),
       ),
       cardTheme: CardThemeData(
