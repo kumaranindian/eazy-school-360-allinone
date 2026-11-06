@@ -51,7 +51,7 @@ class _Hub extends ConsumerWidget {
     final manage = <_ManageTile>[
       _ManageTile(
         icon: Icons.sell_outlined,
-        color: AppColors.brandBlue,
+        color: AppColors.accent,
         title: 'Fee structures',
         subtitle: 'Create & manage fee heads',
         onTap: () => open('/fees/structures'),
@@ -77,14 +77,14 @@ class _Hub extends ConsumerWidget {
       if (can(Permission.collectPayments) || can(Permission.viewFees))
         _NavRow(
           icon: Icons.receipt_long_outlined,
-          color: AppColors.brandBlue,
+          color: AppColors.accent,
           title: 'Invoices',
           subtitle: 'Find, view and manage invoices',
           onTap: () => open('/fees/invoices'),
         ),
       _NavRow(
         icon: Icons.payments_outlined,
-        color: AppColors.brandBlue,
+        color: AppColors.accent,
         title: 'Payments & receipts',
         subtitle: 'Record payments and view receipts',
         onTap: () => open('/fees/payments'),
@@ -153,7 +153,7 @@ class _Hub extends ConsumerWidget {
                     rows: [
                       _NavRow(
                         icon: Icons.bar_chart_rounded,
-                        color: AppColors.brandBlue,
+                        color: AppColors.accent,
                         title: 'Reports',
                         subtitle: 'Collection, dues and fee summaries',
                         onTap: () => open('/fees/reports'),
@@ -245,7 +245,7 @@ class _NavList extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return HomePanel(
-      accent: AppColors.brandBlue,
+      accent: AppColors.accent,
       padding: EdgeInsets.zero,
       child: Column(
         children: [
@@ -386,7 +386,7 @@ class _Totals extends StatelessWidget {
     final tiles = [
       _AmountTile(
         icon: Icons.groups_outlined,
-        color: AppColors.brandBlue,
+        color: AppColors.accent,
         value: Money.format(summary.payableMinor, currency: currency),
         label: 'Total billed',
         hint: 'after concessions',

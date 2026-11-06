@@ -63,7 +63,7 @@ const _parentActions = [
   HomeAction(
     'My Homework',
     Icons.menu_book_outlined,
-    AppColors.brandBlue,
+    AppColors.accent,
     AppRoutes.myHomework,
   ),
   HomeAction(
@@ -214,7 +214,7 @@ class _Summary extends ConsumerWidget {
     final fullName = '${child.firstName} ${child.lastName}';
 
     final childCard = HomePanel(
-      accent: AppColors.brandBlue,
+      accent: AppColors.accent,
       padding: const EdgeInsets.all(12),
       child: Row(
         children: [

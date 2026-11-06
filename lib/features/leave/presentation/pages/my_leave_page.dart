@@ -171,7 +171,7 @@ class _ChildLeave extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 HomePanel(
-                  accent: AppColors.brandBlue,
+                  accent: AppColors.accent,
                   padding: const EdgeInsets.all(12),
                   child: Row(
                     children: [

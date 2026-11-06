@@ -244,7 +244,7 @@ class _ChildState extends ConsumerState<_Child> {
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     HomePanel(
-                      accent: AppColors.brandBlue,
+                      accent: AppColors.accent,
                       padding: const EdgeInsets.all(12),
                       child: Row(
                         children: [
@@ -302,7 +302,7 @@ class _ChildState extends ConsumerState<_Child> {
                     ],
                     const SizedBox(height: AppSpacing.sm),
                     HomePanel(
-                      accent: AppColors.brandBlue,
+                      accent: AppColors.accent,
                       padding: const EdgeInsets.symmetric(
                         vertical: 14,
                         horizontal: 8,
@@ -316,7 +316,7 @@ class _ChildState extends ConsumerState<_Child> {
                                 Expanded(
                                   child: _Figure(
                                     icon: Icons.receipt_long_outlined,
-                                    color: AppColors.brandBlue,
+                                    color: AppColors.accent,
                                     label: 'Total billed',
                                     value: Money.format(
                                       summary.payableMinor,

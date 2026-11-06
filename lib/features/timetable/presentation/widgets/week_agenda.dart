@@ -228,7 +228,7 @@ const _periodColors = [
   Color(0xFF8E6BF2),
   Color(0xFF14B8A6),
   AppColors.gold,
-  AppColors.brandBlue,
+  AppColors.accent,
   Color(0xFFEC4899),
 ];
 

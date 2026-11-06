@@ -42,7 +42,7 @@ const _staffActions = [
   HomeAction(
     'Add Student',
     Icons.person_add_alt_1_outlined,
-    AppColors.brandBlue,
+    AppColors.accent,
     AppRoutes.newStudent,
   ),
   HomeAction(
@@ -66,7 +66,7 @@ const _staffActions = [
   HomeAction(
     'Add Staff',
     Icons.group_add_outlined,
-    AppColors.brandBlue,
+    AppColors.accent,
     AppRoutes.newStaff,
   ),
   HomeAction(
@@ -121,7 +121,7 @@ class StaffHome extends ConsumerWidget {
             error: (_, _) => '–',
           ),
           label: 'Students',
-          accent: AppColors.brandBlue,
+          accent: AppColors.accent,
           onTap: () => context.go(AppRoutes.students),
         ),
       );
@@ -248,7 +248,7 @@ class StaffHome extends ConsumerWidget {
             icon: Icons.bar_chart_rounded,
             title: 'School Insights',
             subtitle: 'Key performance and trends',
-            accent: AppColors.brandBlue,
+            accent: AppColors.accent,
             filled: true,
             onTap: () => context.go(AppRoutes.attendanceReports),
           ),

@@ -36,17 +36,17 @@ class AdminDashboardPalette {
 
   /// The design's light palette.
   static const AdminDashboardPalette light = AdminDashboardPalette(
-    background: Color(0xFFF5F7FB),
+    background: Color(0xFFF7F8F7),
     card: Color(0xFFFFFFFF),
-    primary: Color(0xFF1976D2),
-    textPrimary: Color(0xFF172B4D),
-    textSecondary: Color(0xFF64748B),
-    border: Color(0xFFE2E8F0),
-    success: Color(0xFF16A34A),
-    warning: Color(0xFFF59E0B),
-    purple: Color(0xFF7C3AED),
-    teal: Color(0xFF0D9488),
-    shadow: Color(0x14172B4D),
+    primary: Color(0xFF16856A),
+    textPrimary: Color(0xFF17231F),
+    textSecondary: Color(0xFF68756F),
+    border: Color(0xFFE3E9E5),
+    success: Color(0xFF23965B),
+    warning: Color(0xFFD99532),
+    purple: Color(0xFF527A69),
+    teal: Color(0xFF2A9D8F),
+    shadow: Color(0x1417231F),
   );
 
   /// The same roles drawn from the app's dark colour scheme.

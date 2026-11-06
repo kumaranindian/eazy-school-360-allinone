@@ -137,7 +137,7 @@ class _AdminTile extends StatelessWidget {
     final theme = Theme.of(context);
     final name = admin.name.isEmpty ? admin.email : admin.name;
     return HomePanel(
-      accent: AppColors.brandBlue,
+      accent: AppColors.accent,
       padding: const EdgeInsets.all(12),
       child: Row(
         children: [
@@ -168,7 +168,7 @@ class _AdminTile extends StatelessWidget {
             ),
           ),
           if (isYou) ...[
-            const StatusPill('You', color: AppColors.brandBlue),
+            const StatusPill('You', color: AppColors.accent),
             const SizedBox(width: AppSpacing.xs),
           ],
           StatusPill(

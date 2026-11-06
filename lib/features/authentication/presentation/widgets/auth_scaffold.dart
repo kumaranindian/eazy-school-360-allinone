@@ -159,7 +159,7 @@ class _BrandPanel extends StatelessWidget {
                             child: Text(
                               line,
                               style: text.bodyLarge?.copyWith(
-                                color: const Color(0xFFD9EAFF),
+                                color: const Color(0xFFD5EEE5),
                               ),
                             ),
                           ),

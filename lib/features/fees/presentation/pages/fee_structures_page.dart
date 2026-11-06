@@ -54,7 +54,7 @@ class _FeeStructuresPageState extends ConsumerState<FeeStructuresPage> {
   };
 
   Color _color(FeeCategory c) => switch (c) {
-    FeeCategory.tuition => AppColors.brandBlue,
+    FeeCategory.tuition => AppColors.accent,
     FeeCategory.admission => AppColors.success,
     FeeCategory.examination => const Color(0xFF8E6BF2),
     FeeCategory.transport => AppColors.gold,

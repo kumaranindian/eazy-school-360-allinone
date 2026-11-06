@@ -36,7 +36,7 @@ class WelcomeBanner extends StatelessWidget {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF0B4FA8), AppColors.brandBlue],
+              colors: [AppColors.accentDeep, AppColors.accent],
             ),
             borderRadius: BorderRadius.circular(AppRadius.lg + 4),
           ),
@@ -85,7 +85,7 @@ class WelcomeBanner extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: text.bodyMedium?.copyWith(
-                            color: const Color(0xFFD9EAFF),
+                            color: const Color(0xFFD5EEE5),
                           ),
                         ),
                       ],
@@ -103,7 +103,7 @@ class WelcomeBanner extends StatelessWidget {
                           child: Text(
                             roleLabel!,
                             style: text.labelLarge?.copyWith(
-                              color: AppColors.navy,
+                              color: AppColors.ink,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -618,7 +618,9 @@ class PromoStrip extends StatelessWidget {
     return HomePanel(
       accent: filled ? null : accent,
       gradient: filled
-          ? const LinearGradient(colors: [Color(0xFF3B4FD8), Color(0xFF6B4FD8)])
+          ? const LinearGradient(
+              colors: [AppColors.accentDeep, AppColors.accent],
+            )
           : null,
       onTap: onTap,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

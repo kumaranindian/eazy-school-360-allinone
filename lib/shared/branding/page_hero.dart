@@ -23,7 +23,7 @@ class HeroPill extends StatelessWidget {
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: filled ? AppColors.navy : Colors.white,
+          color: filled ? AppColors.ink : Colors.white,
         ),
       ),
     );
@@ -100,7 +100,7 @@ class PageHero extends StatelessWidget {
             maxLines: compact ? 1 : 2,
             overflow: TextOverflow.ellipsis,
             style: text.bodyMedium?.copyWith(
-              color: const Color(0xFFD9EAFF),
+              color: const Color(0xFFD5EEE5),
               fontSize: 13,
             ),
           ),
