@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/permissions/permission.dart';
@@ -11,8 +12,6 @@ import '../../../../shared/dialogs/app_dialog.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../domain/academic_record_status.dart';
-import '../../../users/domain/login_provisioning.dart';
-import '../../../users/presentation/widgets/login_access_dialog.dart';
 import '../../domain/parent_student_link.dart';
 import '../../domain/student.dart';
 import '../../domain/student_status.dart';
@@ -367,13 +366,9 @@ class _ParentLinkTile extends ConsumerWidget {
                         icon: const Icon(Icons.vpn_key_outlined),
                         tooltip: 'Login access',
                         onPressed: () async {
-                          final changed = await showLoginAccessDialog(
-                            context: context,
-                            schoolId: link.schoolId,
-                            branchId: link.branchId,
-                            kind: LoginKind.parent,
-                            id: parent.parentId,
-                            fallbackName: parent.displayName,
+                          final changed = await context.push<bool>(
+                            '/parents/${parent.parentId}/login-access',
+                            extra: parent.displayName,
                           );
                           if (changed == true) {
                             ref.invalidate(parentProvider(parentKey));

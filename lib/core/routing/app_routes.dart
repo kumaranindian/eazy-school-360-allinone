@@ -52,6 +52,7 @@ abstract final class AppRoutes {
   static const String studentProfile = '/students/:studentId';
   static const String parents = '/parents';
   static const String parentProfile = '/parents/:parentId';
+  static const String parentLoginAccess = '/parents/:parentId/login-access';
 
   /// Staff + Teacher management (Milestone 4). `/teachers` is a sibling view
   /// of `/staff` (same nav destination); `/my-profile` is the signed-in
@@ -198,6 +199,8 @@ abstract final class AppRoutes {
     studentProfile: Permission.viewStudentData,
     parents: Permission.viewParents,
     parentProfile: Permission.viewParents,
+    // Same permission that shows the key button on the parents list.
+    parentLoginAccess: Permission.manageStudentData,
     staff: Permission.viewStaff,
     newStaff: Permission.manageStaff,
     staffDepartments: Permission.viewStaff,
