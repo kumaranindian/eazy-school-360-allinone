@@ -1,6 +1,5 @@
-import 'package:eazy_school_360/shared/branding/page_hero.dart';
 import 'package:eazy_school_360/shared/filters/directory_toolbar.dart';
-import 'package:eazy_school_360/shared/layouts/directory_list.dart';
+import 'package:eazy_school_360/features/students/presentation/widgets/parents/parents_ui.dart';
 import 'package:eazy_school_360/app/app.dart';
 import 'package:eazy_school_360/core/config/app_environment.dart';
 import 'package:eazy_school_360/core/config/env_config.dart';
@@ -243,27 +242,23 @@ void main() {
     }
   }
 
-  group('shared directory layout', () {
-    testWidgets('desktop: the same toolbar and table card as staff', (
+  group('parents card layout', () {
+    testWidgets('desktop: toolbar and two-column cards with heading', (
       tester,
     ) async {
       await _pump(tester, size: const Size(1440, 900));
       expect(find.byType(DirectoryToolbar), findsOneWidget);
-      expect(find.byType(DirectoryTable), findsOneWidget);
-      for (final header in ['PARENT', 'PHONE', 'EMAIL', 'STATUS']) {
-        expect(find.text(header), findsOneWidget, reason: header);
-      }
-      final hero = tester.getRect(find.byType(PageHero));
-      expect(tester.getRect(find.byType(DirectoryToolbar)).left, hero.left);
-      expect(tester.getRect(find.byType(DirectoryListCard)).left, hero.left);
+      expect(find.byType(ParentListCard), findsWidgets);
+      expect(find.text('Parents & Guardians'), findsWidgets);
+      expect(find.text('Contacts and linked children'), findsWidgets);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('phone: cards that keep the key icon at a 48px target', (
-      tester,
-    ) async {
+    testWidgets('phone: cards with Active badge and chevron', (tester) async {
       await _pump(tester, size: const Size(390, 844));
-      expect(find.byType(DirectoryCard), findsWidgets);
+      expect(find.byType(ParentListCard), findsWidgets);
+      expect(find.text('Active'), findsWidgets);
+      expect(find.byIcon(Icons.chevron_right), findsWidgets);
       expect(tester.takeException(), isNull);
     });
   });

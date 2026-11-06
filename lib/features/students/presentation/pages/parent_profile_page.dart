@@ -279,21 +279,16 @@ class ParentProfilePage extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: ParentsSectionTitle(
-                          icon: Icons.lock_open_outlined,
-                          title: 'Portal access',
-                        ),
-                      ),
-                      ParentsBadge(
-                        parent.hasPortalAccess ? 'Enabled' : 'Not set up',
-                        tone: parent.hasPortalAccess
-                            ? ParentsTone.success
-                            : ParentsTone.warning,
-                      ),
-                    ],
+                  const ParentsSectionTitle(
+                    icon: Icons.lock_open_outlined,
+                    title: 'Portal access',
+                  ),
+                  const SizedBox(height: 6),
+                  ParentsBadge(
+                    parent.hasPortalAccess ? 'Enabled' : 'Not set up',
+                    tone: parent.hasPortalAccess
+                        ? ParentsTone.success
+                        : ParentsTone.warning,
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(

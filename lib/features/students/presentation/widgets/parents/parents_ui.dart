@@ -405,20 +405,18 @@ class ParentListCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Flexible(
-                      child: Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: t.titleMedium?.copyWith(
-                          color: p.textPrimary,
-                          fontWeight: FontWeight.w800,
-                        ),
+                    Text(
+                      name,
+                      style: t.titleMedium?.copyWith(
+                        color: p.textPrimary,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(width: 8),
                     ParentsBadge(
                       active ? 'Active' : 'Inactive',
                       tone: active ? ParentsTone.success : ParentsTone.neutral,
