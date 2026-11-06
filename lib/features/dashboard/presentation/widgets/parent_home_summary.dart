@@ -57,7 +57,7 @@ const _parentActions = [
   HomeAction(
     'My Timetable',
     Icons.calendar_month_outlined,
-    Color(0xFF8E6BF2),
+    AppColors.secondary,
     AppRoutes.myTimetable,
   ),
   HomeAction(
@@ -93,13 +93,13 @@ const _parentActions = [
   HomeAction(
     'Messages',
     Icons.forum_outlined,
-    Color(0xFF14B8A6),
+    AppColors.teal,
     AppRoutes.messages,
   ),
   HomeAction(
     'Notifications',
     Icons.notifications_outlined,
-    Color(0xFF8E6BF2),
+    AppColors.secondary,
     AppRoutes.notifications,
   ),
 ];

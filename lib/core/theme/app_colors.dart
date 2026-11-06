@@ -28,6 +28,9 @@ abstract final class AppColors {
   static const Color primaryDark = Color(0xFF0F6B54);
   static const Color primaryContainer = Color(0xFFE8F4EF);
 
+  /// Teal for supporting tiles and category colours.
+  static const Color teal = Color(0xFF2A9D8F);
+
   /// Secondary accent for supporting elements.
   static const Color secondary = Color(0xFF527A69);
 

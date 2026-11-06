@@ -487,7 +487,7 @@ class AdminInsightsBanner extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [p.primary, p.purple],
+              colors: [p.primary, p.teal],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
             ),

@@ -56,12 +56,12 @@ class _FeeStructuresPageState extends ConsumerState<FeeStructuresPage> {
   Color _color(FeeCategory c) => switch (c) {
     FeeCategory.tuition => AppColors.accent,
     FeeCategory.admission => AppColors.success,
-    FeeCategory.examination => const Color(0xFF8E6BF2),
+    FeeCategory.examination => AppColors.secondary,
     FeeCategory.transport => AppColors.gold,
-    FeeCategory.books => const Color(0xFF14B8A6),
-    FeeCategory.uniform => const Color(0xFFEC4899),
+    FeeCategory.books => AppColors.teal,
+    FeeCategory.uniform => AppColors.orange,
     FeeCategory.activity => AppColors.orange,
-    FeeCategory.other => const Color(0xFF8E6BF2),
+    FeeCategory.other => AppColors.secondary,
   };
 
   Future<void> _filters() => showModalBottomSheet<void>(

@@ -67,7 +67,7 @@ class _Hub extends ConsumerWidget {
       if (can(Permission.issueInvoices))
         _ManageTile(
           icon: Icons.playlist_add,
-          color: const Color(0xFF8E6BF2),
+          color: AppColors.secondary,
           title: 'Generate invoices',
           subtitle: 'Create invoices for a billing period',
           onTap: () => open('/fees/invoices/generate'),
@@ -408,9 +408,7 @@ class _Totals extends StatelessWidget {
       ),
       _AmountTile(
         icon: Icons.warning_amber_rounded,
-        color: summary.overdueMinor > 0
-            ? scheme.error
-            : const Color(0xFF8E6BF2),
+        color: summary.overdueMinor > 0 ? scheme.error : AppColors.secondary,
         value: Money.format(summary.overdueMinor, currency: currency),
         label: 'Overdue',
         hint: '${summary.overdueInvoiceCount} invoices',
