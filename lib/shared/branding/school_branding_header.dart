@@ -16,8 +16,9 @@ import 'school_branding.dart';
 /// * The title is centred on the **bar**, not on the space left between the
 ///   side groups, so it does not drift when the two sides differ in width
 ///   (a plain `Row` with `spaceBetween` would). When the side groups leave too
-///   little room to centre it without touching them, it is centred in the
-///   free space between them instead — never overlapping, never clipped.
+///   little room to centre it without touching them, it is placed in the
+///   free space instead, starting right after the school logo (start-aligned) —
+///   never overlapping, never clipped.
 /// * Both logos are square, keep their aspect ratio and are sized from the
 ///   available width, not hard-coded per screen.
 /// * Long titles end in an ellipsis; text scaling is honoured.
@@ -169,8 +170,10 @@ class _HeaderLayout extends MultiChildLayoutDelegate {
     if (centerOnBar) {
       x = (w - t.width) / 2;
     } else {
-      final free = w - left.width - right.width - 2 * gap;
-      x = left.width + gap + (free - t.width) / 2;
+      // Too narrow to centre on the bar (a phone): start the title right after
+      // the school logo so the name reads as part of the logo group, instead
+      // of floating in whatever gap the right-hand icons leave.
+      x = left.width + gap;
     }
     positionChild(_Slot.title, Offset(x, (h - t.height) / 2));
   }
@@ -250,7 +253,27 @@ class SchoolBrandingAppBar extends ConsumerWidget
           appLogo: BrandMark(size: logo),
           title: title,
           subtitle: branchName,
-          actions: [const BranchSwitcher(), ...actions],
+          // On a phone the three controls (notifications, help, sign out)
+          // plus the app logo would take over half the bar and squeeze the
+          // school name, so the icon buttons are packed tighter there.
+          actions: [
+            const BranchSwitcher(),
+            ...actions.map(
+              (a) => width < 600
+                  ? IconButtonTheme(
+                      data: IconButtonThemeData(
+                        style: IconButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          minimumSize: const Size(40, 40),
+                          fixedSize: const Size(40, 40),
+                        ),
+                      ),
+                      child: a,
+                    )
+                  : a,
+            ),
+          ],
         ),
       ),
     );

@@ -121,6 +121,26 @@ void main() {
       }
     });
 
+    testWidgets('on a phone the title starts right after the school logo', (
+      tester,
+    ) async {
+      await _pumpHeader(
+        tester,
+        size: const Size(360, 640),
+        schoolLogo: _box(_left, 32),
+        appLogo: _box(_right, 32),
+        title: 'Rosewood High School',
+        actions: const [
+          IconButton(onPressed: null, icon: Icon(Icons.notifications)),
+          IconButton(onPressed: null, icon: Icon(Icons.help_outline)),
+          IconButton(onPressed: null, icon: Icon(Icons.logout)),
+        ],
+      );
+      final l = tester.getRect(find.byKey(_left));
+      final t = tester.getRect(_titleText);
+      expect(t.left, closeTo(l.right + 12, 0.5));
+    });
+
     testWidgets(
       'a long title is ellipsised and never touches or overlaps a logo',
       (tester) async {
