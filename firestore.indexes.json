@@ -1757,7 +1757,7 @@
       ]
     },
     {
-      "collectionGroup": "reversals",
+      "collectionGroup": "paymentReversals",
       "queryScope": "COLLECTION",
       "fields": [
         {
