@@ -1,3 +1,5 @@
+import '../../branding/presentation/pages/platform_branding_page.dart';
+import '../../branding/presentation/pages/school_branding_page.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/routing/app_routes.dart';
@@ -62,6 +64,14 @@ List<RouteBase> academicSetupRoutes() => [
       GoRoute(
         path: 'regional',
         builder: (context, state) => const RegionalSettingsPage(),
+      ),
+      GoRoute(
+        path: 'branding',
+        builder: (context, state) => const SchoolBrandingPage(),
+      ),
+      GoRoute(
+        path: 'platform-branding',
+        builder: (context, state) => const PlatformBrandingPage(),
       ),
       GoRoute(
         path: 'fee-reminders',

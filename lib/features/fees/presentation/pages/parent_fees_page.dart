@@ -1,3 +1,4 @@
+import '../../../../core/theme/brand_theme.dart';
 import '../../../../core/utils/date_formatting.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/regional/regional_providers.dart';
@@ -244,7 +245,7 @@ class _ChildState extends ConsumerState<_Child> {
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     HomePanel(
-                      accent: AppColors.accent,
+                      accent: context.brandTone(AppColors.accent),
                       padding: const EdgeInsets.all(12),
                       child: Row(
                         children: [
@@ -302,7 +303,7 @@ class _ChildState extends ConsumerState<_Child> {
                     ],
                     const SizedBox(height: AppSpacing.sm),
                     HomePanel(
-                      accent: AppColors.accent,
+                      accent: context.brandTone(AppColors.accent),
                       padding: const EdgeInsets.symmetric(
                         vertical: 14,
                         horizontal: 8,
@@ -316,7 +317,7 @@ class _ChildState extends ConsumerState<_Child> {
                                 Expanded(
                                   child: _Figure(
                                     icon: Icons.receipt_long_outlined,
-                                    color: AppColors.accent,
+                                    color: context.brandTone(AppColors.accent),
                                     label: 'Total billed',
                                     value: Money.format(
                                       summary.payableMinor,
@@ -687,7 +688,9 @@ class _FeeTabs extends StatelessWidget {
           button: true,
           selected: on,
           child: Material(
-            color: on ? AppColors.primary : Colors.transparent,
+            color: on
+                ? context.brandTone(AppColors.primary)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(AppRadius.md),
             child: InkWell(
               borderRadius: BorderRadius.circular(AppRadius.md),

@@ -129,6 +129,24 @@ class SettingsOverviewPage extends ConsumerWidget {
         setupLabel: 'Regional settings',
       ),
     ]),
+    _Group('Appearance', 'The colours everyone at the school sees', [
+      _Section(
+        label: 'School theme',
+        description: 'Colours and appearance for every role and branch',
+        icon: Icons.palette_outlined,
+        route: AppRoutes.settingsBranding,
+        permission: Permission.manageSchool,
+        setupLabel: 'School theme',
+      ),
+      _Section(
+        label: 'Platform branding',
+        description: 'Default theme and presets for all schools',
+        icon: Icons.brush_outlined,
+        route: AppRoutes.settingsPlatformBranding,
+        permission: Permission.managePlatform,
+        setupLabel: 'Platform branding',
+      ),
+    ]),
     _Group('Finance', 'How parents are reminded about fees', [
       _Section(
         label: 'Fee reminders',

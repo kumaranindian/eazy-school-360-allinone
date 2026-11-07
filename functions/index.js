@@ -15,6 +15,7 @@ const { makeDelivery } = require('./deliver');
 const devices = require('./devices');
 const notifyEvents = require('./notify_events');
 const feeReminders = require('./fee_reminders');
+const branding = require('./branding');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret, defineString } = require('firebase-functions/params');
 const { createSchoolAdmin, provisionLogins, changeInitialPassword, resetLoginPassword, ensureAuthUser, enablePortalLinks } = require('./provision');
@@ -260,6 +261,7 @@ const STATUS = {
   PERMISSION_DENIED: 'permission-denied',
   INVALID_ARGUMENT: 'invalid-argument',
   NOT_FOUND: 'not-found',
+  ABORTED: 'aborted',
   EMAIL_IN_USE: 'already-exists',
   UNAUTHENTICATED: 'unauthenticated',
   RATE_LIMITED: 'resource-exhausted',
@@ -321,6 +323,25 @@ exports.updateFeeReminderSettings = onCall(callOptions(), async (request) => {
   const out = await feeReminders.updateFeeReminderSettings(adminCtx(), a.uid, a.token, request.data);
   if (out.error) fail(out);
   logger.info('updateFeeReminderSettings', { by: a.uid });
+  return out.result;
+});
+
+// Tenant-wide branding. School admins save their own school's theme (platform
+// admins any school's); platform admins also manage the default and presets.
+// The rules deny client writes to both documents.
+exports.updateSchoolBranding = onCall(callOptions(), async (request) => {
+  const a = signedIn(request);
+  const out = await branding.updateSchoolBranding(adminCtx(), a.uid, a.token, request.data);
+  if (out.error) fail(out);
+  logger.info('updateSchoolBranding', { by: a.uid, version: out.result.version });
+  return out.result;
+});
+
+exports.updatePlatformBranding = onCall(callOptions(), async (request) => {
+  const a = signedIn(request);
+  const out = await branding.updatePlatformBranding(adminCtx(), a.uid, a.token, request.data);
+  if (out.error) fail(out);
+  logger.info('updatePlatformBranding', { by: a.uid, version: out.result.version });
   return out.result;
 });
 

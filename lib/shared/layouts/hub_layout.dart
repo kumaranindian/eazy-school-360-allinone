@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/brand_theme.dart';
 import '../../core/theme/app_spacing.dart';
 import '../dashboard/home_widgets.dart' show HomePanel;
 
@@ -120,7 +121,9 @@ class HubTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final tint = comingSoon ? scheme.outline : accent;
+    final tint = comingSoon
+        ? scheme.outline
+        : (accent == null ? null : context.brandTone(accent!));
     return HomePanel(
       accent: comingSoon ? null : accent,
       onTap: onTap,

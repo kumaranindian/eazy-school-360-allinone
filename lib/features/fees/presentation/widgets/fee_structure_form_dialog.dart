@@ -1,3 +1,4 @@
+import '../../../../core/theme/brand_theme.dart';
 import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -641,7 +642,9 @@ class _StepTile extends StatelessWidget {
     final theme = Theme.of(context);
     final fg = selected ? Colors.white : theme.colorScheme.onSurface;
     return Material(
-      color: selected ? AppColors.primary : Colors.transparent,
+      color: selected
+          ? context.brandTone(AppColors.primary)
+          : Colors.transparent,
       borderRadius: BorderRadius.circular(AppRadius.md),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadius.md),
@@ -653,7 +656,7 @@ class _StepTile extends StatelessWidget {
               CircleAvatar(
                 radius: 14,
                 backgroundColor: selected
-                    ? AppColors.primaryLight
+                    ? context.brandTone(AppColors.primaryLight)
                     : theme.colorScheme.outlineVariant,
                 child: Text(
                   '$number',

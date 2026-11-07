@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 
 /// Colours of the page heading, shared by [PageHero], [HeroPill] and any
@@ -8,8 +7,8 @@ import '../../core/theme/app_spacing.dart';
 abstract final class HeroColors {
   static Color background(BuildContext c) =>
       Theme.of(c).brightness == Brightness.dark
-      ? AppColors.darkTint
-      : AppColors.primaryContainer;
+      ? Theme.of(c).colorScheme.surfaceContainerHigh
+      : Theme.of(c).colorScheme.primaryContainer;
   static Color border(BuildContext c) =>
       Theme.of(c).colorScheme.primary.withValues(alpha: 0.18);
   static Color title(BuildContext c) => Theme.of(c).colorScheme.onSurface;
@@ -33,7 +32,9 @@ class HeroPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: filled ? AppColors.gold : HeroColors.pill(context),
+        color: filled
+            ? Theme.of(context).colorScheme.tertiary
+            : HeroColors.pill(context),
         borderRadius: BorderRadius.circular(AppRadius.pill),
         border: filled ? null : Border.all(color: HeroColors.border(context)),
       ),
@@ -42,7 +43,9 @@ class HeroPill extends StatelessWidget {
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: filled ? AppColors.ink : HeroColors.title(context),
+          color: filled
+              ? Theme.of(context).colorScheme.onTertiary
+              : HeroColors.title(context),
         ),
       ),
     );

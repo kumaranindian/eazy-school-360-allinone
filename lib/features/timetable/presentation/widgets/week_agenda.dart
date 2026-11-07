@@ -1,3 +1,4 @@
+import '../../../../core/theme/brand_theme.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -180,12 +181,14 @@ class _DayChip extends StatelessWidget {
       button: true,
       selected: selected,
       child: Material(
-        color: selected ? AppColors.primary : theme.colorScheme.surface,
+        color: selected
+            ? context.brandTone(AppColors.primary)
+            : theme.colorScheme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.md + 2),
           side: BorderSide(
             color: selected
-                ? AppColors.primaryLight
+                ? context.brandTone(AppColors.primaryLight)
                 : theme.colorScheme.outlineVariant,
           ),
         ),
@@ -287,7 +290,7 @@ class _DayColumn extends StatelessWidget {
               if (items.isNotEmpty)
                 StatusPill(
                   '$periods ${periods == 1 ? 'Period' : 'Periods'}',
-                  color: AppColors.primaryLight,
+                  color: context.brandTone(AppColors.primaryLight),
                 ),
             ],
           ),
@@ -337,7 +340,7 @@ class _PeriodCard extends StatelessWidget {
         ? theme.colorScheme.outline
         : item.highlight
         ? AppColors.orange
-        : _periodColors[index % _periodColors.length];
+        : context.brandTone(_periodColors[index % _periodColors.length]);
     final (period, range) = splitPeriod
         ? _splitTime(item.time)
         : (null, item.time);

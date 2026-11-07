@@ -1,3 +1,4 @@
+import '../../../../core/theme/brand_theme.dart';
 import '../../../../core/regional/school_time.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -396,7 +397,7 @@ class _LeaveApplyFormState extends ConsumerState<LeaveApplyForm> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         HomePanel(
-          accent: AppColors.accent,
+          accent: context.brandTone(AppColors.accent),
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
@@ -694,7 +695,7 @@ class _DateField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return HomePanel(
-      accent: AppColors.accent,
+      accent: context.brandTone(AppColors.accent),
       onTap: onTap,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       child: Row(

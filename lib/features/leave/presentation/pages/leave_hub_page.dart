@@ -1,3 +1,4 @@
+import '../../../../core/theme/brand_theme.dart';
 import '../../../../core/utils/date_formatting.dart';
 import 'package:flutter/material.dart';
 
@@ -72,7 +73,7 @@ class _Hub extends ConsumerWidget {
       return SizedBox(
         width: metricWidth,
         child: HomePanel(
-          accent: AppColors.gold,
+          accent: context.brandTone(AppColors.gold),
           onTap: () => context.go(
             '/leave/applications?kind=${kind.wireValue}&status=PENDING',
           ),

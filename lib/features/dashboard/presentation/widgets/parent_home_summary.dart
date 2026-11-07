@@ -1,3 +1,4 @@
+import '../../../../core/theme/brand_theme.dart';
 import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -214,7 +215,7 @@ class _Summary extends ConsumerWidget {
     final fullName = '${child.firstName} ${child.lastName}';
 
     final childCard = HomePanel(
-      accent: AppColors.accent,
+      accent: context.brandTone(AppColors.accent),
       padding: const EdgeInsets.all(12),
       child: Row(
         children: [
@@ -328,7 +329,7 @@ class _Summary extends ConsumerWidget {
             icon: Icons.campaign_outlined,
             title: 'School Announcements',
             subtitle: 'New circular, event and updates',
-            accent: AppColors.gold,
+            accent: context.brandTone(AppColors.gold),
             onTap: () => context.go(AppRoutes.announcements),
           ),
       ],
@@ -436,7 +437,7 @@ class _FeeCard extends StatelessWidget {
         ? '${Money.format(fees.value!.overdueMinor, currency: fees.value!.currency)} overdue'
         : null;
     return HomePanel(
-      accent: AppColors.gold,
+      accent: context.brandTone(AppColors.gold),
       onTap: onTap,
       child: Row(
         children: [
@@ -445,9 +446,9 @@ class _FeeCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(
+                Icon(
                   Icons.account_balance_wallet_outlined,
-                  color: AppColors.gold,
+                  color: context.brandTone(AppColors.gold),
                   size: 26,
                 ),
                 const SizedBox(height: AppSpacing.xs),
