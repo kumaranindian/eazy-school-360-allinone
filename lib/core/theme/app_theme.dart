@@ -1,17 +1,27 @@
 import 'package:flutter/material.dart';
 
+import '../branding/tenant_branding.dart';
 import 'app_colors.dart';
 import 'app_spacing.dart';
 import 'app_typography.dart';
+import 'brand_theme.dart';
+import 'color_math.dart';
 
 /// Central theme factory. Screens should never construct `ThemeData` or
 /// hardcode visual values directly — add a token here instead.
 abstract final class AppTheme {
-  static ThemeData light() => _build(Brightness.light);
+  /// The themes of the signed-in school ([theme]); null is the platform
+  /// default (signed out, or between accounts).
+  static ThemeData light([ResolvedTheme? theme]) =>
+      _build(Brightness.light, theme?.colors ?? BrandColors.emerald);
 
-  static ThemeData dark() => _build(Brightness.dark);
+  static ThemeData dark([ResolvedTheme? theme]) =>
+      _build(Brightness.dark, theme?.colors ?? BrandColors.emerald);
 
-  static ColorScheme _scheme(Brightness brightness) {
+  /// The scheme for [brand]. The default set reproduces the approved design
+  /// exactly; any other set is derived from the school's seven colours.
+  static ColorScheme _scheme(Brightness brightness, BrandColors brand) {
+    if (brand != BrandColors.emerald) return _derived(brightness, brand);
     if (brightness == Brightness.light) {
       return const ColorScheme(
         brightness: Brightness.light,
@@ -86,21 +96,149 @@ abstract final class AppTheme {
     );
   }
 
-  static ThemeData _build(Brightness brightness) {
+  static ColorScheme _derived(Brightness brightness, BrandColors c) {
     final isDark = brightness == Brightness.dark;
-    final colorScheme = _scheme(brightness);
+    if (!isDark) {
+      final surface = c.surface;
+      var variant = ColorMath.mix(c.text, surface, 0.35);
+      if (ColorMath.contrast(variant, surface) < 4.5) variant = c.text;
+      return ColorScheme(
+        brightness: Brightness.light,
+        primary: c.primary,
+        onPrimary: ColorMath.onColor(c.primary),
+        primaryContainer: ColorMath.mix(surface, c.primary, 0.12),
+        onPrimaryContainer: c.text,
+        secondary: c.secondary,
+        onSecondary: ColorMath.onColor(c.secondary),
+        secondaryContainer: ColorMath.mix(surface, c.secondary, 0.12),
+        onSecondaryContainer: c.text,
+        tertiary: c.accent,
+        onTertiary: ColorMath.onColor(c.accent),
+        tertiaryContainer: ColorMath.mix(surface, c.accent, 0.22),
+        onTertiaryContainer: c.text,
+        error: AppColors.error,
+        onError: Colors.white,
+        errorContainer: const Color(0xFFFBE9E8),
+        onErrorContainer: const Color(0xFF8C1D1D),
+        surface: surface,
+        onSurface: c.text,
+        onSurfaceVariant: variant,
+        outline: ColorMath.mix(surface, c.text, 0.55),
+        outlineVariant: ColorMath.mix(surface, c.text, 0.12),
+        surfaceContainerLowest: surface,
+        surfaceContainerLow: ColorMath.mix(surface, c.background, 0.5),
+        surfaceContainer: c.background,
+        surfaceContainerHigh: ColorMath.mix(surface, c.primary, 0.09),
+        surfaceContainerHighest: ColorMath.mix(surface, c.primary, 0.15),
+        inverseSurface: c.text,
+        onInverseSurface: ColorMath.onColor(c.text),
+        inversePrimary: ColorMath.mix(c.primary, Colors.white, 0.4),
+        shadow: Colors.black,
+        scrim: Colors.black,
+        surfaceTint: c.primary,
+      );
+    }
+    // Dark: neutral dark surfaces tinted a little toward the school's primary;
+    // brand colours are lifted until they read on them.
+    Color tinted(Color base) => ColorMath.mix(base, c.primary, 0.07);
+    final bg = tinted(AppColors.darkBackground);
+    final surface = tinted(AppColors.darkSurface);
+    final primary = ColorMath.liftOn(c.primary, surface, 4.5);
+    final secondary = ColorMath.liftOn(c.secondary, surface, 4.5);
+    final accent = ColorMath.liftOn(c.accent, surface, 3);
+    return ColorScheme(
+      brightness: Brightness.dark,
+      primary: primary,
+      onPrimary: ColorMath.onColor(primary),
+      primaryContainer: ColorMath.mix(surface, c.primary, 0.35),
+      onPrimaryContainer: const Color(0xFFEFEFEF),
+      secondary: secondary,
+      onSecondary: ColorMath.onColor(secondary),
+      secondaryContainer: tinted(AppColors.darkTint),
+      onSecondaryContainer: const Color(0xFFEFEFEF),
+      tertiary: accent,
+      onTertiary: ColorMath.onColor(accent),
+      tertiaryContainer: ColorMath.mix(surface, c.accent, 0.3),
+      onTertiaryContainer: const Color(0xFFEFEFEF),
+      error: const Color(0xFFFF8A80),
+      onError: const Color(0xFF3A0000),
+      errorContainer: const Color(0xFF5C2422),
+      onErrorContainer: const Color(0xFFFFDAD6),
+      surface: surface,
+      onSurface: const Color(0xFFE9ECEB),
+      onSurfaceVariant: const Color(0xFFB0B8B5),
+      outline: ColorMath.mix(const Color(0xFF70867C), primary, 0.2),
+      outlineVariant: tinted(AppColors.darkBorder),
+      surfaceContainerLowest: bg,
+      surfaceContainerLow: ColorMath.mix(bg, surface, 0.5),
+      surfaceContainer: surface,
+      surfaceContainerHigh: tinted(AppColors.darkTint),
+      surfaceContainerHighest: ColorMath.mix(surface, c.primary, 0.25),
+      inverseSurface: const Color(0xFFE9ECEB),
+      onInverseSurface: AppColors.ink,
+      inversePrimary: c.primary,
+      shadow: Colors.black,
+      scrim: Colors.black,
+      surfaceTint: primary,
+    );
+  }
 
+  static BrandTheme _brandTheme(
+    Brightness brightness,
+    BrandColors c,
+    ColorScheme scheme,
+  ) {
+    if (c == BrandColors.emerald) {
+      return brightness == Brightness.dark
+          ? BrandTheme.defaults.copyWith(selectedNav: scheme.primary)
+          : BrandTheme.defaults;
+    }
+    final dark = brightness == Brightness.dark;
+    final deep = ColorMath.mix(c.primary, Colors.black, 0.25);
+    final base = ColorMath.mix(Colors.black, c.primary, 0.12);
+    return BrandTheme(
+      selectedNav: dark ? scheme.primary : c.selectedNav,
+      primaryDeep: deep,
+      heroGradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [base, ColorMath.mix(base, c.primary, 0.25), deep],
+        stops: const [0, 0.6, 1],
+      ),
+    );
+  }
+
+  static ThemeData _build(Brightness brightness, BrandColors brand) {
+    final isDark = brightness == Brightness.dark;
+    final colorScheme = _scheme(brightness, brand);
+    final brandTheme = _brandTheme(brightness, brand, colorScheme);
+    final isDefault = brand == BrandColors.emerald;
+
+    // Everything below comes from the scheme, so a school's colours reach every
+    // component. (For the default set the scheme equals the approved palette.)
     final background = isDark
-        ? AppColors.darkBackground
-        : AppColors.lightBackground;
-    final surface = isDark ? AppColors.darkSurface : AppColors.lightSurface;
-    final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
-    final tint = isDark ? AppColors.darkTint : AppColors.lightTint;
+        ? colorScheme.surfaceContainerLowest
+        : colorScheme.surfaceContainer;
+    final surface = colorScheme.surface;
+    final border = colorScheme.outlineVariant;
+    final tint = colorScheme.surfaceContainerHigh;
 
     final disabledBg = isDark
-        ? AppColors.darkTint
-        : AppColors.disabledBackground;
-    final disabledFg = isDark ? colorScheme.outline : AppColors.disabledText;
+        ? tint
+        : (isDefault
+              ? AppColors.disabledBackground
+              : ColorMath.mix(surface, colorScheme.onSurface, 0.07));
+    final disabledFg = isDark
+        ? colorScheme.outline
+        : (isDefault
+              ? AppColors.disabledText
+              : ColorMath.mix(surface, colorScheme.onSurface, 0.45));
+    final inkSurface = isDefault
+        ? AppColors.ink
+        : (isDark
+              ? colorScheme.surfaceContainerHigh
+              : colorScheme.inverseSurface);
+    final onInk = ColorMath.onColor(inkSurface);
     final buttonShape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(AppRadius.md),
     );
@@ -113,6 +251,7 @@ abstract final class AppTheme {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: colorScheme,
+      extensions: [brandTheme],
       scaffoldBackgroundColor: background,
       canvasColor: surface,
       visualDensity: VisualDensity.standard,
@@ -181,7 +320,7 @@ abstract final class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark ? AppColors.darkBackground : Colors.white,
+        fillColor: colorScheme.surfaceContainerLowest,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
           vertical: AppSpacing.md,
@@ -325,10 +464,10 @@ abstract final class AppTheme {
       ),
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
-          color: AppColors.ink,
+          color: inkSurface,
           borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
-        textStyle: const TextStyle(color: Colors.white, fontSize: 12),
+        textStyle: TextStyle(color: onInk, fontSize: 12),
       ),
       radioTheme: RadioThemeData(
         fillColor: WidgetStateProperty.resolveWith(
@@ -370,7 +509,7 @@ abstract final class AppTheme {
                 ? FontWeight.w700
                 : FontWeight.w500,
             color: states.contains(WidgetState.selected)
-                ? colorScheme.primary
+                ? brandTheme.selectedNav
                 : colorScheme.onSurfaceVariant,
           ),
         ),
@@ -388,7 +527,7 @@ abstract final class AppTheme {
         selectedIconTheme: IconThemeData(color: colorScheme.onPrimaryContainer),
         unselectedIconTheme: IconThemeData(color: colorScheme.onSurfaceVariant),
         selectedLabelTextStyle: TextStyle(
-          color: colorScheme.primary,
+          color: brandTheme.selectedNav,
           fontWeight: FontWeight.w700,
         ),
         unselectedLabelTextStyle: TextStyle(
@@ -410,9 +549,9 @@ abstract final class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.ink,
-        contentTextStyle: const TextStyle(color: Colors.white),
-        actionTextColor: AppColors.gold,
+        backgroundColor: inkSurface,
+        contentTextStyle: TextStyle(color: onInk),
+        actionTextColor: colorScheme.tertiary,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),

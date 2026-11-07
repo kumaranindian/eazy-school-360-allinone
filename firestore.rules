@@ -1737,7 +1737,6 @@ service cloud.firestore {
       );
 
       // No hard deletes — deactivate via status instead.
-      allow delete: if false;
     }
 
     // ---- /schools/{schoolId} -------------------------------------------
@@ -1766,7 +1765,6 @@ service cloud.firestore {
         isPlatformAdmin()
       );
 
-      allow delete: if false;
 
       // Which sign-in methods the school enables, and the security audit
       // trail. Both are written ONLY by Cloud Functions (updateSchoolAuthSettings,
@@ -1782,6 +1780,12 @@ service cloud.firestore {
       // updateFeeReminderSettings callable; school admins may read it.
       match /feeReminderSettings/{docId} {
         allow read: if isSchoolAdminOrAbove(schoolId);
+      }
+      // The school's theme: ONE document, read by every member of the school
+      // (all roles and branches get the same branding) and by platform admins.
+      // Written only by the updateSchoolBranding callable.
+      match /branding/{docId} {
+        allow read: if isSignedIn() && (isSameSchool(schoolId) || isPlatformAdmin());
       }
       // Grants/revocations of per-branch roles (setBranchAccess, staff
       // deactivation). Cloud Functions write; school admins read.
@@ -1809,7 +1813,6 @@ service cloud.firestore {
                .data.status == 'ACTIVE'
           && getAfter(studentPath(schoolId, nd().fromBranchId, nd().studentId))
                .data.status == 'TRANSFERRED';
-        allow update, delete: if false;
       }
 
       // ---- School-wide academic years (registry) ---------------------------
@@ -1835,7 +1838,6 @@ service cloud.firestore {
         allow update: if isSchoolAdminOf(schoolId) && validUpdateAudit()
           && changedOnly(['status', 'updatedAt', 'updatedBy'])
           && nd().status in ['ACTIVE', 'ARCHIVED'];
-        allow delete: if false;
       }
 
       // ---- /schools/{schoolId}/branches/{branchId} ---------------------
@@ -1864,7 +1866,6 @@ service cloud.firestore {
             ]))
         );
 
-        allow delete: if false;
 
         // ---- academicYears/{id}, and everything nested under a year ---
         // Nested INSIDE branches/{branchId} (not a sibling of it) because
@@ -1888,7 +1889,6 @@ service cloud.firestore {
                    && (!nd().diff(resource.data).affectedKeys().hasAny(['startDate', 'endDate', 'startDateKey', 'endDateKey'])
                        || yearKeysConsistent(nd())))
                 : changedOnly(['status', 'updatedAt', 'updatedBy']));
-          allow delete: if false;
 
           match /classes/{classId} {
             allow read: if canViewAcademicSetup(schoolId, branchId);
@@ -1897,7 +1897,6 @@ service cloud.firestore {
               && nd().academicYearId == academicYearId;
             allow update: if canManageAcademicSetup(schoolId, branchId) && validUpdateAudit()
               && changedOnly(['name', 'code', 'displayOrder', 'status', 'updatedAt', 'updatedBy']);
-            allow delete: if false;
 
             match /sections/{sectionId} {
               allow read: if canViewAcademicSetup(schoolId, branchId);
@@ -1907,7 +1906,6 @@ service cloud.firestore {
                 && nd().classId == classId;
               allow update: if canManageAcademicSetup(schoolId, branchId) && validUpdateAudit()
                 && changedOnly(['name', 'code', 'capacity', 'status', 'updatedAt', 'updatedBy']);
-              allow delete: if false;
             }
 
             // The class-subject relationship (brief §14): doc id ==
@@ -1923,7 +1921,6 @@ service cloud.firestore {
                 && newInTenant(schoolId, branchId)
                 && nd().academicYearId == academicYearId
                 && nd().classId == classId;
-              allow update: if false;
               allow delete: if canManageAcademicSetup(schoolId, branchId);
             }
           }
@@ -1935,7 +1932,6 @@ service cloud.firestore {
               && nd().academicYearId == academicYearId;
             allow update: if canManageAcademicSetup(schoolId, branchId) && validUpdateAudit()
               && changedOnly(['name', 'code', 'shortName', 'type', 'displayOrder', 'status', 'updatedAt', 'updatedBy']);
-            allow delete: if false;
           }
 
           match /holidays/{holidayId} {
@@ -1948,7 +1944,6 @@ service cloud.firestore {
             allow update: if canManageAcademicSetup(schoolId, branchId) && validUpdateAudit()
               && changedOnly(['date', 'endDate', 'name', 'type', 'description', 'status', 'updatedAt', 'updatedBy'])
               && validHoliday(nd());
-            allow delete: if false;
           }
         }
 
@@ -1963,7 +1958,6 @@ service cloud.firestore {
             && nd().updatedAt == request.time
             && nd().updatedBy == request.auth.uid
             && (settingId != 'workingDays' || validWorkingDays(nd()));
-          allow delete: if false;
         }
 
         // ---- students/{studentId}, and everything nested under one -----
@@ -1983,7 +1977,6 @@ service cloud.firestore {
             && nd().studentId is string
             && existsAfter(studentDocPath(schoolId, branchId, nd().studentId))
             && admissionKey(getAfter(studentDocPath(schoolId, branchId, nd().studentId)).data) == keyId;
-          allow update: if false;
           allow delete: if canManageStudentData(schoolId, branchId)
             && (!existsAfter(studentDocPath(schoolId, branchId, resource.data.studentId))
               || admissionKey(getAfter(studentDocPath(schoolId, branchId, resource.data.studentId)).data) != keyId);
@@ -2019,7 +2012,6 @@ service cloud.firestore {
               'updatedAt', 'updatedBy',
             ]);
 
-          allow delete: if false;
 
           // The real academic-history source of truth — see Student.
           // Never updated in place beyond closing out (status/endDate) or
@@ -2033,7 +2025,6 @@ service cloud.firestore {
               && nd().studentId == studentId;
             allow update: if canManageStudentData(schoolId, branchId) && validUpdateAudit()
               && changedOnly(['status', 'endDate', 'rollNumber', 'updatedAt', 'updatedBy']);
-            allow delete: if false;
           }
 
           // Doc id == parentId, so "already linked" is existence, not a
@@ -2049,7 +2040,6 @@ service cloud.firestore {
               && nd().parentId == parentId;
             allow update: if canManageStudentData(schoolId, branchId) && validUpdateAudit()
               && changedOnly(['relationshipType', 'isPrimary', 'isEmergencyContact', 'canAccessPortal', 'status', 'updatedAt', 'updatedBy']);
-            allow delete: if false;
           }
         }
 
@@ -2059,7 +2049,6 @@ service cloud.firestore {
         // administrator may read any (support / "Check access").
         match /teacherAccess/{uid} {
           allow read: if request.auth.uid == uid || canManageStaff(schoolId, branchId);
-          allow write: if false;
         }
 
         // ---- parentAccess/{parentId} (Milestone 12A) --------------------
@@ -2076,7 +2065,6 @@ service cloud.firestore {
             && nd().sectionKeys is list && nd().sectionKeys.size() <= 200
             && nd().updatedAt == request.time
             && nd().updatedBy == request.auth.uid;
-          allow delete: if false;
         }
 
         // ---- parents/{parentId} (Milestone 3) ---------------------------
@@ -2110,7 +2098,6 @@ service cloud.firestore {
               'status', 'linkedUserId', 'updatedAt', 'updatedBy',
             ]);
 
-          allow delete: if false;
         }
 
         // ---- Staff + Teacher management (Milestone 4) -----------------------
@@ -2126,7 +2113,6 @@ service cloud.firestore {
             && validConfigCode(nd(), departmentId);
           allow update: if canManageStaff(schoolId, branchId) && validUpdateAudit()
             && changedOnly(['name', 'description', 'status', 'updatedAt', 'updatedBy']);
-          allow delete: if false;
         }
 
         match /designations/{designationId} {
@@ -2137,7 +2123,6 @@ service cloud.firestore {
             && validConfigCode(nd(), designationId);
           allow update: if canManageStaff(schoolId, branchId) && validUpdateAudit()
             && changedOnly(['name', 'description', 'status', 'updatedAt', 'updatedBy']);
-          allow delete: if false;
         }
 
         // Employee-code reservations: one doc per code (id == lower-cased
@@ -2154,7 +2139,6 @@ service cloud.firestore {
             && nd().staffId is string
             && existsAfter(staffPath(schoolId, branchId, nd().staffId))
             && getAfter(staffPath(schoolId, branchId, nd().staffId)).data.employeeCodeLower == codeId;
-          allow update: if false;
           allow delete: if canManageStaff(schoolId, branchId)
             && (!existsAfter(staffPath(schoolId, branchId, resource.data.staffId))
               || getAfter(staffPath(schoolId, branchId, resource.data.staffId)).data.employeeCodeLower != codeId);
@@ -2203,7 +2187,6 @@ service cloud.firestore {
             && (nd().userId == resource.data.userId || nd().userId == null
               || get(userPath(nd().userId)).data.schoolId == schoolId);
 
-          allow delete: if false;
 
           // Metadata only — the files live in Storage. Sensitive (ID
           // proofs, certificates): managers only, never finance/teachers.
@@ -2219,7 +2202,6 @@ service cloud.firestore {
             allow update: if canManageStaff(schoolId, branchId) && validUpdateAudit()
               && changedOnly(['status', 'updatedAt', 'updatedBy'])
               && nd().status in ['ACTIVE', 'REMOVED'];
-            allow delete: if false;
           }
         }
 
@@ -2276,7 +2258,6 @@ service cloud.firestore {
             && nd().endDate is timestamp
             && !existsAfter(slotPath(schoolId, branchId, slotKeyOf(resource.data)));
 
-          allow delete: if false;
         }
 
         // Active-assignment reservations (see TeacherAssignment.slotKeyFor):
@@ -2292,7 +2273,6 @@ service cloud.firestore {
             && nd().assignmentId is string
             && existsAfter(assignmentPath(schoolId, branchId, nd().assignmentId))
             && slotKeyOf(getAfter(assignmentPath(schoolId, branchId, nd().assignmentId)).data) == slotKey;
-          allow update: if false;
           allow delete: if canManageStaff(schoolId, branchId)
             && existsAfter(assignmentPath(schoolId, branchId, resource.data.assignmentId))
             && getAfter(assignmentPath(schoolId, branchId, resource.data.assignmentId)).data.status == 'ENDED';
@@ -2335,7 +2315,6 @@ service cloud.firestore {
             && canMarkStudentAttendance(schoolId, branchId, resource.data)
             && (resource.data.status != 'FINALIZED' || canManageAttendance(schoolId, branchId));
 
-          allow delete: if false;
         }
 
         match /studentAttendance/{attendanceId} {
@@ -2376,7 +2355,6 @@ service cloud.firestore {
             && (!isFinalizedDay(attendanceSessionPath(schoolId, branchId, attendanceSessionKey(resource.data)))
               || (canManageAttendance(schoolId, branchId) && validChangeReason(nd())));
 
-          allow delete: if false;
 
           // Immutable audit trail, one entry per revision.
           match /history/{revisionId} {
@@ -2389,7 +2367,6 @@ service cloud.firestore {
               && nd().changedBy == request.auth.uid
               && nd().changedAt == request.time
               && canMarkStudentAttendance(schoolId, branchId, nd());
-            allow update, delete: if false;
           }
         }
 
@@ -2414,7 +2391,6 @@ service cloud.firestore {
             && nd().revision == resource.data.revision + 1
             && validDayCounts(nd())
             && validDayFinalization(nd());
-          allow delete: if false;
         }
 
         match /staffAttendance/{attendanceId} {
@@ -2442,7 +2418,6 @@ service cloud.firestore {
             && (!isFinalizedDay(staffAttendanceDayPath(schoolId, branchId, resource.data.dateKey))
               || validChangeReason(nd()));
 
-          allow delete: if false;
 
           match /history/{revisionId} {
             allow read: if canManageAttendance(schoolId, branchId);
@@ -2454,7 +2429,6 @@ service cloud.firestore {
               && validAttendanceStatus(nd().newStatus)
               && nd().changedBy == request.auth.uid
               && nd().changedAt == request.time;
-            allow update, delete: if false;
           }
         }
 
@@ -2485,7 +2459,6 @@ service cloud.firestore {
             && nd().frequency in ['ONE_TIME', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'ANNUAL', 'CUSTOM']
             && isPositiveMinor(nd().amountMinor)
             && nd().status in ['ACTIVE', 'INACTIVE'];
-          allow delete: if false;
         }
 
         // Id = studentId__structureId: a fee head is assigned to a student once.
@@ -2521,7 +2494,6 @@ service cloud.firestore {
                   && (nd().concessionType == 'FIXED' || nd().concessionValue <= 10000)
                   && validFeeReason(nd().concessionReason))))
           );
-          allow delete: if false;
         }
 
         // Number sequences. The counter only ever grows; a reserved number
@@ -2540,7 +2512,6 @@ service cloud.firestore {
             && nd().last > resource.data.last
             && nd().last <= resource.data.last + 1000
             && nd().updatedBy == request.auth.uid;
-          allow delete: if false;
         }
 
         match /invoiceNumbers/{number} {
@@ -2551,7 +2522,6 @@ service cloud.firestore {
             && nd().numberSeq is int
             && nd().numberSeq > counterLast(feeDoc(schoolId, branchId, 'feeCounters', 'invoice_' + nd().academicYearId))
             && nd().numberSeq <= getAfter(feeDoc(schoolId, branchId, 'feeCounters', 'invoice_' + nd().academicYearId)).data.last;
-          allow update, delete: if false;
         }
 
         match /receiptNumbers/{number} {
@@ -2562,7 +2532,6 @@ service cloud.firestore {
             && nd().numberSeq is int
             && nd().numberSeq > counterLast(feeDoc(schoolId, branchId, 'feeCounters', 'receipt_' + nd().academicYearId))
             && nd().numberSeq <= getAfter(feeDoc(schoolId, branchId, 'feeCounters', 'receipt_' + nd().academicYearId)).data.last;
-          allow update, delete: if false;
         }
 
         // Id = studentId__yearId__periodKey: one invoice per student per
@@ -2639,7 +2608,6 @@ service cloud.firestore {
                 && nd().voidedAt == request.time
                 && validFeeReason(nd().voidReason))
             );
-          allow delete: if false;
         }
 
         // Releases an invoice line's lock when (and only when) the invoice is voided.
@@ -2650,7 +2618,6 @@ service cloud.firestore {
             && nd().invoiceId is string
             && nd().assignmentId is string
             && chargeId.matches('^' + nd().assignmentId + '__.+$');
-          allow update: if false;
           allow delete: if canFeeAdmin(schoolId, branchId)
             && getAfter(feeDoc(schoolId, branchId, 'invoices', resource.data.invoiceId)).data.status == 'VOID';
         }
@@ -2694,7 +2661,6 @@ service cloud.firestore {
             // reversed payment can never keep counting as paid.
             && getAfter(feeDoc(schoolId, branchId, 'invoices', resource.data.invoiceId)).data.lastEventType == 'REVERSAL'
             && getAfter(feeDoc(schoolId, branchId, 'invoices', resource.data.invoiceId)).data.lastEventId == paymentId;
-          allow delete: if false;
         }
 
         match /receipts/{receiptId} {
@@ -2713,7 +2679,6 @@ service cloud.firestore {
             && resource.data.status == 'ACTIVE'
             && nd().status == 'REVERSED'
             && existsAfter(feeDoc(schoolId, branchId, 'paymentReversals', receiptId));
-          allow delete: if false;
         }
 
         // Append-only. Id = the payment's id => a payment is reversed once.
@@ -2730,7 +2695,6 @@ service cloud.firestore {
             && nd().amountMinor == get(feeDoc(schoolId, branchId, 'payments', paymentId)).data.amountMinor
             && nd().invoiceId == get(feeDoc(schoolId, branchId, 'payments', paymentId)).data.invoiceId
             && nd().studentId == get(feeDoc(schoolId, branchId, 'payments', paymentId)).data.studentId;
-          allow update, delete: if false;
         }
 
         match /invoiceWaivers/{waiverId} {
@@ -2741,7 +2705,6 @@ service cloud.firestore {
             && newInTenant(schoolId, branchId)
             && isPositiveMinor(nd().amountMinor)
             && validFeeReason(nd().reason);
-          allow update, delete: if false;
         }
 
         // Who did what to the money and when (structure changes, concessions,
@@ -2753,7 +2716,6 @@ service cloud.firestore {
             && nd().at == request.time
             && newInTenant(schoolId, branchId)
             && nd().type is string;
-          allow update, delete: if false;
         }
 
         // ---- Leave (Milestone 7) ---------------------------------------
@@ -2763,7 +2725,6 @@ service cloud.firestore {
             && newInTenant(schoolId, branchId)
             && nd().allowAdminOnBehalf is bool
             && nd().updatedBy == request.auth.uid;
-          allow delete: if false;
         }
 
         // Leave types are configuration every signed-in member of the school
@@ -2801,7 +2762,6 @@ service cloud.firestore {
                 && nd().annualEntitlementUnits >= 1
                 && nd().annualEntitlementUnits <= 732))
             && nd().status in ['ACTIVE', 'INACTIVE'];
-          allow delete: if false;
         }
 
         match /leaveApplications/{applicationId} {
@@ -2908,7 +2868,6 @@ service cloud.firestore {
                         && getAfter(leaveDoc(schoolId, branchId, 'leaveBalances', resource.data.balanceId)).data.lastLedgerId
                            == applicationId + '__restore')))
             );
-          allow delete: if false;
         }
 
         // Append-only decision history: who moved the application from what to
@@ -2930,7 +2889,6 @@ service cloud.firestore {
                == nd().revision
             && getAfter(leaveDoc(schoolId, branchId, 'leaveApplications', nd().applicationId)).data.status
                == nd().toStatus;
-          allow update, delete: if false;
         }
 
         // The minimal, non-sensitive public face of an approved leave.
@@ -2958,7 +2916,6 @@ service cloud.firestore {
             && resource.data.status == 'ACTIVE'
             && nd().status == 'CANCELLED'
             && getAfter(leaveDoc(schoolId, branchId, 'leaveApplications', applicationId)).data.status == 'CANCELLED';
-          allow delete: if false;
         }
 
         // One doc per subject per date per session: makes overlapping
@@ -2982,7 +2939,6 @@ service cloud.firestore {
           allow delete: if (resource.data.lockedBy == request.auth.uid || canReviewLeave(schoolId, branchId))
             && getAfter(leaveDoc(schoolId, branchId, 'leaveApplications', resource.data.applicationId)).data.status
                in ['WITHDRAWN', 'REJECTED', 'RETURNED', 'CANCELLED'];
-          allow update: if false;
         }
 
         // A staff member's balance of one type for one leave year. Only
@@ -3033,7 +2989,6 @@ service cloud.firestore {
                 && nd().adjustmentUnits == resource.data.adjustmentUnits
                    + getAfter(leaveDoc(schoolId, branchId, 'leaveLedger', nd().lastLedgerId)).data.units)
             );
-          allow delete: if false;
         }
 
         // Append-only. CONSUME/RESTORE ids are `{applicationId}__consume|restore`
@@ -3072,7 +3027,6 @@ service cloud.firestore {
                 && nd().units > 0
                 && entryId == nd().balanceId + '__carry')
             );
-          allow update, delete: if false;
         }
 
         // In-app notifications. Written in the SAME transaction as the event
@@ -3139,7 +3093,6 @@ service cloud.firestore {
             );
           allow update: if resource.data.audience == 'USER' && resource.data.recipientUserId == request.auth.uid
             && changedOnly(['readAt']);
-          allow delete: if false;
         }
 
         // Homework returned / graded: a targeted notice to the user who
@@ -3175,7 +3128,6 @@ service cloud.firestore {
             && nd().slots is list
             && nd().slots.size() >= 1 && nd().slots.size() <= 20
             && nd().status in ['ACTIVE', 'INACTIVE'];
-          allow delete: if false;
         }
 
         // Per-section version counter: ids are unique and increasing.
@@ -3189,7 +3141,6 @@ service cloud.firestore {
             && changedOnly(['last', 'updatedAt', 'updatedBy'])
             && nd().last == resource.data.last + 1
             && nd().updatedBy == request.auth.uid;
-          allow delete: if false;
         }
 
         // The branch publication lock (see the helper comment above).
@@ -3203,7 +3154,6 @@ service cloud.firestore {
             && changedOnly(['publishSeq', 'updatedAt', 'updatedBy'])
             && nd().publishSeq == resource.data.publishSeq + 1
             && nd().updatedBy == request.auth.uid;
-          allow delete: if false;
         }
 
         match /timetables/{timetableId} {
@@ -3314,7 +3264,6 @@ service cloud.firestore {
                 && changedOnly(['status', 'revision', 'lastEvent', 'lockSeq', 'updatedAt', 'updatedBy'])
                 && publishLockBumped(schoolId, branchId))
             );
-          allow delete: if false;
         }
 
         match /timetableEntries/{entryId} {
@@ -3361,7 +3310,6 @@ service cloud.firestore {
                == nd().revision
             && getAfter(ttDoc(schoolId, branchId, 'timetables', nd().timetableId)).data.status
                == nd().toStatus;
-          allow update, delete: if false;
         }
 
         match /substitutionDays/{dateKey} {
@@ -3374,7 +3322,6 @@ service cloud.firestore {
             && changedOnly(['seq', 'updatedAt', 'updatedBy'])
             && nd().seq == resource.data.seq + 1
             && nd().updatedBy == request.auth.uid;
-          allow delete: if false;
         }
 
         // A date-specific cover. The timetable is never rewritten.
@@ -3453,7 +3400,6 @@ service cloud.firestore {
                 && validSubstituteTeacher(schoolId, branchId, nd())
                 && get(ttDoc(schoolId, branchId, 'timetables', resource.data.timetableId)).data.status == 'PUBLISHED')
             );
-          allow delete: if false;
         }
 
         match /substitutionHistory/{entryId} {
@@ -3466,7 +3412,6 @@ service cloud.firestore {
             && existsAfter(ttDoc(schoolId, branchId, 'substitutions', nd().substitutionId))
             && getAfter(ttDoc(schoolId, branchId, 'substitutions', nd().substitutionId)).data.revision
                == nd().revision;
-          allow update, delete: if false;
         }
 
         // ---- Homework (Milestone 9) ------------------------------------
@@ -3549,7 +3494,6 @@ service cloud.firestore {
                 && nd().lastEvent == 'ARCHIVED'
                 && changedOnly(['status', 'revision', 'lastEvent', 'updatedAt', 'updatedBy']))
             );
-          allow delete: if false;
         }
 
         match /homeworkHistory/{entryId} {
@@ -3564,7 +3508,6 @@ service cloud.firestore {
             && existsAfter(ttDoc(schoolId, branchId, 'homework', nd().homeworkId))
             && getAfter(ttDoc(schoolId, branchId, 'homework', nd().homeworkId)).data.revision
                == nd().revision;
-          allow update, delete: if false;
         }
 
         // One submission per student per homework, by id. The current state
@@ -3600,7 +3543,6 @@ service cloud.firestore {
             && submissionRevisionOk(schoolId, branchId, submissionId, nd())
             && (familyChangeOk(schoolId, branchId, resource.data, nd())
                 || reviewerChangeOk(schoolId, branchId, resource.data, nd()));
-          allow delete: if false;
         }
 
         // Append-only: what the student wrote, what the teacher said, when.
@@ -3619,7 +3561,6 @@ service cloud.firestore {
                == nd().revision
             && getAfter(ttDoc(schoolId, branchId, 'homeworkSubmissions', nd().submissionId)).data.status
                == nd().status;
-          allow update, delete: if false;
         }
 
         // ---- Announcements (Milestone 9) -------------------------------
@@ -3647,7 +3588,6 @@ service cloud.firestore {
 
           allow update: if isActiveCaller()
             && announcementUpdateOk(schoolId, branchId, announcementId, resource.data, nd());
-          allow delete: if false;
         }
 
         match /announcementHistory/{entryId} {
@@ -3663,7 +3603,6 @@ service cloud.firestore {
             && existsAfter(ttDoc(schoolId, branchId, 'announcements', nd().announcementId))
             && getAfter(ttDoc(schoolId, branchId, 'announcements', nd().announcementId)).data.revision
                == nd().revision;
-          allow update, delete: if false;
         }
 
         // Audience-addressed in-app notices: ONE document per event (homework
@@ -3735,7 +3674,6 @@ service cloud.firestore {
                      getAfter(ttDoc(schoolId, branchId, 'announcements', nd().refId)).data.lastEvent]
                    == nd().type)
             );
-          allow update, delete: if false;
         }
         // ---- Examinations, marks and results (Milestone 10) -------------
         match /gradingSchemes/{schemeId} {
@@ -3763,7 +3701,6 @@ service cloud.firestore {
             && nd().passPercent is number
             && nd().passPercent >= 0 && nd().passPercent <= 100
             && nd().status in ['ACTIVE', 'INACTIVE'];
-          allow delete: if false;
         }
 
         match /examinations/{examId} {
@@ -3803,7 +3740,6 @@ service cloud.firestore {
             && examHistoryOk(schoolId, branchId, examId, nd());
 
           allow update: if examUpdateOk(schoolId, branchId, examId, resource.data, nd());
-          allow delete: if false;
         }
 
         match /examHistory/{entryId} {
@@ -3816,7 +3752,6 @@ service cloud.firestore {
             && existsAfter(ttDoc(schoolId, branchId, 'examinations', nd().examId))
             && getAfter(ttDoc(schoolId, branchId, 'examinations', nd().examId)).data.revision
                == nd().revision;
-          allow update, delete: if false;
         }
 
         match /examinationSubjects/{subjectDocId} {
@@ -3887,7 +3822,6 @@ service cloud.firestore {
             && sheetHistoryOk(schoolId, branchId, sheetId, nd());
 
           allow update: if sheetUpdateOk(schoolId, branchId, sheetId, resource.data, nd());
-          allow delete: if false;
         }
 
         match /marksSheetHistory/{entryId} {
@@ -3899,7 +3833,6 @@ service cloud.firestore {
             && entryId == nd().sheetId + '__' + string(nd().revision)
             && getAfter(ttDoc(schoolId, branchId, 'marksSheets', nd().sheetId)).data.revision
                == nd().revision;
-          allow update, delete: if false;
         }
 
         match /marksEntries/{entryId} {
@@ -3920,7 +3853,6 @@ service cloud.firestore {
                  ['status', 'marks', 'theory', 'practical', 'remark', 'revision', 'updatedAt', 'updatedBy'])
             && entryContextOk(schoolId, branchId, nd())
             && entryRevisionOk(schoolId, branchId, entryId, nd());
-          allow delete: if false;
         }
 
         match /marksRevisions/{revisionId} {
@@ -3934,7 +3866,6 @@ service cloud.firestore {
             && existsAfter(ttDoc(schoolId, branchId, 'marksEntries', nd().entryId))
             && getAfter(ttDoc(schoolId, branchId, 'marksEntries', nd().entryId)).data.revision
                == nd().revision;
-          allow update, delete: if false;
         }
 
         // Remarks typed before finalisation (copied into the result then).
@@ -3967,7 +3898,6 @@ service cloud.firestore {
                 || (nd().principalRemark == resource.data.principalRemark
                     && isClassTeacherOf(schoolId, branchId, resource.data.academicYearId,
                          resource.data.classId, resource.data.sectionId)));
-          allow delete: if false;
         }
 
         // Finalised, versioned, create-only results.
@@ -3994,7 +3924,6 @@ service cloud.firestore {
                == get(ttDoc(schoolId, branchId, 'examinations', nd().examId)).data.academicYearId
             && nd().classId
                == get(ttDoc(schoolId, branchId, 'examinations', nd().examId)).data.classId;
-          allow update, delete: if false;
         }
 
         // ---- Parent–teacher conversations (Milestone 11) -----------------
@@ -4039,7 +3968,6 @@ service cloud.firestore {
             && convEventOk(schoolId, branchId, conversationId, nd());
 
           allow update: if conversationUpdateOk(schoolId, branchId, conversationId, resource.data, nd());
-          allow delete: if false;
 
           match /messages/{messageId} {
             allow read: if isActiveCaller()
@@ -4055,7 +3983,6 @@ service cloud.firestore {
               && getAfter(ttDoc(schoolId, branchId, 'conversations', conversationId)).data.status == 'OPEN'
               && getAfter(ttDoc(schoolId, branchId, 'conversations', conversationId)).data.lastMessageId == messageId
               && messageBodyOk(nd());
-            allow update, delete: if false;
           }
         }
 
@@ -4070,7 +3997,6 @@ service cloud.firestore {
             && eventId == nd().conversationId + '__' + string(nd().revision)
             && getAfter(ttDoc(schoolId, branchId, 'conversations', nd().conversationId)).data.revision
                == nd().revision;
-          allow update, delete: if false;
         }
 
         // A teacher's opt-in to being messaged by parents, and where they teach
@@ -4091,7 +4017,6 @@ service cloud.firestore {
             && nd().sectionKeys is list && nd().sectionKeys.size() <= 60
             && nd().scopes is list && nd().scopes.size() <= 120
             && nd().updatedAt == request.time;
-          allow delete: if false;
         }
 
         // Targeted new-message notifications (their own match, OR-ed with the
@@ -4149,7 +4074,6 @@ service cloud.firestore {
     // may read their registrations and delete one (sign-out cleanup).
     match /users/{userId}/devices/{deviceId} {
       allow read, delete: if isSignedIn() && request.auth.uid == userId;
-      allow create, update: if false;
     }
 
     // Roster queries (Milestone 5): "who was enrolled in this section", across
@@ -4172,6 +4096,13 @@ service cloud.firestore {
         // Staff who may read the nested link may run the same lookup for one
         // branch (used to refresh parentAccess). Same visibility, same tenant.
         || canViewStudentData(resource.data.schoolId, resource.data.branchId);
+    }
+
+    // Platform-wide default theme and presets: any signed-in user may read
+    // (it is the fallback for schools without their own); only the
+    // updatePlatformBranding callable writes.
+    match /platformBranding/{docId} {
+      allow read: if isSignedIn();
     }
 
     // Default-deny everything else.

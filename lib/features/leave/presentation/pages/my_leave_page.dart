@@ -1,3 +1,4 @@
+import '../../../../core/theme/brand_theme.dart';
 import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 
@@ -171,7 +172,7 @@ class _ChildLeave extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 HomePanel(
-                  accent: AppColors.accent,
+                  accent: context.brandTone(AppColors.accent),
                   padding: const EdgeInsets.all(12),
                   child: Row(
                     children: [
@@ -234,7 +235,7 @@ class _ChildLeave extends ConsumerWidget {
                           icon: Icons.hourglass_bottom,
                           value: n(LeaveStatus.pending),
                           label: 'Pending',
-                          accent: AppColors.gold,
+                          accent: context.brandTone(AppColors.gold),
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),

@@ -1,3 +1,4 @@
+import '../../../../core/theme/brand_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -121,7 +122,7 @@ class StaffHome extends ConsumerWidget {
             error: (_, _) => '–',
           ),
           label: 'Students',
-          accent: AppColors.accent,
+          accent: context.brandTone(AppColors.accent),
           onTap: () => context.go(AppRoutes.students),
         ),
       );
@@ -154,7 +155,7 @@ class StaffHome extends ConsumerWidget {
             error: (_, _) => '–',
           ),
           label: 'Staff',
-          accent: AppColors.secondary,
+          accent: context.brandTone(AppColors.secondary),
           onTap: () => context.go(AppRoutes.staff),
         ),
       );
@@ -189,7 +190,7 @@ class StaffHome extends ConsumerWidget {
       if (pendingLeave != null)
         InfoRow(
           icon: Icons.event_note_outlined,
-          accent: AppColors.secondary,
+          accent: context.brandTone(AppColors.secondary),
           title: 'Leave Requests',
           subtitle: pendingLeave,
           onTap: () => context.go(AppRoutes.leave),
@@ -197,7 +198,7 @@ class StaffHome extends ConsumerWidget {
       if (homeCanOpen(tenant, AppRoutes.announcements))
         InfoRow(
           icon: Icons.campaign_outlined,
-          accent: AppColors.gold,
+          accent: context.brandTone(AppColors.gold),
           title: 'Announcements',
           subtitle: 'Notices, circulars and drafts',
           onTap: () => context.go(AppRoutes.announcements),
@@ -248,7 +249,7 @@ class StaffHome extends ConsumerWidget {
             icon: Icons.bar_chart_rounded,
             title: 'School Insights',
             subtitle: 'Key performance and trends',
-            accent: AppColors.accent,
+            accent: context.brandTone(AppColors.accent),
             filled: true,
             onTap: () => context.go(AppRoutes.attendanceReports),
           ),

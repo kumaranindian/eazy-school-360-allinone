@@ -1,3 +1,4 @@
+import '../../../../core/theme/brand_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -54,14 +55,14 @@ class _FeeStructuresPageState extends ConsumerState<FeeStructuresPage> {
   };
 
   Color _color(FeeCategory c) => switch (c) {
-    FeeCategory.tuition => AppColors.accent,
+    FeeCategory.tuition => context.brandTone(AppColors.accent),
     FeeCategory.admission => AppColors.success,
-    FeeCategory.examination => AppColors.secondary,
-    FeeCategory.transport => AppColors.gold,
-    FeeCategory.books => AppColors.teal,
+    FeeCategory.examination => context.brandTone(AppColors.secondary),
+    FeeCategory.transport => context.brandTone(AppColors.gold),
+    FeeCategory.books => context.brandTone(AppColors.teal),
     FeeCategory.uniform => AppColors.orange,
     FeeCategory.activity => AppColors.orange,
-    FeeCategory.other => AppColors.secondary,
+    FeeCategory.other => context.brandTone(AppColors.secondary),
   };
 
   Future<void> _filters() => showModalBottomSheet<void>(
@@ -354,11 +355,13 @@ class _CategoryChip extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(right: AppSpacing.sm),
       child: Material(
-        color: selected ? AppColors.primary : theme.colorScheme.surface,
+        color: selected
+            ? context.brandTone(AppColors.primary)
+            : theme.colorScheme.surface,
         shape: StadiumBorder(
           side: BorderSide(
             color: selected
-                ? AppColors.primaryLight
+                ? context.brandTone(AppColors.primaryLight)
                 : theme.colorScheme.outlineVariant,
           ),
         ),

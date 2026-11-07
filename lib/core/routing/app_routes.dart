@@ -43,6 +43,8 @@ abstract final class AppRoutes {
   static const String settingsAuthentication = '/settings/authentication';
   static const String settingsRegional = '/settings/regional';
   static const String settingsFeeReminders = '/settings/fee-reminders';
+  static const String settingsBranding = '/settings/branding';
+  static const String settingsPlatformBranding = '/settings/platform-branding';
 
   /// Student + Parent management (Milestone 3). `:studentId`/`:parentId`
   /// are the route *templates* (see note on [requiredPermissions] below),
@@ -194,6 +196,8 @@ abstract final class AppRoutes {
     settingsAuthentication: Permission.manageSchool,
     settingsRegional: Permission.manageSchool,
     settingsFeeReminders: Permission.manageSchool,
+    settingsBranding: Permission.manageSchool,
+    settingsPlatformBranding: Permission.managePlatform,
     students: Permission.viewStudentData,
     newStudent: Permission.manageStudentData,
     studentProfile: Permission.viewStudentData,

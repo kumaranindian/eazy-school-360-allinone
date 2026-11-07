@@ -1,3 +1,4 @@
+import '../../../../core/theme/brand_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -137,7 +138,7 @@ class _AdminTile extends StatelessWidget {
     final theme = Theme.of(context);
     final name = admin.name.isEmpty ? admin.email : admin.name;
     return HomePanel(
-      accent: AppColors.accent,
+      accent: context.brandTone(AppColors.accent),
       padding: const EdgeInsets.all(12),
       child: Row(
         children: [

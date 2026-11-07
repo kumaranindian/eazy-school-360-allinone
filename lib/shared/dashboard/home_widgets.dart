@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/brand_theme.dart';
 import '../../core/theme/app_spacing.dart';
 
 /// Building blocks of the revamped home screens (parent and admin). Pure
@@ -33,10 +34,13 @@ class WelcomeBanner extends StatelessWidget {
         return Container(
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [AppColors.accentDeep, AppColors.accent],
+              colors: [
+                context.brandTone(AppColors.accentDeep),
+                context.brandTone(AppColors.accent),
+              ],
             ),
             borderRadius: BorderRadius.circular(AppRadius.lg + 4),
           ),
@@ -65,7 +69,7 @@ class WelcomeBanner extends StatelessWidget {
                       Text(
                         'Welcome,',
                         style: text.titleMedium?.copyWith(
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.onPrimary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -74,7 +78,7 @@ class WelcomeBanner extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: text.headlineSmall?.copyWith(
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.onPrimary,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -85,7 +89,7 @@ class WelcomeBanner extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: text.bodyMedium?.copyWith(
-                            color: const Color(0xFFD5EEE5),
+                            color: context.brandOnHeroMuted,
                           ),
                         ),
                       ],
@@ -97,13 +101,13 @@ class WelcomeBanner extends StatelessWidget {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.gold,
+                            color: context.brandTone(AppColors.gold),
                             borderRadius: BorderRadius.circular(AppRadius.pill),
                           ),
                           child: Text(
                             roleLabel!,
                             style: text.labelLarge?.copyWith(
-                              color: AppColors.ink,
+                              color: Theme.of(context).colorScheme.onTertiary,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -269,7 +273,7 @@ class HomePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final a = accent;
+    final a = accent == null ? null : context.brandTone(accent!);
     final fill = a == null
         ? scheme.surface
         : Color.alphaBlend(
@@ -327,7 +331,7 @@ class OverviewStat extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: accent, size: 24),
+            Icon(icon, color: context.brandTone(accent), size: 24),
             const SizedBox(height: 4),
             FittedBox(
               fit: BoxFit.scaleDown,
@@ -505,7 +509,7 @@ class QuickActionTile extends StatelessWidget {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              Icon(icon, color: accent, size: 28),
+              Icon(icon, color: context.brandTone(accent), size: 28),
               if (badgeCount > 0)
                 Positioned(
                   right: -10,
@@ -614,19 +618,27 @@ class PromoStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final fg = filled ? Colors.white : null;
+    final onFilled = theme.colorScheme.onPrimary;
+    final fg = filled ? onFilled : null;
     return HomePanel(
       accent: filled ? null : accent,
       gradient: filled
-          ? const LinearGradient(
-              colors: [AppColors.accentDeep, AppColors.accent],
+          ? LinearGradient(
+              colors: [
+                context.brandTone(AppColors.accentDeep),
+                context.brandTone(AppColors.accent),
+              ],
             )
           : null,
       onTap: onTap,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Row(
         children: [
-          Icon(icon, color: filled ? Colors.white : accent, size: 30),
+          Icon(
+            icon,
+            color: filled ? onFilled : context.brandTone(accent),
+            size: 30,
+          ),
           const SizedBox(width: AppSpacing.sm + 4),
           Expanded(
             child: Column(
@@ -643,7 +655,7 @@ class PromoStrip extends StatelessWidget {
                   subtitle,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: filled
-                        ? Colors.white.withValues(alpha: 0.85)
+                        ? onFilled.withValues(alpha: 0.85)
                         : theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
@@ -753,10 +765,14 @@ class _InfoRowTile extends StatelessWidget {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: row.accent.withValues(alpha: 0.16),
+                color: context.brandTone(row.accent).withValues(alpha: 0.16),
                 borderRadius: BorderRadius.circular(AppRadius.md),
               ),
-              child: Icon(row.icon, color: row.accent, size: 20),
+              child: Icon(
+                row.icon,
+                color: context.brandTone(row.accent),
+                size: 20,
+              ),
             ),
             const SizedBox(width: AppSpacing.sm + 4),
             Expanded(

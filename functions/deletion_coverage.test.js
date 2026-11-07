@@ -25,6 +25,7 @@ const EXEMPT = {
   otpRate: 'hashes only, expire on a TTL (matrix A5)',
   pushDeliveries: 'delivery bookkeeping keyed by event; carries no user id (matrix A6)',
   notifications: 'deleted by the NOTIFICATIONS step',
+  platformBranding: 'platform-wide default theme and presets; no personal data (updatedBy is a platform admin, who cannot be deleted)',
 };
 
 test('every collection in firestore.rules is scanned, retained on purpose, or exempted with a reason', () => {

@@ -13,6 +13,7 @@ import '../core/theme/app_theme.dart';
 import '../core/theme/app_typography.dart';
 import '../core/utils/responsive.dart';
 import '../features/authentication/presentation/providers/auth_providers.dart';
+import '../features/branding/presentation/providers/branding_providers.dart';
 import '../shared/branding/brand_logo.dart';
 import '../shared/loading/loading_indicator.dart';
 
@@ -50,12 +51,16 @@ class App extends ConsumerWidget {
         ? 'none'
         : '${school.regional.timezone}|${school.regional.dateFormat}';
 
+    final brand = ref.watch(tenantThemeProvider);
+
     return MaterialApp.router(
       title: envConfig.appName,
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
+      // The signed-in school's theme (one per tenant, shared by every role and
+      // branch); the platform default when signed out or between accounts.
+      theme: AppTheme.light(brand),
+      darkTheme: AppTheme.dark(brand),
+      themeMode: brand.appearance.themeMode,
       routerConfig: router,
       builder: (context, child) => ForcedAppUpdate(
         child: _AdaptiveText(

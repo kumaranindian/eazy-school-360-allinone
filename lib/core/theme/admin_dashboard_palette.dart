@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'brand_theme.dart';
+
 /// Colours of the School Admin dashboard (light design).
 ///
 /// Centralised here so widgets never repeat a hex value. In light mode the
@@ -49,27 +51,36 @@ class AdminDashboardPalette {
     shadow: Color(0x1417231F),
   );
 
-  /// The same roles drawn from the app's dark colour scheme.
-  factory AdminDashboardPalette.fromScheme(ColorScheme s) =>
-      AdminDashboardPalette(
-        background: s.surface,
-        card: s.surfaceContainerHigh,
-        primary: s.primary,
-        textPrimary: s.onSurface,
-        textSecondary: s.onSurfaceVariant,
-        border: s.outlineVariant,
-        success: const Color(0xFF4ADE80),
-        warning: const Color(0xFFFBBF24),
-        purple: const Color(0xFFA78BFA),
-        teal: const Color(0xFF2DD4BF),
-        shadow: const Color(0x33000000),
-      );
+  /// The same roles drawn from the app's colour scheme (dark mode, and a
+  /// school's own theme in light mode). Status colours stay fixed.
+  factory AdminDashboardPalette.fromScheme(ColorScheme s) {
+    final dark = s.brightness == Brightness.dark;
+    return AdminDashboardPalette(
+      background: dark ? s.surface : s.surfaceContainer,
+      card: dark ? s.surfaceContainerHigh : s.surface,
+      primary: s.primary,
+      textPrimary: s.onSurface,
+      textSecondary: s.onSurfaceVariant,
+      border: s.outlineVariant,
+      success: dark ? const Color(0xFF4ADE80) : light.success,
+      warning: dark ? const Color(0xFFFBBF24) : light.warning,
+      purple: dark ? const Color(0xFFA78BFA) : s.secondary,
+      teal: dark
+          ? const Color(0xFF2DD4BF)
+          : Color.lerp(s.secondary, s.primary, 0.5)!,
+      shadow: dark ? const Color(0x33000000) : const Color(0x1417231F),
+    );
+  }
 
+  /// The design's light palette under the default theme; otherwise drawn from
+  /// the school's colour scheme.
   static AdminDashboardPalette of(BuildContext context) {
     final theme = Theme.of(context);
-    return theme.brightness == Brightness.dark
-        ? AdminDashboardPalette.fromScheme(theme.colorScheme)
-        : light;
+    if (theme.brightness == Brightness.dark ||
+        !BrandTheme.of(context).isDefault) {
+      return AdminDashboardPalette.fromScheme(theme.colorScheme);
+    }
+    return light;
   }
 
   /// A soft tint of [c] for an icon background.

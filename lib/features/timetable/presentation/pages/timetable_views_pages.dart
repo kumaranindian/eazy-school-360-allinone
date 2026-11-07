@@ -1,3 +1,4 @@
+import '../../../../core/theme/brand_theme.dart';
 import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 
@@ -806,7 +807,7 @@ class _ParentTimetableState extends ConsumerState<_ParentTimetable> {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   HomePanel(
-                    accent: AppColors.accent,
+                    accent: context.brandTone(AppColors.accent),
                     padding: const EdgeInsets.all(12),
                     child: Row(
                       children: [
@@ -879,7 +880,7 @@ class _ParentTimetableState extends ConsumerState<_ParentTimetable> {
                 AppSpacing.md,
               ),
               child: HomePanel(
-                accent: AppColors.accent,
+                accent: context.brandTone(AppColors.accent),
                 padding: const EdgeInsets.all(12),
                 child: Row(
                   children: [
