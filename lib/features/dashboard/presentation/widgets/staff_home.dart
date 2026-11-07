@@ -42,7 +42,7 @@ const _staffActions = [
   HomeAction(
     'Add Student',
     Icons.person_add_alt_1_outlined,
-    AppColors.brandBlue,
+    AppColors.accent,
     AppRoutes.newStudent,
   ),
   HomeAction(
@@ -60,31 +60,31 @@ const _staffActions = [
   HomeAction(
     'Collect Fees',
     Icons.account_balance_wallet_outlined,
-    Color(0xFF8E6BF2),
+    AppColors.secondary,
     AppRoutes.fees,
   ),
   HomeAction(
     'Add Staff',
     Icons.group_add_outlined,
-    AppColors.brandBlue,
+    AppColors.accent,
     AppRoutes.newStaff,
   ),
   HomeAction(
     'Timetable',
     Icons.calendar_month_outlined,
-    Color(0xFF8E6BF2),
+    AppColors.secondary,
     AppRoutes.timetable,
   ),
   HomeAction(
     'Homework',
     Icons.menu_book_outlined,
-    Color(0xFF14B8A6),
+    AppColors.teal,
     AppRoutes.homework,
   ),
   HomeAction(
     'Reports',
     Icons.bar_chart_rounded,
-    Color(0xFFD946EF),
+    AppColors.secondary,
     AppRoutes.attendanceReports,
   ),
 ];
@@ -121,7 +121,7 @@ class StaffHome extends ConsumerWidget {
             error: (_, _) => '–',
           ),
           label: 'Students',
-          accent: AppColors.brandBlue,
+          accent: AppColors.accent,
           onTap: () => context.go(AppRoutes.students),
         ),
       );
@@ -154,7 +154,7 @@ class StaffHome extends ConsumerWidget {
             error: (_, _) => '–',
           ),
           label: 'Staff',
-          accent: const Color(0xFF8E6BF2),
+          accent: AppColors.secondary,
           onTap: () => context.go(AppRoutes.staff),
         ),
       );
@@ -189,7 +189,7 @@ class StaffHome extends ConsumerWidget {
       if (pendingLeave != null)
         InfoRow(
           icon: Icons.event_note_outlined,
-          accent: const Color(0xFF8E6BF2),
+          accent: AppColors.secondary,
           title: 'Leave Requests',
           subtitle: pendingLeave,
           onTap: () => context.go(AppRoutes.leave),
@@ -248,7 +248,7 @@ class StaffHome extends ConsumerWidget {
             icon: Icons.bar_chart_rounded,
             title: 'School Insights',
             subtitle: 'Key performance and trends',
-            accent: AppColors.brandBlue,
+            accent: AppColors.accent,
             filled: true,
             onTap: () => context.go(AppRoutes.attendanceReports),
           ),

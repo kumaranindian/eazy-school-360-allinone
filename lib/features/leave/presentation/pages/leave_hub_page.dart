@@ -58,6 +58,11 @@ class _Hub extends ConsumerWidget {
         .watch(leaveReviewerNotificationsProvider(leave.branchKey))
         .value;
 
+    // Full width on a phone; fixed-width cards side by side on wider screens.
+    final metricWidth = MediaQuery.sizeOf(context).width < 600
+        ? double.infinity
+        : 240.0;
+
     Widget metric(
       String label,
       AsyncValue<int> value,
@@ -65,7 +70,7 @@ class _Hub extends ConsumerWidget {
       IconData icon,
     ) {
       return SizedBox(
-        width: 240,
+        width: metricWidth,
         child: HomePanel(
           accent: AppColors.gold,
           onTap: () => context.go(

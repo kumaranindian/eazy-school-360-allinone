@@ -225,11 +225,11 @@ class _DayChip extends StatelessWidget {
 
 /// Accent colours cycled over a day's periods, as in the design.
 const _periodColors = [
-  Color(0xFF8E6BF2),
-  Color(0xFF14B8A6),
+  AppColors.secondary,
+  AppColors.teal,
   AppColors.gold,
-  AppColors.brandBlue,
-  Color(0xFFEC4899),
+  AppColors.accent,
+  AppColors.orange,
 ];
 
 IconData _periodIcon(int i) => const [

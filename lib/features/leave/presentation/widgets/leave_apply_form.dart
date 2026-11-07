@@ -396,7 +396,7 @@ class _LeaveApplyFormState extends ConsumerState<LeaveApplyForm> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         HomePanel(
-          accent: AppColors.brandBlue,
+          accent: AppColors.accent,
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
@@ -694,7 +694,7 @@ class _DateField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return HomePanel(
-      accent: AppColors.brandBlue,
+      accent: AppColors.accent,
       onTap: onTap,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       child: Row(

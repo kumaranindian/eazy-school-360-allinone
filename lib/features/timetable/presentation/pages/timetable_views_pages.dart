@@ -806,7 +806,7 @@ class _ParentTimetableState extends ConsumerState<_ParentTimetable> {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   HomePanel(
-                    accent: AppColors.brandBlue,
+                    accent: AppColors.accent,
                     padding: const EdgeInsets.all(12),
                     child: Row(
                       children: [
@@ -879,7 +879,7 @@ class _ParentTimetableState extends ConsumerState<_ParentTimetable> {
                 AppSpacing.md,
               ),
               child: HomePanel(
-                accent: AppColors.brandBlue,
+                accent: AppColors.accent,
                 padding: const EdgeInsets.all(12),
                 child: Row(
                   children: [

@@ -8,20 +8,20 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/activation_status.dart';
 import '../../../../core/permissions/permission.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
+import '../../../../core/theme/admin_dashboard_palette.dart';
 import '../../../../core/utils/responsive.dart';
+import '../widgets/parents/parents_ui.dart';
 import '../../../../shared/dialogs/app_dialog.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/filters/directory_toolbar.dart';
 import '../../../../shared/filters/filter_field.dart';
 import '../../../../shared/filters/page_actions.dart';
 import '../../../../shared/layouts/directory_list.dart';
-import '../../../../shared/layouts/hub_layout.dart';
 import '../../../../shared/layouts/status_chips.dart';
 import '../../../../shared/error/error_view.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../../../shared/paging/paged_list_controller.dart';
 import '../../../users/domain/login_provisioning.dart';
-import '../../../users/presentation/widgets/login_access_dialog.dart';
 import '../../../users/presentation/widgets/login_selection_bar.dart';
 import '../../../users/presentation/widgets/bulk_reset_password_dialog.dart';
 import '../../../users/presentation/widgets/provision_logins_dialog.dart';
@@ -71,13 +71,9 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
     String branchId,
     Parent parent,
   ) async {
-    final changed = await showLoginAccessDialog(
-      context: context,
-      schoolId: schoolId,
-      branchId: branchId,
-      kind: LoginKind.parent,
-      id: parent.parentId,
-      fallbackName: parent.displayName,
+    final changed = await context.push<bool>(
+      '/parents/${parent.parentId}/login-access',
+      extra: parent.displayName,
     );
     if (changed == true && mounted) _resetAndLoad(schoolId, branchId);
   }
@@ -324,7 +320,7 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
                     tenant.user.userId,
                   ),
                   icon: const Icon(Icons.person_add_alt_1_outlined),
-                  label: const Text('Add parent'),
+                  label: const Text('Add Parent'),
                 )
               : null,
           body: DirectoryFrame(
@@ -431,77 +427,22 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
                       child: Center(child: CircularProgressIndicator()),
                     )
                   else
-                    DirectoryListCard(
-                      layout: layout,
-                      nameHeader: 'Parent',
-                      codeHeader: 'Phone',
-                      columns: const [
-                        DirectoryColumn(header: 'Email', flex: 3),
-                        DirectoryColumn(
-                          header: 'Login',
-                          flex: 2,
-                          showAtWidth: 760,
-                        ),
-                      ],
-                      emptyState: const EmptyView(
-                        icon: Icons.family_restroom_outlined,
-                        message: 'No parents match your filters.',
-                      ),
-                      items: [
-                        for (final parent in _controller.items)
-                          DirectoryRow(
-                            id: parent.parentId,
-                            name: parent.displayName,
-                            code: parent.phone,
-                            values: [
-                              parent.email,
-                              parent.hasPortalAccess ? 'Has login' : null,
-                            ],
-                            phoneLine: [
-                              if (parent.email != null) parent.email!,
-                              if (parent.hasPortalAccess) 'Has login',
-                            ].join(' · '),
-                            statusBadge: HubBadge(
-                              label: parent.status == ActivationStatus.active
-                                  ? 'Active'
-                                  : 'Inactive',
-                              tone: parent.status == ActivationStatus.active
-                                  ? HubBadgeTone.success
-                                  : HubBadgeTone.neutral,
-                            ),
-                            leading: _selecting
-                                ? Checkbox(
-                                    value: _selected.contains(parent.parentId),
-                                    onChanged:
-                                        (_resetMode
-                                            ? !parent.hasPortalAccess
-                                            : parent.hasPortalAccess)
-                                        ? null
-                                        : (v) => setState(
-                                            () => v == true
-                                                ? _selected.add(parent.parentId)
-                                                : _selected.remove(
-                                                    parent.parentId,
-                                                  ),
-                                          ),
-                                  )
-                                : null,
-                            onTap: () =>
-                                context.push('/parents/${parent.parentId}'),
-                            actions: [
-                              if (canManage)
-                                LoginAccessButton(
-                                  onPressed: () =>
-                                      _manageAccess(schoolId, branchId, parent),
-                                ),
-                            ],
-                          ),
-                      ],
-                      total: null,
+                    _ParentCards(
+                      items: _controller.items,
+                      canManage: canManage,
+                      selecting: _selecting,
+                      resetMode: _resetMode,
+                      selected: _selected,
+                      isSearching: _isSearching,
                       hasMore: _controller.hasMore,
                       isLoading: _controller.isLoading,
-                      onLoadMore: _controller.loadMore,
                       errorText: _controller.errorMessage,
+                      onLoadMore: _controller.loadMore,
+                      onToggle: (id, on) => setState(
+                        () => on ? _selected.add(id) : _selected.remove(id),
+                      ),
+                      onOpen: (p) => context.push('/parents/${p.parentId}'),
+                      onAccess: (p) => _manageAccess(schoolId, branchId, p),
                     ),
                   if (canManage) const SizedBox(height: 72),
                 ],
@@ -510,6 +451,135 @@ class _ParentsListPageState extends ConsumerState<ParentsListPage> {
           ),
         );
       },
+    );
+  }
+}
+
+/// The parents as cards (one column on phones and tablets, two on wide
+/// screens), with the count, "Load more", loading and empty states.
+class _ParentCards extends StatelessWidget {
+  final List<Parent> items;
+  final bool canManage;
+  final bool selecting;
+  final bool resetMode;
+  final Set<String> selected;
+  final bool isSearching;
+  final bool hasMore;
+  final bool isLoading;
+  final String? errorText;
+  final VoidCallback onLoadMore;
+  final void Function(String id, bool on) onToggle;
+  final void Function(Parent) onOpen;
+  final void Function(Parent) onAccess;
+
+  const _ParentCards({
+    required this.items,
+    required this.canManage,
+    required this.selecting,
+    required this.resetMode,
+    required this.selected,
+    required this.isSearching,
+    required this.hasMore,
+    required this.isLoading,
+    required this.errorText,
+    required this.onLoadMore,
+    required this.onToggle,
+    required this.onOpen,
+    required this.onAccess,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AdminDashboardPalette.of(context);
+    if (items.isEmpty) {
+      return EmptyView(
+        icon: isSearching
+            ? Icons.search_off_outlined
+            : Icons.family_restroom_outlined,
+        message: isSearching
+            ? 'No parents match your search.'
+            : 'No parents match your filters.',
+      );
+    }
+    final cards = [
+      for (final parent in items)
+        ParentListCard(
+          name: parent.displayName,
+          photoUrl: parent.photoUrl,
+          phone: parent.phone,
+          email: parent.email,
+          active: parent.status == ActivationStatus.active,
+          hasLogin: parent.hasPortalAccess,
+          onTap: () => onOpen(parent),
+          leading: selecting
+              ? Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Checkbox(
+                    value: selected.contains(parent.parentId),
+                    // Same rule as before: only people who can take the
+                    // chosen action are selectable.
+                    onChanged:
+                        (resetMode
+                            ? !parent.hasPortalAccess
+                            : parent.hasPortalAccess)
+                        ? null
+                        : (v) => onToggle(parent.parentId, v == true),
+                  ),
+                )
+              : null,
+          actions: [
+            if (canManage) LoginAccessButton(onPressed: () => onAccess(parent)),
+          ],
+        ),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            '${items.length}${hasMore ? '+' : ''} '
+            '${items.length == 1 && !hasMore ? 'Parent' : 'Parents'}',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: p.textSecondary),
+          ),
+        ),
+        LayoutBuilder(
+          builder: (context, c) {
+            final cols = c.maxWidth >= 1000 ? 2 : 1;
+            const gap = 12.0;
+            final w = (c.maxWidth - gap * (cols - 1)) / cols;
+            return Wrap(
+              spacing: gap,
+              runSpacing: gap,
+              children: [
+                for (final card in cards) SizedBox(width: w, child: card),
+              ],
+            );
+          },
+        ),
+        if (errorText != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              errorText!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        if (hasMore || isLoading)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Center(
+              child: isLoading
+                  ? const CircularProgressIndicator()
+                  : OutlinedButton(
+                      onPressed: onLoadMore,
+                      child: const Text('Load more'),
+                    ),
+            ),
+          ),
+      ],
     );
   }
 }

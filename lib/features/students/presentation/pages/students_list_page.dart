@@ -11,7 +11,6 @@ import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/error/error_view.dart';
 import '../../../../shared/filters/directory_toolbar.dart';
 import '../../../../shared/filters/filter_field.dart';
-import '../../../../shared/filters/page_actions.dart';
 import '../../../../shared/layouts/directory_list.dart';
 import '../../../../shared/layouts/hub_layout.dart';
 import '../../../../shared/layouts/stat_chips.dart';
@@ -238,16 +237,6 @@ class _StudentsListPageState extends ConsumerState<StudentsListPage> {
                 children: [
                   DirectoryToolbar(
                     layout: layout,
-                    trailing: PageActionsMenu(
-                      actions: [
-                        if (canManage)
-                          PageAction(
-                            label: 'Bulk upload (CSV)',
-                            icon: Icons.upload_file_outlined,
-                            onSelected: () => context.push('/students/import'),
-                          ),
-                      ],
-                    ),
                     searchController: _searchController,
                     searchHint: _searchBy == _SearchBy.name
                         ? 'Search by name'
@@ -258,6 +247,19 @@ class _StudentsListPageState extends ConsumerState<StudentsListPage> {
                     fieldsBuilder: _filters,
                     inlineCount: 1,
                   ),
+                  if (canManage) ...[
+                    SizedBox(height: DirectoryLayout.sectionGap(layout)),
+                    // Bulk admission is a main way to add students, so it is
+                    // a visible button, not a menu entry.
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: OutlinedButton.icon(
+                        onPressed: () => context.push('/students/import'),
+                        icon: const Icon(Icons.upload_file_outlined),
+                        label: const Text('Bulk upload (CSV)'),
+                      ),
+                    ),
+                  ],
                   SizedBox(height: DirectoryLayout.sectionGap(layout)),
                   StatusChips(
                     chips: _statChips(counts),

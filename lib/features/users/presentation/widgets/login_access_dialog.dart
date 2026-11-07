@@ -6,7 +6,9 @@ import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/permissions/user_role.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/admin_dashboard_palette.dart';
 import '../../../../shared/layouts/detail_grid.dart';
+import '../../../students/presentation/widgets/parents/parents_ui.dart';
 import '../../../authentication/domain/login_method.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../domain/login_access.dart';
@@ -53,6 +55,11 @@ Future<bool?> showLoginAccessDialog({
   },
 );
 
+/// How the login-access manager is drawn. The logic is the same in both:
+/// [dialog] is the original compact dialog body (staff); [page] fills a full
+/// screen with cards and a bottom Close / Save bar (parents).
+enum LoginAccessLayout { dialog, page }
+
 /// Shows who the person is, how they can sign in and whether they have used
 /// it; lets an administrator switch access on/off and choose the permitted
 /// methods. Everything is enforced by the server (functions/access.js and
@@ -63,6 +70,7 @@ class LoginAccessDialog extends ConsumerStatefulWidget {
   final LoginKind kind;
   final String id;
   final String? fallbackName;
+  final LoginAccessLayout layout;
 
   const LoginAccessDialog({
     super.key,
@@ -71,6 +79,7 @@ class LoginAccessDialog extends ConsumerStatefulWidget {
     required this.kind,
     required this.id,
     this.fallbackName,
+    this.layout = LoginAccessLayout.dialog,
   });
 
   @override
@@ -326,6 +335,10 @@ class _LoginAccessDialogState extends ConsumerState<LoginAccessDialog> {
         ? a!.name
         : (widget.fallbackName ?? 'Login access');
 
+    if (widget.layout == LoginAccessLayout.page) {
+      return _buildPage(context, a, title);
+    }
+
     return PopScope(
       canPop: !_saving,
       onPopInvokedWithResult: (didPop, _) {},
@@ -562,7 +575,375 @@ class _LoginAccessDialogState extends ConsumerState<LoginAccessDialog> {
     ];
   }
 
-  Widget _methodTile(LoginAccess a, LoginMethod m) {
+  // ---- page layout (parents) ------------------------------------------
+
+  static IconData _methodIcon(LoginMethod m) => switch (m) {
+    LoginMethod.password => Icons.mail_outline,
+    LoginMethod.google => Icons.account_circle_outlined,
+    LoginMethod.phoneOtp => Icons.chat_outlined,
+  };
+
+  Widget _buildPage(BuildContext context, LoginAccess? a, String title) {
+    final p = AdminDashboardPalette.of(context);
+    return PopScope(
+      // The system back button returns the same result as Close, so the list
+      // refreshes after a change.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !_saving) Navigator.of(context).pop(_changed);
+      },
+      child: ColoredBox(
+        color: p.background,
+        child: Column(
+          children: [
+            ParentsPageBar(
+              title: 'Login Access',
+              onBack: () {
+                if (!_saving) Navigator.of(context).pop(_changed);
+              },
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 640),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: _loading
+                          ? const [
+                              Padding(
+                                padding: EdgeInsets.symmetric(vertical: 48),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              ),
+                            ]
+                          : a == null
+                          ? [
+                              _ErrorBox(
+                                message:
+                                    _error ?? 'Could not load login access.',
+                              ),
+                            ]
+                          : _pageBody(context, a, title),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            _pageBottomBar(context, a),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _pageBottomBar(BuildContext context, LoginAccess? a) {
+    final p = AdminDashboardPalette.of(context);
+    return Material(
+      color: p.card,
+      elevation: 8,
+      shadowColor: p.shadow,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _saving
+                          ? null
+                          : () => Navigator.of(context).pop(_changed),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(48, 52),
+                      ),
+                      child: Text(_dirty ? 'Cancel' : 'Close'),
+                    ),
+                  ),
+                  if (a != null && a.manageable) ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: _saving || !_dirty ? null : () => _save(),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(48, 52),
+                        ),
+                        child: _saving
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(a.hasAccount ? 'Save' : 'Create login'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _pageBody(BuildContext context, LoginAccess a, String title) {
+    final p = AdminDashboardPalette.of(context);
+    final theme = Theme.of(context);
+    final noMethods = a.schoolMethods.isEmpty;
+    const gap = SizedBox(height: 12);
+    final statusTone = a.activation == LoginActivation.active
+        ? ParentsTone.success
+        : ParentsTone.warning;
+    return [
+      // Who and how they can sign in (every item the dialog showed).
+      ParentsCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                ParentsAvatar(name: title, size: 56),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          color: p.textPrimary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        a.userTypeLabel,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: p.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            Divider(height: 24, color: p.border),
+            ParentsFactRow(
+              icon: Icons.phone_outlined,
+              label: 'Registered mobile',
+              text: a.registeredPhone ?? 'Not set',
+              bold: true,
+            ),
+            ParentsFactRow(
+              icon: Icons.mail_outline,
+              label: 'Registered email',
+              text: a.registeredEmail ?? 'Not set',
+              bold: true,
+            ),
+            ParentsFactRow(
+              icon: Icons.verified_user_outlined,
+              label: 'Login access',
+              text: !a.hasAccount
+                  ? 'Not set up'
+                  : a.enabled
+                  ? 'Enabled'
+                  : 'Disabled',
+              bold: true,
+              valueColor: a.hasAccount && a.enabled ? p.success : null,
+            ),
+            ParentsFactRow(
+              icon: Icons.login_outlined,
+              label: 'Sign-in methods',
+              text: a.hasAccount && a.methods.isNotEmpty
+                  ? a.methods.map((m) => m.label).join(', ')
+                  : a.legacy
+                  ? 'Email / Google (existing account)'
+                  : 'None',
+              bold: true,
+            ),
+            ParentsFactRow(
+              icon: Icons.key_outlined,
+              label: 'Account',
+              text: a.activation.label,
+              bold: true,
+              valueColor: statusTone == ParentsTone.success
+                  ? p.success
+                  : p.warning,
+            ),
+            ParentsFactRow(
+              icon: Icons.history,
+              label: 'Last login',
+              text: a.lastLogin == null
+                  ? 'Never'
+                  : SchoolTime.formatInstant(a.lastLogin!),
+              bold: true,
+            ),
+          ],
+        ),
+      ),
+      if (!a.manageable) ...[
+        gap,
+        ParentsCard(
+          child: Text(
+            'You cannot change login access for your own account or for an '
+            'administrator.',
+            style: theme.textTheme.bodyMedium,
+          ),
+        ),
+      ] else ...[
+        gap,
+        ParentsCard(
+          padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+          child: SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              'Allow this person to sign in',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            subtitle: const Text(
+              'Turning this off blocks sign-in everywhere. Nothing is deleted.',
+            ),
+            value: _enabled,
+            onChanged: _saving
+                ? null
+                : (v) => setState(() {
+                    _enabled = v;
+                    _error = null;
+                  }),
+          ),
+        ),
+        if (_enabled) ...[
+          gap,
+          ParentsCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Permitted Sign-in Methods',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: p.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (noMethods)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text(
+                      'No sign-in methods are enabled for this school.',
+                    ),
+                  ),
+                for (final m in LoginMethod.values)
+                  _methodTile(a, m, icon: true),
+              ],
+            ),
+          ),
+        ],
+        if (a.hasAccount) ...[gap, _actionsGrid(a)],
+      ],
+      if (widget.kind == LoginKind.staff &&
+          a.uid != null &&
+          ref.read(tenantContextProvider).value?.role == UserRole.schoolAdmin)
+        BranchAccessSection(schoolId: widget.schoolId, uid: a.uid!),
+      if (_diagnosis != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: ParentsCard(child: _DiagnosisView(diagnosis: _diagnosis!)),
+        ),
+      if (_error != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: ParentsCard(child: _ErrorBox(message: _error!)),
+        ),
+      if (_notice != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: ParentsCard(
+            child: Semantics(
+              liveRegion: true,
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle_outline, color: p.success),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(_notice!)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      const SizedBox(height: 8),
+    ];
+  }
+
+  /// The account actions, two per row when there is room, one per row when
+  /// narrow. Every action the dialog offered is here, with the same rules.
+  Widget _actionsGrid(LoginAccess a) {
+    final actions = <Widget>[
+      if (a.registeredEmail != null &&
+          a.effective.contains(LoginMethod.password))
+        ParentsActionButton(
+          icon: Icons.mark_email_unread_outlined,
+          label: a.activation == LoginActivation.active
+              ? 'Send Reset Email'
+              : 'Send Setup Email',
+          onPressed: _saving ? null : _sendSetup,
+        ),
+      if (a.effective.contains(LoginMethod.password))
+        ParentsActionButton(
+          icon: Icons.lock_reset,
+          label: 'Reset Password',
+          onPressed: _saving ? null : () => _resetPassword(a),
+        ),
+      ParentsActionButton(
+        icon: Icons.fact_check_outlined,
+        label: 'Check Access',
+        busy: _checking,
+        onPressed: _saving || _checking ? null : _check,
+      ),
+      if (a.enabled)
+        ParentsActionButton(
+          icon: Icons.logout,
+          label: 'Sign Out All Devices',
+          onPressed: _saving
+              ? null
+              : () async {
+                  final ok = await _confirm(
+                    title: 'Sign out all devices?',
+                    body:
+                        '${a.name} will be signed out everywhere and '
+                        'must sign in again.',
+                    action: 'Sign out',
+                    destructive: true,
+                  );
+                  if (ok && mounted) _save(revokeOnly: true);
+                },
+        ),
+    ];
+    return LayoutBuilder(
+      builder: (context, c) {
+        final cols = c.maxWidth >= 360 ? 2 : 1;
+        const gap = 10.0;
+        final w = (c.maxWidth - gap * (cols - 1)) / cols;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [for (final b in actions) SizedBox(width: w, child: b)],
+        );
+      },
+    );
+  }
+
+  Widget _methodTile(LoginAccess a, LoginMethod m, {bool icon = false}) {
     final blocker = LoginAccessRules.blocker(m, a);
     final selected = _selected.contains(m);
     return CheckboxListTile(
@@ -577,7 +958,15 @@ class _LoginAccessDialogState extends ConsumerState<LoginAccessDialog> {
               v == true ? _selected.add(m) : _selected.remove(m);
               _error = null;
             }),
-      title: Text(m.label),
+      title: icon
+          ? Row(
+              children: [
+                Icon(_methodIcon(m), size: 22),
+                const SizedBox(width: 10),
+                Expanded(child: Text(m.label)),
+              ],
+            )
+          : Text(m.label),
       subtitle: Text(blocker ?? m.description),
       isThreeLine: false,
     );

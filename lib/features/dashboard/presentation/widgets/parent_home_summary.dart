@@ -57,13 +57,13 @@ const _parentActions = [
   HomeAction(
     'My Timetable',
     Icons.calendar_month_outlined,
-    Color(0xFF8E6BF2),
+    AppColors.secondary,
     AppRoutes.myTimetable,
   ),
   HomeAction(
     'My Homework',
     Icons.menu_book_outlined,
-    AppColors.brandBlue,
+    AppColors.accent,
     AppRoutes.myHomework,
   ),
   HomeAction(
@@ -93,13 +93,13 @@ const _parentActions = [
   HomeAction(
     'Messages',
     Icons.forum_outlined,
-    Color(0xFF14B8A6),
+    AppColors.teal,
     AppRoutes.messages,
   ),
   HomeAction(
     'Notifications',
     Icons.notifications_outlined,
-    Color(0xFF8E6BF2),
+    AppColors.secondary,
     AppRoutes.notifications,
   ),
 ];
@@ -214,7 +214,7 @@ class _Summary extends ConsumerWidget {
     final fullName = '${child.firstName} ${child.lastName}';
 
     final childCard = HomePanel(
-      accent: AppColors.brandBlue,
+      accent: AppColors.accent,
       padding: const EdgeInsets.all(12),
       child: Row(
         children: [

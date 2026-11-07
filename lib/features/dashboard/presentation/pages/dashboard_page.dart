@@ -11,6 +11,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/dashboard/home_widgets.dart';
 import '../../../../shared/layouts/hub_layout.dart';
 import '../../../../shared/loading/async_value_widget.dart';
+import '../widgets/admin/admin_home.dart';
 import '../widgets/parent_home_summary.dart';
 import '../widgets/staff_home.dart';
 
@@ -57,28 +58,28 @@ const _sections = [
       'Students',
       'Admissions and profiles',
       Icons.groups_outlined,
-      AppColors.brandBlue,
+      AppColors.accent,
       path: AppRoutes.students,
     ),
     _Shortcut(
       'Parents',
       'Guardians and their logins',
       Icons.family_restroom_outlined,
-      AppColors.brandBlueDeep,
+      AppColors.accentDeep,
       path: AppRoutes.parents,
     ),
     _Shortcut(
       'Staff',
       'Staff and teachers',
       Icons.badge_outlined,
-      AppColors.brandBlueDeep,
+      AppColors.accentDeep,
       path: AppRoutes.staff,
     ),
     _Shortcut(
       'My profile',
       'Your staff and teaching details',
       Icons.account_circle_outlined,
-      AppColors.brandBlue,
+      AppColors.accent,
       path: AppRoutes.myProfile,
     ),
   ]),
@@ -94,28 +95,28 @@ const _sections = [
       'Timetable',
       'Periods and substitutions',
       Icons.calendar_month_outlined,
-      AppColors.brandBlueDeep,
+      AppColors.accentDeep,
       path: AppRoutes.timetable,
     ),
     _Shortcut(
       'My timetable',
       'Your week at a glance',
       Icons.schedule_outlined,
-      AppColors.brandBlueDeep,
+      AppColors.accentDeep,
       path: AppRoutes.myTimetable,
     ),
     _Shortcut(
       'Homework',
       'Set, review and grade',
       Icons.menu_book_outlined,
-      AppColors.brandBlue,
+      AppColors.accent,
       path: AppRoutes.homework,
     ),
     _Shortcut(
       'My homework',
       'What is due and what you submitted',
       Icons.edit_note_outlined,
-      AppColors.brandBlue,
+      AppColors.accent,
       path: AppRoutes.myHomework,
     ),
     _Shortcut(
@@ -129,7 +130,7 @@ const _sections = [
       'My attendance',
       'Daily record for your children',
       Icons.fact_check_outlined,
-      AppColors.brandBlue,
+      AppColors.accent,
       path: AppRoutes.myAttendance,
     ),
     _Shortcut(
@@ -184,14 +185,14 @@ const _sections = [
       'Messages',
       'Parents and teachers',
       Icons.forum_outlined,
-      AppColors.brandBlue,
+      AppColors.accent,
       path: AppRoutes.messages,
     ),
     _Shortcut(
       'Notifications',
       'Alerts and preferences',
       Icons.notifications_outlined,
-      AppColors.brandBlue,
+      AppColors.accent,
       path: AppRoutes.notifications,
     ),
   ]),
@@ -200,14 +201,14 @@ const _sections = [
       'School profile',
       'Name, logo and contact details',
       Icons.school_outlined,
-      AppColors.brandBlueDeep,
+      AppColors.accentDeep,
       path: AppRoutes.school,
     ),
     _Shortcut(
       'Academic setup',
       'Years, classes, subjects and calendar',
       Icons.tune_outlined,
-      AppColors.brandBlueDeep,
+      AppColors.accentDeep,
       path: AppRoutes.settings,
     ),
   ]),
@@ -225,28 +226,28 @@ const _sections = [
       'Transport',
       'Routes, buses and pick-up alerts',
       Icons.directions_bus_outlined,
-      AppColors.brandBlue,
+      AppColors.accent,
       comingSoon: true,
     ),
     _Shortcut(
       'Library',
       'Books, issue and return',
       Icons.local_library_outlined,
-      AppColors.brandBlue,
+      AppColors.accent,
       comingSoon: true,
     ),
     _Shortcut(
       'Events and gallery',
       'School events, photos and RSVPs',
       Icons.celebration_outlined,
-      AppColors.brandBlue,
+      AppColors.accent,
       comingSoon: true,
     ),
     _Shortcut(
       'Admission enquiries',
       'Capture and follow up enquiries',
       Icons.how_to_reg_outlined,
-      AppColors.brandBlue,
+      AppColors.accent,
       comingSoon: true,
       adminsOnly: true,
     ),
@@ -254,7 +255,7 @@ const _sections = [
       'Payroll',
       'Salaries and payslips',
       Icons.payments_outlined,
-      AppColors.brandBlue,
+      AppColors.accent,
       comingSoon: true,
       adminsOnly: true,
     ),
@@ -262,7 +263,7 @@ const _sections = [
       'Reports and analytics',
       'School-wide insights',
       Icons.insights_outlined,
-      AppColors.brandBlue,
+      AppColors.accent,
       comingSoon: true,
       adminsOnly: true,
     ),
@@ -373,10 +374,15 @@ class DashboardPage extends ConsumerWidget {
           tenant.branch?.name,
         ].whereType<String>().where((e) => e.isNotEmpty).join(' · ');
 
+        final isSchoolAdmin = tenant.role == UserRole.schoolAdmin;
+        final email = tenant.user.email;
         final banner = WelcomeBanner(
-          name: isParent ? tenant.user.name : tenant.user.name,
+          name: tenant.user.name,
           roleLabel: tenant.role.displayName,
-          subtitle: isParent || place.isEmpty ? null : place,
+          // The School Admin's welcome also names the signed-in account.
+          subtitle: isParent || place.isEmpty
+              ? null
+              : (isSchoolAdmin && email.isNotEmpty ? '$email\n$place' : place),
         );
 
         // On a phone every module lives under the More tab, as in the
@@ -388,9 +394,11 @@ class DashboardPage extends ConsumerWidget {
 
         final home = isParent
             ? ParentHome(tenant: tenant, banner: banner)
+            : isSchoolAdmin
+            ? AdminHome(tenant: tenant, banner: banner)
             : StaffHome(tenant: tenant, banner: banner);
 
-        return _HomeScroll(
+        final scroll = _HomeScroll(
           children: [
             home,
             for (final (section, items) in groups) ...[
@@ -400,6 +408,8 @@ class DashboardPage extends ConsumerWidget {
             const SizedBox(height: AppSpacing.md),
           ],
         );
+        // The School Admin's dashboard sits on its own (light) page colour.
+        return isSchoolAdmin ? AdminDashboardBackground(child: scroll) : scroll;
       },
     );
   }

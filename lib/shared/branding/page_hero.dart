@@ -3,6 +3,24 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 
+/// Colours of the page heading, shared by [PageHero], [HeroPill] and any
+/// control that sits on the heading (the staff branch selector).
+abstract final class HeroColors {
+  static Color background(BuildContext c) =>
+      Theme.of(c).brightness == Brightness.dark
+      ? AppColors.darkTint
+      : AppColors.primaryContainer;
+  static Color border(BuildContext c) =>
+      Theme.of(c).colorScheme.primary.withValues(alpha: 0.18);
+  static Color title(BuildContext c) => Theme.of(c).colorScheme.onSurface;
+  static Color subtitle(BuildContext c) =>
+      Theme.of(c).colorScheme.onSurfaceVariant;
+  static Color accent(BuildContext c) => Theme.of(c).colorScheme.primary;
+
+  /// A chip on the heading.
+  static Color pill(BuildContext c) => Theme.of(c).colorScheme.surface;
+}
+
 /// A small label on the hero: the first is usually the highlighted one.
 class HeroPill extends StatelessWidget {
   final String label;
@@ -15,23 +33,24 @@ class HeroPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: filled ? AppColors.gold : Colors.white.withValues(alpha: 0.14),
+        color: filled ? AppColors.gold : HeroColors.pill(context),
         borderRadius: BorderRadius.circular(AppRadius.pill),
+        border: filled ? null : Border.all(color: HeroColors.border(context)),
       ),
       child: Text(
         label,
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: filled ? AppColors.navy : Colors.white,
+          color: filled ? AppColors.ink : HeroColors.title(context),
         ),
       ),
     );
   }
 }
 
-/// The signature header of every top-level screen: a short navy → blue
-/// gradient strip with an icon tile, the title and a one-line subtitle on the
+/// The signature header of every top-level screen: a short light-green
+/// tinted strip with an icon tile, the title and a one-line subtitle on the
 /// left, and the pills (school · branch, role, a branch selector...) on the
 /// right. One compact design for every screen, so no screen spends its first
 /// screenful on a banner. Pure presentation — no data, no actions of its own.
@@ -66,15 +85,17 @@ class PageHero extends StatelessWidget {
     this.pillsOnPhone = false,
   });
 
-  /// A rounded white-on-glass tile holding [icon].
-  static Widget iconBadge(IconData icon, {double size = 44}) => Container(
-    width: size,
-    height: size,
-    decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: 0.14),
-      borderRadius: BorderRadius.circular(AppRadius.md),
+  /// A rounded accent tile holding [icon].
+  static Widget iconBadge(IconData icon, {double size = 44}) => Builder(
+    builder: (context) => Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: HeroColors.accent(context),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Icon(icon, color: Colors.white, size: size * 0.55),
     ),
-    child: Icon(icon, color: Colors.white, size: size * 0.55),
   );
 
   @override
@@ -89,7 +110,7 @@ class PageHero extends StatelessWidget {
           maxLines: compact ? 1 : 2,
           overflow: TextOverflow.ellipsis,
           style: text.titleLarge?.copyWith(
-            color: Colors.white,
+            color: HeroColors.title(context),
             fontSize: compact ? 20 : 22,
             fontWeight: FontWeight.w700,
           ),
@@ -100,7 +121,7 @@ class PageHero extends StatelessWidget {
             maxLines: compact ? 1 : 2,
             overflow: TextOverflow.ellipsis,
             style: text.bodyMedium?.copyWith(
-              color: const Color(0xFFD9EAFF),
+              color: HeroColors.subtitle(context),
               fontSize: 13,
             ),
           ),
@@ -135,7 +156,8 @@ class PageHero extends StatelessWidget {
         vertical: compact ? 10 : 16,
       ),
       decoration: BoxDecoration(
-        gradient: AppColors.heroGradient,
+        color: HeroColors.background(context),
+        border: Border.all(color: HeroColors.border(context)),
         borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: compact

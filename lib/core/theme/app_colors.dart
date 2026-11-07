@@ -1,57 +1,67 @@
 import 'package:flutter/material.dart';
 
-/// Design-token color palette, taken from the EazySchool 360 logo: a bright
-/// blue "E" and cap over deep navy, with a gold tassel and the green/orange
-/// of the "360" ring as accents. Widgets should reach for
-/// `Theme.of(context).colorScheme.*` or these semantic constants — never raw
-/// `Colors.*` sprinkled through the UI.
+/// Design-token colour palette: a neutral light theme with a green/teal
+/// accent. Widgets should reach for `Theme.of(context).colorScheme.*` or these
+/// semantic constants — never raw `Colors.*` or hex values in feature code.
+///
+/// Blue is deliberately absent from the application palette. Brand artwork
+/// (the EazySchool logo, school logos) keeps its own colours because it is an
+/// image, not a theme colour.
 abstract final class AppColors {
-  // Brand (sampled from the logo artwork)
-  /// Bright logo blue — gradients, illustrations, large accents.
-  static const Color brandBlue = Color(0xFF0182F1);
+  /// Primary accent for interactive elements (buttons, selection, focus).
+  static const Color accent = Color(0xFF16856A);
 
-  /// Deep logo blue — bottom of the "E" gradient.
-  static const Color brandBlueDeep = Color(0xFF00459F);
+  /// Pressed / dark variant of the accent.
+  static const Color accentDeep = Color(0xFF0F6B54);
 
-  /// Logo wordmark navy — text, dark surfaces, app bar in dark panels.
-  static const Color navy = Color(0xFF05224E);
-  static const Color navyDeep = Color(0xFF031636);
+  /// Primary text colour and the dark surface of hero panels.
+  static const Color ink = Color(0xFF17231F);
+  static const Color inkDeep = Color(0xFF0E1714);
 
-  /// Tassel gold and the ring's orange.
-  static const Color gold = Color(0xFFFEAF06);
-  static const Color orange = Color(0xFFFE8B03);
+  /// Warm accents used for highlights (snack-bar action, warnings).
+  static const Color gold = Color(0xFFE0A030);
+  static const Color orange = Color(0xFFD99532);
 
-  // Interactive primary: the brand blue darkened to meet 4.5:1 with white
-  // text (the bright logo blue is 3.9:1), so buttons stay legible.
-  static const Color primary = Color(0xFF0A6BD9);
-  static const Color primaryLight = Color(0xFF4DA3FF);
-  static const Color primaryDark = Color(0xFF00459F);
-  static const Color primaryContainer = Color(0xFFD9EAFF);
-  static const Color secondary = navy;
+  // Interactive primary (white text on it is 4.9:1).
+  static const Color primary = Color(0xFF16856A);
+  static const Color primaryLight = Color(0xFF55BB9D);
+  static const Color primaryDark = Color(0xFF0F6B54);
+  static const Color primaryContainer = Color(0xFFE8F4EF);
+
+  /// Teal for supporting tiles and category colours.
+  static const Color teal = Color(0xFF2A9D8F);
+
+  /// Secondary accent for supporting elements.
+  static const Color secondary = Color(0xFF527A69);
 
   // Semantic
-  static const Color success = Color(0xFF1E8E3E);
-  static const Color warning = Color(0xFFD97706);
-  static const Color error = Color(0xFFD32F2F);
-  static const Color info = Color(0xFF0182F1);
+  static const Color success = Color(0xFF23965B);
+  static const Color warning = Color(0xFFD99532);
+  static const Color error = Color(0xFFD9534F);
+  static const Color info = Color(0xFF527A69);
 
-  // Light surfaces — a faint blue tint, so white cards lift off the page.
-  static const Color lightBackground = Color(0xFFF4F8FD);
+  // Light surfaces.
+  static const Color lightBackground = Color(0xFFF7F8F7);
   static const Color lightSurface = Color(0xFFFFFFFF);
-  static const Color lightBorder = Color(0xFFDDE6F2);
-  static const Color lightTint = Color(0xFFEAF3FF);
+  static const Color lightBorder = Color(0xFFE3E9E5);
+  static const Color lightTint = Color(0xFFE8F4EF);
 
-  // Dark surfaces — navy, matching the dark logo lockup.
-  static const Color darkBackground = Color(0xFF06142C);
-  static const Color darkSurface = Color(0xFF0C2244);
-  static const Color darkBorder = Color(0xFF213B63);
-  static const Color darkTint = Color(0xFF12315E);
+  /// Secondary text, disabled surfaces and disabled text.
+  static const Color textSecondary = Color(0xFF68756F);
+  static const Color disabledBackground = Color(0xFFEEF1EF);
+  static const Color disabledText = Color(0xFF98A39D);
 
-  /// The signature navy → blue gradient used on hero panels.
+  // Dark surfaces — deep green-black, matching the light theme's accent.
+  static const Color darkBackground = Color(0xFF0E1714);
+  static const Color darkSurface = Color(0xFF15211D);
+  static const Color darkBorder = Color(0xFF2A3A34);
+  static const Color darkTint = Color(0xFF1B2B25);
+
+  /// Hero-panel gradient (dark green, subtle).
   static const LinearGradient heroGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [navyDeep, navy, Color(0xFF0B4FA8)],
-    stops: [0, 0.55, 1],
+    colors: [inkDeep, ink, Color(0xFF1E4A3D)],
+    stops: [0, 0.6, 1],
   );
 }

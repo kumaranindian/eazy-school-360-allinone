@@ -1,6 +1,5 @@
-import 'package:eazy_school_360/shared/branding/page_hero.dart';
 import 'package:eazy_school_360/shared/filters/directory_toolbar.dart';
-import 'package:eazy_school_360/shared/layouts/directory_list.dart';
+import 'package:eazy_school_360/features/students/presentation/widgets/parents/parents_ui.dart';
 import 'package:eazy_school_360/app/app.dart';
 import 'package:eazy_school_360/core/config/app_environment.dart';
 import 'package:eazy_school_360/core/config/env_config.dart';
@@ -17,6 +16,7 @@ import 'package:eazy_school_360/features/school_setup/domain/school_status.dart'
 import 'package:eazy_school_360/features/school_setup/presentation/providers/school_providers.dart';
 import 'package:eazy_school_360/features/students/domain/paged_result.dart';
 import 'package:eazy_school_360/features/students/domain/parent.dart';
+import 'package:eazy_school_360/features/students/domain/student.dart';
 import 'package:eazy_school_360/features/students/domain/parent_repository.dart';
 import 'package:eazy_school_360/features/students/presentation/providers/parent_providers.dart';
 import 'package:eazy_school_360/features/users/domain/user_profile.dart';
@@ -87,11 +87,23 @@ class _FakeParents implements ParentRepository {
   }
 
   @override
+  Stream<Parent?> watchParent(String schoolId, String branchId, String id) =>
+      Stream.value(parents.where((p) => p.parentId == id).firstOrNull);
+
+  @override
+  Future<List<Student>> getChildrenForParent({
+    required String schoolId,
+    required String parentId,
+    String? branchId,
+  }) async => const [];
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 Future<_FakeParents> _pump(
   WidgetTester tester, {
+  String path = '/parents',
   Size size = const Size(390, 844),
   double textScale = 1.0,
 }) async {
@@ -154,7 +166,7 @@ Future<_FakeParents> _pump(
     UncontrolledProviderScope(container: container, child: const App()),
   );
   await tester.pumpAndSettle();
-  container.read(appRouterProvider).go('/parents');
+  container.read(appRouterProvider).go(path);
   await tester.pumpAndSettle();
   return repo;
 }
@@ -230,28 +242,51 @@ void main() {
     }
   }
 
-  group('shared directory layout', () {
-    testWidgets('desktop: the same toolbar and table card as staff', (
+  group('parents card layout', () {
+    testWidgets('desktop: toolbar and two-column cards with heading', (
       tester,
     ) async {
       await _pump(tester, size: const Size(1440, 900));
       expect(find.byType(DirectoryToolbar), findsOneWidget);
-      expect(find.byType(DirectoryTable), findsOneWidget);
-      for (final header in ['PARENT', 'PHONE', 'EMAIL', 'STATUS']) {
-        expect(find.text(header), findsOneWidget, reason: header);
-      }
-      final hero = tester.getRect(find.byType(PageHero));
-      expect(tester.getRect(find.byType(DirectoryToolbar)).left, hero.left);
-      expect(tester.getRect(find.byType(DirectoryListCard)).left, hero.left);
+      expect(find.byType(ParentListCard), findsWidgets);
+      expect(find.text('Contacts and linked children'), findsWidgets);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('phone: cards that keep the key icon at a 48px target', (
-      tester,
-    ) async {
+    testWidgets('phone: cards with Active badge and chevron', (tester) async {
       await _pump(tester, size: const Size(390, 844));
-      expect(find.byType(DirectoryCard), findsWidgets);
+      expect(find.byType(ParentListCard), findsWidgets);
+      expect(find.text('Active'), findsWidgets);
+      expect(find.byIcon(Icons.chevron_right), findsWidgets);
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('parent details', () {
+    for (final (name, size, scale) in [
+      ('small phone', const Size(320, 640), 1.5),
+      ('tablet', const Size(820, 1180), 1.0),
+      ('desktop', const Size(1440, 900), 1.0),
+    ]) {
+      testWidgets('lays out without overflow: $name', (tester) async {
+        await _pump(tester, path: '/parents/p1', size: size, textScale: scale);
+        expect(find.text('Contact details'), findsOneWidget);
+        expect(find.text('Portal access'), findsOneWidget);
+        expect(find.text('Children (0)'), findsOneWidget);
+        expect(
+          find.text('No students linked to this parent yet.'),
+          findsOneWidget,
+        );
+        expect(find.byTooltip('Edit'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('Portal access opens the Login Access page', (tester) async {
+      await _pump(tester, path: '/parents/p1');
+      await tester.tap(find.text('Portal access'));
+      await tester.pumpAndSettle();
+      expect(find.text('Login Access'), findsWidgets);
     });
   });
 }

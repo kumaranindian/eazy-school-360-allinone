@@ -21,9 +21,11 @@ import '../../domain/parent_duplicates.dart';
 import '../../domain/relationship_type.dart';
 import '../../domain/admission_outcome.dart';
 import '../../domain/student.dart';
+import '../../domain/student_name_parts.dart';
 import '../../domain/student_status.dart';
 import '../providers/parent_providers.dart';
 import '../providers/student_providers.dart';
+import '../widgets/admission_wizard.dart';
 import '../widgets/parent_duplicates_dialog.dart';
 import '../../../users/domain/login_provisioning.dart';
 import '../../../users/presentation/widgets/provision_logins_dialog.dart';
@@ -47,9 +49,8 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
   int _step = 0;
   final _basicFormKey = GlobalKey<FormState>();
 
-  final _firstName = TextEditingController();
-  final _middleName = TextEditingController();
-  final _lastName = TextEditingController();
+  final _fullName = TextEditingController();
+  final _dobText = TextEditingController();
   final _admissionNumber = TextEditingController();
   DateTime? _dateOfBirth;
   Gender _gender = Gender.male;
@@ -140,6 +141,9 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
       }
     }
   }
+
+  /// The typed full name split into the stored first / middle / last parts.
+  StudentNameParts get _name => StudentNameParts.split(_fullName.text);
 
   bool get _canGoToParentStep =>
       _basicFormKey.currentState?.validate() ?? false;
@@ -253,11 +257,9 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
       branchId: branchId,
       admissionNumber: admissionNumber,
       studentCode: '',
-      firstName: _firstName.text.trim(),
-      middleName: _middleName.text.trim().isEmpty
-          ? null
-          : _middleName.text.trim(),
-      lastName: _lastName.text.trim(),
+      firstName: _name.first,
+      middleName: _name.middle,
+      lastName: _name.last,
       dateOfBirth: _dateOfBirth!,
       gender: _gender,
       bloodGroup: _bloodGroup,
@@ -424,9 +426,8 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
   @override
   void dispose() {
     for (final c in [
-      _firstName,
-      _middleName,
-      _lastName,
+      _fullName,
+      _dobText,
       _admissionNumber,
       _email,
       _phone,
@@ -444,6 +445,247 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
     super.dispose();
   }
 
+  static const _stepLabels = [
+    'Student Details',
+    'Parent / Guardian',
+    'Academic Placement',
+    'Review',
+  ];
+
+  Future<void> _pickDateOfBirth() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dateOfBirth ?? DateTime(SchoolTime.wallNow().year - 10),
+      firstDate: DateTime(1990),
+      lastDate: SchoolTime.wallNow(),
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _dateOfBirth = picked;
+        _dobText.text = formatDisplayDate(picked);
+      });
+    }
+  }
+
+  Future<void> _pickAdmissionDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _admissionDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null && mounted) setState(() => _admissionDate = picked);
+  }
+
+  /// Step 1 in the new layout: labelled fields, two columns when wide.
+  Widget _studentDetailsStep(
+    BuildContext context,
+    String schoolId,
+    String branchId,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    final tint = scheme.primary.withValues(alpha: 0.08);
+    const sp = SizedBox(height: AppSpacing.md);
+    return Form(
+      key: _basicFormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AdmissionLabeled(
+            label: 'Admission Number',
+            child: TextFormField(
+              controller: _admissionNumber,
+              readOnly: true,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: tint,
+                helperText: _numberFailed ? null : 'Generated automatically',
+                errorText: _numberFailed
+                    ? 'Could not generate the number.'
+                    : null,
+                suffixIcon: _numberFailed
+                    ? IconButton(
+                        tooltip: 'Try again',
+                        icon: const Icon(Icons.refresh),
+                        onPressed: () =>
+                            _loadAdmissionNumber(schoolId, branchId),
+                      )
+                    : const Icon(Icons.lock_outline),
+              ),
+              validator: (v) => (v ?? '').trim().isEmpty
+                  ? 'The admission number is still being generated.'
+                  : null,
+            ),
+          ),
+          sp,
+          AdmissionFieldRow(
+            left: AdmissionLabeled(
+              label: 'Full Name',
+              required: true,
+              child: TextFormField(
+                controller: _fullName,
+                textCapitalization: TextCapitalization.words,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  hintText: "Enter student's full name",
+                  prefixIcon: Icon(Icons.person_outline),
+                ),
+                validator: (v) {
+                  final n = StudentNameParts.split(v ?? '');
+                  if (n.isEmpty) return 'Full name is required';
+                  if (!n.isComplete) return 'Enter the first and last name';
+                  return null;
+                },
+              ),
+            ),
+            right: AdmissionLabeled(
+              label: 'Date of Birth',
+              required: true,
+              child: TextFormField(
+                controller: _dobText,
+                readOnly: true,
+                onTap: _pickDateOfBirth,
+                decoration: const InputDecoration(
+                  hintText: 'Select date',
+                  prefixIcon: Icon(Icons.calendar_today_outlined),
+                ),
+                validator: (_) =>
+                    _dateOfBirth == null ? 'Select the date of birth' : null,
+              ),
+            ),
+          ),
+          sp,
+          AdmissionFieldRow(
+            left: AdmissionLabeled(
+              label: 'Gender',
+              required: true,
+              child: DropdownButtonFormField<Gender>(
+                isExpanded: true,
+                value: _gender,
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.wc_outlined),
+                ),
+                items: [
+                  for (final g in Gender.values)
+                    DropdownMenuItem(value: g, child: Text(g.displayName)),
+                ],
+                onChanged: (v) => setState(() => _gender = v ?? _gender),
+              ),
+            ),
+            right: AdmissionLabeled(
+              label: 'Blood Group',
+              child: DropdownButtonFormField<BloodGroup?>(
+                isExpanded: true,
+                value: _bloodGroup,
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.bloodtype_outlined),
+                ),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('Unknown')),
+                  for (final b in BloodGroup.values)
+                    DropdownMenuItem(value: b, child: Text(b.displayName)),
+                ],
+                onChanged: (v) => setState(() => _bloodGroup = v),
+              ),
+            ),
+          ),
+          sp,
+          TextFormField(
+            controller: _email,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              hintText: 'Email (optional)',
+              prefixIcon: Icon(Icons.mail_outline),
+            ),
+          ),
+          sp,
+          TextFormField(
+            controller: _phone,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+              hintText: 'Phone (optional)',
+              prefixIcon: Icon(Icons.phone_outlined),
+            ),
+            validator: Validators.phone,
+          ),
+          sp,
+          TextFormField(
+            controller: _addressLine1,
+            minLines: 2,
+            maxLines: 3,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              hintText: 'Address (optional)',
+              prefixIcon: Align(
+                widthFactor: 1,
+                heightFactor: 1,
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: EdgeInsets.only(top: 12),
+                  child: Icon(Icons.location_on_outlined),
+                ),
+              ),
+            ),
+          ),
+          sp,
+          TextFormField(
+            controller: _city,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              hintText: 'City (optional)',
+              prefixIcon: Icon(Icons.location_city_outlined),
+            ),
+          ),
+          sp,
+          Semantics(
+            button: true,
+            label: 'Admission date ${formatDisplayDate(_admissionDate)}',
+            excludeSemantics: true,
+            child: InkWell(
+              onTap: _pickAdmissionDate,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 56),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: tint,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.calendar_month_outlined, color: scheme.primary),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Admission Date',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          Text(
+                            formatDisplayDate(_admissionDate),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.edit_calendar_outlined, color: scheme.primary),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tenantState = ref.watch(tenantContextProvider);
@@ -454,7 +696,6 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
     ref.watch(parentWriteControllerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Admit student')),
       body: AsyncValueWidget(
         value: tenantState,
         data: (tenant) {
@@ -472,587 +713,405 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
             });
           }
 
+          final busy = _saving || _checkingParent;
+          final last = _step == _stepLabels.length - 1;
+          final (icon, title, subtitle) = switch (_step) {
+            0 => (
+              Icons.person_outline,
+              'Student Details',
+              'Basic information of the student',
+            ),
+            1 => (
+              Icons.family_restroom_outlined,
+              'Parent / Guardian',
+              'Link a guardian now or add one later',
+            ),
+            2 => (
+              Icons.school_outlined,
+              'Academic Placement',
+              'Choose the academic year, class and section',
+            ),
+            _ => (
+              Icons.fact_check_outlined,
+              'Review',
+              'Check the details, then admit the student',
+            ),
+          };
+          final Widget stepContent = switch (_step) {
+            0 => _studentDetailsStep(context, schoolId, branchId),
+            1 => _parentStep(context, schoolId, branchId),
+            2 => _placementStep(context, schoolId, branchId),
+            _ => _reviewStep(context),
+          };
+
+          final footer = Row(
+            children: [
+              if (_step > 0)
+                OutlinedButton(
+                  onPressed: busy ? null : () => setState(() => _step -= 1),
+                  child: const Text('Back'),
+                ),
+              const Spacer(),
+              FilledButton(
+                onPressed: busy
+                    ? null
+                    : () => _continue(schoolId, branchId, tenant.user.userId),
+                child: busy
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(last ? 'Admit student' : 'Next'),
+                          if (!last) ...[
+                            const SizedBox(width: 8),
+                            const Icon(Icons.arrow_forward, size: 18),
+                          ],
+                        ],
+                      ),
+              ),
+            ],
+          );
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(
-                  AppSpacing.md,
-                  AppSpacing.sm,
-                  AppSpacing.md,
-                  0,
-                ),
-                child: ActingBranchBanner(),
-              ),
-              Expanded(
-                child: Stepper(
-                  currentStep: _step,
-                  onStepContinue: () =>
-                      _continue(schoolId, branchId, tenant.user.userId),
-                  onStepCancel: _step == 0
+              AdmissionBanner(
+                title: 'Admit Student',
+                subtitle: 'Add a new student to the school',
+                onBack: () =>
+                    context.canPop() ? context.pop() : context.go('/students'),
+                action: TextButton.icon(
+                  onPressed: busy
                       ? null
-                      : () => setState(() => _step -= 1),
-                  controlsBuilder: (context, details) => Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.md),
-                    child: Row(
-                      children: [
-                        FilledButton(
-                          onPressed: _saving || _checkingParent
-                              ? null
-                              : details.onStepContinue,
-                          child: _saving || _checkingParent
-                              ? const SizedBox(
-                                  height: 18,
-                                  width: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Text(_step == 3 ? 'Admit student' : 'Next'),
-                        ),
-                        if (details.onStepCancel != null) ...[
-                          const SizedBox(width: AppSpacing.sm),
-                          TextButton(
-                            onPressed: _saving ? null : details.onStepCancel,
-                            child: const Text('Back'),
-                          ),
-                        ],
-                      ],
+                      : () => context.push('/students/import'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.primary,
+                    minimumSize: const Size(48, 48),
+                    side: BorderSide(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.5),
                     ),
                   ),
-                  steps: [
-                    Step(
-                      title: const Text('Basic information'),
-                      isActive: _step >= 0,
-                      state: _step > 0 ? StepState.complete : StepState.indexed,
-                      content: Form(
-                        key: _basicFormKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            TextFormField(
-                              controller: _firstName,
-                              decoration: const InputDecoration(
-                                labelText: 'First name',
-                              ),
-                              validator: (v) => Validators.required(
-                                v,
-                                fieldName: 'First name',
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            TextFormField(
-                              controller: _middleName,
-                              decoration: const InputDecoration(
-                                labelText: 'Middle name (optional)',
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            TextFormField(
-                              controller: _lastName,
-                              decoration: const InputDecoration(
-                                labelText: 'Last name',
-                              ),
-                              validator: (v) => Validators.required(
-                                v,
-                                fieldName: 'Last name',
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            TextFormField(
-                              controller: _admissionNumber,
-                              readOnly: true,
-                              decoration: InputDecoration(
-                                labelText: 'Admission number',
-                                helperText: _numberFailed
-                                    ? null
-                                    : 'Generated automatically',
-                                errorText: _numberFailed
-                                    ? 'Could not generate the number.'
-                                    : null,
-                                suffixIcon: _numberFailed
-                                    ? IconButton(
-                                        tooltip: 'Try again',
-                                        icon: const Icon(Icons.refresh),
-                                        onPressed: () => _loadAdmissionNumber(
-                                          schoolId,
-                                          branchId,
-                                        ),
-                                      )
-                                    : const Icon(Icons.lock_outline),
-                              ),
-                              validator: (v) => (v ?? '').trim().isEmpty
-                                  ? 'The admission number is still being '
-                                        'generated.'
-                                  : null,
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            OutlinedButton(
-                              onPressed: () async {
-                                final picked = await showDatePicker(
-                                  context: context,
-                                  initialDate:
-                                      _dateOfBirth ??
-                                      DateTime(SchoolTime.wallNow().year - 10),
-                                  firstDate: DateTime(1990),
-                                  lastDate: SchoolTime.wallNow(),
-                                );
-                                if (picked != null) {
-                                  setState(() => _dateOfBirth = picked);
-                                }
-                              },
-                              child: Text(
-                                _dateOfBirth == null
-                                    ? 'Date of birth'
-                                    : formatDisplayDate(_dateOfBirth!),
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            DropdownButtonFormField<Gender>(
-                              isExpanded: true,
-                              value: _gender,
-                              decoration: const InputDecoration(
-                                labelText: 'Gender',
-                              ),
-                              items: [
-                                for (final g in Gender.values)
-                                  DropdownMenuItem(
-                                    value: g,
-                                    child: Text(g.displayName),
-                                  ),
-                              ],
-                              onChanged: (v) =>
-                                  setState(() => _gender = v ?? _gender),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            DropdownButtonFormField<BloodGroup?>(
-                              isExpanded: true,
-                              value: _bloodGroup,
-                              decoration: const InputDecoration(
-                                labelText: 'Blood group (optional)',
-                              ),
-                              items: [
-                                const DropdownMenuItem(
-                                  value: null,
-                                  child: Text('Unknown'),
-                                ),
-                                for (final b in BloodGroup.values)
-                                  DropdownMenuItem(
-                                    value: b,
-                                    child: Text(b.displayName),
-                                  ),
-                              ],
-                              onChanged: (v) => setState(() => _bloodGroup = v),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            TextFormField(
-                              controller: _email,
-                              decoration: const InputDecoration(
-                                labelText: 'Email (optional)',
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            TextFormField(
-                              controller: _phone,
-                              decoration: const InputDecoration(
-                                labelText: 'Phone (optional)',
-                              ),
-                              validator: Validators.phone,
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            TextFormField(
-                              controller: _addressLine1,
-                              decoration: const InputDecoration(
-                                labelText: 'Address (optional)',
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            TextFormField(
-                              controller: _city,
-                              decoration: const InputDecoration(
-                                labelText: 'City (optional)',
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            OutlinedButton(
-                              onPressed: () async {
-                                final picked = await showDatePicker(
-                                  context: context,
-                                  initialDate: _admissionDate,
-                                  firstDate: DateTime(2000),
-                                  lastDate: DateTime(2100),
-                                );
-                                if (picked != null) {
-                                  setState(() => _admissionDate = picked);
-                                }
-                              },
-                              child: Text(
-                                'Admission date: ${formatDisplayDate(_admissionDate)}',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Step(
-                      title: const Text('Parent / guardian'),
-                      isActive: _step >= 1,
-                      state: _step > 1 ? StepState.complete : StepState.indexed,
-                      content: Column(
+                  icon: const Icon(Icons.upload_file_outlined, size: 20),
+                  label: const Text('Bulk upload'),
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 880),
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          SegmentedButton<_ParentMode>(
-                            segments: const [
-                              ButtonSegment(
-                                value: _ParentMode.skip,
-                                label: Text('Add later'),
-                              ),
-                              ButtonSegment(
-                                value: _ParentMode.existing,
-                                label: Text('Existing'),
-                              ),
-                              ButtonSegment(
-                                value: _ParentMode.newParent,
-                                label: Text('New'),
-                              ),
-                            ],
-                            selected: {_parentMode},
-                            onSelectionChanged: (s) =>
-                                setState(() => _parentMode = s.first),
+                          const ActingBranchBanner(),
+                          AdmissionStepTracker(
+                            labels: _stepLabels,
+                            current: _step,
+                            onTapStep: busy
+                                ? null
+                                : (i) => setState(() => _step = i),
                           ),
-                          const SizedBox(height: AppSpacing.sm),
-                          if (_parentMode == _ParentMode.existing) ...[
-                            TextField(
-                              controller: _parentSearchController,
-                              decoration: const InputDecoration(
-                                prefixIcon: Icon(Icons.search),
-                                hintText: 'Search parents by name',
-                              ),
-                              onChanged: (v) =>
-                                  _searchParents(schoolId, branchId, v),
-                            ),
-                            for (final parent in _parentSearchResults)
-                              RadioListTile<Parent>(
-                                value: parent,
-                                groupValue: _selectedParent,
-                                onChanged: (p) =>
-                                    setState(() => _selectedParent = p),
-                                title: Text(parent.displayName),
-                                subtitle: Text(
-                                  [
-                                    if (parent.phone.isNotEmpty) parent.phone,
-                                    if (parent.email != null) parent.email!,
-                                    if (parent.hasPortalAccess) 'Has login',
-                                  ].join(' · '),
-                                ),
-                              ),
-                          ],
-                          if (_parentMode == _ParentMode.newParent)
-                            Form(
-                              key: _parentFormKey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  TextFormField(
-                                    controller: _newParentFirstName,
-                                    decoration: const InputDecoration(
-                                      labelText: 'First name',
-                                    ),
-                                    validator: (v) => Validators.required(
-                                      v,
-                                      fieldName: 'First name',
-                                    ),
-                                  ),
-                                  const SizedBox(height: AppSpacing.sm),
-                                  TextFormField(
-                                    controller: _newParentLastName,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Last name',
-                                    ),
-                                    validator: (v) => Validators.required(
-                                      v,
-                                      fieldName: 'Last name',
-                                    ),
-                                  ),
-                                  const SizedBox(height: AppSpacing.sm),
-                                  TextFormField(
-                                    controller: _newParentPhone,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Phone',
-                                    ),
-                                    keyboardType: TextInputType.phone,
-                                    validator: (v) =>
-                                        Validators.phone(v, required: true),
-                                  ),
-                                  const SizedBox(height: AppSpacing.sm),
-                                  TextFormField(
-                                    controller: _newParentEmail,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Email (optional)',
-                                      helperText:
-                                          'Needed for a parent login. One '
-                                          'email per parent.',
-                                      helperMaxLines: 3,
-                                    ),
-                                    keyboardType: TextInputType.emailAddress,
-                                    validator: (v) => (v ?? '').trim().isEmpty
-                                        ? null
-                                        : Validators.email(v),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          if (_parentMode != _ParentMode.skip) ...[
-                            const SizedBox(height: AppSpacing.sm),
-                            DropdownButtonFormField<RelationshipType>(
-                              isExpanded: true,
-                              value: _relationshipType,
-                              decoration: const InputDecoration(
-                                labelText: 'Relationship',
-                              ),
-                              items: [
-                                for (final t in RelationshipType.values)
-                                  DropdownMenuItem(
-                                    value: t,
-                                    child: Text(t.displayName),
-                                  ),
-                              ],
-                              onChanged: (v) => setState(
-                                () =>
-                                    _relationshipType = v ?? _relationshipType,
-                              ),
-                            ),
-                            CheckboxListTile(
-                              value: _isPrimary,
-                              onChanged: (v) =>
-                                  setState(() => _isPrimary = v ?? false),
-                              title: const Text('Primary contact'),
-                              controlAffinity: ListTileControlAffinity.leading,
-                            ),
-                            CheckboxListTile(
-                              value: _isEmergencyContact,
-                              onChanged: (v) => setState(
-                                () => _isEmergencyContact = v ?? false,
-                              ),
-                              title: const Text('Emergency contact'),
-                              controlAffinity: ListTileControlAffinity.leading,
-                            ),
-                            if (_selectedParentHasLogin)
-                              const ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: Icon(Icons.verified_user_outlined),
-                                title: Text(
-                                  'This parent already has a login. They '
-                                  'will see this child in the parent app; '
-                                  'no new login is needed.',
-                                ),
-                              )
-                            else
-                              CheckboxListTile(
-                                value: _giveParentLogin,
-                                onChanged: (v) => setState(
-                                  () => _giveParentLogin = v ?? false,
-                                ),
-                                title: const Text(
-                                  'Give this parent a login after admission',
-                                ),
-                                subtitle: const Text(
-                                  'You choose how the first password is set. '
-                                  'Needs an email; you can also do this later '
-                                  'from Parents.',
-                                ),
-                                controlAffinity:
-                                    ListTileControlAffinity.leading,
-                              ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    Step(
-                      title: const Text('Academic placement'),
-                      isActive: _step >= 2,
-                      state: _step > 2 ? StepState.complete : StepState.indexed,
-                      content: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Consumer(
-                            builder: (context, ref, _) {
-                              final yearsAsync = ref.watch(
-                                academicYearsProvider((
-                                  schoolId: schoolId,
-                                  branchId: branchId,
-                                )),
-                              );
-                              return yearsAsync.when(
-                                data: (years) =>
-                                    DropdownButtonFormField<String>(
-                                      isExpanded: true,
-                                      value:
-                                          years.any(
-                                            (y) =>
-                                                y.academicYearId ==
-                                                _academicYearId,
-                                          )
-                                          ? _academicYearId
-                                          : null,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Academic year',
-                                      ),
-                                      items: [
-                                        for (final y in years)
-                                          DropdownMenuItem(
-                                            value: y.academicYearId,
-                                            child: Text(y.name),
-                                          ),
-                                      ],
-                                      onChanged: (v) => setState(() {
-                                        _academicYearId = v;
-                                        _classId = null;
-                                        _sectionId = null;
-                                      }),
-                                    ),
-                                loading: () => const LinearProgressIndicator(),
-                                error: (_, __) => const Text(
-                                  'Unable to load academic years. Add one under Settings first.',
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: AppSpacing.sm),
-                          if (_academicYearId != null)
-                            Consumer(
-                              builder: (context, ref, _) {
-                                final classesAsync = ref.watch(
-                                  classesProvider((
-                                    schoolId: schoolId,
-                                    branchId: branchId,
-                                    academicYearId: _academicYearId!,
-                                  )),
-                                );
-                                return classesAsync.when(
-                                  data: (classes) =>
-                                      DropdownButtonFormField<String>(
-                                        isExpanded: true,
-                                        value:
-                                            classes.any(
-                                              (c) => c.classId == _classId,
-                                            )
-                                            ? _classId
-                                            : null,
-                                        decoration: const InputDecoration(
-                                          labelText: 'Class',
-                                        ),
-                                        items: [
-                                          for (final c in classes)
-                                            DropdownMenuItem(
-                                              value: c.classId,
-                                              child: Text(c.name),
-                                            ),
-                                        ],
-                                        onChanged: (v) => setState(() {
-                                          _classId = v;
-                                          _sectionId = null;
-                                        }),
-                                      ),
-                                  loading: () =>
-                                      const LinearProgressIndicator(),
-                                  error: (_, __) =>
-                                      const Text('Unable to load classes.'),
-                                );
-                              },
-                            ),
-                          const SizedBox(height: AppSpacing.sm),
-                          if (_academicYearId != null && _classId != null)
-                            Consumer(
-                              builder: (context, ref, _) {
-                                final sectionsAsync = ref.watch(
-                                  sectionsProvider((
-                                    schoolId: schoolId,
-                                    branchId: branchId,
-                                    academicYearId: _academicYearId!,
-                                    classId: _classId!,
-                                  )),
-                                );
-                                return sectionsAsync.when(
-                                  data: (sections) =>
-                                      DropdownButtonFormField<String>(
-                                        isExpanded: true,
-                                        value:
-                                            sections.any(
-                                              (s) => s.sectionId == _sectionId,
-                                            )
-                                            ? _sectionId
-                                            : null,
-                                        decoration: const InputDecoration(
-                                          labelText: 'Section',
-                                        ),
-                                        items: [
-                                          for (final s in sections)
-                                            DropdownMenuItem(
-                                              value: s.sectionId,
-                                              child: Text(s.name),
-                                            ),
-                                        ],
-                                        onChanged: (v) =>
-                                            setState(() => _sectionId = v),
-                                      ),
-                                  loading: () =>
-                                      const LinearProgressIndicator(),
-                                  error: (_, __) =>
-                                      const Text('Unable to load sections.'),
-                                );
-                              },
-                            ),
-                          const SizedBox(height: AppSpacing.sm),
-                          TextField(
-                            controller: _rollNumber,
-                            decoration: const InputDecoration(
-                              labelText: 'Roll number (optional)',
-                            ),
+                          const SizedBox(height: AppSpacing.md),
+                          AdmissionStepCard(
+                            icon: icon,
+                            title: title,
+                            subtitle: subtitle,
+                            footer: footer,
+                            child: stepContent,
                           ),
                         ],
                       ),
                     ),
-                    Step(
-                      title: const Text('Review'),
-                      isActive: _step >= 3,
-                      content: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${_firstName.text} ${_lastName.text}',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          Text('Admission number: ${_admissionNumber.text}'),
-                          Text(
-                            'Parent/guardian: ${_parentMode == _ParentMode.skip
-                                ? 'To be added later'
-                                : _parentMode == _ParentMode.existing
-                                ? (_selectedParent?.displayName ?? '—')
-                                : '${_newParentFirstName.text} ${_newParentLastName.text}'}',
-                          ),
-                          if (_parentMode != _ParentMode.skip)
-                            Text(
-                              'Parent login: ${_selectedParentHasLogin
-                                  ? 'already has one'
-                                  : _giveParentLogin
-                                  ? 'will be set up after admission'
-                                  : 'not now (can be given later from Parents)'}',
-                            ),
-                          const SizedBox(height: AppSpacing.sm),
-                          const Text(
-                            'Review the details above, then admit this student.',
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ],
           );
         },
       ),
+    );
+  }
+
+  // Step 2: the guardian (logic unchanged; only moved out of the build).
+  Widget _parentStep(BuildContext context, String schoolId, String branchId) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SegmentedButton<_ParentMode>(
+          segments: const [
+            ButtonSegment(value: _ParentMode.skip, label: Text('Add later')),
+            ButtonSegment(value: _ParentMode.existing, label: Text('Existing')),
+            ButtonSegment(value: _ParentMode.newParent, label: Text('New')),
+          ],
+          selected: {_parentMode},
+          onSelectionChanged: (s) => setState(() => _parentMode = s.first),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        if (_parentMode == _ParentMode.existing) ...[
+          TextField(
+            controller: _parentSearchController,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
+              hintText: 'Search parents by name',
+            ),
+            onChanged: (v) => _searchParents(schoolId, branchId, v),
+          ),
+          for (final parent in _parentSearchResults)
+            RadioListTile<Parent>(
+              value: parent,
+              groupValue: _selectedParent,
+              onChanged: (p) => setState(() => _selectedParent = p),
+              title: Text(parent.displayName),
+              subtitle: Text(
+                [
+                  if (parent.phone.isNotEmpty) parent.phone,
+                  if (parent.email != null) parent.email!,
+                  if (parent.hasPortalAccess) 'Has login',
+                ].join(' · '),
+              ),
+            ),
+        ],
+        if (_parentMode == _ParentMode.newParent)
+          Form(
+            key: _parentFormKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextFormField(
+                  controller: _newParentFirstName,
+                  decoration: const InputDecoration(labelText: 'First name'),
+                  validator: (v) =>
+                      Validators.required(v, fieldName: 'First name'),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                TextFormField(
+                  controller: _newParentLastName,
+                  decoration: const InputDecoration(labelText: 'Last name'),
+                  validator: (v) =>
+                      Validators.required(v, fieldName: 'Last name'),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                TextFormField(
+                  controller: _newParentPhone,
+                  decoration: const InputDecoration(labelText: 'Phone'),
+                  keyboardType: TextInputType.phone,
+                  validator: (v) => Validators.phone(v, required: true),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                TextFormField(
+                  controller: _newParentEmail,
+                  decoration: const InputDecoration(
+                    labelText: 'Email (optional)',
+                    helperText:
+                        'Needed for a parent login. One '
+                        'email per parent.',
+                    helperMaxLines: 3,
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (v) =>
+                      (v ?? '').trim().isEmpty ? null : Validators.email(v),
+                ),
+              ],
+            ),
+          ),
+        if (_parentMode != _ParentMode.skip) ...[
+          const SizedBox(height: AppSpacing.sm),
+          DropdownButtonFormField<RelationshipType>(
+            isExpanded: true,
+            value: _relationshipType,
+            decoration: const InputDecoration(labelText: 'Relationship'),
+            items: [
+              for (final t in RelationshipType.values)
+                DropdownMenuItem(value: t, child: Text(t.displayName)),
+            ],
+            onChanged: (v) =>
+                setState(() => _relationshipType = v ?? _relationshipType),
+          ),
+          CheckboxListTile(
+            value: _isPrimary,
+            onChanged: (v) => setState(() => _isPrimary = v ?? false),
+            title: const Text('Primary contact'),
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
+          CheckboxListTile(
+            value: _isEmergencyContact,
+            onChanged: (v) => setState(() => _isEmergencyContact = v ?? false),
+            title: const Text('Emergency contact'),
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
+          if (_selectedParentHasLogin)
+            const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.verified_user_outlined),
+              title: Text(
+                'This parent already has a login. They '
+                'will see this child in the parent app; '
+                'no new login is needed.',
+              ),
+            )
+          else
+            CheckboxListTile(
+              value: _giveParentLogin,
+              onChanged: (v) => setState(() => _giveParentLogin = v ?? false),
+              title: const Text('Give this parent a login after admission'),
+              subtitle: const Text(
+                'You choose how the first password is set. '
+                'Needs an email; you can also do this later '
+                'from Parents.',
+              ),
+              controlAffinity: ListTileControlAffinity.leading,
+            ),
+        ],
+      ],
+    );
+  }
+
+  // Step 3: year, class, section (logic unchanged).
+  Widget _placementStep(
+    BuildContext context,
+    String schoolId,
+    String branchId,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Consumer(
+          builder: (context, ref, _) {
+            final yearsAsync = ref.watch(
+              academicYearsProvider((schoolId: schoolId, branchId: branchId)),
+            );
+            return yearsAsync.when(
+              data: (years) => DropdownButtonFormField<String>(
+                isExpanded: true,
+                value: years.any((y) => y.academicYearId == _academicYearId)
+                    ? _academicYearId
+                    : null,
+                decoration: const InputDecoration(labelText: 'Academic year'),
+                items: [
+                  for (final y in years)
+                    DropdownMenuItem(
+                      value: y.academicYearId,
+                      child: Text(y.name),
+                    ),
+                ],
+                onChanged: (v) => setState(() {
+                  _academicYearId = v;
+                  _classId = null;
+                  _sectionId = null;
+                }),
+              ),
+              loading: () => const LinearProgressIndicator(),
+              error: (_, __) => const Text(
+                'Unable to load academic years. Add one under Settings first.',
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        if (_academicYearId != null)
+          Consumer(
+            builder: (context, ref, _) {
+              final classesAsync = ref.watch(
+                classesProvider((
+                  schoolId: schoolId,
+                  branchId: branchId,
+                  academicYearId: _academicYearId!,
+                )),
+              );
+              return classesAsync.when(
+                data: (classes) => DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  value: classes.any((c) => c.classId == _classId)
+                      ? _classId
+                      : null,
+                  decoration: const InputDecoration(labelText: 'Class'),
+                  items: [
+                    for (final c in classes)
+                      DropdownMenuItem(value: c.classId, child: Text(c.name)),
+                  ],
+                  onChanged: (v) => setState(() {
+                    _classId = v;
+                    _sectionId = null;
+                  }),
+                ),
+                loading: () => const LinearProgressIndicator(),
+                error: (_, __) => const Text('Unable to load classes.'),
+              );
+            },
+          ),
+        const SizedBox(height: AppSpacing.sm),
+        if (_academicYearId != null && _classId != null)
+          Consumer(
+            builder: (context, ref, _) {
+              final sectionsAsync = ref.watch(
+                sectionsProvider((
+                  schoolId: schoolId,
+                  branchId: branchId,
+                  academicYearId: _academicYearId!,
+                  classId: _classId!,
+                )),
+              );
+              return sectionsAsync.when(
+                data: (sections) => DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  value: sections.any((s) => s.sectionId == _sectionId)
+                      ? _sectionId
+                      : null,
+                  decoration: const InputDecoration(labelText: 'Section'),
+                  items: [
+                    for (final s in sections)
+                      DropdownMenuItem(value: s.sectionId, child: Text(s.name)),
+                  ],
+                  onChanged: (v) => setState(() => _sectionId = v),
+                ),
+                loading: () => const LinearProgressIndicator(),
+                error: (_, __) => const Text('Unable to load sections.'),
+              );
+            },
+          ),
+        const SizedBox(height: AppSpacing.sm),
+        TextField(
+          controller: _rollNumber,
+          decoration: const InputDecoration(
+            labelText: 'Roll number (optional)',
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Step 4: review (logic unchanged).
+  Widget _reviewStep(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(_name.full, style: Theme.of(context).textTheme.titleMedium),
+        Text('Admission number: ${_admissionNumber.text}'),
+        Text(
+          'Parent/guardian: ${_parentMode == _ParentMode.skip
+              ? 'To be added later'
+              : _parentMode == _ParentMode.existing
+              ? (_selectedParent?.displayName ?? '—')
+              : '${_newParentFirstName.text} ${_newParentLastName.text}'}',
+        ),
+        if (_parentMode != _ParentMode.skip)
+          Text(
+            'Parent login: ${_selectedParentHasLogin
+                ? 'already has one'
+                : _giveParentLogin
+                ? 'will be set up after admission'
+                : 'not now (can be given later from Parents)'}',
+          ),
+        const SizedBox(height: AppSpacing.sm),
+        const Text('Review the details above, then admit this student.'),
+      ],
     );
   }
 }
