@@ -153,6 +153,7 @@ class _SchoolBrandingPageState extends ConsumerState<SchoolBrandingPage> {
                       appearance: appearance,
                       enabled: !_saving,
                       onPreset: (p) => setState(() {
+                        FocusManager.instance.primaryFocus?.unfocus();
                         _preset = p.id;
                         _colors = p.colors;
                         _error = null;
