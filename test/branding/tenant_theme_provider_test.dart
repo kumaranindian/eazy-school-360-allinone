@@ -25,6 +25,10 @@ class _Repo implements BrandingRepository {
   @override
   Stream<PlatformBranding> watchPlatform() => platform.stream;
 
+  TenantBranding? fetched;
+  @override
+  Future<TenantBranding?> fetchSchool(String id) async => fetched;
+
   void school(String id, TenantBranding? b) => _c(id).add(b);
 
   @override
@@ -154,6 +158,22 @@ void main() {
     await _settle();
     expect(m.c.read(tenantThemeProvider).colors, _indigo);
   });
+
+  test(
+    'refresh applies a server read even if the live listener is silent',
+    () async {
+      final m = _make();
+      await _settle();
+      expect(m.c.read(tenantThemeProvider).colors, isNot(_indigo));
+      m.repo.fetched = _b('A', 3, _indigo);
+      await m.c.read(tenantThemeProvider.notifier).refresh();
+      expect(m.c.read(tenantThemeProvider).colors, _indigo);
+      // An older server read never replaces a newer applied theme.
+      m.repo.fetched = _b('A', 2, _crimson);
+      await m.c.read(tenantThemeProvider.notifier).refresh();
+      expect(m.c.read(tenantThemeProvider).colors, _indigo);
+    },
+  );
 
   test('a missing document never clobbers an applied theme', () async {
     final m = _make();

@@ -50,6 +50,7 @@ class _SchoolBrandingPageState extends ConsumerState<SchoolBrandingPage> {
     });
     try {
       await action();
+      await ref.read(tenantThemeProvider.notifier).refresh();
       if (!mounted) return;
       setState(_clear);
       context.showSnackBar(done);

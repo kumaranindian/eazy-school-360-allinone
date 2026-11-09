@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/branding/tenant_branding.dart';
+import '../../../../core/logging/app_logger.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../data/firebase_branding_repository.dart';
@@ -87,7 +88,18 @@ class TenantThemeNotifier extends Notifier<ResolvedTheme> {
     return _resolve();
   }
 
-  void _ignore(Object _, [StackTrace? _]) {}
+  void _ignore(Object e, [StackTrace? _]) =>
+      AppLogger.trace('theme listener error: $e', tag: 'Theme');
+
+  /// Reads the school's branding from the server now and applies it. Called
+  /// after a save, so the new theme shows even if the live listener is slow
+  /// or has dropped (a version older than the one showing is ignored).
+  Future<void> refresh() async {
+    final id = _schoolId;
+    if (id == null || !ref.mounted) return;
+    final b = await ref.read(brandingRepositoryProvider).fetchSchool(id);
+    if (b != null && id == _schoolId) _onSchool(b);
+  }
 
   ResolvedTheme _resolve() => BrandingResolver.resolve(
     schoolId: _schoolId,
