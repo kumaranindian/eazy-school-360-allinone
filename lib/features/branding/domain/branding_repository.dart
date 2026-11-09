@@ -10,6 +10,10 @@ abstract class BrandingRepository {
   /// The platform default and presets.
   Stream<PlatformBranding> watchPlatform();
 
+  /// One read straight from the server (not the live listener, not the local
+  /// cache); null when the school has none or the read fails.
+  Future<TenantBranding?> fetchSchool(String schoolId);
+
   /// Saves the school's theme; returns the new version. [baseVersion] makes a
   /// concurrent edit fail instead of overwriting.
   Future<int> saveSchool({

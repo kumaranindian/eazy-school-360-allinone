@@ -6,6 +6,7 @@ import '../../../core/config/functions_region.dart';
 import '../../../core/constants/firestore_fields.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/errors/error_mapper.dart';
+import '../../../core/logging/app_logger.dart';
 import '../domain/branding_repository.dart';
 
 class FirebaseBrandingRepository implements BrandingRepository {
@@ -26,6 +27,22 @@ class FirebaseBrandingRepository implements BrandingRepository {
       .doc('config')
       .snapshots()
       .map((s) => TenantBranding.fromMap(s.data(), expectedSchoolId: schoolId));
+
+  @override
+  Future<TenantBranding?> fetchSchool(String schoolId) async {
+    try {
+      final s = await _db
+          .collection(FirestoreFields.schoolsCollection)
+          .doc(schoolId)
+          .collection('branding')
+          .doc('config')
+          .get(const GetOptions(source: Source.server));
+      return TenantBranding.fromMap(s.data(), expectedSchoolId: schoolId);
+    } catch (e) {
+      AppLogger.trace('fetchSchool failed: $e', tag: 'Theme');
+      return null;
+    }
+  }
 
   @override
   Stream<PlatformBranding> watchPlatform() => _db

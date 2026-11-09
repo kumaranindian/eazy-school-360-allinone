@@ -31,6 +31,10 @@ class FakeBrandingRepository implements BrandingRepository {
   }
 
   @override
+  Future<TenantBranding?> fetchSchool(String schoolId) async =>
+      _schools[schoolId];
+
+  @override
   Stream<PlatformBranding> watchPlatform() async* {
     yield platformValue;
     yield* _platform.stream;
