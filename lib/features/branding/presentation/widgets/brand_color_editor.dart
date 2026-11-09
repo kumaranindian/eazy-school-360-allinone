@@ -64,6 +64,7 @@ class _ColorRowState extends State<_ColorRow> {
   late final TextEditingController _hex = TextEditingController(
     text: ColorMath.hex(widget.color),
   );
+  final FocusNode _focus = FocusNode();
   bool _invalid = false;
 
   @override
@@ -81,10 +82,15 @@ class _ColorRowState extends State<_ColorRow> {
   @override
   void dispose() {
     _hex.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
   void _typed(String v) {
+    // Only a person typing in the field is an edit. A phone keyboard can echo
+    // the field's text back when the app rewrites it (a preset was picked);
+    // taking that as typing would put the previous colour back.
+    if (!_focus.hasFocus) return;
     final c = ColorMath.parse(v.startsWith('#') ? v : '#$v');
     setState(() => _invalid = c == null);
     if (c != null) widget.onChanged(c);
@@ -133,6 +139,7 @@ class _ColorRowState extends State<_ColorRow> {
                 width: 130,
                 child: TextField(
                   controller: _hex,
+                  focusNode: _focus,
                   enabled: widget.enabled,
                   maxLength: 7,
                   textCapitalization: TextCapitalization.characters,
