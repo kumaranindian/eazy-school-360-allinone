@@ -20,6 +20,7 @@ import '../providers/student_providers.dart';
 import '../widgets/link_parent_dialog.dart';
 import '../widgets/person_photo_picker.dart';
 import '../widgets/student_branch_transfer_dialog.dart';
+import '../widgets/student_edit_dialog.dart';
 import '../widgets/student_status_dialog.dart';
 import '../widgets/student_transfer_dialog.dart';
 
@@ -79,6 +80,23 @@ class StudentProfilePage extends ConsumerWidget {
                   ),
                   actions: canManage
                       ? [
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined),
+                            tooltip: 'Edit student',
+                            onPressed: () async {
+                              final saved = await showAdaptiveAppDialog<bool>(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (context) => StudentEditDialog(
+                                  student: student,
+                                  currentUserId: tenant.user.userId,
+                                ),
+                              );
+                              if (saved == true && context.mounted) {
+                                context.showSnackBar('Student details saved.');
+                              }
+                            },
+                          ),
                           IconButton(
                             icon: const Icon(Icons.swap_horiz),
                             tooltip: 'Transfer',
@@ -190,7 +208,11 @@ class StudentProfilePage extends ConsumerWidget {
                               label: 'Address',
                               value: [
                                 student.addressLine1,
+                                student.addressLine2,
                                 student.city,
+                                student.state,
+                                student.country,
+                                student.postalCode,
                               ].whereType<String>().join(', '),
                             ),
                           _InfoRow(
