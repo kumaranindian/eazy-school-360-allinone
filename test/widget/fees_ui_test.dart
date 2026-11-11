@@ -520,6 +520,31 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets(
+      'the invoices list reloads by itself once a payment is recorded',
+      (tester) async {
+        final pay = FakePaymentRepository(payments: [fakePayment()]);
+        final repo = FakeInvoiceRepository(
+          invoices: [fakeInvoice(payable: 100000)],
+        );
+        final w = await _pump(
+          tester,
+          role: UserRole.branchAdmin,
+          invoiceRepo: repo,
+          paymentRepo: pay,
+          size: const Size(1400, 1000),
+        );
+        await w.go(tester, '/fees/invoices');
+        final before = repo.fetchFilters.length;
+        await tester.tap(_filled('Collect'));
+        await tester.pumpAndSettle();
+        await _record(tester);
+        await tester.pumpAndSettle();
+        expect(pay.collected, hasLength(1));
+        expect(repo.fetchFilters.length, greaterThan(before));
+      },
+    );
+
     testWidgets('a paid or void invoice offers no Collect', (tester) async {
       await invoicesList(
         tester,

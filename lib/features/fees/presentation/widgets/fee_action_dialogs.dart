@@ -139,7 +139,10 @@ class _CollectPaymentDialogState extends ConsumerState<CollectPaymentDialog> {
               ),
             ),
           );
-      if (mounted) Navigator.of(context).pop(_key);
+      if (mounted) {
+        notifyFeeDataChanged(context);
+        Navigator.of(context).pop(_key);
+      }
     } catch (error) {
       if (mounted) {
         setState(() => _busy = false);
@@ -386,7 +389,10 @@ class _ReasonDialogState extends State<ReasonDialog> {
             : Money.parseMinor(_amount.text, currency: widget.currency),
         _kind,
       );
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) {
+        notifyFeeDataChanged(context);
+        Navigator.of(context).pop(true);
+      }
     } catch (error) {
       if (mounted) {
         setState(() => _busy = false);

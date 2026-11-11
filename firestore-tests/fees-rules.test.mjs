@@ -354,6 +354,16 @@ test('Issuing: finance issues an invoice with its number reservation and charge 
   await assertSucceeds(issueBatch(fin, 'fee-fin-north', [{ studentId: 'stu-2', seq: 2 }], { counterExists: true }).commit());
 });
 
+test('A fee added later in the same period gets a second invoice for the student (supplementary key ~2)', async () => {
+  await seedWorld({ invoice: false });
+  const fin = asUser('fee-fin-north');
+  await assertSucceeds(issueBatch(fin, 'fee-fin-north', [{ studentId: 'stu-1', seq: 1 }]).commit());
+  await assertSucceeds(issueBatch(fin, 'fee-fin-north', [{ studentId: 'stu-1', seq: 2, periodKey: `${PERIOD}~2` }], { counterExists: true }).commit());
+  await assertSucceeds(getDoc(ref(fin, 'invoices', invId('stu-1', `${PERIOD}~2`))));
+  // the id must still match the stored periodKey
+  await assertFails(issueBatch(fin, 'fee-fin-north', [{ studentId: 'stu-1', seq: 3, periodKey: `${PERIOD}~3`, overrides: { periodKey: `${PERIOD}~9` } }], { counterExists: true }).commit());
+});
+
 test('Issuing is refused for parents, teachers, other branches and other schools', async () => {
   await seedWorld({ invoice: false });
   for (const uid of ['fee-parent', 'fee-teacher', 'fee-fin-south', 'fee-br-south', 'fee-fin-b', 'fee-admin-b']) {

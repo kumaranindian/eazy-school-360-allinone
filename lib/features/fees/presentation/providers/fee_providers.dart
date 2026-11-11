@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -115,4 +116,27 @@ String newPaymentKey() {
   final random = Random.secure();
   final bytes = List<int>.generate(12, (_) => random.nextInt(256));
   return 'pay_${bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join()}';
+}
+
+/// Bumped after anything that changes invoices or payments (a payment taken,
+/// reversed, a waiver, a void, a billing run). Lists that fetch once — the
+/// invoices and payments pages — listen to it and reload, so they never show
+/// a stale balance after you come back to them.
+class FeeDataVersion extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void bump() => state++;
+}
+
+final feeDataVersionProvider = NotifierProvider<FeeDataVersion, int>(
+  FeeDataVersion.new,
+);
+
+/// Tells the fee lists to reload (see [feeDataVersionProvider]).
+void notifyFeeDataChanged(BuildContext context) {
+  ProviderScope.containerOf(
+    context,
+    listen: false,
+  ).read(feeDataVersionProvider.notifier).bump();
 }

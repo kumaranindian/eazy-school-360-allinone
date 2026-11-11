@@ -282,6 +282,7 @@ class _GenerateState extends ConsumerState<_Generate> {
             },
           );
       if (!mounted) return;
+      notifyFeeDataChanged(context);
       setState(() {
         _result = result;
         _progress = null;

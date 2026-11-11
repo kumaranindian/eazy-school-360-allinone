@@ -137,6 +137,9 @@ class _PaymentsState extends ConsumerState<_Payments> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(feeDataVersionProvider, (_, __) {
+      if (mounted) _controller.reload();
+    });
     final fee = widget.fee;
     return Column(
       children: [
