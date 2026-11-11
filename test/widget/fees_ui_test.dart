@@ -1589,6 +1589,28 @@ void main() {
       },
     );
 
+    testWidgets('students can be unticked, with a select-all', (tester) async {
+      final repo = FakeInvoiceRepository()..context = context();
+      await openGenerate(tester, repo);
+      await tester.tap(find.text('Preview'));
+      await tester.pumpAndSettle();
+      expect(find.text('2 invoices'), findsOneWidget);
+      await tester.tap(find.byType(Checkbox).at(3)); // first student row
+      await tester.pumpAndSettle();
+      expect(find.text('1 invoices'), findsOneWidget);
+      expect(find.text('Generate 1 invoices'), findsOneWidget);
+      await tester.tap(
+        find.widgetWithText(CheckboxListTile, 'Select all students (1 of 2)'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('2 invoices'), findsOneWidget);
+      await tester.tap(
+        find.widgetWithText(CheckboxListTile, 'Select all students (2 of 2)'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('0 invoices'), findsOneWidget);
+    });
+
     testWidgets('a fee already invoiced to everyone is not offered again', (
       tester,
     ) async {
