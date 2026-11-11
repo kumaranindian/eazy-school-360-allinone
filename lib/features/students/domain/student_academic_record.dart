@@ -23,10 +23,21 @@ class StudentAcademicRecord {
   final DateTime startDate;
   final DateTime? endDate;
   final AcademicRecordStatus status;
+
+  /// An additional class besides the main one (`kind: EXTRA`); see
+  /// `ExtraPlacement`. A main-class change never touches these.
+  final bool isExtra;
+
+  /// Only for extra classes: "Morning", "Afternoon", ...
+  final String label;
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final String? createdBy;
   final String? updatedBy;
+
+  /// Value of the `kind` field of an extra-class record. Main-class records
+  /// carry no `kind`.
+  static const String kindExtra = 'EXTRA';
 
   const StudentAcademicRecord({
     required this.recordId,
@@ -40,6 +51,8 @@ class StudentAcademicRecord {
     required this.startDate,
     this.endDate,
     required this.status,
+    this.isExtra = false,
+    this.label = '',
     this.createdAt,
     this.updatedAt,
     this.createdBy,
@@ -67,6 +80,8 @@ class StudentAcademicRecord {
       status: AcademicRecordStatus.fromWireValue(
         data[FirestoreFields.status] as String,
       ),
+      isExtra: data['kind'] == kindExtra,
+      label: data['label'] as String? ?? '',
       createdAt: (data[FirestoreFields.createdAt] as Timestamp?)?.toDate(),
       updatedAt: (data[FirestoreFields.updatedAt] as Timestamp?)?.toDate(),
       createdBy: data[FirestoreFields.createdBy] as String?,
@@ -86,6 +101,7 @@ class StudentAcademicRecord {
       'startDate': Timestamp.fromDate(startDate),
       'endDate': endDate == null ? null : Timestamp.fromDate(endDate!),
       FirestoreFields.status: status.wireValue,
+      if (isExtra) ...{'kind': kindExtra, 'label': label},
       FirestoreFields.createdAt: FieldValue.serverTimestamp(),
       FirestoreFields.updatedAt: FieldValue.serverTimestamp(),
       FirestoreFields.createdBy: createdBy,

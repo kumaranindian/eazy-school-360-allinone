@@ -2009,6 +2009,7 @@ service cloud.firestore {
               'email', 'phone', 'addressLine1', 'addressLine2', 'city', 'state', 'country', 'postalCode',
               'admissionDate', 'status', 'statusChangeReason', 'statusChangeDate', 'statusChangeNotes',
               'currentAcademicYearId', 'currentClassId', 'currentSectionId', 'currentRollNumber',
+              'extraPlacements', 'extraPlacementKeys',
               'updatedAt', 'updatedBy',
             ]);
 

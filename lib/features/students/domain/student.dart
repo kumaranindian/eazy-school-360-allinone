@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/constants/firestore_fields.dart';
 import 'blood_group.dart';
+import 'extra_placement.dart';
 import 'gender.dart';
 import 'student_status.dart';
 
@@ -51,6 +52,9 @@ class Student {
   final String? currentSectionId;
   final String? currentRollNumber;
 
+  /// Additional classes (see [ExtraPlacement]); empty for most students.
+  final List<ExtraPlacement> extraPlacements;
+
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final String? createdBy;
@@ -86,6 +90,7 @@ class Student {
     this.currentClassId,
     this.currentSectionId,
     this.currentRollNumber,
+    this.extraPlacements = const [],
     this.createdAt,
     this.updatedAt,
     this.createdBy,
@@ -167,6 +172,7 @@ class Student {
       currentClassId: currentClassId,
       currentSectionId: currentSectionId,
       currentRollNumber: currentRollNumber,
+      extraPlacements: extraPlacements,
       createdAt: createdAt,
       updatedAt: updatedAt,
       createdBy: createdBy,
@@ -214,6 +220,7 @@ class Student {
       currentClassId: data['currentClassId'] as String?,
       currentSectionId: data['currentSectionId'] as String?,
       currentRollNumber: data['currentRollNumber'] as String?,
+      extraPlacements: ExtraPlacement.listFrom(data['extraPlacements']),
       createdAt: (data[FirestoreFields.createdAt] as Timestamp?)?.toDate(),
       updatedAt: (data[FirestoreFields.updatedAt] as Timestamp?)?.toDate(),
       createdBy: data[FirestoreFields.createdBy] as String?,

@@ -8,6 +8,7 @@ import '../../../core/constants/firestore_fields.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/errors/error_mapper.dart';
 import '../domain/academic_record_status.dart';
+import '../domain/extra_placement.dart';
 import '../domain/paged_result.dart';
 import '../domain/parent_student_link.dart';
 import '../domain/placement_precondition.dart';
@@ -202,11 +203,44 @@ class FirebaseStudentRepository implements StudentRepository {
       if (startAfter != null) query = query.startAfterDocument(startAfter);
 
       final snapshot = await query.get();
-      return _toPage(snapshot.docs, pageSize, schoolId, branchId);
+      final page = _toPage(snapshot.docs, pageSize, schoolId, branchId);
+      if (page.nextCursor != null) return page;
+
+      // Last page of the main-class students: add the children who attend
+      // this class as an extra class (few per class, so one bounded read).
+      final extras = await _studentsCollection(schoolId, branchId)
+          .where(
+            'extraPlacementKeys',
+            arrayContains: sectionId == null
+                ? ExtraPlacement.classKeyOf(academicYearId, classId)
+                : ExtraPlacement.sectionKeyOf(
+                    academicYearId,
+                    classId,
+                    sectionId,
+                  ),
+          )
+          .limit(_maxExtraRoster)
+          .get();
+      if (extras.docs.isEmpty) return page;
+      final seen = {for (final s in page.items) s.studentId};
+      final more =
+          [
+            for (final d in extras.docs)
+              if (!seen.contains(d.id))
+                Student.fromFirestore(schoolId, branchId, d.id, d.data()),
+          ]..sort(
+            (a, b) => a.displayName.toLowerCase().compareTo(
+              b.displayName.toLowerCase(),
+            ),
+          );
+      return PagedResult(items: [...page.items, ...more], nextCursor: null);
     } catch (error, stackTrace) {
       throw mapExceptionToFailure(error, stackTrace);
     }
   }
+
+  /// Upper bound on the extra-class children listed with a class.
+  static const int _maxExtraRoster = 200;
 
   @override
   Future<PagedResult<Student>> searchStudentsByName({
@@ -638,13 +672,23 @@ class FirebaseStudentRepository implements StudentRepository {
       final now = DateTime.now();
       final studentRef = _studentDoc(schoolId, branchId, studentId);
       final planned = PlacementPrecondition.of((await studentRef.get()).data());
-      final activeRecords =
+      final allActive =
           await _academicRecordsCollection(schoolId, branchId, studentId)
               .where(
                 FirestoreFields.status,
                 isEqualTo: AcademicRecordStatus.active.wireValue,
               )
               .get();
+      // Extra classes (day care ...) are not part of a main-class change —
+      // except ones of another academic year, which end with the move.
+      final activeRecords = (
+        docs: [
+          for (final d in allActive.docs)
+            if (d.data()['kind'] != StudentAcademicRecord.kindExtra ||
+                d.data()['academicYearId'] != newAcademicYearId)
+              d,
+        ],
+      );
       final newRecordRef = _academicRecordsCollection(
         schoolId,
         branchId,
@@ -667,9 +711,8 @@ class FirebaseStudentRepository implements StudentRepository {
       // is about to close. If a concurrent change got there first, the
       // student document has moved on and nothing is written.
       await _firestore.runTransaction((tx) async {
-        final current = PlacementPrecondition.of(
-          (await tx.get(studentRef)).data(),
-        );
+        final studentData = (await tx.get(studentRef)).data();
+        final current = PlacementPrecondition.of(studentData);
         if (!planned.holdsFor(current)) {
           throw const ConflictFailure(
             'This student was just moved or edited by someone else. Reload '
@@ -701,11 +744,17 @@ class FirebaseStudentRepository implements StudentRepository {
           );
         }
         tx.set(newRecordRef, newRecord.toFirestoreCreate(createdBy: updatedBy));
+        // Keep only the extra classes of the new academic year in the cache.
+        final kept = ExtraPlacement.listFrom(
+          studentData?['extraPlacements'],
+        ).where((e) => e.academicYearId == newAcademicYearId).toList();
         tx.update(studentRef, {
           'currentAcademicYearId': newAcademicYearId,
           'currentClassId': newClassId,
           'currentSectionId': newSectionId,
           'currentRollNumber': newRollNumber,
+          'extraPlacements': [for (final e in kept) e.toMap()],
+          'extraPlacementKeys': ExtraPlacement.keysOf(kept),
           FirestoreFields.updatedAt: FieldValue.serverTimestamp(),
           FirestoreFields.updatedBy: updatedBy,
         });
@@ -742,6 +791,12 @@ class FirebaseStudentRepository implements StudentRepository {
         studentId,
         snap.data()!,
       );
+      if (source.extraPlacements.isNotEmpty) {
+        throw const ValidationFailure(
+          'Remove this student\'s extra classes before moving them to '
+          'another branch.',
+        );
+      }
 
       final toBranch = await _firestore
           .collection(FirestoreFields.schoolsCollection)
@@ -898,6 +953,149 @@ class FirebaseStudentRepository implements StudentRepository {
       await _refreshFamilies(schoolId, fromBranchId, studentId, updatedBy);
       await _refreshFamilies(schoolId, toBranchId, studentId, updatedBy);
       return transferRef.id;
+    } catch (error, stackTrace) {
+      throw mapExceptionToFailure(error, stackTrace);
+    }
+  }
+
+  @override
+  Future<void> addExtraPlacement({
+    required String schoolId,
+    required String branchId,
+    required String studentId,
+    required String academicYearId,
+    required String classId,
+    required String sectionId,
+    String label = '',
+    String? rollNumber,
+    required String updatedBy,
+  }) async {
+    try {
+      await _assertSectionBelongsToClass(
+        schoolId,
+        branchId,
+        academicYearId,
+        classId,
+        sectionId,
+      );
+      final studentRef = _studentDoc(schoolId, branchId, studentId);
+      final recordRef = _academicRecordsCollection(
+        schoolId,
+        branchId,
+        studentId,
+      ).doc();
+      final cleanLabel = label.trim();
+      final cleanRoll = (rollNumber ?? '').trim();
+      await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(studentRef);
+        final data = snap.data();
+        if (data == null) {
+          throw const ValidationFailure('That student could not be found.');
+        }
+        if (data[FirestoreFields.status] != StudentStatus.active.wireValue) {
+          throw const ValidationFailure(
+            'Only an active student can be added to another class.',
+          );
+        }
+        final existing = ExtraPlacement.listFrom(data['extraPlacements']);
+        final placement = ExtraPlacement(
+          recordId: recordRef.id,
+          academicYearId: academicYearId,
+          classId: classId,
+          sectionId: sectionId,
+          label: cleanLabel,
+          rollNumber: cleanRoll.isEmpty ? null : cleanRoll,
+        );
+        final problem = ExtraPlacement.checkAdd(
+          candidate: placement,
+          mainYearId: data['currentAcademicYearId'] as String?,
+          mainClassId: data['currentClassId'] as String?,
+          existing: existing,
+        );
+        if (problem != null) throw ValidationFailure(problem);
+        final all = [...existing, placement];
+        tx.set(
+          recordRef,
+          StudentAcademicRecord(
+            recordId: recordRef.id,
+            studentId: studentId,
+            schoolId: schoolId,
+            branchId: branchId,
+            academicYearId: academicYearId,
+            classId: classId,
+            sectionId: sectionId,
+            rollNumber: placement.rollNumber,
+            startDate: DateTime.now(),
+            status: AcademicRecordStatus.active,
+            isExtra: true,
+            label: cleanLabel,
+          ).toFirestoreCreate(createdBy: updatedBy),
+        );
+        tx.update(studentRef, {
+          'extraPlacements': [for (final e in all) e.toMap()],
+          'extraPlacementKeys': ExtraPlacement.keysOf(all),
+          FirestoreFields.updatedAt: FieldValue.serverTimestamp(),
+          FirestoreFields.updatedBy: updatedBy,
+        });
+      });
+      await _refreshFamilies(schoolId, branchId, studentId, updatedBy);
+    } catch (error, stackTrace) {
+      throw mapExceptionToFailure(error, stackTrace);
+    }
+  }
+
+  @override
+  Future<void> removeExtraPlacement({
+    required String schoolId,
+    required String branchId,
+    required String studentId,
+    required String recordId,
+    required String updatedBy,
+  }) async {
+    try {
+      final studentRef = _studentDoc(schoolId, branchId, studentId);
+      final recordRef = _academicRecordsCollection(
+        schoolId,
+        branchId,
+        studentId,
+      ).doc(recordId);
+      await _firestore.runTransaction((tx) async {
+        final snap = await tx.get(studentRef);
+        final record = await tx.get(recordRef);
+        final data = snap.data();
+        if (data == null) {
+          throw const ValidationFailure('That student could not be found.');
+        }
+        final remaining = ExtraPlacement.listFrom(
+          data['extraPlacements'],
+        ).where((e) => e.recordId != recordId).toList();
+        if (record.exists &&
+            record.data()?['kind'] == StudentAcademicRecord.kindExtra &&
+            record.data()?[FirestoreFields.status] ==
+                AcademicRecordStatus.active.wireValue) {
+          tx.update(
+            recordRef,
+            StudentAcademicRecord.fromFirestore(
+              schoolId,
+              branchId,
+              studentId,
+              recordId,
+              record.data()!,
+            ).toFirestoreClose(
+              status: AcademicRecordStatus.completed,
+              endDate: DateTime.now(),
+              updatedBy: updatedBy,
+            ),
+          );
+        }
+        tx.update(studentRef, {
+          'extraPlacements': [for (final e in remaining) e.toMap()],
+          'extraPlacementKeys': ExtraPlacement.keysOf(remaining),
+          FirestoreFields.updatedAt: FieldValue.serverTimestamp(),
+          FirestoreFields.updatedBy: updatedBy,
+        });
+      });
+      await _refreshFamilies(schoolId, branchId, studentId, updatedBy);
     } catch (error, stackTrace) {
       throw mapExceptionToFailure(error, stackTrace);
     }
