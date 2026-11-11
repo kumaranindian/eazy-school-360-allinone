@@ -7,7 +7,6 @@ import '../../../../core/regional/school_time.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/date_formatting.dart';
 import '../../../../core/validators/validators.dart';
-import '../../domain/admission_key.dart';
 import '../../domain/blood_group.dart';
 import '../../domain/gender.dart';
 import '../../domain/student.dart';
@@ -99,7 +98,7 @@ class _StudentEditDialogState extends ConsumerState<StudentEditDialog> {
       studentId: s.studentId,
       schoolId: s.schoolId,
       branchId: s.branchId,
-      admissionNumber: AdmissionKey.clean(_admissionNumber.text),
+      admissionNumber: s.admissionNumber,
       studentCode: s.studentCode,
       firstName: _firstName.text.trim(),
       middleName: _clean(_middleName),
@@ -171,11 +170,12 @@ class _StudentEditDialogState extends ConsumerState<StudentEditDialog> {
                 children: [
                   TextFormField(
                     controller: _admissionNumber,
-                    enabled: !_saving,
+                    readOnly: true,
                     decoration: const InputDecoration(
                       labelText: 'Admission number',
+                      helperText: 'The admission number cannot be changed.',
+                      suffixIcon: Icon(Icons.lock_outline, size: 18),
                     ),
-                    validator: (v) => AdmissionKey.validate(v ?? ''),
                   ),
                   gap,
                   TextFormField(

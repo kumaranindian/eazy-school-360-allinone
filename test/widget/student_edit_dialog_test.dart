@@ -74,6 +74,26 @@ void main() {
     expect(find.text('Edit student'), findsNothing);
   });
 
+  testWidgets('the admission number is read-only and saved unchanged', (
+    tester,
+  ) async {
+    final repo = _Repo();
+    await _open(tester, repo);
+    final field = tester.widget<TextField>(
+      find.descendant(
+        of: find.widgetWithText(TextFormField, 'Admission number'),
+        matching: find.byType(TextField),
+      ),
+    );
+    expect(field.readOnly, isTrue);
+    await tester.tap(find.text('Save changes'));
+    await tester.pumpAndSettle();
+    expect(
+      repo.saved.single.admissionNumber,
+      fakeStudent('s1', first: 'Asha', last: 'Nair').admissionNumber,
+    );
+  });
+
   testWidgets('a required field blocks the save', (tester) async {
     final repo = _Repo();
     await _open(tester, repo);
