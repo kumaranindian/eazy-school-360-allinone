@@ -240,8 +240,7 @@ class _DetailState extends ConsumerState<_Detail> {
     // placement check keeps a transferred child from other sections' work.
     if (h == null ||
         !h.status.isVisibleToFamilies ||
-        h.classId != c.currentClassId ||
-        h.sectionId != c.currentSectionId) {
+        !c.attendsSection(h.classId, h.sectionId)) {
       return const EmptyView(
         icon: Icons.search_off,
         message: 'This homework is not available.',

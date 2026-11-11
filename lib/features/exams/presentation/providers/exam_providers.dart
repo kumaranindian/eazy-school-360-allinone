@@ -91,8 +91,8 @@ Future<List<Student>> loadRoster(
     cursor = page.nextCursor;
   } while (cursor != null);
   out.sort((a, b) {
-    final ra = int.tryParse(a.currentRollNumber ?? '');
-    final rb = int.tryParse(b.currentRollNumber ?? '');
+    final ra = int.tryParse(a.placementInClass(exam.classId).rollNumber ?? '');
+    final rb = int.tryParse(b.placementInClass(exam.classId).rollNumber ?? '');
     if (ra != null && rb != null && ra != rb) return ra.compareTo(rb);
     return a.displayName.compareTo(b.displayName);
   });
@@ -152,8 +152,8 @@ final provisionalResultsProvider = FutureProvider.autoDispose
             studentId: s.studentId,
             studentName: s.displayName,
             admissionNumber: s.admissionNumber,
-            rollNumber: s.currentRollNumber,
-            sectionId: s.currentSectionId ?? '',
+            rollNumber: s.placementInClass(exam.classId).rollNumber,
+            sectionId: s.placementInClass(exam.classId).sectionId ?? '',
           ),
       ];
       if (scheme.rankingEnabled) {

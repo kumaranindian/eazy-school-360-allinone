@@ -323,6 +323,31 @@ test('Submission: a LINKED parent for a child in this section; one per student; 
   assertTruthy(id);
 });
 
+test('EXTRA class: a child in section sb whose extra class is sa can submit sa homework; a child merely moved cannot', async () => {
+  await seedWorld();
+  const id = await seedOpenHomework();
+  await seed(async (db) => {
+    const n = branch(A, NORTH);
+    await setDoc(doc(db, ...n, 'students', 'stu-xtra'), {
+      schoolId: A, branchId: NORTH, status: 'ACTIVE', currentAcademicYearId: YEAR, currentClassId: 'c5', currentSectionId: 'sb',
+      extraSectionKeys: ['c5__sa'], ...audit('seed'),
+    });
+    await setDoc(doc(db, ...n, 'students', 'stu-xtra', 'parentLinks', 'parent-2'), {
+      schoolId: A, branchId: NORTH, studentId: 'stu-xtra', parentId: 'parent-2', canAccessPortal: true, status: 'ACTIVE', ...audit('seed'),
+    });
+    // the family index now also lists sa (what functions/provision.js builds)
+    await setDoc(doc(db, ...n, 'parentAccess', 'parent-2'), {
+      schoolId: A, branchId: NORTH, parentId: 'parent-2', classKeys: ['c5'], sectionKeys: ['c5__sa', 'c5__sb'],
+      updatedAt: serverTimestamp(), updatedBy: 'seed',
+    });
+  });
+  const p2 = asUser('hw-p2');
+  await assertSucceeds(submitBatch(p2, 'hw-p2', { student: 'stu-xtra' }).commit());
+  // the plain transferred child is still refused
+  await assertFails(submitBatch(asUser('hw-p1'), 'hw-p1', { student: 'stu-moved' }).commit());
+  assertTruthy(id);
+});
+
 function assertTruthy(v) {
   if (!v) throw new Error('expected a value');
 }

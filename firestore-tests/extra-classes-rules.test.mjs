@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { test, before, after, beforeEach } from 'node:test';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 let env;
 before(async () => {
@@ -41,6 +41,9 @@ beforeEach(async () => {
       'xc-admin': { schoolId: A, branchId: 'north', role: 'BRANCH_ADMIN' },
       'xc-teacher': { schoolId: A, branchId: 'north', role: 'TEACHER' },
       'xc-admin-b': { schoolId: B, branchId: 'north', role: 'BRANCH_ADMIN' },
+      'xc-t-day': { schoolId: A, branchId: 'north', role: 'TEACHER' },
+      'xc-t-pre': { schoolId: A, branchId: 'north', role: 'TEACHER' },
+      'xc-t-other': { schoolId: A, branchId: 'north', role: 'TEACHER' },
     };
     for (const [uid, u] of Object.entries(users)) {
       await setDoc(doc(d, 'users', uid), { name: 'T', email: `${uid}@example.com`, status: 'ACTIVE', linkedParentId: null, ...u, ...audit('seed') });
@@ -49,6 +52,10 @@ beforeEach(async () => {
       schoolId: A, branchId: 'north', admissionNumber: 'XC-1', firstName: 'Kid', lastName: 'One', status: 'ACTIVE',
       currentAcademicYearId: 'y1', currentClassId: 'pre', currentSectionId: 'p1', ...audit('seed'),
     });
+    // teacherAccess as functions/teacher_access.js writes it
+    for (const [uid, keys] of [['xc-t-day', ['daycare__d1']], ['xc-t-pre', ['pre__p1']], ['xc-t-other', ['pre__p2']]]) {
+      await setDoc(doc(d, ...P(A, 'teacherAccess', uid)), { schoolId: A, branchId: 'north', sectionKeys: keys, ...audit('seed') });
+    }
   });
 });
 
@@ -81,4 +88,31 @@ test("another school's admin cannot touch them", async () => {
 test('an unlisted field on the student is still refused', async () => {
   const db = as('xc-admin');
   await assertFails(updateDoc(doc(db, ...P(A, 'students', 'xc-stu')), upd('xc-admin', { extraStuff: 1 })));
+});
+
+test('the teacher of the EXTRA class reads the student and the extra record; the main-class teacher still does; others do not', async () => {
+  await env.withSecurityRulesDisabled(async (c) => {
+    await setDoc(doc(c.firestore(), ...P(A, 'students', 'xc-stu', 'academicRecords', 'rec-x')), record('seed'));
+    await setDoc(doc(c.firestore(), ...P(A, 'students', 'xc-stu', 'parentLinks', 'par-1')), {
+      schoolId: A, branchId: 'north', studentId: 'xc-stu', parentId: 'par-1', canAccessPortal: true, status: 'ACTIVE', ...audit('seed'),
+    });
+    await updateDoc(doc(c.firestore(), ...P(A, 'students', 'xc-stu')), { extraPlacements: [extra], extraPlacementKeys: extraFields.extraPlacementKeys, extraSectionKeys: ['daycare__d1'] });
+  });
+  await assertSucceeds(getDoc(doc(as('xc-t-day'), ...P(A, 'students', 'xc-stu'))));
+  await assertSucceeds(getDoc(doc(as('xc-t-day'), ...P(A, 'students', 'xc-stu', 'academicRecords', 'rec-x'))));
+  await assertSucceeds(getDoc(doc(as('xc-t-pre'), ...P(A, 'students', 'xc-stu'))));
+  await assertFails(getDoc(doc(as('xc-t-other'), ...P(A, 'students', 'xc-stu'))));
+  // the guardian links go through teacherOfStudent
+  await assertSucceeds(getDoc(doc(as('xc-t-day'), ...P(A, 'students', 'xc-stu', 'parentLinks', 'par-1'))));
+  await assertSucceeds(getDoc(doc(as('xc-t-pre'), ...P(A, 'students', 'xc-stu', 'parentLinks', 'par-1'))));
+  await assertFails(getDoc(doc(as('xc-t-other'), ...P(A, 'students', 'xc-stu', 'parentLinks', 'par-1'))));
+});
+
+test('without an extra class the day-care teacher has no access', async () => {
+  await assertFails(getDoc(doc(as('xc-t-day'), ...P(A, 'students', 'xc-stu'))));
+});
+
+test('only an admin can write extraSectionKeys', async () => {
+  await assertSucceeds(updateDoc(doc(as('xc-admin'), ...P(A, 'students', 'xc-stu')), upd('xc-admin', { extraSectionKeys: ['daycare__d1'] })));
+  await assertFails(updateDoc(doc(as('xc-t-pre'), ...P(A, 'students', 'xc-stu')), upd('xc-t-pre', { extraSectionKeys: ['daycare__d1'] })));
 });

@@ -733,6 +733,7 @@ class _ParentTimetable extends ConsumerStatefulWidget {
 
 class _ParentTimetableState extends ConsumerState<_ParentTimetable> {
   String? _childId;
+  int _classIndex = 0;
   String _monday = mondayOf(SchoolTime.wallNow());
 
   void _shift(int weeks) {
@@ -788,6 +789,10 @@ class _ParentTimetableState extends ConsumerState<_ParentTimetable> {
           );
         }
         final theme = Theme.of(context);
+        // The main class and any extra class (e.g. afternoon day care) each
+        // have their own timetable.
+        final places = child.classSections;
+        final place = places[_classIndex.clamp(0, places.length - 1)];
         return Column(
           children: [
             Padding(
@@ -846,8 +851,29 @@ class _ParentTimetableState extends ConsumerState<_ParentTimetable> {
                           ChoiceChip(
                             label: Text(c.displayName),
                             selected: c.studentId == child.studentId,
-                            onSelected: (_) =>
-                                setState(() => _childId = c.studentId),
+                            onSelected: (_) => setState(() {
+                              _childId = c.studentId;
+                              _classIndex = 0;
+                            }),
+                          ),
+                      ],
+                    ),
+                  ],
+                  if (places.length > 1) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.xs,
+                      children: [
+                        for (var i = 0; i < places.length; i++)
+                          ChoiceChip(
+                            label: Text(
+                              places[i].label.isNotEmpty
+                                  ? places[i].label
+                                  : (i == 0 ? 'Main class' : 'Extra class $i'),
+                            ),
+                            selected: places[i] == place,
+                            onSelected: (_) => setState(() => _classIndex = i),
                           ),
                       ],
                     ),
@@ -867,8 +893,8 @@ class _ParentTimetableState extends ConsumerState<_ParentTimetable> {
                 schoolId: widget.schoolId,
                 branchId: child.branchId,
                 academicYearId: yearId,
-                classId: child.currentClassId!,
-                sectionId: child.currentSectionId!,
+                classId: place.classId,
+                sectionId: place.sectionId,
                 mondayKey: _monday,
               ),
             ),

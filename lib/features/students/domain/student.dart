@@ -120,6 +120,49 @@ class Student {
   bool get hasCurrentPlacement =>
       currentClassId != null && currentSectionId != null;
 
+  /// Every class and section the student attends this year: the main class
+  /// first, then the extra classes (e.g. afternoon day care). Empty when the
+  /// student has no main placement.
+  List<({String classId, String sectionId, String label})> get classSections =>
+      [
+        if (hasCurrentPlacement)
+          (classId: currentClassId!, sectionId: currentSectionId!, label: ''),
+        if (hasCurrentPlacement)
+          for (final e in extraPlacements)
+            (classId: e.classId, sectionId: e.sectionId, label: e.label),
+      ];
+
+  /// Section and roll number the student has in [classId]: the main
+  /// placement's when it is the main class, otherwise the extra class's.
+  ({String? sectionId, String? rollNumber}) placementInClass(String classId) {
+    if (currentClassId == classId) {
+      return (sectionId: currentSectionId, rollNumber: currentRollNumber);
+    }
+    for (final e in extraPlacements) {
+      if (e.classId == classId) {
+        return (sectionId: e.sectionId, rollNumber: e.rollNumber);
+      }
+    }
+    return (sectionId: null, rollNumber: null);
+  }
+
+  /// Whether an examination of [classId] (for [examSectionId], or the whole
+  /// class when null) covers the student through any of their classes.
+  bool attendsExam(String classId, String? examSectionId) => classSections.any(
+    (p) =>
+        p.classId == classId &&
+        (examSectionId == null || p.sectionId == examSectionId),
+  );
+
+  /// Whether the student attends this class and section, as the main class or
+  /// as an extra class.
+  bool attendsSection(String? classId, String? sectionId) =>
+      classId != null &&
+      sectionId != null &&
+      classSections.any(
+        (p) => p.classId == classId && p.sectionId == sectionId,
+      );
+
   Student copyWith({
     String? admissionNumber,
     String? firstName,

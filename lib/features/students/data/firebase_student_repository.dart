@@ -755,6 +755,7 @@ class FirebaseStudentRepository implements StudentRepository {
           'currentRollNumber': newRollNumber,
           'extraPlacements': [for (final e in kept) e.toMap()],
           'extraPlacementKeys': ExtraPlacement.keysOf(kept),
+          'extraSectionKeys': ExtraPlacement.accessKeysOf(kept),
           FirestoreFields.updatedAt: FieldValue.serverTimestamp(),
           FirestoreFields.updatedBy: updatedBy,
         });
@@ -1034,6 +1035,7 @@ class FirebaseStudentRepository implements StudentRepository {
         tx.update(studentRef, {
           'extraPlacements': [for (final e in all) e.toMap()],
           'extraPlacementKeys': ExtraPlacement.keysOf(all),
+          'extraSectionKeys': ExtraPlacement.accessKeysOf(all),
           FirestoreFields.updatedAt: FieldValue.serverTimestamp(),
           FirestoreFields.updatedBy: updatedBy,
         });
@@ -1091,6 +1093,7 @@ class FirebaseStudentRepository implements StudentRepository {
         tx.update(studentRef, {
           'extraPlacements': [for (final e in remaining) e.toMap()],
           'extraPlacementKeys': ExtraPlacement.keysOf(remaining),
+          'extraSectionKeys': ExtraPlacement.accessKeysOf(remaining),
           FirestoreFields.updatedAt: FieldValue.serverTimestamp(),
           FirestoreFields.updatedBy: updatedBy,
         });

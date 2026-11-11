@@ -321,11 +321,28 @@ service cloud.firestore {
         && (classId + '__' + sectionId) in get(teacherAccessPath(schoolId, branchId)).data.sectionKeys;
     }
 
-    // The student is currently placed in a section the caller teaches.
+    // The caller is an ACTIVE teacher of one of the sections in [keys]
+    // ('classId__sectionId' strings — a student's extra classes).
+    function teacherHasAnyOf(schoolId, branchId, keys) {
+      return callerIsInBranchAs(schoolId, branchId, 'TEACHER')
+        && keys is list && exists(teacherAccessPath(schoolId, branchId))
+        && get(teacherAccessPath(schoolId, branchId)).data.sectionKeys.hasAny(keys);
+    }
+
+    // The student is currently placed in a section the caller teaches (main
+    // class, or an extra class such as day care).
     function teacherOfStudent(schoolId, branchId, studentId) {
       let st = get(/databases/$(database)/documents/schools/$(schoolId)/branches/$(branchId)
         /students/$(studentId)).data;
-      return teacherHasSection(schoolId, branchId, st.get('currentClassId', null), st.get('currentSectionId', null));
+      return teacherHasSection(schoolId, branchId, st.get('currentClassId', null), st.get('currentSectionId', null))
+        || teacherHasAnyOf(schoolId, branchId, st.get('extraSectionKeys', null));
+    }
+
+    // The student attends this class+section: as the main class or as an
+    // extra class (extras are in the same academic year as the main class).
+    function studentInSection(st, classId, sectionId) {
+      return (st.currentClassId == classId && st.currentSectionId == sectionId)
+        || (classId + '__' + sectionId) in st.get('extraSectionKeys', []);
     }
 
     // The parent has a child in a section the caller teaches (parentAccess is
@@ -1016,7 +1033,7 @@ service cloud.firestore {
         && data.academicYearId == hw.academicYearId
         && data.classId == hw.classId && data.sectionId == hw.sectionId
         && student.status == 'ACTIVE'
-        && student.currentClassId == hw.classId && student.currentSectionId == hw.sectionId
+        && studentInSection(student, hw.classId, hw.sectionId)
         && data.submittedBy == request.auth.uid
         && data.submittedAt == request.time && data.createdAt == request.time && data.updatedAt == request.time
         && data.createdBy == request.auth.uid && data.updatedBy == request.auth.uid
@@ -1037,8 +1054,7 @@ service cloud.firestore {
         // a child who has moved sections or left can no longer change work
         // set for the section they were in (history stays readable)
         && student.status == 'ACTIVE'
-        && student.currentClassId == hw.classId
-        && student.currentSectionId == hw.sectionId
+        && studentInSection(student, hw.classId, hw.sectionId)
         && before.status in ['SUBMITTED', 'LATE_SUBMITTED', 'RESUBMITTED', 'RETURNED_FOR_REVISION']
         && after.status == 'RESUBMITTED' && after.lastEvent == 'RESUBMIT'
         && (before.status == 'RETURNED_FOR_REVISION'
@@ -1274,8 +1290,7 @@ service cloud.firestore {
         && sheet.status in ['DRAFT', 'RETURNED']
         && student.status == 'ACTIVE'
         && student.currentAcademicYearId == d.academicYearId
-        && student.currentClassId == d.classId
-        && student.currentSectionId == d.sectionId
+        && studentInSection(student, d.classId, d.sectionId)
         && entryMarksOk(sub, d)
         && profileMayEnterMarks(callerProfile(), schoolId, branchId, d);
     }
@@ -1984,7 +1999,8 @@ service cloud.firestore {
 
         match /students/{studentId} {
           allow read: if canViewStudentData(schoolId, branchId) || canAccessAsParent(schoolId, branchId, studentId)
-            || teacherHasSection(schoolId, branchId, resource.data.currentClassId, resource.data.currentSectionId);
+            || teacherHasSection(schoolId, branchId, resource.data.currentClassId, resource.data.currentSectionId)
+            || teacherHasAnyOf(schoolId, branchId, resource.data.get('extraSectionKeys', null));
 
           allow create: if canManageStudentData(schoolId, branchId) && validCreateAudit()
             && newInTenant(schoolId, branchId)
@@ -2009,7 +2025,7 @@ service cloud.firestore {
               'email', 'phone', 'addressLine1', 'addressLine2', 'city', 'state', 'country', 'postalCode',
               'admissionDate', 'status', 'statusChangeReason', 'statusChangeDate', 'statusChangeNotes',
               'currentAcademicYearId', 'currentClassId', 'currentSectionId', 'currentRollNumber',
-              'extraPlacements', 'extraPlacementKeys',
+              'extraPlacements', 'extraPlacementKeys', 'extraSectionKeys',
               'updatedAt', 'updatedBy',
             ]);
 
@@ -3954,10 +3970,7 @@ service cloud.firestore {
             && nd().title.size() >= 3 && nd().title.size() <= 80
             && profileIsLinkedParent(callerProfile(), schoolId, branchId, nd().studentId)
             && get(ttDoc(schoolId, branchId, 'students', nd().studentId)).data.status == 'ACTIVE'
-            && get(ttDoc(schoolId, branchId, 'students', nd().studentId)).data.currentSectionId
-               == nd().sectionId
-            && get(ttDoc(schoolId, branchId, 'students', nd().studentId)).data.currentClassId
-               == nd().classId
+            && studentInSection(get(ttDoc(schoolId, branchId, 'students', nd().studentId)).data, nd().classId, nd().sectionId)
             && get(ttDoc(schoolId, branchId, 'students', nd().studentId)).data.currentAcademicYearId
                == nd().academicYearId
             && convTeacherOk(schoolId, branchId, nd())

@@ -51,6 +51,14 @@ class ExtraPlacement {
     for (final p in placements) ...[p.classKey, p.sectionKey],
   ];
 
+  /// `classId__sectionId` — the form the rules use for teacher and parent
+  /// access (`teacherAccess.sectionKeys`, `parentAccess.sectionKeys`).
+  String get accessKey => '${classId}__$sectionId';
+
+  static List<String> accessKeysOf(Iterable<ExtraPlacement> placements) => [
+    for (final p in placements) p.accessKey,
+  ];
+
   Map<String, dynamic> toMap() => {
     'recordId': recordId,
     'academicYearId': academicYearId,
@@ -86,8 +94,11 @@ class ExtraPlacement {
     if (candidate.label.length > maxLabelLength) {
       return 'Keep the label under $maxLabelLength characters.';
     }
-    if (mainYearId == candidate.academicYearId &&
-        mainClassId == candidate.classId) {
+    if (mainYearId != candidate.academicYearId) {
+      return 'An extra class must be in the same academic year as the main '
+          'class.';
+    }
+    if (mainClassId == candidate.classId) {
       return 'This is already the student\'s main class.';
     }
     if (existing.any(

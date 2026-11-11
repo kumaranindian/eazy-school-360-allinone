@@ -48,11 +48,11 @@ final announcementViewerProvider = FutureProvider.autoDispose
           branchId: key.branchId,
           children: [
             for (final c in children)
-              if (c.currentClassId != null && c.currentSectionId != null)
+              for (final p in c.classSections)
                 (
                   branchId: c.branchId,
-                  classId: c.currentClassId!,
-                  sectionId: c.currentSectionId!,
+                  classId: p.classId,
+                  sectionId: p.sectionId,
                 ),
           ],
         );

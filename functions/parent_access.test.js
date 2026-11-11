@@ -55,6 +55,19 @@ test('only relevant changes trigger a refresh', () => {
   assert.strictEqual(pa.placementChanged(s, null), true);
 });
 
+test('extra classes (day care) are in the family index and trigger a refresh', async () => {
+  const extra = [{ recordId: 'r1', classId: 'dc', sectionId: 'D1' }];
+  const db = fakeDb(seed({ [`${B}/students/st1`]: { status: 'ACTIVE', currentClassId: 'c1', currentSectionId: 'A', extraPlacements: extra } }));
+  await pa.refreshFamiliesOfStudent(ctx(db), 's1', 'b1', 'st1');
+  const d = db.store.get(`${B}/parentAccess/p1`);
+  assert.deepStrictEqual(d.classKeys, ['c1', 'c2', 'dc']);
+  assert.deepStrictEqual(d.sectionKeys, ['c1__A', 'c2__B', 'dc__D1']);
+  const s = { status: 'ACTIVE', currentClassId: 'c1', currentSectionId: 'A' };
+  assert.strictEqual(pa.placementChanged(s, { ...s, extraPlacements: extra }), true);
+  assert.strictEqual(pa.placementChanged({ ...s, extraPlacements: extra }, { ...s, extraPlacements: extra, firstName: 'x' }), false);
+  assert.strictEqual(pa.placementChanged({ ...s, extraPlacements: extra }, s), true);
+});
+
 test('a parent can rebuild only their own index, from the data', async () => {
   const db = fakeDb(seed({ 'users/u1': { role: 'PARENT', status: 'ACTIVE', schoolId: 's1', linkedParentId: 'p1' } }));
   const r = await pa.refreshOwnFamily({ db, now: 'NOW' }, 'u1');
