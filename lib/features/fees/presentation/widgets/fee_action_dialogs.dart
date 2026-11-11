@@ -25,7 +25,7 @@ Widget _footer(
     spacing: AppSpacing.sm,
     children: [
       TextButton(
-        onPressed: busy ? null : () => Navigator.of(context).pop(false),
+        onPressed: busy ? null : () => Navigator.of(context).pop(),
         child: const Text('Cancel'),
       ),
       FilledButton(
@@ -108,6 +108,8 @@ class _CollectPaymentDialogState extends ConsumerState<CollectPaymentDialog> {
       context.showSnackBar(problem, isError: true);
       return;
     }
+    final confirmed = await _confirm(amount);
+    if (!confirmed || !mounted) return;
     setState(() => _busy = true);
     try {
       await ref
@@ -144,6 +146,56 @@ class _CollectPaymentDialogState extends ConsumerState<CollectPaymentDialog> {
         context.showSnackBar(userMessageFor(error), isError: true);
       }
     }
+  }
+
+  /// Last look before money is recorded; a payment can only be reversed, not
+  /// edited, so the details are spelled out first.
+  Future<bool> _confirm(int amountMinor) async {
+    final invoice = widget.invoice;
+    final method = _method == PaymentMethod.other
+        ? _methodLabel.text.trim()
+        : _method.displayName;
+    final reference = _reference.text.trim();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Record this payment?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${invoice.invoiceNumber} · ${invoice.studentName}'),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              Money.format(amountMinor, currency: invoice.currency),
+              style: context.textStyles.headlineSmall,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text('Method: $method'),
+            if (reference.isNotEmpty && _method.needsReference)
+              Text('Reference: $reference'),
+            Text('Date: ${FeeDates.display(_dateKey)}'),
+            if (amountMinor < invoice.balanceMinor)
+              Text(
+                'Balance after payment: ${Money.format(invoice.balanceMinor - amountMinor, currency: invoice.currency)}',
+              ),
+            const SizedBox(height: AppSpacing.sm),
+            const Text('A recorded payment cannot be edited — only reversed.'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Go back'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
   }
 
   @override

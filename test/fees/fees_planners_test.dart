@@ -88,6 +88,7 @@ InvoicePlan _plan({
   Set<String> charges = const {},
   Set<String> invoices = const {},
   String? dueOverride,
+  Set<String>? selected,
 }) {
   return InvoicePlanner.plan(
     students: students,
@@ -99,6 +100,7 @@ InvoicePlan _plan({
     existingChargeIds: charges,
     existingInvoiceIds: invoices,
     addDays: FeeDates.addDays,
+    selectedStructureIds: selected,
   );
 }
 
@@ -447,7 +449,7 @@ void main() {
     );
 
     test(
-      'IDEMPOTENCY: a student whose invoice for this period exists is skipped — re-running a bulk run creates nothing',
+      'IDEMPOTENCY: fees already charged for the period are not billed again, and a student with nothing left is skipped',
       () {
         final plan = _plan(
           students: [_student('1'), _student('2')],
@@ -456,11 +458,49 @@ void main() {
             '2': [(tuition, _assign('2', tuition))],
           }),
           invoices: {'1__y26__M-2026-06'},
+          charges: {'${_assign('1', tuition).assignmentId}__M-2026-06'},
         );
         expect(plan.proposals.map((p) => p.student.studentId), ['2']);
-        expect(plan.skipped.single.reason, contains('Already invoiced'));
+        expect(plan.skipped.single.reason, contains('already billed'));
       },
     );
+
+    test(
+      'a fee added later in the same period gets its own invoice under the next key',
+      () {
+        final transport = _fee('TRANSPORT', amount: 50000);
+        final plan = _plan(
+          students: [_student('1')],
+          assignments: assignments({
+            '1': [
+              (tuition, _assign('1', tuition)),
+              (transport, _assign('1', transport)),
+            ],
+          }),
+          invoices: {'1__y26__M-2026-06'},
+          charges: {'${_assign('1', tuition).assignmentId}__M-2026-06'},
+        );
+        expect(plan.proposals, hasLength(1));
+        expect(plan.proposals.single.periodKey, 'M-2026-06~2');
+        expect(plan.proposals.single.invoiceId, '1__y26__M-2026-06~2');
+        expect(plan.proposals.single.lines.map((l) => l.name), ['TRANSPORT']);
+      },
+    );
+
+    test('only the selected fee heads are billed', () {
+      final transport = _fee('TRANSPORT', amount: 50000);
+      final plan = _plan(
+        students: [_student('1')],
+        assignments: assignments({
+          '1': [
+            (tuition, _assign('1', tuition)),
+            (transport, _assign('1', transport)),
+          ],
+        }),
+        selected: {transport.structureId},
+      );
+      expect(plan.proposals.single.lines.map((l) => l.name), ['TRANSPORT']);
+    });
 
     test('a one-time fee is charged once, whatever the label of the run', () {
       final admission = _fee(

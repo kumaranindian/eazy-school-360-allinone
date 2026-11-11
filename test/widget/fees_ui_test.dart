@@ -241,6 +241,20 @@ Future<_World> _pump(
   return _World(container, inv, pay, cfg, rep);
 }
 
+/// Taps "Record payment", then confirms the "Record this payment?" step.
+Future<void> _record(WidgetTester tester, {bool settle = true}) async {
+  await tester.tap(_filled('Record payment'));
+  await tester.pumpAndSettle();
+  expect(find.text('Record this payment?'), findsOneWidget);
+  await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+  }
+}
+
 Finder _filled(String label) => find
     .ancestor(
       of: find.text(label),
@@ -496,7 +510,7 @@ void main() {
             .text,
         '1000.00',
       );
-      await tester.tap(_filled('Record payment'));
+      await _record(tester);
       await tester.pumpAndSettle();
       expect(pay.collected, hasLength(1));
       expect(pay.collected.single.invoiceId, 'stu-1__y1__M-2026-06');
@@ -1109,7 +1123,7 @@ void main() {
           '1000.00',
         );
 
-        await tester.tap(_filled('Record payment'));
+        await _record(tester);
         await tester.pumpAndSettle();
 
         expect(pay.collected, hasLength(1));
@@ -1136,7 +1150,7 @@ void main() {
         find.widgetWithText(TextFormField, 'Amount (INR)'),
         '250.50',
       );
-      await tester.tap(_filled('Record payment'));
+      await _record(tester);
       await tester.pumpAndSettle();
       expect(pay.collected.single.amountMinor, 25050);
     });
@@ -1190,7 +1204,7 @@ void main() {
         find.widgetWithText(TextFormField, 'Transaction / reference number'),
         'UTR12345678',
       );
-      await tester.tap(_filled('Record payment'));
+      await _record(tester);
       await tester.pumpAndSettle();
       expect(pay.collected.single.method, PaymentMethod.upi);
       expect(pay.collected.single.referenceNo, 'UTR12345678');
@@ -1202,7 +1216,7 @@ void main() {
         final gate = Completer<void>();
         final pay = FakePaymentRepository()..gate = () => gate.future;
         await start(tester, pay: pay);
-        await tester.tap(_filled('Record payment'));
+        await _record(tester, settle: false);
         await tester.pump();
         await tester.tap(find.byType(FilledButton).last, warnIfMissed: false);
         await tester.pump();
@@ -1224,7 +1238,7 @@ void main() {
         final pay = FakePaymentRepository()
           ..collectError = const NetworkFailure();
         await start(tester, pay: pay);
-        await tester.tap(_filled('Record payment'));
+        await _record(tester);
         await tester.pumpAndSettle();
         expect(
           find.text(
@@ -1238,7 +1252,7 @@ void main() {
         ).clearSnackBars();
         await tester.pumpAndSettle();
 
-        await tester.tap(_filled('Record payment'));
+        await _record(tester);
         await tester.pumpAndSettle();
         expect(pay.collected, hasLength(2));
         expect(pay.collected.first.paymentId, pay.collected.last.paymentId);
@@ -1252,7 +1266,7 @@ void main() {
       final gate = Completer<void>();
       final pay = FakePaymentRepository()..gate = () => gate.future;
       await start(tester, pay: pay);
-      await tester.tap(_filled('Record payment'));
+      await _record(tester, settle: false);
       await tester.pump();
       expect(find.text('Payment recorded successfully.'), findsNothing);
       gate.complete();
@@ -1268,7 +1282,7 @@ void main() {
             'The amount is more than the balance due (₹500.00). Overpayment is not accepted.',
           );
         await start(tester, pay: pay);
-        await tester.tap(_filled('Record payment'));
+        await _record(tester);
         await tester.pumpAndSettle();
         expect(
           find.textContaining('Overpayment is not accepted'),
@@ -1277,6 +1291,32 @@ void main() {
         expect(find.text('Collect payment'), findsWidgets);
       },
     );
+
+    testWidgets(
+      'Cancel closes the form without recording or opening anything',
+      (tester) async {
+        final (_, pay) = await start(tester);
+        await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+        await tester.pumpAndSettle();
+        expect(find.text('Record payment'), findsNothing);
+        expect(find.text('Receipt'), findsNothing);
+        expect(pay.collected, isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('going back from the confirmation records nothing', (
+      tester,
+    ) async {
+      final (_, pay) = await start(tester);
+      await tester.tap(_filled('Record payment'));
+      await tester.pumpAndSettle();
+      expect(find.text('Record this payment?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Go back'));
+      await tester.pumpAndSettle();
+      expect(pay.collected, isEmpty);
+      expect(find.text('Collect payment'), findsWidgets);
+    });
 
     testWidgets('a partially paid invoice defaults to the remaining balance', (
       tester,
@@ -1509,8 +1549,12 @@ void main() {
     testWidgets(
       'students already invoiced for the period are excluded from the preview (re-run safety)',
       (tester) async {
+        final sid = fakeStructure(code: 'TUITION', amount: 100000).structureId;
         final repo = FakeInvoiceRepository()
-          ..context = context(invoices: {'1__y1__M-2026-06'}, charges: {});
+          ..context = context(
+            invoices: {'1__y1__M-2026-06'},
+            charges: {'${StudentFeeAssignment.idFor('1', sid)}__M-2026-06'},
+          );
         await openGenerate(tester, repo);
         // choose the same month the invoice id above encodes
         await tester.tap(
@@ -1523,9 +1567,51 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('1 invoices'), findsOneWidget);
         await tester.pumpAndSettle();
-        expect(find.textContaining('Already invoiced'), findsOneWidget);
+        expect(find.textContaining('already billed'), findsWidgets);
       },
     );
+
+    testWidgets(
+      'the fee picker lists billable fees, and unticking the fee leaves nothing to invoice',
+      (tester) async {
+        final repo = FakeInvoiceRepository()..context = context();
+        await openGenerate(tester, repo);
+        await tester.tap(find.text('Preview'));
+        await tester.pumpAndSettle();
+        expect(find.text('Fees to invoice'), findsOneWidget);
+        expect(find.text('2 invoices'), findsOneWidget);
+        await tester.tap(find.widgetWithText(CheckboxListTile, 'Tuition'));
+        await tester.pumpAndSettle();
+        expect(find.text('0 invoices'), findsOneWidget);
+        await tester.tap(find.widgetWithText(CheckboxListTile, 'Tuition'));
+        await tester.pumpAndSettle();
+        expect(find.text('2 invoices'), findsOneWidget);
+      },
+    );
+
+    testWidgets('a fee already invoiced to everyone is not offered again', (
+      tester,
+    ) async {
+      final sid = fakeStructure(code: 'TUITION', amount: 100000).structureId;
+      final repo = FakeInvoiceRepository()
+        ..context = context(
+          charges: {
+            for (final id in ['1', '2'])
+              '${StudentFeeAssignment.idFor(id, sid)}__M-2026-06',
+          },
+        );
+      await openGenerate(tester, repo);
+      await tester.tap(
+        find.widgetWithText(DropdownButtonFormField<int>, 'Month'),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('June 2026').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Preview'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(CheckboxListTile, 'Tuition'), findsNothing);
+      expect(find.textContaining('already been invoiced'), findsOneWidget);
+    });
 
     testWidgets('a custom or one-time run needs a name', (tester) async {
       final repo = FakeInvoiceRepository()..context = context();

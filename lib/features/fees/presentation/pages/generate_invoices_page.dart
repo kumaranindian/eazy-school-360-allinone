@@ -55,6 +55,9 @@ class _GenerateState extends ConsumerState<_Generate> {
 
   InvoicePlan? _plan;
   BillingPeriod? _period;
+  BillingContext? _billing;
+  List<BillableFeeOption> _options = const [];
+  Set<String> _selected = {};
   bool _loading = false;
   String? _error;
   ({int done, int total})? _progress;
@@ -103,6 +106,43 @@ class _GenerateState extends ConsumerState<_Generate> {
     }
   }
 
+  InvoicePlan _planFor(
+    BillingContext billing,
+    BillingPeriod period,
+    Set<String> selected,
+  ) {
+    return InvoicePlanner.plan(
+      students: billing.students,
+      assignmentsByStudent: billing.assignmentsByStudent,
+      period: period,
+      academicYearId: widget.fee.year.academicYearId,
+      issueDateKey: _issueKey,
+      existingChargeIds: billing.existingChargeIds,
+      existingInvoiceIds: billing.existingInvoiceIds,
+      addDays: FeeDates.addDays,
+      selectedStructureIds: selected,
+    );
+  }
+
+  void _toggleFee(String structureId, bool on) {
+    final selected = {..._selected};
+    on ? selected.add(structureId) : selected.remove(structureId);
+    setState(() {
+      _selected = selected;
+      _plan = _planFor(_billing!, _period!, selected);
+    });
+  }
+
+  void _toggleAll(bool on) {
+    final selected = on
+        ? {for (final o in _options) o.structureId}
+        : <String>{};
+    setState(() {
+      _selected = selected;
+      _plan = _planFor(_billing!, _period!, selected);
+    });
+  }
+
   Future<void> _preview() async {
     final period = _buildPeriod();
     if (period == null) {
@@ -117,6 +157,8 @@ class _GenerateState extends ConsumerState<_Generate> {
       _loading = true;
       _error = null;
       _plan = null;
+      _billing = null;
+      _options = const [];
       _result = null;
     });
     try {
@@ -130,16 +172,16 @@ class _GenerateState extends ConsumerState<_Generate> {
             sectionId: _sectionId,
             period: period,
           );
-      final plan = InvoicePlanner.plan(
+      final options = InvoicePlanner.availableFees(
         students: billing.students,
         assignmentsByStudent: billing.assignmentsByStudent,
         period: period,
         academicYearId: fee.year.academicYearId,
         issueDateKey: _issueKey,
         existingChargeIds: billing.existingChargeIds,
-        existingInvoiceIds: billing.existingInvoiceIds,
-        addDays: FeeDates.addDays,
       );
+      final selected = {for (final o in options) o.structureId};
+      final plan = _planFor(billing, period, selected);
       AppLogger.debug(
         'Invoice preview: period=${period.key} kind=${period.kind.wireValue} '
         'students=${billing.students.length} '
@@ -149,6 +191,9 @@ class _GenerateState extends ConsumerState<_Generate> {
       );
       if (!mounted) return;
       setState(() {
+        _billing = billing;
+        _options = options;
+        _selected = selected;
         _plan = plan;
         _period = period;
         _loading = false;
@@ -176,7 +221,9 @@ class _GenerateState extends ConsumerState<_Generate> {
       builder: (context) => AlertDialog(
         title: const Text('Generate invoices?'),
         content: Text(
-          '${plan.proposals.length} invoices for ${_period!.label}, totalling ${Money.format(plan.payableMinor, currency: fee.currency)}. '
+          '${plan.proposals.length} invoices for ${_period!.label} '
+          '(${_options.where((o) => _selected.contains(o.structureId)).map((o) => o.name).join(', ')}), '
+          'totalling ${Money.format(plan.payableMinor, currency: fee.currency)}. '
           'Each gets a number and is issued to the student. Issued invoices can be voided only by an authorized user.',
         ),
         actions: [
@@ -216,6 +263,9 @@ class _GenerateState extends ConsumerState<_Generate> {
         _result = result;
         _progress = null;
         _plan = null;
+        _billing = null;
+        _options = const [];
+        _selected = {};
       });
     } catch (error, stackTrace) {
       AppLogger.error(
@@ -456,6 +506,15 @@ class _GenerateState extends ConsumerState<_Generate> {
             result: _result!,
             onViewInvoices: () => context.push('/fees/invoices'),
           ),
+        if (_billing != null && _period != null)
+          _FeePicker(
+            options: _options,
+            selected: _selected,
+            currency: fee.currency,
+            enabled: !busy,
+            onToggle: _toggleFee,
+            onToggleAll: _toggleAll,
+          ),
         if (_plan != null)
           _Preview(
             plan: _plan!,
@@ -464,6 +523,79 @@ class _GenerateState extends ConsumerState<_Generate> {
             onConfirm: busy ? null : _confirm,
           ),
       ],
+    );
+  }
+}
+
+/// Which fee heads to put on the invoices. Only fees that still have
+/// something to bill are listed — one already invoiced to everyone for this
+/// period is not offered again.
+class _FeePicker extends StatelessWidget {
+  final List<BillableFeeOption> options;
+  final Set<String> selected;
+  final String currency;
+  final bool enabled;
+  final void Function(String structureId, bool on) onToggle;
+  final void Function(bool on) onToggleAll;
+
+  const _FeePicker({
+    required this.options,
+    required this.selected,
+    required this.currency,
+    required this.enabled,
+    required this.onToggle,
+    required this.onToggleAll,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    if (options.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.only(bottom: AppSpacing.md),
+        child: EmptyView(
+          icon: Icons.task_alt_outlined,
+          message:
+              'Every fee for this class and period has already been invoiced.',
+        ),
+      );
+    }
+    final all = selected.length == options.length;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+              child: Text('Fees to invoice', style: text.titleMedium),
+            ),
+            CheckboxListTile(
+              dense: true,
+              value: all ? true : (selected.isEmpty ? false : null),
+              tristate: true,
+              onChanged: enabled ? (v) => onToggleAll(v ?? false) : null,
+              title: const Text('Select all'),
+              controlAffinity: ListTileControlAffinity.leading,
+            ),
+            const Divider(height: 1),
+            for (final o in options)
+              CheckboxListTile(
+                dense: true,
+                value: selected.contains(o.structureId),
+                onChanged: enabled
+                    ? (v) => onToggle(o.structureId, v ?? false)
+                    : null,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(o.name),
+                subtitle: Text(
+                  '${o.students} student${o.students == 1 ? '' : 's'} · ${Money.format(o.totalMinor, currency: currency)}',
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -555,7 +687,7 @@ class _Preview extends StatelessWidget {
             child: EmptyView(
               icon: Icons.receipt_long_outlined,
               message:
-                  'Nothing to invoice for this selection. See the reasons above.',
+                  'Nothing to invoice for this selection. Choose at least one fee, or see the reasons above.',
             ),
           )
         else
