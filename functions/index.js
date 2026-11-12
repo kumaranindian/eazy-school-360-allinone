@@ -16,6 +16,7 @@ const devices = require('./devices');
 const notifyEvents = require('./notify_events');
 const feeReminders = require('./fee_reminders');
 const branding = require('./branding');
+const admission = require('./admission');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret, defineString } = require('firebase-functions/params');
 const { createSchoolAdmin, provisionLogins, changeInitialPassword, resetLoginPassword, ensureAuthUser, enablePortalLinks } = require('./provision');
@@ -336,6 +337,23 @@ exports.updateSchoolBranding = onCall(callOptions(), async (request) => {
   logger.info('updateSchoolBranding', { by: a.uid, version: out.result.version });
   return out.result;
 });
+
+// Admission enquiries (docs/admission-management/). Every write is a callable:
+// the rules give clients read access only, so numbering, duplicate flagging,
+// the status state machine and branch scoping cannot be bypassed from a client.
+const admissionCall = (name, fn, pick) =>
+  onCall(callOptions(), async (request) => {
+    const a = signedIn(request);
+    const out = await fn({ ...adminCtx(), wall: () => new Date() }, a.uid, a.token, request.data);
+    if (out.error) fail(out);
+    logger.info(name, { by: a.uid, ...(pick ? pick(request.data, out.result) : {}) });
+    return out.result;
+  });
+exports.saveAdmissionSettings = admissionCall('saveAdmissionSettings', admission.saveAdmissionSettings);
+exports.createAdmissionEnquiry = admissionCall('createAdmissionEnquiry', admission.createEnquiry, (d, r) => ({ enquiry: r.id }));
+exports.updateAdmissionEnquiry = admissionCall('updateAdmissionEnquiry', admission.updateEnquiry, (d) => ({ enquiry: d.enquiryId }));
+exports.assignAdmissionEnquiry = admissionCall('assignAdmissionEnquiry', admission.assignEnquiry, (d) => ({ enquiry: d.enquiryId }));
+exports.changeAdmissionEnquiryStatus = admissionCall('changeAdmissionEnquiryStatus', admission.changeEnquiryStatus, (d, r) => ({ enquiry: d.enquiryId, status: r.status }));
 
 exports.updatePlatformBranding = onCall(callOptions(), async (request) => {
   const a = signedIn(request);

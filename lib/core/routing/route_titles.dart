@@ -31,6 +31,7 @@ const Map<String, String> _titles = {
   AppRoutes.settings: 'School Settings',
   AppRoutes.students: 'Students',
   AppRoutes.parents: 'Parents',
+  AppRoutes.admissions: 'Admissions',
   AppRoutes.staff: 'Staff and Teachers',
   AppRoutes.teachers: 'Teachers',
   AppRoutes.attendance: 'Attendance',

@@ -65,6 +65,8 @@ A user belongs to **one school** (`/users/{uid}.schoolId`); several branches pos
 | D1 | `createdBy` / `updatedBy` uid on tenant documents | almost every collection | **Decision 5 (yes): replace the uid with a non-identifying token** (a keyed hash, same token per person so history stays consistent, not reversible without the key). Heavy: collection-group scans across dozens of collections with index overrides, paginated and resumable. Until it runs the uid is only an opaque id, because A1 and A2 already remove who it was | PENDING |
 | D2 | Security audit events | `schools/*/authAudit` (actor and target ids, no secrets) | same token replacement | PENDING |
 | D3 | Fee reminder policy | `schools/*/feeReminderSettings` (`updatedBy` uid; no personal data) | same token replacement of `updatedBy` | PENDING |
+| D8 | Admission enquiries and status history | `schools/*/branches/*/admissionEnquiries`, `admissionStatusHistory` (`createdBy`/`updatedBy`/`actorId`/`assignedTo` uids; the prospective student's and guardians' details are about people who are not users) | uid fields replaced with the same token; prospective-family data is kept (it is a school record, not the deleted user's data) | PENDING |
+| D9 | Admission settings | `schools/*/admissionSettings` (`updatedBy` uid; no personal data) | same token replacement of `updatedBy` | PENDING |
 | D4 | School theme | `schools/*/branding` (`updatedBy` uid; no personal data); `platformBranding` is platform-wide and exempt | same token replacement of `updatedBy` | PENDING |
 
 ### E. Outside our database

@@ -27,6 +27,7 @@ import '../../features/school_setup/presentation/pages/create_school_page.dart';
 import '../../features/school_setup/presentation/pages/school_setup_page.dart';
 import '../../features/attendance/presentation/attendance_routes.dart';
 import '../../features/staff/presentation/staff_routes.dart';
+import '../../features/admission/presentation/admission_routes.dart';
 import '../../features/students/presentation/parents_routes.dart';
 import '../../features/students/presentation/students_routes.dart';
 import '../../features/users/presentation/pages/users_page.dart';
@@ -222,6 +223,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(routes: academicSetupRoutes()),
           StatefulShellBranch(routes: studentsRoutes()),
           StatefulShellBranch(routes: parentsRoutes()),
+          StatefulShellBranch(routes: admissionRoutes()),
           StatefulShellBranch(routes: staffRoutes()),
           StatefulShellBranch(routes: attendanceRoutes()),
           StatefulShellBranch(routes: feesRoutes()),

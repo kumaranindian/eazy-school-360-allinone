@@ -56,7 +56,7 @@ const NAME_FIELD = {
 
 // Collections under schools/{s}/branches/{b} that are scanned for the uid fields.
 const BRANCH_COLLECTIONS = [
-  'academicYears', 'admissionNumbers', 'announcementHistory', 'announcements', 'assignmentSlots',
+  'academicYears', 'admissionEnquiries', 'admissionNumbers', 'admissionStatusHistory', 'announcementHistory', 'announcements', 'assignmentSlots',
   'attendanceSessions', 'broadcastNotices', 'classSubjects', 'classes', 'conversationEvents',
   'conversations', 'departments', 'designations', 'examHistory', 'examRemarks', 'examinationSubjects',
   'examinations', 'gradingSchemes', 'holidays', 'homework', 'homeworkHistory', 'homeworkRevisions',
@@ -70,7 +70,7 @@ const BRANCH_COLLECTIONS = [
 ];
 
 // Collections directly under schools/{s}.
-const SCHOOL_COLLECTIONS = ['academicYears', 'authAudit', 'authSettings', 'branchAccessAudit', 'branding', 'feeReminderSettings', 'studentTransfers'];
+const SCHOOL_COLLECTIONS = ['academicYears', 'admissionSettings', 'authAudit', 'authSettings', 'branchAccessAudit', 'branding', 'feeReminderSettings', 'studentTransfers'];
 
 // Nested collections, found with a collection-group query on a few fields each
 // (single-field indexes for these are declared in firestore.indexes.json).
