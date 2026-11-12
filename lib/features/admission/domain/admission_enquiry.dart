@@ -135,6 +135,11 @@ class AdmissionEnquiry {
   final String? statusReason;
   final String? nextFollowUpDate;
   final List<String> duplicateOf;
+
+  /// Follow-up activities: all ever planned, and those still open. While
+  /// [activityCount] > 0 the next follow-up date is derived from them.
+  final int activityCount;
+  final int openActivityCount;
   final int revision;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -168,6 +173,8 @@ class AdmissionEnquiry {
     this.statusReason,
     this.nextFollowUpDate,
     this.duplicateOf = const [],
+    this.activityCount = 0,
+    this.openActivityCount = 0,
     this.createdAt,
     this.updatedAt,
   });
@@ -224,6 +231,10 @@ class AdmissionEnquiry {
         for (final x in (d['duplicateOf'] as List? ?? const []))
           if (x is String) x,
       ],
+      activityCount: d['activityCount'] is int ? d['activityCount'] as int : 0,
+      openActivityCount: d['openActivityCount'] is int
+          ? d['openActivityCount'] as int
+          : 0,
       revision: d['revision'] is int ? d['revision'] as int : 1,
       createdAt: createdAt,
       updatedAt: updatedAt,

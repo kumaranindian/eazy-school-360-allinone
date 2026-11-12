@@ -1,4 +1,7 @@
+import 'package:eazy_school_360/core/permissions/user_role.dart';
+import 'package:eazy_school_360/features/admission/domain/admission_activity.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_enquiry.dart';
+import 'package:eazy_school_360/features/notifications/domain/feed_item.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_settings.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_status.dart';
 import 'package:eazy_school_360/features/admission/domain/enquiry_query.dart';
@@ -240,6 +243,176 @@ void main() {
       expect(input.firstName, 'Asha');
       expect(input.remarks, 'Call after 5');
       expect(input.guardians.single.name, 'Meena Nair');
+    });
+  });
+
+  group('follow-up activities', () {
+    test('types and statuses round-trip; unknown values are null', () {
+      for (final t in ActivityType.values) {
+        expect(ActivityType.tryParse(t.wire), t);
+      }
+      for (final s in ActivityStatus.values) {
+        expect(ActivityStatus.tryParse(s.wire), s);
+      }
+      expect(ActivityType.tryParse('FAX'), isNull);
+      expect(ActivityStatus.tryParse(null), isNull);
+    });
+
+    test('the six types of the brief exist', () {
+      expect(ActivityType.values.map((t) => t.label), [
+        'Phone call',
+        'WhatsApp',
+        'Email',
+        'School visit',
+        'Meeting',
+        'Other',
+      ]);
+    });
+
+    test('an activity is parsed and knows when it is overdue', () {
+      final a = fakeActivity('1', date: '2026-11-05');
+      expect(a.isOpen, isTrue);
+      expect(a.isOverdue('2026-11-07'), isTrue);
+      expect(
+        a.isOverdue('2026-11-05'),
+        isFalse,
+        reason: 'due today is not overdue',
+      );
+      expect(a.isOverdue('2026-11-01'), isFalse);
+      final done = fakeActivity(
+        '2',
+        date: '2026-11-05',
+        status: ActivityStatus.completed,
+      );
+      expect(
+        done.isOverdue('2026-11-07'),
+        isFalse,
+        reason: 'finished work is never overdue',
+      );
+      final bare = AdmissionActivity.fromMap('x', const {});
+      expect(bare.type, ActivityType.other);
+      expect(bare.status, ActivityStatus.scheduled);
+      expect(bare.rescheduleCount, 0);
+    });
+
+    test('the schedule payload sends an assignee only when chosen', () {
+      const plain = ActivityInput(
+        type: ActivityType.email,
+        scheduledDate: '2026-11-10',
+      );
+      expect(plain.toWire().containsKey('assignedTo'), isFalse);
+      const explicitNobody = ActivityInput(
+        type: ActivityType.email,
+        scheduledDate: '2026-11-10',
+        assignExplicitly: true,
+      );
+      expect(explicitNobody.toWire()['assignedTo'], isNull);
+      expect(explicitNobody.toWire().containsKey('assignedTo'), isTrue);
+      expect(plain.toWire()['type'], 'EMAIL');
+    });
+
+    test('the payload carries no identity or status the server owns', () {
+      final wire = const ActivityInput(
+        type: ActivityType.phoneCall,
+        scheduledDate: '2026-11-10',
+        scheduledTime: '10:00',
+      ).toWire();
+      for (final k in [
+        'schoolId',
+        'branchId',
+        'status',
+        'createdBy',
+        'outcome',
+      ]) {
+        expect(wire.containsKey(k), isFalse, reason: k);
+      }
+    });
+
+    test('counts expose each bucket', () {
+      const c = FollowUpCounts(
+        today: 1,
+        overdue: 2,
+        upcoming: 3,
+        mine: 4,
+        unassigned: 5,
+        completed: 6,
+      );
+      expect(
+        [for (final b in FollowUpBucket.values) c.of(b)],
+        [1, 2, 3, 4, 5, 6],
+      );
+    });
+
+    test('an enquiry reads its follow-up counters', () {
+      final e = AdmissionEnquiry.fromMap('1', {
+        'activityCount': 3,
+        'openActivityCount': 1,
+      });
+      expect([e.activityCount, e.openActivityCount], [3, 1]);
+      expect(AdmissionEnquiry.fromMap('1', const {}).activityCount, 0);
+    });
+
+    test('settings carry the reminder choices, on by default at 09:00', () {
+      const d = AdmissionSettings();
+      expect([d.remindersEnabled, d.reminderTime], [true, '09:00']);
+      final s = AdmissionSettings.fromMap({
+        'remindersEnabled': false,
+        'reminderTime': '18:00',
+      });
+      expect([s.remindersEnabled, s.reminderTime], [false, '18:00']);
+      expect(s.toWire()['reminderTime'], '18:00');
+      expect(AdmissionSettings.fromMap({}).remindersEnabled, isTrue);
+    });
+  });
+
+  group('follow-up notifications', () {
+    FeedItem n(String type, {String? ref}) => FeedItem(
+      id: 'n',
+      source: FeedSource.targeted,
+      branchId: 'main',
+      type: type,
+      title: 't',
+      refId: ref,
+    );
+
+    test('open the enquiry for staff who manage admissions', () {
+      for (final type in [
+        'ADMISSION_FOLLOWUP_DUE',
+        'ADMISSION_FOLLOWUP_OVERDUE',
+      ]) {
+        for (final role in [UserRole.schoolAdmin, UserRole.branchAdmin]) {
+          expect(
+            NotificationNavigator.routeFor(n(type, ref: 'e1'), role),
+            '/admissions/enquiries/e1',
+          );
+        }
+      }
+    });
+
+    test('without a reference they open the follow-up dashboard', () {
+      expect(
+        NotificationNavigator.routeFor(
+          n('ADMISSION_FOLLOWUP_DUE'),
+          UserRole.branchAdmin,
+        ),
+        '/admissions/follow-ups',
+      );
+    });
+
+    test('nobody else is sent there', () {
+      for (final role in [
+        UserRole.teacher,
+        UserRole.finance,
+        UserRole.parent,
+      ]) {
+        expect(
+          NotificationNavigator.routeFor(
+            n('ADMISSION_FOLLOWUP_DUE', ref: 'e1'),
+            role,
+          ),
+          isNull,
+        );
+      }
     });
   });
 }

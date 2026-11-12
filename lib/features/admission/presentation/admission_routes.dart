@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'pages/admission_dashboard_page.dart';
 import 'pages/admission_settings_page.dart';
 import 'pages/enquiry_detail_page.dart';
+import 'pages/follow_ups_page.dart';
 import 'pages/enquiry_form_page.dart';
 import 'pages/enquiry_list_page.dart';
 
@@ -17,6 +18,10 @@ List<RouteBase> admissionRoutes() => [
       GoRoute(
         path: 'settings',
         builder: (context, state) => const AdmissionSettingsPage(),
+      ),
+      GoRoute(
+        path: 'follow-ups',
+        builder: (context, state) => const FollowUpsPage(),
       ),
       GoRoute(
         path: 'enquiries',

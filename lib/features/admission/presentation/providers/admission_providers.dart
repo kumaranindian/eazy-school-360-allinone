@@ -1,10 +1,15 @@
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/regional/school_time.dart';
 
 import '../../../academic_setup/presentation/providers/academic_setup_keys.dart';
 import '../../../staff/domain/staff_status.dart';
 import '../../../staff/presentation/providers/staff_providers.dart';
 import '../../../users/presentation/providers/user_providers.dart';
 import '../../data/firebase_admission_repository.dart';
+import '../../domain/admission_activity.dart';
 import '../../domain/admission_enquiry.dart';
 import '../../domain/admission_repository.dart';
 import '../../domain/admission_settings.dart';
@@ -43,6 +48,29 @@ final admissionCountsProvider = FutureProvider.autoDispose
       (ref, key) => ref
           .watch(admissionRepositoryProvider)
           .countByStatus(key.schoolId, key.branchId),
+    );
+
+/// Every follow-up of one enquiry. Invalidated by the UI after each change.
+final enquiryActivitiesProvider = FutureProvider.autoDispose
+    .family<List<AdmissionActivity>, EnquiryKey>(
+      (ref, key) => ref
+          .watch(admissionRepositoryProvider)
+          .fetchActivitiesForEnquiry(key.schoolId, key.branchId, key.enquiryId),
+    );
+
+typedef FollowUpKey = ({String schoolId, String branchId, String userId});
+
+/// Counts for the follow-up dashboard; "today" is the SCHOOL's today.
+final followUpCountsProvider = FutureProvider.autoDispose
+    .family<FollowUpCounts, FollowUpKey>(
+      (ref, key) => ref
+          .watch(admissionRepositoryProvider)
+          .countFollowUps(
+            schoolId: key.schoolId,
+            branchId: key.branchId,
+            todayKey: SchoolTime.todayKey(),
+            userId: key.userId,
+          ),
     );
 
 /// A person an enquiry can be assigned to: staff of the branch that have a
@@ -154,6 +182,113 @@ class AdmissionWriteController extends AsyncNotifier<void> {
           baseRevision: baseRevision,
         ),
       ) !=
+      null;
+
+  /// A fresh idempotency key: a retry of the same save never duplicates.
+  static String newRequestId() {
+    final r = Random.secure();
+    return List.generate(20, (_) => r.nextInt(36).toRadixString(36)).join();
+  }
+
+  Future<bool> scheduleActivity({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required ActivityInput input,
+    required String requestId,
+  }) async =>
+      await _run(
+        () => _repo.scheduleActivity(
+          schoolId: schoolId,
+          branchId: branchId,
+          enquiryId: enquiryId,
+          input: input,
+          requestId: requestId,
+        ),
+      ) !=
+      null;
+
+  Future<bool> rescheduleActivity({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required AdmissionActivity activity,
+    required String scheduledDate,
+    String? scheduledTime,
+    String? reason,
+  }) async =>
+      await _run(
+        () => _repo.rescheduleActivity(
+          schoolId: schoolId,
+          branchId: branchId,
+          enquiryId: enquiryId,
+          activityId: activity.id,
+          scheduledDate: scheduledDate,
+          scheduledTime: scheduledTime,
+          reason: reason,
+          baseRevision: activity.revision,
+        ),
+      ) !=
+      null;
+
+  Future<bool> reassignActivity({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required AdmissionActivity activity,
+    required String? assignedTo,
+  }) async =>
+      await _run(
+        () => _repo.reassignActivity(
+          schoolId: schoolId,
+          branchId: branchId,
+          enquiryId: enquiryId,
+          activityId: activity.id,
+          assignedTo: assignedTo,
+          baseRevision: activity.revision,
+        ),
+      ) !=
+      null;
+
+  Future<bool> cancelActivity({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required AdmissionActivity activity,
+    required String reason,
+  }) async =>
+      await _run(
+        () => _repo.cancelActivity(
+          schoolId: schoolId,
+          branchId: branchId,
+          enquiryId: enquiryId,
+          activityId: activity.id,
+          reason: reason,
+          baseRevision: activity.revision,
+        ),
+      ) !=
+      null;
+
+  Future<bool> completeActivity({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required AdmissionActivity activity,
+    required ActivityCompletion completion,
+    ActivityInput? next,
+  }) async =>
+      await _run<String?>(() async {
+        await _repo.completeActivity(
+          schoolId: schoolId,
+          branchId: branchId,
+          enquiryId: enquiryId,
+          activityId: activity.id,
+          completion: completion,
+          next: next,
+          baseRevision: activity.revision,
+        );
+        return 'ok';
+      }) !=
       null;
 
   Future<bool> saveSettings({

@@ -9,6 +9,7 @@ import '../../../../core/utils/responsive.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../../students/presentation/widgets/parents/parents_ui.dart';
+import '../../domain/admission_activity.dart';
 import '../../domain/admission_status.dart';
 import '../providers/admission_providers.dart';
 import '../widgets/admission_widgets.dart';
@@ -35,6 +36,13 @@ class AdmissionDashboardPage extends ConsumerWidget {
         final settings = ref.watch(admissionSettingsProvider(schoolId));
         final counts = ref.watch(
           admissionCountsProvider((schoolId: schoolId, branchId: branchId)),
+        );
+        final followUps = ref.watch(
+          followUpCountsProvider((
+            schoolId: schoolId,
+            branchId: branchId,
+            userId: tenant.user.userId,
+          )),
         );
         final enabled = settings.value?.enabled ?? false;
         final wide = screenSizeForWidth(MediaQuery.sizeOf(context).width);
@@ -72,6 +80,32 @@ class AdmissionDashboardPage extends ConsumerWidget {
                             ),
                           ),
                           data: (c) => _Stats(counts: c),
+                        ),
+                        const SizedBox(height: 16),
+                        ParentsCard(
+                          onTap: () =>
+                              context.push(AppRoutes.admissionFollowUps),
+                          semanticLabel: 'Follow-ups',
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const ParentsSectionTitle(
+                                      icon: Icons.event_note_outlined,
+                                      title: 'Follow-ups',
+                                    ),
+                                    if (followUps.value != null) ...[
+                                      const SizedBox(height: 8),
+                                      _FollowUpSummary(counts: followUps.value),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 16),
                         ParentsCard(
@@ -116,6 +150,26 @@ class AdmissionDashboardPage extends ConsumerWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// "3 today · 2 overdue" beside the Follow-ups entry.
+class _FollowUpSummary extends StatelessWidget {
+  final FollowUpCounts? counts;
+  const _FollowUpSummary({required this.counts});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = counts;
+    if (c == null) return const SizedBox.shrink();
+    return Wrap(
+      spacing: 6,
+      children: [
+        ParentsBadge('${c.today} today', tone: ParentsTone.neutral),
+        if (c.overdue > 0)
+          ParentsBadge('${c.overdue} overdue', tone: ParentsTone.warning),
+      ],
     );
   }
 }

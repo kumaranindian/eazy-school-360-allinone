@@ -13,6 +13,7 @@
 // UI hiding a button is never the only guard.
 
 const { assertAdmin } = require('./access');
+const feeReminders = require('./fee_reminders');
 
 // ---- constants -------------------------------------------------------------
 
@@ -129,6 +130,8 @@ const DEFAULT_SETTINGS = Object.freeze({
   applicationPrefix: 'APP',
   sources: DEFAULT_SOURCES,
   followUpDays: 3,
+  remindersEnabled: true,
+  reminderTime: '09:00',
   academicYearIds: [],
   classIds: [],
 });
@@ -158,6 +161,11 @@ function validateSettings(input) {
   }
   const followUpDays = i.followUpDays === undefined ? DEFAULT_SETTINGS.followUpDays : i.followUpDays;
   if (!Number.isInteger(followUpDays) || followUpDays < 1 || followUpDays > 60) errors.followUpDays = 'a whole number of days, 1-60';
+  const remindersEnabled = i.remindersEnabled === undefined ? DEFAULT_SETTINGS.remindersEnabled : i.remindersEnabled;
+  if (typeof remindersEnabled !== 'boolean') errors.remindersEnabled = 'must be true or false';
+  const reminderTime = i.reminderTime === undefined ? DEFAULT_SETTINGS.reminderTime : i.reminderTime;
+  const reminderMinute = isStr(reminderTime) ? feeReminders.minutesOf(reminderTime) : null;
+  if (reminderMinute === null || reminderMinute < 360 || reminderMinute > 1260) errors.reminderTime = 'a time between 06:00 and 21:00';
   const idList = (key) => {
     const v = i[key] === undefined ? [] : i[key];
     if (!Array.isArray(v) || v.length > 100 || v.some((x) => !isStr(x) || !ID.test(x))) {
@@ -169,7 +177,7 @@ function validateSettings(input) {
   const academicYearIds = idList('academicYearIds');
   const classIds = idList('classIds');
   if (Object.keys(errors).length) return { errors };
-  return { value: { enabled, enquiryPrefix, applicationPrefix, sources, followUpDays, academicYearIds, classIds } };
+  return { value: { enabled, enquiryPrefix, applicationPrefix, sources, followUpDays, remindersEnabled, reminderTime, academicYearIds, classIds } };
 }
 
 async function loadSettings(db, schoolId) {
@@ -395,6 +403,8 @@ async function createEnquiry(ctx, uid, token, data) {
       heldFrom: null,
       statusReason: null,
       duplicateOf,
+      activityCount: 0,
+      openActivityCount: 0,
       revision: 1,
       createdAt: now,
       createdBy: uid,
@@ -440,6 +450,9 @@ async function updateEnquiry(ctx, uid, token, data) {
     if (TERMINAL.includes(cur.data.status)) return { error: 'FAILED_PRECONDITION', reason: 'a closed enquiry cannot be edited' };
     if (data.baseRevision !== undefined && data.baseRevision !== cur.data.revision) return { error: 'ABORTED', reason: 'changed by someone else; reload' };
     const { enquiryDate, ...rest } = parsed.value;
+    // Once follow-up activities exist the next date is derived from them
+    // (admission_activities.js); an edit form never overwrites it.
+    if (Number.isInteger(cur.data.activityCount) && cur.data.activityCount > 0) rest.nextFollowUpDate = cur.data.nextFollowUpDate || null;
     tx.update(cur.ref, {
       ...rest,
       // The number and enquiry date are the enquiry's identity; they stay.
@@ -515,12 +528,30 @@ async function changeEnquiryStatus(ctx, uid, token, data) {
     if (data.baseRevision !== undefined && data.baseRevision !== cur.data.revision) return { error: 'ABORTED', reason: 'changed by someone else; reload' };
     const step = resolveManualChange(cur.data.status, target, { heldFrom: cur.data.heldFrom, reason: data.reason });
     if (step.error) return step;
+    // Closing an enquiry also closes its open follow-ups (read before any write).
+    const closing = TERMINAL.includes(step.to) ? await require('./admission_activities').cancelOpenForClosed(tx, ctx, cur, uid) : null;
     const rev = applyStatus(tx, ctx, cur, { to: step.to, reason: data.reason, uid, resume: step.resume });
+    if (closing) closing.apply();
     return { result: { status: step.to, revision: rev } };
   });
 }
 
 module.exports = {
+  // helpers shared with admission_activities.js
+  ID,
+  isStr,
+  trim,
+  validDate,
+  civilToday,
+  wall,
+  schoolZone,
+  reasonOf,
+  authorize,
+  assignableUser,
+  loadEnquiry,
+  loadSettings,
+  branchRef,
+  enquiryCol,
   STATUSES,
   MANUAL_TARGETS,
   TRANSITIONS,

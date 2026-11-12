@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/extensions/context_extensions.dart';
+import '../../../../core/regional/school_time.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/utils/responsive.dart';
@@ -57,6 +58,10 @@ class _EnquiryFormPageState extends ConsumerState<EnquiryFormPage> {
   bool _seeded = false;
   int? _baseRevision;
 
+  /// True once follow-up activities exist: the next date is then derived
+  /// from them and this form does not edit it.
+  bool _derivedFollowUp = false;
+
   late final List<TextEditingController> _all = [
     _first,
     _last,
@@ -88,6 +93,7 @@ class _EnquiryFormPageState extends ConsumerState<EnquiryFormPage> {
     if (_seeded) return;
     _seeded = true;
     _baseRevision = e.revision;
+    _derivedFollowUp = e.activityCount > 0;
     _first.text = e.firstName;
     _last.text = e.lastName;
     _dob = e.dateOfBirth;
@@ -151,7 +157,7 @@ class _EnquiryFormPageState extends ConsumerState<EnquiryFormPage> {
       previousClass: _t(_prevClass),
       specialRequirements: _t(_special),
       remarks: _t(_remarks),
-      nextFollowUpDate: _followUp,
+      nextFollowUpDate: _derivedFollowUp ? null : _followUp,
       enquiryDate: widget.enquiryId == null ? _enquiryDate : null,
     );
   }
@@ -166,7 +172,7 @@ class _EnquiryFormPageState extends ConsumerState<EnquiryFormPage> {
     required DateTime first,
     required DateTime last,
   }) async {
-    final initial = DateTime.tryParse(current ?? '') ?? DateTime.now();
+    final initial = DateTime.tryParse(current ?? '') ?? SchoolTime.today();
     final picked = await showDatePicker(
       context: context,
       initialDate: initial.isBefore(first)
@@ -342,7 +348,7 @@ class _EnquiryFormPageState extends ConsumerState<EnquiryFormPage> {
             ),
           ),
         );
-        final now = DateTime.now();
+        final now = SchoolTime.today();
 
         return Scaffold(
           body: Column(
@@ -516,15 +522,29 @@ class _EnquiryFormPageState extends ConsumerState<EnquiryFormPage> {
                                         onChanged: (v) =>
                                             setState(() => _source = v),
                                       ),
-                                      dateField(
-                                        'Next follow-up',
-                                        _followUp,
-                                        (v) => _followUp = v,
-                                        first: now.subtract(
-                                          const Duration(days: 1),
-                                        ),
-                                        last: DateTime(now.year + 2),
-                                      ),
+                                      _derivedFollowUp
+                                          ? InputDecorator(
+                                              decoration: const InputDecoration(
+                                                labelText: 'Next follow-up',
+                                                helperText:
+                                                    'From the scheduled '
+                                                    'follow-ups (Activities tab)',
+                                              ),
+                                              child: Text(
+                                                _followUp == null
+                                                    ? 'None planned'
+                                                    : shortDate(_followUp),
+                                              ),
+                                            )
+                                          : dateField(
+                                              'Next follow-up',
+                                              _followUp,
+                                              (v) => _followUp = v,
+                                              first: now.subtract(
+                                                const Duration(days: 1),
+                                              ),
+                                              last: DateTime(now.year + 2),
+                                            ),
                                     ),
                                     if (!editing) ...[
                                       const SizedBox(height: 12),

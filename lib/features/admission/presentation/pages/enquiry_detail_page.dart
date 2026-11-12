@@ -12,12 +12,16 @@ import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../../academic_setup/presentation/providers/academic_structure_providers.dart';
 import '../../../students/presentation/widgets/parents/parents_ui.dart';
+import '../../../../core/regional/school_time.dart';
+import '../../domain/admission_activity.dart';
 import '../../domain/admission_enquiry.dart';
 import '../../domain/admission_status.dart';
 import '../providers/admission_providers.dart';
+import '../widgets/activity_dialogs.dart';
+import '../widgets/activity_widgets.dart';
 import '../widgets/admission_widgets.dart';
 
-enum _Tab { overview, timeline, notes }
+enum _Tab { overview, activities, timeline, notes }
 
 /// One enquiry: overview, status history and internal notes, with the actions
 /// that are allowed from its current status (change status, assign, edit).
@@ -121,6 +125,7 @@ class _EnquiryDetailPageState extends ConsumerState<EnquiryDetailPage> {
                               ChoiceChip(
                                 label: Text(switch (t) {
                                   _Tab.overview => 'Overview',
+                                  _Tab.activities => 'Activities',
                                   _Tab.timeline => 'Timeline',
                                   _Tab.notes => 'Internal notes',
                                 }),
@@ -134,6 +139,10 @@ class _EnquiryDetailPageState extends ConsumerState<EnquiryDetailPage> {
                           _Tab.overview => _Overview(
                             enquiry: e,
                             key: ValueKey(e.revision),
+                          ),
+                          _Tab.activities => _Activities(
+                            enquiry: e,
+                            keyData: key,
                           ),
                           _Tab.timeline => _Timeline(enquiry: e, keyData: key),
                           _Tab.notes => _Notes(enquiry: e),
@@ -735,6 +744,249 @@ class _StatusDialogState extends State<_StatusDialog> {
                       : _reason.text.trim(),
                 )),
           child: const Text('Update'),
+        ),
+      ],
+    );
+  }
+}
+
+/// The follow-ups of one enquiry: plan, complete, reschedule, reassign, cancel.
+/// Finished and cancelled ones stay listed — nothing is ever removed.
+class _Activities extends ConsumerStatefulWidget {
+  final AdmissionEnquiry enquiry;
+  final EnquiryKey keyData;
+  const _Activities({required this.enquiry, required this.keyData});
+
+  @override
+  ConsumerState<_Activities> createState() => _ActivitiesState();
+}
+
+class _ActivitiesState extends ConsumerState<_Activities> {
+  EnquiryKey get _k => widget.keyData;
+
+  Future<List<Assignee>> _people() => ref.read(
+    assigneesProvider((schoolId: _k.schoolId, branchId: _k.branchId)).future,
+  );
+
+  Future<void> _run(Future<bool> Function() action, String done) async {
+    final ok = await action();
+    if (!mounted) return;
+    if (ok) {
+      ref.invalidate(enquiryActivitiesProvider(_k));
+      context.showSnackBar(done);
+    } else {
+      final err = ref.read(admissionWriteControllerProvider).error;
+      context.showSnackBar(
+        err == null ? 'That did not work.' : userMessageFor(err),
+        isError: true,
+      );
+    }
+  }
+
+  Future<void> _schedule() async {
+    final people = await _people();
+    if (!mounted) return;
+    final input = await showDialog<ActivityInput>(
+      // The page is still mounted (checked above).
+      // ignore: use_build_context_synchronously
+      context: context,
+      builder: (_) => ScheduleActivityDialog(
+        people: people,
+        defaultAssignee: widget.enquiry.assignedTo,
+      ),
+    );
+    if (input == null || !mounted) return;
+    await _run(
+      () => ref
+          .read(admissionWriteControllerProvider.notifier)
+          .scheduleActivity(
+            schoolId: _k.schoolId,
+            branchId: _k.branchId,
+            enquiryId: _k.enquiryId,
+            input: input,
+            requestId: AdmissionWriteController.newRequestId(),
+          ),
+      'Follow-up scheduled.',
+    );
+  }
+
+  Future<void> _complete(AdmissionActivity a) async {
+    final r = await showDialog<CompleteResult>(
+      context: context,
+      builder: (_) => CompleteActivityDialog(activity: a),
+    );
+    if (r == null || !mounted) return;
+    await _run(
+      () => ref
+          .read(admissionWriteControllerProvider.notifier)
+          .completeActivity(
+            schoolId: _k.schoolId,
+            branchId: _k.branchId,
+            enquiryId: _k.enquiryId,
+            activity: a,
+            completion: r.completion,
+            next: r.next,
+          ),
+      'Follow-up completed.',
+    );
+  }
+
+  Future<void> _reschedule(AdmissionActivity a) async {
+    final r = await showDialog<RescheduleResult>(
+      context: context,
+      builder: (_) => RescheduleActivityDialog(activity: a),
+    );
+    if (r == null || !mounted) return;
+    await _run(
+      () => ref
+          .read(admissionWriteControllerProvider.notifier)
+          .rescheduleActivity(
+            schoolId: _k.schoolId,
+            branchId: _k.branchId,
+            enquiryId: _k.enquiryId,
+            activity: a,
+            scheduledDate: r.date,
+            scheduledTime: r.time,
+            reason: r.reason,
+          ),
+      'Follow-up rescheduled.',
+    );
+  }
+
+  Future<void> _reassign(AdmissionActivity a) async {
+    final people = await _people();
+    if (!mounted) return;
+    final choice = await showDialog<({String? userId})>(
+      // The page is still mounted (checked above).
+      // ignore: use_build_context_synchronously
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('Assign follow-up to'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(dialogContext, (userId: null)),
+            child: const Text('Unassigned'),
+          ),
+          for (final p in people)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialogContext, (userId: p.userId)),
+              child: Text(p.name),
+            ),
+        ],
+      ),
+    );
+    if (choice == null || !mounted) return;
+    await _run(
+      () => ref
+          .read(admissionWriteControllerProvider.notifier)
+          .reassignActivity(
+            schoolId: _k.schoolId,
+            branchId: _k.branchId,
+            enquiryId: _k.enquiryId,
+            activity: a,
+            assignedTo: choice.userId,
+          ),
+      'Follow-up reassigned.',
+    );
+  }
+
+  Future<void> _cancel(AdmissionActivity a) async {
+    final reason = await askReason(
+      context,
+      title: 'Cancel this follow-up?',
+      action: 'Cancel follow-up',
+    );
+    if (reason == null || !mounted) return;
+    await _run(
+      () => ref
+          .read(admissionWriteControllerProvider.notifier)
+          .cancelActivity(
+            schoolId: _k.schoolId,
+            branchId: _k.branchId,
+            enquiryId: _k.enquiryId,
+            activity: a,
+            reason: reason,
+          ),
+      'Follow-up cancelled.',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final activities = ref.watch(enquiryActivitiesProvider(_k));
+    final names = {
+      for (final a
+          in ref
+                  .watch(
+                    assigneesProvider((
+                      schoolId: _k.schoolId,
+                      branchId: _k.branchId,
+                    )),
+                  )
+                  .value ??
+              const <Assignee>[])
+        a.userId: a.name,
+    };
+    final todayKey = SchoolTime.todayKey();
+    final closed = widget.enquiry.status.isClosed;
+    final busy = ref.watch(admissionWriteControllerProvider).isLoading;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            onPressed: closed || busy ? null : _schedule,
+            icon: const Icon(Icons.add_alert_outlined),
+            label: const Text('Schedule follow-up'),
+          ),
+        ),
+        const SizedBox(height: 12),
+        activities.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (e, _) => ParentsCard(child: Text(userMessageFor(e))),
+          data: (list) => list.isEmpty
+              ? const ParentsCard(
+                  child: Text(
+                    'No follow-ups yet. Schedule the first call, visit or '
+                    'message so the family is not forgotten.',
+                  ),
+                )
+              : Column(
+                  children: [
+                    for (final a in list) ...[
+                      ActivityCard(
+                        activity: a,
+                        todayKey: todayKey,
+                        assigneeName: names[a.assignedTo],
+                        actions: !a.isOpen || closed
+                            ? const []
+                            : [
+                                FilledButton.tonal(
+                                  onPressed: busy ? null : () => _complete(a),
+                                  child: const Text('Complete'),
+                                ),
+                                OutlinedButton(
+                                  onPressed: busy ? null : () => _reschedule(a),
+                                  child: const Text('Reschedule'),
+                                ),
+                                OutlinedButton(
+                                  onPressed: busy ? null : () => _reassign(a),
+                                  child: const Text('Reassign'),
+                                ),
+                                TextButton(
+                                  onPressed: busy ? null : () => _cancel(a),
+                                  child: const Text('Cancel'),
+                                ),
+                              ],
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  ],
+                ),
         ),
       ],
     );

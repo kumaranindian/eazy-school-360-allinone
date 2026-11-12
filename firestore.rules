@@ -3597,6 +3597,12 @@ service cloud.firestore {
         match /admissionStatusHistory/{entryId} {
           allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
         }
+        match /admissionActivities/{activityId} {
+          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+        }
+        match /admissionActivityHistory/{entryId} {
+          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+        }
 
         // ---- Announcements (Milestone 9) -------------------------------
         match /announcements/{announcementId} {

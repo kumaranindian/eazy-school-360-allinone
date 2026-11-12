@@ -17,6 +17,20 @@ import '../providers/admission_providers.dart';
 /// enquiry sources and the default follow-up interval. Saved through the
 /// `saveAdmissionSettings` callable (school administrators only — the server
 /// refuses everyone else, so a hidden button is never the only guard).
+/// Reminder times offered (the server accepts 06:00–21:00).
+const _reminderTimes = [
+  '06:00',
+  '07:00',
+  '08:00',
+  '09:00',
+  '10:00',
+  '12:00',
+  '14:00',
+  '16:00',
+  '18:00',
+  '20:00',
+];
+
 class AdmissionSettingsPage extends ConsumerStatefulWidget {
   const AdmissionSettingsPage({super.key});
 
@@ -32,6 +46,8 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
   final _followUp = TextEditingController();
   final _newSource = TextEditingController();
   bool _enabled = false;
+  bool _reminders = true;
+  String _reminderTime = '09:00';
   List<String> _sources = [];
   AdmissionSettings? _loaded;
 
@@ -51,6 +67,8 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
     _enquiryPrefix.text = s.enquiryPrefix;
     _applicationPrefix.text = s.applicationPrefix;
     _followUp.text = '${s.followUpDays}';
+    _reminders = s.remindersEnabled;
+    _reminderTime = s.reminderTime;
     _sources = [...s.sources];
   }
 
@@ -63,6 +81,8 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
       applicationPrefix: _applicationPrefix.text.trim().toUpperCase(),
       followUpDays: int.tryParse(_followUp.text.trim()) ?? base.followUpDays,
       sources: _sources,
+      remindersEnabled: _reminders,
+      reminderTime: _reminderTime,
     );
     final ok = await ref
         .read(admissionWriteControllerProvider.notifier)
@@ -294,6 +314,46 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
                                                 : null;
                                           },
                                         ),
+                                        SwitchListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          title: const Text(
+                                            'Daily follow-up reminders',
+                                          ),
+                                          subtitle: const Text(
+                                            'Staff are reminded of follow-ups '
+                                            'due today and overdue, once a '
+                                            'day, in the school\'s time zone.',
+                                          ),
+                                          value: _reminders,
+                                          onChanged: saving
+                                              ? null
+                                              : (v) => setState(
+                                                  () => _reminders = v,
+                                                ),
+                                        ),
+                                        if (_reminders)
+                                          DropdownButtonFormField<String>(
+                                            value:
+                                                _reminderTimes.contains(
+                                                  _reminderTime,
+                                                )
+                                                ? _reminderTime
+                                                : null,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Reminder time',
+                                            ),
+                                            items: [
+                                              for (final t in _reminderTimes)
+                                                DropdownMenuItem(
+                                                  value: t,
+                                                  child: Text(t),
+                                                ),
+                                            ],
+                                            onChanged: (v) => setState(
+                                              () => _reminderTime =
+                                                  v ?? _reminderTime,
+                                            ),
+                                          ),
                                       ],
                                     ),
                                   ),

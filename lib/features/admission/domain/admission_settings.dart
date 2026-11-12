@@ -7,6 +7,11 @@ class AdmissionSettings {
   final List<String> sources;
   final int followUpDays;
 
+  /// Staff are reminded of due and overdue follow-ups once a day at
+  /// [reminderTime] (school time zone) when [remindersEnabled].
+  final bool remindersEnabled;
+  final String reminderTime;
+
   /// Empty means "all academic years / classes are open for admissions".
   final List<String> academicYearIds;
   final List<String> classIds;
@@ -18,6 +23,8 @@ class AdmissionSettings {
     this.applicationPrefix = 'APP',
     this.sources = defaultSources,
     this.followUpDays = 3,
+    this.remindersEnabled = true,
+    this.reminderTime = '09:00',
     this.academicYearIds = const [],
     this.classIds = const [],
     this.version = 0,
@@ -51,6 +58,8 @@ class AdmissionSettings {
       followUpDays: data['followUpDays'] is int
           ? data['followUpDays'] as int
           : 3,
+      remindersEnabled: data['remindersEnabled'] != false,
+      reminderTime: data['reminderTime'] as String? ?? '09:00',
       academicYearIds: strings(data['academicYearIds'], const []),
       classIds: strings(data['classIds'], const []),
       version: data['version'] is int ? data['version'] as int : 0,
@@ -64,6 +73,8 @@ class AdmissionSettings {
     'applicationPrefix': applicationPrefix,
     'sources': sources,
     'followUpDays': followUpDays,
+    'remindersEnabled': remindersEnabled,
+    'reminderTime': reminderTime,
     'academicYearIds': academicYearIds,
     'classIds': classIds,
   };
@@ -74,6 +85,8 @@ class AdmissionSettings {
     String? applicationPrefix,
     List<String>? sources,
     int? followUpDays,
+    bool? remindersEnabled,
+    String? reminderTime,
     List<String>? academicYearIds,
     List<String>? classIds,
   }) => AdmissionSettings(
@@ -82,6 +95,8 @@ class AdmissionSettings {
     applicationPrefix: applicationPrefix ?? this.applicationPrefix,
     sources: sources ?? this.sources,
     followUpDays: followUpDays ?? this.followUpDays,
+    remindersEnabled: remindersEnabled ?? this.remindersEnabled,
+    reminderTime: reminderTime ?? this.reminderTime,
     academicYearIds: academicYearIds ?? this.academicYearIds,
     classIds: classIds ?? this.classIds,
     version: version,

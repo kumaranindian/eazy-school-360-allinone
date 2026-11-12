@@ -6,6 +6,7 @@ import '../../../core/constants/firestore_fields.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/errors/error_mapper.dart';
 import '../../students/domain/paged_result.dart';
+import '../domain/admission_activity.dart';
 import '../domain/admission_enquiry.dart';
 import '../domain/admission_repository.dart';
 import '../domain/admission_settings.dart';
@@ -24,6 +25,7 @@ class FirebaseAdmissionRepository implements AdmissionRepository {
 
   static const _enquiries = 'admissionEnquiries';
   static const _history = 'admissionStatusHistory';
+  static const _activities = 'admissionActivities';
 
   DocumentReference<Map<String, dynamic>> _settingsDoc(String schoolId) => _db
       .collection(FirestoreFields.schoolsCollection)
@@ -327,5 +329,266 @@ class FirebaseAdmissionRepository implements AdmissionRepository {
       'baseRevision': ?baseRevision,
     });
     return r['revision'] is int ? r['revision'] as int : 0;
+  }
+
+  // ---- follow-up activities (phase 4) ---------------------------------
+
+  AdmissionActivity _activity(DocumentSnapshot<Map<String, dynamic>> d) =>
+      AdmissionActivity.fromMap(
+        d.id,
+        d.data() ?? const {},
+        completedAt: (d.data()?['completedAt'] as Timestamp?)?.toDate(),
+      );
+
+  @override
+  Future<List<AdmissionActivity>> fetchActivitiesForEnquiry(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  ) async {
+    try {
+      final snap = await _col(schoolId, branchId, _activities)
+          .where('enquiryId', isEqualTo: enquiryId)
+          .orderBy('scheduledDate', descending: true)
+          .limit(100)
+          .get();
+      final all = [for (final d in snap.docs) _activity(d)];
+      final open = all.where((a) => a.isOpen).toList()
+        ..sort((a, b) {
+          final c = a.scheduledDate.compareTo(b.scheduledDate);
+          return c != 0
+              ? c
+              : (a.scheduledTime ?? '').compareTo(b.scheduledTime ?? '');
+        });
+      return [...open, ...all.where((a) => !a.isOpen)];
+    } catch (e, st) {
+      throw mapExceptionToFailure(e, st);
+    }
+  }
+
+  Query<Map<String, dynamic>> _bucketQuery(
+    CollectionReference<Map<String, dynamic>> col,
+    FollowUpBucket bucket,
+    String todayKey,
+    String userId,
+  ) {
+    final open = col.where('status', isEqualTo: ActivityStatus.scheduled.wire);
+    return switch (bucket) {
+      FollowUpBucket.today => open.where('scheduledDate', isEqualTo: todayKey),
+      FollowUpBucket.overdue =>
+        open
+            .where('scheduledDate', isLessThan: todayKey)
+            .orderBy('scheduledDate'),
+      FollowUpBucket.upcoming =>
+        open
+            .where('scheduledDate', isGreaterThan: todayKey)
+            .orderBy('scheduledDate'),
+      FollowUpBucket.mine =>
+        open.where('assignedTo', isEqualTo: userId).orderBy('scheduledDate'),
+      FollowUpBucket.unassigned =>
+        open.where('assignedTo', isNull: true).orderBy('scheduledDate'),
+      FollowUpBucket.completed =>
+        col
+            .where('status', isEqualTo: ActivityStatus.completed.wire)
+            .orderBy('completedAt', descending: true),
+    };
+  }
+
+  @override
+  Future<PagedResult<AdmissionActivity>> fetchFollowUps({
+    required String schoolId,
+    required String branchId,
+    required FollowUpBucket bucket,
+    required String todayKey,
+    required String userId,
+    int pageSize = 25,
+    Object? cursor,
+  }) async {
+    try {
+      var q = _bucketQuery(
+        _col(schoolId, branchId, _activities),
+        bucket,
+        todayKey,
+        userId,
+      ).limit(pageSize);
+      if (cursor != null) {
+        q = q.startAfterDocument(
+          cursor as DocumentSnapshot<Map<String, dynamic>>,
+        );
+      }
+      final snap = await q.get();
+      return PagedResult(
+        items: [for (final d in snap.docs) _activity(d)],
+        nextCursor: snap.docs.length < pageSize ? null : snap.docs.last,
+      );
+    } catch (e, st) {
+      throw mapExceptionToFailure(e, st);
+    }
+  }
+
+  static final _openStatuses = [
+    for (final s in AdmissionStatus.values)
+      if (s.isOpen) s.wire,
+  ];
+
+  @override
+  Future<FollowUpCounts> countFollowUps({
+    required String schoolId,
+    required String branchId,
+    required String todayKey,
+    required String userId,
+  }) async {
+    try {
+      final col = _col(schoolId, branchId, _activities);
+      Future<int> n(Query<Map<String, dynamic>> q) =>
+          q.count().get().then((r) => r.count ?? 0);
+      final results = await Future.wait([
+        for (final b in FollowUpBucket.values)
+          n(_bucketQuery(col, b, todayKey, userId)),
+        n(
+          _col(schoolId, branchId, _enquiries)
+              .where('status', whereIn: _openStatuses)
+              .where('nextFollowUpDate', isNull: true),
+        ),
+      ]);
+      return FollowUpCounts(
+        today: results[FollowUpBucket.today.index],
+        overdue: results[FollowUpBucket.overdue.index],
+        upcoming: results[FollowUpBucket.upcoming.index],
+        mine: results[FollowUpBucket.mine.index],
+        unassigned: results[FollowUpBucket.unassigned.index],
+        completed: results[FollowUpBucket.completed.index],
+        withoutFollowUp: results.last,
+      );
+    } catch (e, st) {
+      throw mapExceptionToFailure(e, st);
+    }
+  }
+
+  @override
+  Future<PagedResult<AdmissionEnquiry>> fetchWithoutFollowUp({
+    required String schoolId,
+    required String branchId,
+    int pageSize = 25,
+    Object? cursor,
+  }) async {
+    try {
+      var q = _col(schoolId, branchId, _enquiries)
+          .where('status', whereIn: _openStatuses)
+          .where('nextFollowUpDate', isNull: true)
+          .limit(pageSize);
+      if (cursor != null) {
+        q = q.startAfterDocument(
+          cursor as DocumentSnapshot<Map<String, dynamic>>,
+        );
+      }
+      final snap = await q.get();
+      return PagedResult(
+        items: [for (final d in snap.docs) _enquiry(d)],
+        nextCursor: snap.docs.length < pageSize ? null : snap.docs.last,
+      );
+    } catch (e, st) {
+      throw mapExceptionToFailure(e, st);
+    }
+  }
+
+  Map<String, dynamic> _target(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  ) => {'schoolId': schoolId, 'branchId': branchId, 'enquiryId': enquiryId};
+
+  @override
+  Future<String> scheduleActivity({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required ActivityInput input,
+    required String requestId,
+  }) async {
+    final r = await _call('scheduleAdmissionActivity', {
+      ..._target(schoolId, branchId, enquiryId),
+      'activity': input.toWire(),
+      'requestId': requestId,
+    });
+    return r['id'] as String? ?? '';
+  }
+
+  @override
+  Future<int> rescheduleActivity({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String activityId,
+    required String scheduledDate,
+    String? scheduledTime,
+    String? reason,
+    int? baseRevision,
+  }) async {
+    final r = await _call('rescheduleAdmissionActivity', {
+      ..._target(schoolId, branchId, enquiryId),
+      'activityId': activityId,
+      'scheduledDate': scheduledDate,
+      'scheduledTime': scheduledTime,
+      'reason': ?reason,
+      'baseRevision': ?baseRevision,
+    });
+    return r['revision'] is int ? r['revision'] as int : 0;
+  }
+
+  @override
+  Future<int> reassignActivity({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String activityId,
+    required String? assignedTo,
+    int? baseRevision,
+  }) async {
+    final r = await _call('reassignAdmissionActivity', {
+      ..._target(schoolId, branchId, enquiryId),
+      'activityId': activityId,
+      'assignedTo': assignedTo,
+      'baseRevision': ?baseRevision,
+    });
+    return r['revision'] is int ? r['revision'] as int : 0;
+  }
+
+  @override
+  Future<int> cancelActivity({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String activityId,
+    required String reason,
+    int? baseRevision,
+  }) async {
+    final r = await _call('cancelAdmissionActivity', {
+      ..._target(schoolId, branchId, enquiryId),
+      'activityId': activityId,
+      'reason': reason,
+      'baseRevision': ?baseRevision,
+    });
+    return r['revision'] is int ? r['revision'] as int : 0;
+  }
+
+  @override
+  Future<String?> completeActivity({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String activityId,
+    required ActivityCompletion completion,
+    ActivityInput? next,
+    int? baseRevision,
+  }) async {
+    final r = await _call('completeAdmissionActivity', {
+      ..._target(schoolId, branchId, enquiryId),
+      'activityId': activityId,
+      'completion': completion.toWire(),
+      'next': ?next?.toWire(),
+      'baseRevision': ?baseRevision,
+    });
+    return r['nextId'] as String?;
   }
 }

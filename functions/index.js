@@ -17,6 +17,7 @@ const notifyEvents = require('./notify_events');
 const feeReminders = require('./fee_reminders');
 const branding = require('./branding');
 const admission = require('./admission');
+const admissionActivities = require('./admission_activities');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret, defineString } = require('firebase-functions/params');
 const { createSchoolAdmin, provisionLogins, changeInitialPassword, resetLoginPassword, ensureAuthUser, enablePortalLinks } = require('./provision');
@@ -353,6 +354,27 @@ exports.saveAdmissionSettings = admissionCall('saveAdmissionSettings', admission
 exports.createAdmissionEnquiry = admissionCall('createAdmissionEnquiry', admission.createEnquiry, (d, r) => ({ enquiry: r.id }));
 exports.updateAdmissionEnquiry = admissionCall('updateAdmissionEnquiry', admission.updateEnquiry, (d) => ({ enquiry: d.enquiryId }));
 exports.assignAdmissionEnquiry = admissionCall('assignAdmissionEnquiry', admission.assignEnquiry, (d) => ({ enquiry: d.enquiryId }));
+exports.scheduleAdmissionActivity = admissionCall('scheduleAdmissionActivity', admissionActivities.scheduleActivity, (d, r) => ({ enquiry: d.enquiryId, activity: r.id }));
+exports.rescheduleAdmissionActivity = admissionCall('rescheduleAdmissionActivity', admissionActivities.rescheduleActivity, (d) => ({ enquiry: d.enquiryId, activity: d.activityId }));
+exports.reassignAdmissionActivity = admissionCall('reassignAdmissionActivity', admissionActivities.reassignActivity, (d) => ({ enquiry: d.enquiryId, activity: d.activityId }));
+exports.completeAdmissionActivity = admissionCall('completeAdmissionActivity', admissionActivities.completeActivity, (d) => ({ enquiry: d.enquiryId, activity: d.activityId }));
+exports.cancelAdmissionActivity = admissionCall('cancelAdmissionActivity', admissionActivities.cancelActivity, (d) => ({ enquiry: d.enquiryId, activity: d.activityId }));
+
+// Follow-up reminders: hourly, at each school's own local reminder time.
+// Idempotent (derived ids + create()), so a retry or re-run sends nothing new.
+exports.admissionFollowUpReminders = onSchedule(
+  { schedule: 'every 1 hours', timeZone: 'UTC' },
+  async () => {
+    try {
+      const r = await admissionActivities.runFollowUpReminders({ ...events(), log: (event, f) => logger.info(event, f) });
+      if (r.failed) logger.warn('admission follow-up reminders finished with problems', r);
+      else logger.info('admission follow-up reminders', r);
+    } catch (e) {
+      logger.error('admission follow-up reminders failed', { category: errorCategory(e) });
+    }
+  },
+);
+
 exports.changeAdmissionEnquiryStatus = admissionCall('changeAdmissionEnquiryStatus', admission.changeEnquiryStatus, (d, r) => ({ enquiry: d.enquiryId, status: r.status }));
 
 exports.updatePlatformBranding = onCall(callOptions(), async (request) => {

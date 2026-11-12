@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/error_mapper.dart';
+import '../../../../core/regional/school_time.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/theme/admin_dashboard_palette.dart';
@@ -109,7 +110,7 @@ class _EnquiryListPageState extends ConsumerState<EnquiryListPage> {
   }
 
   Future<void> _pickDate(bool from) async {
-    final now = DateTime.now();
+    final now = SchoolTime.today();
     final picked = await showDatePicker(
       context: context,
       initialDate: now,

@@ -1,3 +1,4 @@
+import 'package:eazy_school_360/features/admission/domain/admission_activity.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_enquiry.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_repository.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_settings.dart';
@@ -19,6 +20,8 @@ AdmissionEnquiry fakeEnquiry(
   String? remarks,
   int revision = 1,
   String? nextFollowUp,
+  int activityCount = 0,
+  int openActivityCount = 0,
 }) => AdmissionEnquiry.fromMap(id, {
   'schoolId': 'school-1',
   'branchId': 'main',
@@ -40,7 +43,35 @@ AdmissionEnquiry fakeEnquiry(
   'duplicateOf': duplicateOf,
   'remarks': remarks,
   'nextFollowUpDate': nextFollowUp,
+  'activityCount': activityCount,
+  'openActivityCount': openActivityCount,
   'revision': revision,
+});
+
+AdmissionActivity fakeActivity(
+  String id, {
+  String enquiryId = '1',
+  ActivityType type = ActivityType.phoneCall,
+  ActivityStatus status = ActivityStatus.scheduled,
+  String date = '2026-11-10',
+  String? time,
+  String? assignedTo,
+  String? outcome,
+  int revision = 1,
+  int rescheduleCount = 0,
+  String student = 'Asha Nair',
+}) => AdmissionActivity.fromMap(id, {
+  'enquiryId': enquiryId,
+  'enquiryNumber': 'ENQ-2026-${enquiryId.padLeft(5, '0')}',
+  'studentName': student,
+  'type': type.wire,
+  'status': status.wire,
+  'scheduledDate': date,
+  'scheduledTime': time,
+  'assignedTo': assignedTo,
+  'outcome': outcome,
+  'revision': revision,
+  'rescheduleCount': rescheduleCount,
 });
 
 /// In-memory [AdmissionRepository] that records what the UI asks for.
@@ -60,9 +91,29 @@ class FakeAdmissionRepository implements AdmissionRepository {
   final List<AdmissionSettings> savedSettings = [];
   Object? failWith;
 
+  final List<AdmissionActivity> activities;
+  FollowUpCounts followUpCounts;
+  final List<FollowUpBucket> fetchedBuckets = [];
+  final List<({String enquiryId, ActivityInput input, String requestId})>
+  scheduled = [];
+  final List<
+    ({String id, String date, String? time, String? reason, int? base})
+  >
+  rescheduled = [];
+  final List<({String id, String? to})> reassigned = [];
+  final List<({String id, String reason})> cancelled = [];
+  final List<({String id, ActivityCompletion completion, ActivityInput? next})>
+  completed = [];
+
   FakeAdmissionRepository({
     this.settings = const AdmissionSettings(enabled: true, version: 1),
     List<AdmissionEnquiry>? enquiries,
+    List<AdmissionActivity>? activities,
+    this.followUpCounts = const FollowUpCounts(
+      today: 2,
+      overdue: 1,
+      upcoming: 3,
+    ),
     this.history = const [],
     this.counts = const {
       AdmissionStatus.newEnquiry: 3,
@@ -71,7 +122,8 @@ class FakeAdmissionRepository implements AdmissionRepository {
       AdmissionStatus.admissionConfirmed: 2,
       AdmissionStatus.rejected: 1,
     },
-  }) : enquiries = enquiries ?? [fakeEnquiry('1')];
+  }) : enquiries = enquiries ?? [fakeEnquiry('1')],
+       activities = activities ?? [];
 
   void _maybeFail() {
     final f = failWith;
@@ -201,5 +253,143 @@ class FakeAdmissionRepository implements AdmissionRepository {
       base: baseRevision,
     ));
     return (baseRevision ?? 0) + 1;
+  }
+
+  // ---- follow-up activities -------------------------------------------
+
+  @override
+  Future<List<AdmissionActivity>> fetchActivitiesForEnquiry(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  ) async => [
+    for (final a in activities)
+      if (a.enquiryId == enquiryId) a,
+  ];
+
+  @override
+  Future<PagedResult<AdmissionActivity>> fetchFollowUps({
+    required String schoolId,
+    required String branchId,
+    required FollowUpBucket bucket,
+    required String todayKey,
+    required String userId,
+    int pageSize = 25,
+    Object? cursor,
+  }) async {
+    fetchedBuckets.add(bucket);
+    final items = activities.where((a) {
+      return switch (bucket) {
+        FollowUpBucket.today => a.isOpen && a.scheduledDate == todayKey,
+        FollowUpBucket.overdue =>
+          a.isOpen && a.scheduledDate.compareTo(todayKey) < 0,
+        FollowUpBucket.upcoming =>
+          a.isOpen && a.scheduledDate.compareTo(todayKey) > 0,
+        FollowUpBucket.mine => a.isOpen && a.assignedTo == userId,
+        FollowUpBucket.unassigned => a.isOpen && a.assignedTo == null,
+        FollowUpBucket.completed => a.status == ActivityStatus.completed,
+      };
+    }).toList();
+    return PagedResult(items: items, nextCursor: null);
+  }
+
+  @override
+  Future<FollowUpCounts> countFollowUps({
+    required String schoolId,
+    required String branchId,
+    required String todayKey,
+    required String userId,
+  }) async => followUpCounts;
+
+  @override
+  Future<PagedResult<AdmissionEnquiry>> fetchWithoutFollowUp({
+    required String schoolId,
+    required String branchId,
+    int pageSize = 25,
+    Object? cursor,
+  }) async => PagedResult(
+    items: [
+      for (final e in enquiries)
+        if (e.status.isOpen && e.nextFollowUpDate == null) e,
+    ],
+    nextCursor: null,
+  );
+
+  @override
+  Future<String> scheduleActivity({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required ActivityInput input,
+    required String requestId,
+  }) async {
+    _maybeFail();
+    scheduled.add((enquiryId: enquiryId, input: input, requestId: requestId));
+    return 'new-activity';
+  }
+
+  @override
+  Future<int> rescheduleActivity({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String activityId,
+    required String scheduledDate,
+    String? scheduledTime,
+    String? reason,
+    int? baseRevision,
+  }) async {
+    _maybeFail();
+    rescheduled.add((
+      id: activityId,
+      date: scheduledDate,
+      time: scheduledTime,
+      reason: reason,
+      base: baseRevision,
+    ));
+    return (baseRevision ?? 0) + 1;
+  }
+
+  @override
+  Future<int> reassignActivity({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String activityId,
+    required String? assignedTo,
+    int? baseRevision,
+  }) async {
+    _maybeFail();
+    reassigned.add((id: activityId, to: assignedTo));
+    return (baseRevision ?? 0) + 1;
+  }
+
+  @override
+  Future<int> cancelActivity({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String activityId,
+    required String reason,
+    int? baseRevision,
+  }) async {
+    _maybeFail();
+    cancelled.add((id: activityId, reason: reason));
+    return (baseRevision ?? 0) + 1;
+  }
+
+  @override
+  Future<String?> completeActivity({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String activityId,
+    required ActivityCompletion completion,
+    ActivityInput? next,
+    int? baseRevision,
+  }) async {
+    _maybeFail();
+    completed.add((id: activityId, completion: completion, next: next));
+    return next == null ? null : 'next-activity';
   }
 }

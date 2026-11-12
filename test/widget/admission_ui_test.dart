@@ -9,6 +9,8 @@ import 'package:eazy_school_360/features/academic_setup/domain/academic_year.dar
 import 'package:eazy_school_360/features/academic_setup/domain/academic_year_status.dart';
 import 'package:eazy_school_360/features/academic_setup/domain/school_class.dart';
 import 'package:eazy_school_360/features/academic_setup/presentation/providers/academic_structure_providers.dart';
+import 'package:eazy_school_360/core/regional/school_time.dart';
+import 'package:eazy_school_360/features/admission/domain/admission_activity.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_enquiry.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_settings.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_status.dart';
@@ -159,6 +161,18 @@ Future<void> _fillValidForm(WidgetTester tester) async {
   await pick('Interested class *', 'Class 5');
   await pick('Source *', 'Walk-in');
 }
+
+/// A school date [days] from today (the page uses the same clock).
+String _day(int days) {
+  final t = SchoolTime.today();
+  return SchoolTime.keyOf(DateTime(t.year, t.month, t.day + days));
+}
+
+/// A button of any style (filled, tonal, outlined, text) carrying [label].
+Finder _btn(String label) => find.ancestor(
+  of: find.text(label),
+  matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+);
 
 void main() {
   group('dashboard', () {
@@ -571,7 +585,7 @@ void main() {
           settings: const AdmissionSettings(enabled: false, version: 2),
         ),
       );
-      await tester.tap(find.byType(Switch));
+      await tester.tap(find.byType(Switch).first);
       await tester.pumpAndSettle();
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Enquiry prefix'),
@@ -625,12 +639,515 @@ void main() {
     });
   });
 
+  group('follow-ups dashboard', () {
+    List<AdmissionActivity> sample() => [
+      fakeActivity('a1', date: _day(0), time: '10:30', assignedTo: 'u-staff'),
+      fakeActivity(
+        'a2',
+        date: _day(-2),
+        type: ActivityType.whatsapp,
+        student: 'Ravi Menon',
+        enquiryId: '2',
+      ),
+      fakeActivity(
+        'a3',
+        date: _day(5),
+        type: ActivityType.schoolVisit,
+        student: 'Meena Pillai',
+        enquiryId: '3',
+      ),
+      fakeActivity(
+        'a4',
+        date: _day(-9),
+        status: ActivityStatus.completed,
+        outcome: 'Visited',
+        enquiryId: '4',
+      ),
+    ];
+
+    testWidgets('the admission home summarises follow-ups and opens them', (
+      tester,
+    ) async {
+      await _pump(tester, size: _tall);
+      expect(find.text('Follow-ups'), findsOneWidget);
+      expect(find.text('2 today'), findsOneWidget);
+      expect(find.text('1 overdue'), findsOneWidget);
+      await tester.tap(find.text('Follow-ups'));
+      await tester.pumpAndSettle();
+      expect(find.text('Today 2'), findsOneWidget);
+    });
+
+    testWidgets('chips show counts; today lists today\'s activities only', (
+      tester,
+    ) async {
+      final repo = await _pump(
+        tester,
+        path: '/admissions/follow-ups',
+        repo: FakeAdmissionRepository(activities: sample()),
+      );
+      for (final chip in [
+        'Today 2',
+        'Overdue 1',
+        'Upcoming 3',
+        'Mine 0',
+        'Unassigned 0',
+        'Completed 0',
+        'No follow-up 0',
+      ]) {
+        expect(find.text(chip), findsOneWidget, reason: chip);
+      }
+      expect(repo.fetchedBuckets.last, FollowUpBucket.today);
+      expect(find.text('Phone call'), findsOneWidget);
+      expect(find.textContaining('10:30 AM'), findsOneWidget);
+      expect(find.text('Meena Pillai · ENQ-2026-00003'), findsNothing);
+    });
+
+    testWidgets(
+      'overdue, upcoming, unassigned and completed each show their own',
+      (tester) async {
+        final repo = await _pump(
+          tester,
+          path: '/admissions/follow-ups',
+          repo: FakeAdmissionRepository(activities: sample()),
+        );
+        await tester.tap(find.text('Overdue 1'));
+        await tester.pumpAndSettle();
+        expect(repo.fetchedBuckets.last, FollowUpBucket.overdue);
+        expect(find.text('Ravi Menon · ENQ-2026-00002'), findsOneWidget);
+        expect(find.text('Overdue'), findsWidgets, reason: 'badge on the card');
+
+        await tester.tap(find.text('Upcoming 3'));
+        await tester.pumpAndSettle();
+        expect(find.text('Meena Pillai · ENQ-2026-00003'), findsOneWidget);
+        expect(find.text('School visit'), findsOneWidget);
+
+        await tester.tap(find.text('Unassigned 0'));
+        await tester.pumpAndSettle();
+        expect(repo.fetchedBuckets.last, FollowUpBucket.unassigned);
+        expect(find.text('Ravi Menon · ENQ-2026-00002'), findsOneWidget);
+
+        await tester.tap(find.text('Completed 0'));
+        await tester.pumpAndSettle();
+        expect(find.text('Outcome'), findsOneWidget);
+        expect(find.text('Visited'), findsOneWidget);
+      },
+    );
+
+    testWidgets('an empty bucket says so', (tester) async {
+      await _pump(
+        tester,
+        path: '/admissions/follow-ups',
+        repo: FakeAdmissionRepository(activities: const []),
+      );
+      expect(find.text('Nothing is due today.'), findsOneWidget);
+    });
+
+    testWidgets('open enquiries with no follow-up are listed separately', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        path: '/admissions/follow-ups',
+        repo: FakeAdmissionRepository(
+          enquiries: [
+            fakeEnquiry('1'),
+            fakeEnquiry(
+              '2',
+              first: 'Ravi',
+              last: 'Menon',
+              nextFollowUp: _day(3),
+            ),
+            fakeEnquiry(
+              '3',
+              first: 'Closed',
+              last: 'One',
+              status: AdmissionStatus.rejected,
+            ),
+          ],
+        ),
+      );
+      await tester.tap(find.text('No follow-up 0'));
+      await tester.pumpAndSettle();
+      expect(find.text('Asha Nair'), findsOneWidget);
+      expect(find.text('Ravi Menon'), findsNothing, reason: 'has a follow-up');
+      expect(
+        find.text('Closed One'),
+        findsNothing,
+        reason: 'closed enquiries are not chased',
+      );
+    });
+
+    testWidgets('a card opens its enquiry', (tester) async {
+      await _pump(
+        tester,
+        path: '/admissions/follow-ups',
+        repo: FakeAdmissionRepository(activities: sample()),
+      );
+      await tester.tap(find.text('Phone call'));
+      await tester.pumpAndSettle();
+      expect(find.text('Change status'), findsOneWidget);
+    });
+  });
+
+  group('activities on an enquiry', () {
+    Future<FakeAdmissionRepository> open(
+      WidgetTester tester, {
+      List<AdmissionActivity>? activities,
+      AdmissionStatus status = AdmissionStatus.newEnquiry,
+    }) async {
+      final repo = await _pump(
+        tester,
+        path: '/admissions/enquiries/1',
+        size: _tall,
+        repo: FakeAdmissionRepository(
+          enquiries: [fakeEnquiry('1', status: status)],
+          activities: activities ?? [],
+        ),
+      );
+      await tester.tap(find.text('Activities'));
+      await tester.pumpAndSettle();
+      return repo;
+    }
+
+    Future<void> pickToday(WidgetTester tester, String field) async {
+      await tester.tap(find.text(field));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('no activities yet: an invitation and the schedule button', (
+      tester,
+    ) async {
+      await open(tester);
+      expect(find.textContaining('No follow-ups yet'), findsOneWidget);
+      expect(find.text('Schedule follow-up'), findsOneWidget);
+    });
+
+    testWidgets(
+      'scheduling needs a date, then sends type, date and an idempotency key',
+      (tester) async {
+        final repo = await open(tester);
+        await tester.tap(find.text('Schedule follow-up'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'Schedule'));
+        await tester.pumpAndSettle();
+        expect(find.text('Pick a date'), findsOneWidget);
+        expect(repo.scheduled, isEmpty);
+
+        await pickToday(tester, 'Select date');
+        await tester.tap(find.widgetWithText(FilledButton, 'Schedule'));
+        await tester.pumpAndSettle();
+        expect(repo.scheduled, hasLength(1));
+        final s = repo.scheduled.single;
+        expect(s.enquiryId, '1');
+        expect(s.input.type, ActivityType.phoneCall);
+        expect(s.input.scheduledDate, _day(0));
+        expect(
+          s.input.toWire().containsKey('assignedTo'),
+          isFalse,
+          reason: 'defaults to the enquiry assignee on the server',
+        );
+        expect(s.requestId, hasLength(20));
+      },
+    );
+
+    testWidgets('every save gets its own idempotency key', (tester) async {
+      final repo = await open(tester);
+      for (var i = 0; i < 2; i++) {
+        await tester.tap(find.text('Schedule follow-up'));
+        await tester.pumpAndSettle();
+        await pickToday(tester, 'Select date');
+        await tester.tap(find.widgetWithText(FilledButton, 'Schedule'));
+        await tester.pumpAndSettle();
+      }
+      expect(repo.scheduled.map((s) => s.requestId).toSet(), hasLength(2));
+    });
+
+    testWidgets(
+      'an open activity offers all four actions; a finished one none',
+      (tester) async {
+        await open(
+          tester,
+          activities: [
+            fakeActivity('a1', date: _day(2)),
+            fakeActivity(
+              'a2',
+              date: _day(-3),
+              status: ActivityStatus.completed,
+              outcome: 'Spoke to mother',
+            ),
+            fakeActivity(
+              'a3',
+              date: _day(-4),
+              status: ActivityStatus.cancelled,
+            ),
+          ],
+        );
+        for (final a in ['Complete', 'Reschedule', 'Reassign', 'Cancel']) {
+          expect(_btn(a), findsOneWidget, reason: a);
+        }
+        expect(find.text('Spoke to mother'), findsOneWidget);
+        expect(find.text('Completed'), findsOneWidget);
+        expect(find.text('Cancelled'), findsWidgets);
+      },
+    );
+
+    testWidgets('completing needs an outcome', (tester) async {
+      final repo = await open(
+        tester,
+        activities: [fakeActivity('a1', date: _day(1), revision: 3)],
+      );
+      await tester.tap(_btn('Complete'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mark completed'));
+      await tester.pumpAndSettle();
+      expect(find.text('Please describe the outcome'), findsOneWidget);
+      expect(repo.completed, isEmpty);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Outcome *'),
+        'Wants to visit on Friday',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Parent feedback (optional)'),
+        'Liked the labs',
+      );
+      await tester.tap(find.text('Mark completed'));
+      await tester.pumpAndSettle();
+      final c = repo.completed.single;
+      expect(c.id, 'a1');
+      expect(c.completion.outcome, 'Wants to visit on Friday');
+      expect(c.completion.parentFeedback, 'Liked the labs');
+      expect(c.next, isNull);
+    });
+
+    testWidgets('completing can plan the next contact in the same step', (
+      tester,
+    ) async {
+      final repo = await open(
+        tester,
+        activities: [fakeActivity('a1', date: _day(1))],
+      );
+      await tester.tap(_btn('Complete'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Outcome *'),
+        'Asked to call back',
+      );
+      await tester.tap(find.byType(Switch));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mark completed'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Pick a date'),
+        findsOneWidget,
+        reason: 'the next date is required',
+      );
+      expect(repo.completed, isEmpty);
+      await pickToday(tester, 'Select date');
+      await tester.tap(find.text('Mark completed'));
+      await tester.pumpAndSettle();
+      expect(repo.completed.single.next!.scheduledDate, _day(0));
+    });
+
+    testWidgets(
+      'rescheduling asks for a date and sends the activity revision',
+      (tester) async {
+        final repo = await open(
+          tester,
+          activities: [fakeActivity('a1', date: _day(1), revision: 4)],
+        );
+        await tester.tap(_btn('Reschedule'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'Reschedule'));
+        await tester.pumpAndSettle();
+        expect(repo.rescheduled, isEmpty);
+        await pickToday(tester, 'Select date');
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Reason (optional)'),
+          'Parent travelling',
+        );
+        await tester.tap(find.widgetWithText(FilledButton, 'Reschedule'));
+        await tester.pumpAndSettle();
+        final r = repo.rescheduled.single;
+        expect(
+          [r.id, r.date, r.reason, r.base],
+          ['a1', _day(0), 'Parent travelling', 4],
+        );
+      },
+    );
+
+    testWidgets('reassigning picks a person or nobody', (tester) async {
+      final repo = await open(
+        tester,
+        activities: [fakeActivity('a1', date: _day(1))],
+      );
+      await tester.tap(_btn('Reassign'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ravi Menon'));
+      await tester.pumpAndSettle();
+      expect(repo.reassigned.single, (id: 'a1', to: 'u-staff'));
+    });
+
+    testWidgets('cancelling requires a reason', (tester) async {
+      final repo = await open(
+        tester,
+        activities: [fakeActivity('a1', date: _day(1))],
+      );
+      await tester.tap(_btn('Cancel'));
+      await tester.pumpAndSettle();
+      FilledButton go() =>
+          tester.widget(find.widgetWithText(FilledButton, 'Cancel follow-up'));
+      expect(go().onPressed, isNull);
+      await tester.enterText(find.byType(TextField).last, 'Family withdrew');
+      await tester.pumpAndSettle();
+      expect(go().onPressed, isNotNull);
+      await tester.tap(find.widgetWithText(FilledButton, 'Cancel follow-up'));
+      await tester.pumpAndSettle();
+      expect(repo.cancelled.single, (id: 'a1', reason: 'Family withdrew'));
+    });
+
+    testWidgets(
+      'a closed enquiry cannot be given new follow-ups or have them changed',
+      (tester) async {
+        await open(
+          tester,
+          status: AdmissionStatus.rejected,
+          activities: [fakeActivity('a1', date: _day(1))],
+        );
+        FilledButton schedule() => tester.widget(
+          find.ancestor(
+            of: find.text('Schedule follow-up'),
+            matching: find.byWidgetPredicate((w) => w is FilledButton),
+          ),
+        );
+        expect(schedule().onPressed, isNull);
+        expect(_btn('Complete'), findsNothing);
+      },
+    );
+
+    testWidgets('a server refusal is reported and nothing is claimed done', (
+      tester,
+    ) async {
+      final repo = await open(
+        tester,
+        activities: [fakeActivity('a1', date: _day(1))],
+      );
+      repo.failWith = StateError('nope');
+      await tester.tap(_btn('Reassign'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ravi Menon'));
+      await tester.pumpAndSettle();
+      expect(repo.reassigned, isEmpty);
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.text('Follow-up reassigned.'), findsNothing);
+    });
+  });
+
+  group('follow-up settings and the form', () {
+    testWidgets('reminders can be switched off and the time chosen', (
+      tester,
+    ) async {
+      final repo = await _pump(
+        tester,
+        role: UserRole.schoolAdmin,
+        path: '/admissions/settings',
+        size: _tall,
+        repo: FakeAdmissionRepository(
+          settings: const AdmissionSettings(enabled: true, version: 5),
+        ),
+      );
+      expect(find.text('Reminder time'), findsOneWidget);
+      await tester.tap(
+        find.widgetWithText(SwitchListTile, 'Daily follow-up reminders'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Reminder time'), findsNothing);
+      await tester.ensureVisible(find.text('Save settings'));
+      await tester.tap(find.text('Save settings'));
+      await tester.pumpAndSettle();
+      expect(repo.savedSettings.single.remindersEnabled, isFalse);
+    });
+
+    testWidgets('the reminder time is saved', (tester) async {
+      final repo = await _pump(
+        tester,
+        role: UserRole.schoolAdmin,
+        path: '/admissions/settings',
+        size: _tall,
+      );
+      await tester.tap(
+        find.widgetWithText(DropdownButtonFormField<String>, 'Reminder time'),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('18:00').last);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Save settings'));
+      await tester.tap(find.text('Save settings'));
+      await tester.pumpAndSettle();
+      expect(repo.savedSettings.single.reminderTime, '18:00');
+    });
+
+    testWidgets(
+      'once follow-ups exist the edit form shows the derived date read-only',
+      (tester) async {
+        final repo = await _pump(
+          tester,
+          path: '/admissions/enquiries/1/edit',
+          size: _tall,
+          repo: FakeAdmissionRepository(
+            enquiries: [
+              fakeEnquiry(
+                '1',
+                nextFollowUp: '2026-11-20',
+                activityCount: 2,
+                openActivityCount: 1,
+              ),
+            ],
+          ),
+        );
+        expect(
+          find.textContaining('From the scheduled follow-ups'),
+          findsOneWidget,
+        );
+        await tester.ensureVisible(find.text('Save'));
+        await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+        await tester.pumpAndSettle();
+        expect(
+          repo.updated.single.input.nextFollowUpDate,
+          isNull,
+          reason: 'the form does not send a date it does not own',
+        );
+      },
+    );
+
+    testWidgets('without follow-ups the manual date stays editable', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        path: '/admissions/enquiries/1/edit',
+        size: _tall,
+        repo: FakeAdmissionRepository(
+          enquiries: [fakeEnquiry('1', nextFollowUp: '2026-11-20')],
+        ),
+      );
+      expect(
+        find.textContaining('From the scheduled follow-ups'),
+        findsNothing,
+      );
+      expect(find.text('Next follow-up'), findsOneWidget);
+    });
+  });
+
   group('responsive layout', () {
     final pages = {
       'dashboard': '/admissions',
       'list': '/admissions/enquiries',
       'form': '/admissions/enquiries/new',
       'details': '/admissions/enquiries/1',
+      'follow-ups': '/admissions/follow-ups',
     };
     for (final (name, size, scale) in [
       ('small phone', const Size(320, 640), 1.0),

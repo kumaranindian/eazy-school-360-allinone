@@ -25,6 +25,8 @@ const base = { createdAt: serverTimestamp(), updatedAt: serverTimestamp(), creat
 const as = (uid) => env.authenticatedContext(uid, { firebase: { sign_in_provider: 'password' } }).firestore();
 const enq = (d, s = A, b = 'north', id = 'e1') => doc(d, 'schools', s, 'branches', b, 'admissionEnquiries', id);
 const hist = (d, s = A, b = 'north', id = 'e1__1') => doc(d, 'schools', s, 'branches', b, 'admissionStatusHistory', id);
+const act = (d, s = A, b = 'north', id = 'a1') => doc(d, 'schools', s, 'branches', b, 'admissionActivities', id);
+const ahist = (d, s = A, b = 'north', id = 'a1__1') => doc(d, 'schools', s, 'branches', b, 'admissionActivityHistory', id);
 const seq = (d) => doc(d, 'schools', A, 'branches', 'north', 'admissionSequences', 'ENQ-2026');
 const settings = (d, s = A) => doc(d, 'schools', s, 'admissionSettings', 'config');
 const enquiry = (s, b) => ({ schoolId: s, branchId: b, enquiryNumber: 'ENQ-2026-00001', status: 'NEW', studentName: 'Asha Nair', revision: 1, ...base });
@@ -39,6 +41,8 @@ beforeEach(async () => {
         await setDoc(doc(d, 'schools', s, 'branches', b), { schoolId: s, branchId: b, name: b, status: 'ACTIVE', ...base });
         await setDoc(enq(d, s, b), enquiry(s, b));
         await setDoc(hist(d, s, b), { schoolId: s, branchId: b, enquiryId: 'e1', revision: 1, from: null, to: 'NEW' });
+        await setDoc(act(d, s, b), { schoolId: s, branchId: b, enquiryId: 'e1', status: 'SCHEDULED', scheduledDate: '2026-11-10' });
+        await setDoc(ahist(d, s, b), { schoolId: s, branchId: b, activityId: 'a1', enquiryId: 'e1', revision: 1, event: 'CREATED' });
       }
       await setDoc(settings(d, s), { schoolId: s, enabled: true, version: 1 });
     }
@@ -104,4 +108,29 @@ test('admission settings are read by the school admin, platform admin and branch
   for (const uid of ['adm-admin', 'adm-platform', 'adm-north']) await assertSucceeds(getDoc(settings(as(uid))));
   for (const uid of ['adm-teacher', 'adm-finance', 'adm-parent', 'adm-admin-b']) await assertFails(getDoc(settings(as(uid))));
   await assertFails(getDoc(settings(as('adm-admin'), B)));
+});
+
+test('follow-up activities and their history follow the same read scope as enquiries', async () => {
+  for (const uid of ['adm-admin', 'adm-platform', 'adm-north']) {
+    await assertSucceeds(getDoc(act(as(uid))));
+    await assertSucceeds(getDoc(ahist(as(uid))));
+  }
+  for (const uid of ['adm-south', 'adm-teacher', 'adm-finance', 'adm-parent', 'adm-admin-b']) {
+    await assertFails(getDoc(act(as(uid))));
+    await assertFails(getDoc(ahist(as(uid))));
+  }
+  await assertFails(getDoc(act(env.unauthenticatedContext().firestore())));
+  await assertFails(getDoc(act(as('adm-admin'), B, 'north')));
+});
+
+test('nobody writes activities or their history from a client', async () => {
+  for (const uid of ['adm-admin', 'adm-north', 'adm-platform', 'adm-teacher']) {
+    const d = as(uid);
+    await assertFails(setDoc(act(d, A, 'north', 'new'), { schoolId: A, branchId: 'north', status: 'SCHEDULED' }));
+    await assertFails(updateDoc(act(d), { status: 'COMPLETED' }));
+    await assertFails(deleteDoc(act(d)));
+    await assertFails(setDoc(ahist(d, A, 'north', 'a1__2'), { schoolId: A }));
+    await assertFails(updateDoc(ahist(d), { event: 'EDITED' }));
+    await assertFails(deleteDoc(ahist(d)));
+  }
 });
