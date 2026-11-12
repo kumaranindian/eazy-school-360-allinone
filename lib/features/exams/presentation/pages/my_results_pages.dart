@@ -45,19 +45,26 @@ final _childRowsProvider = FutureProvider.autoDispose
       final year = child.currentAcademicYearId;
       final classId = child.currentClassId;
       if (year == null || classId == null) return const [];
-      final exams = await ref.watch(
-        publishedExamsProvider((
-          schoolId: child.schoolId,
-          branchId: child.branchId,
-          academicYearId: year,
-          classId: classId,
-          sectionId: child.currentSectionId,
-        )).future,
-      );
-      final mine = [
-        for (final e in exams)
-          if (e.sectionId == null || e.sectionId == child.currentSectionId) e,
-      ];
+      // Every class the child attends (main + extra, e.g. day care).
+      final mine = <Examination>[];
+      final seen = <String>{};
+      for (final p in child.classSections) {
+        final exams = await ref.watch(
+          publishedExamsProvider((
+            schoolId: child.schoolId,
+            branchId: child.branchId,
+            academicYearId: year,
+            classId: p.classId,
+            sectionId: p.sectionId,
+          )).future,
+        );
+        for (final e in exams) {
+          if ((e.sectionId == null || e.sectionId == p.sectionId) &&
+              seen.add(e.examId)) {
+            mine.add(e);
+          }
+        }
+      }
       final repo = ref.read(resultRepositoryProvider);
       final rows = <_Row>[];
       for (final e in mine) {
@@ -295,9 +302,7 @@ class _ChildResult extends ConsumerWidget {
     }
     final e = exam.value;
     // Only a published examination of the child's own class and section.
-    if (e == null ||
-        e.classId != child.currentClassId ||
-        (e.sectionId != null && e.sectionId != child.currentSectionId)) {
+    if (e == null || !child.attendsExam(e.classId, e.sectionId)) {
       return const EmptyView(
         icon: Icons.lock_outline,
         message: 'This result is not available.',

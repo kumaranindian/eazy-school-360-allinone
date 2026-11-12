@@ -149,12 +149,18 @@ class BillableAssignment {
 class ProposedInvoice {
   final FeeStudent student;
   final String invoiceId;
+
+  /// The key the invoice is stored under (part of [invoiceId]). The first
+  /// invoice of a student for a period uses the period's own key; further
+  /// invoices for fees billed later in the same period get `~2`, `~3`, …
+  final String periodKey;
   final List<InvoiceLine> lines;
   final String dueDateKey;
 
   const ProposedInvoice({
     required this.student,
     required this.invoiceId,
+    required this.periodKey,
     required this.lines,
     required this.dueDateKey,
   });
@@ -175,6 +181,21 @@ class InvoicePlan {
   int get payableMinor => proposals.fold(0, (s, p) => s + p.payableMinor);
 }
 
+/// A fee head that can still be invoiced for the chosen class and period.
+class BillableFeeOption {
+  final String structureId;
+  final String name;
+  final int students;
+  final int totalMinor;
+
+  const BillableFeeOption({
+    required this.structureId,
+    required this.name,
+    required this.students,
+    required this.totalMinor,
+  });
+}
+
 /// Works out the invoices a billing run would create — the preview shown
 /// before anything is written, and the exact list that is then written.
 ///
@@ -185,6 +206,95 @@ class InvoicePlan {
 /// invoice for this period already exists is skipped — which is also what
 /// makes retrying a half-finished bulk run safe.
 abstract final class InvoicePlanner {
+  /// Invoice key for the next invoice of a student in [period]: the period's
+  /// own key when none exists yet, otherwise the first free `~n` suffix.
+  static String nextPeriodKey(
+    String studentId,
+    String academicYearId,
+    BillingPeriod period,
+    Set<String> existingInvoiceIds,
+  ) {
+    var key = period.key;
+    var n = 1;
+    while (existingInvoiceIds.contains(
+      BillingPeriod.invoiceId(studentId, academicYearId, key),
+    )) {
+      n++;
+      key = '${period.key}~$n';
+    }
+    return key;
+  }
+
+  /// Every invoice id that may already exist for [period] (the base key and
+  /// the supplementary `~n` ones), for the repository to look up.
+  static const int maxInvoicesPerPeriod = 8;
+
+  static List<String> candidateInvoiceIds(
+    String studentId,
+    String academicYearId,
+    BillingPeriod period,
+  ) => [
+    for (var n = 1; n <= maxInvoicesPerPeriod; n++)
+      BillingPeriod.invoiceId(
+        studentId,
+        academicYearId,
+        n == 1 ? period.key : '${period.key}~$n',
+      ),
+  ];
+
+  /// The fee heads that still have something to bill: active, matching the
+  /// period type, effective on the issue date, assigned to an enrolled
+  /// student, and not already charged for this period. A fee that has been
+  /// invoiced to everyone is not offered again.
+  static List<BillableFeeOption> availableFees({
+    required List<FeeStudent> students,
+    required Map<String, List<BillableAssignment>> assignmentsByStudent,
+    required BillingPeriod period,
+    required String academicYearId,
+    required String issueDateKey,
+    required Set<String> existingChargeIds,
+  }) {
+    final byId = <String, ({String name, int students, int total})>{};
+    for (final student in students) {
+      if (!student.isEnrolled) continue;
+      for (final item
+          in assignmentsByStudent[student.studentId] ??
+              const <BillableAssignment>[]) {
+        final a = item.assignment;
+        final s = item.structure;
+        if (s == null || !a.isActive || a.academicYearId != academicYearId) {
+          continue;
+        }
+        if (!s.isActive ||
+            s.frequency != period.kind ||
+            !s.isEffectiveOn(issueDateKey)) {
+          continue;
+        }
+        final chargeId =
+            '${a.assignmentId}__${BillingPeriod.chargeKeyFor(s.frequency, period.key)}';
+        if (existingChargeIds.contains(chargeId)) continue;
+        final net = s.amountMinor - a.concessionFor(s.amountMinor);
+        if (net <= 0) continue;
+        final cur =
+            byId[s.structureId] ?? (name: s.name, students: 0, total: 0);
+        byId[s.structureId] = (
+          name: s.name,
+          students: cur.students + 1,
+          total: cur.total + net,
+        );
+      }
+    }
+    return [
+      for (final e in byId.entries)
+        BillableFeeOption(
+          structureId: e.key,
+          name: e.value.name,
+          students: e.value.students,
+          totalMinor: e.value.total,
+        ),
+    ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  }
+
   static InvoicePlan plan({
     required List<FeeStudent> students,
     required Map<String, List<BillableAssignment>> assignmentsByStudent,
@@ -195,22 +305,25 @@ abstract final class InvoicePlanner {
     required Set<String> existingChargeIds,
     required Set<String> existingInvoiceIds,
     required String Function(String issueDateKey, int days) addDays,
+
+    /// Only these fee heads are billed; null bills every eligible fee.
+    Set<String>? selectedStructureIds,
   }) {
     final proposals = <ProposedInvoice>[];
     final skipped = <SkippedItem>[];
 
     for (final student in students) {
+      final periodKey = nextPeriodKey(
+        student.studentId,
+        academicYearId,
+        period,
+        existingInvoiceIds,
+      );
       final invoiceId = BillingPeriod.invoiceId(
         student.studentId,
         academicYearId,
-        period.key,
+        periodKey,
       );
-      if (existingInvoiceIds.contains(invoiceId)) {
-        skipped.add(
-          SkippedItem(student.name, 'Already invoiced for ${period.label}'),
-        );
-        continue;
-      }
       if (!student.isEnrolled) {
         skipped.add(
           SkippedItem(
@@ -233,6 +346,10 @@ abstract final class InvoicePlanner {
         final a = item.assignment;
         final s = item.structure;
         if (!a.isActive || a.academicYearId != academicYearId) continue;
+        if (selectedStructureIds != null &&
+            !selectedStructureIds.contains(a.structureId)) {
+          continue;
+        }
         sawAssignment = true;
         if (s == null) {
           whyNot.add('an assigned fee structure no longer exists');
@@ -292,6 +409,7 @@ abstract final class InvoicePlanner {
       final proposal = ProposedInvoice(
         student: student,
         invoiceId: invoiceId,
+        periodKey: periodKey,
         lines: lines,
         dueDateKey: dueDateKeyOverride ?? addDays(issueDateKey, maxOffset),
       );

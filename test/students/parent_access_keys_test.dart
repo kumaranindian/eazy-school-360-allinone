@@ -1,3 +1,4 @@
+import 'package:eazy_school_360/features/students/domain/extra_placement.dart';
 import 'package:eazy_school_360/features/students/domain/gender.dart';
 import 'package:eazy_school_360/features/students/domain/parent_access_keys.dart';
 import 'package:eazy_school_360/features/students/domain/student.dart';
@@ -10,6 +11,7 @@ Student _child(
   StudentStatus status = StudentStatus.active,
   String? classId = 'c5',
   String? sectionId = 'sa',
+  List<ExtraPlacement> extras = const [],
 }) => Student(
   studentId: id,
   schoolId: 'school-1',
@@ -25,9 +27,46 @@ Student _child(
   currentAcademicYearId: 'y1',
   currentClassId: classId,
   currentSectionId: sectionId,
+  extraPlacements: extras,
 );
 
 void main() {
+  test('extra classes (day care) are in the index with the main class', () {
+    final k = ParentAccessKeys.forChildren([
+      _child(
+        'a',
+        extras: const [
+          ExtraPlacement(
+            recordId: 'r',
+            academicYearId: 'y1',
+            classId: 'dc',
+            sectionId: 'd1',
+          ),
+        ],
+      ),
+    ], branchId: 'north');
+    expect(k.classKeys, ['c5', 'dc']);
+    expect(k.sectionKeys, ['c5__sa', 'dc__d1']);
+  });
+
+  test('a withdrawn child\'s extra classes contribute nothing', () {
+    final k = ParentAccessKeys.forChildren([
+      _child(
+        'a',
+        status: StudentStatus.left,
+        extras: const [
+          ExtraPlacement(
+            recordId: 'r',
+            academicYearId: 'y1',
+            classId: 'dc',
+            sectionId: 'd1',
+          ),
+        ],
+      ),
+    ], branchId: 'north');
+    expect(k.isEmpty, isTrue);
+  });
+
   test('keys are exactly the strings the security rules build', () {
     final k = ParentAccessKeys.forChildren([_child('a')], branchId: 'north');
     expect(k.classKeys, ['c5']);

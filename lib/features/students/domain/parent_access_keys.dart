@@ -36,6 +36,14 @@ class ParentAccessKeys {
       if (sectionId != null && sectionId.isNotEmpty) {
         sections.add(sectionKey(classId, sectionId));
       }
+      // Extra classes (e.g. day care besides pre-school) count too.
+      for (final e in c.extraPlacements) {
+        if (e.classId.isEmpty) continue;
+        classes.add(e.classId);
+        if (e.sectionId.isNotEmpty) {
+          sections.add(sectionKey(e.classId, e.sectionId));
+        }
+      }
     }
     return ParentAccessKeys(
       classKeys: classes.toList()..sort(),

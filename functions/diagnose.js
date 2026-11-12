@@ -118,6 +118,11 @@ async function parentChecks(db, c, { uid, user, schoolId, branchId }) {
     if (st && st.status === 'ACTIVE' && st.currentClassId) {
       wantClass.add(st.currentClassId);
       if (st.currentSectionId) wantSection.add(`${st.currentClassId}__${st.currentSectionId}`);
+      for (const e of Array.isArray(st.extraPlacements) ? st.extraPlacements : []) {
+        if (!e || !e.classId) continue;
+        wantClass.add(e.classId);
+        if (e.sectionId) wantSection.add(`${e.classId}__${e.sectionId}`);
+      }
       children.push({ id: l.studentId, ...st });
     }
   }

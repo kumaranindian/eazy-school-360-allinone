@@ -101,6 +101,28 @@ class _InvoicesState extends ConsumerState<_Invoices> {
     _apply();
   }
 
+  void _refresh() {
+    if (!mounted) return;
+    if (widget.studentId != null) {
+      final repo = ref.read(invoiceRepositoryProvider);
+      final fee = widget.fee;
+      setState(() {
+        _ledger = repo.fetchStudentInvoices(
+          schoolId: fee.schoolId,
+          branchId: fee.branchId,
+          studentId: widget.studentId!,
+          academicYearId: fee.year.academicYearId,
+        );
+        _allYears = repo.fetchStudentInvoices(
+          schoolId: fee.schoolId,
+          branchId: fee.branchId,
+          studentId: widget.studentId!,
+        );
+      });
+    }
+    _controller.reload();
+  }
+
   void _apply() {
     final repo = ref.read(invoiceRepositoryProvider);
     final fee = widget.fee;
@@ -224,6 +246,7 @@ class _InvoicesState extends ConsumerState<_Invoices> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(feeDataVersionProvider, (_, __) => _refresh());
     final fee = widget.fee;
     final classes = (ref.watch(classesProvider(fee.yearKey)).value ?? const [])
         .where((c) => c.status.wireValue == 'ACTIVE')

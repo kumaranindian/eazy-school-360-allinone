@@ -294,6 +294,12 @@ async function refreshParentAccess(ctx, parentId) {
     if (!sd || sd.status !== 'ACTIVE' || !sd.currentClassId) continue;
     classes.add(sd.currentClassId);
     if (sd.currentSectionId) sections.add(`${sd.currentClassId}__${sd.currentSectionId}`);
+    // Extra classes (a day-care class besides the main one) count too.
+    for (const e of Array.isArray(sd.extraPlacements) ? sd.extraPlacements : []) {
+      if (!e || !e.classId) continue;
+      classes.add(e.classId);
+      if (e.sectionId) sections.add(`${e.classId}__${e.sectionId}`);
+    }
   }
   await branchRef(db, schoolId, branchId)
     .collection('parentAccess')

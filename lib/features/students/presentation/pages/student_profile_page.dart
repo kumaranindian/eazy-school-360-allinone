@@ -20,6 +20,8 @@ import '../providers/student_providers.dart';
 import '../widgets/link_parent_dialog.dart';
 import '../widgets/person_photo_picker.dart';
 import '../widgets/student_branch_transfer_dialog.dart';
+import '../widgets/student_edit_dialog.dart';
+import '../widgets/student_extra_classes_card.dart';
 import '../widgets/student_status_dialog.dart';
 import '../widgets/student_transfer_dialog.dart';
 
@@ -79,6 +81,23 @@ class StudentProfilePage extends ConsumerWidget {
                   ),
                   actions: canManage
                       ? [
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined),
+                            tooltip: 'Edit student',
+                            onPressed: () async {
+                              final saved = await showAdaptiveAppDialog<bool>(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (context) => StudentEditDialog(
+                                  student: student,
+                                  currentUserId: tenant.user.userId,
+                                ),
+                              );
+                              if (saved == true && context.mounted) {
+                                context.showSnackBar('Student details saved.');
+                              }
+                            },
+                          ),
                           IconButton(
                             icon: const Icon(Icons.swap_horiz),
                             tooltip: 'Transfer',
@@ -190,7 +209,11 @@ class StudentProfilePage extends ConsumerWidget {
                               label: 'Address',
                               value: [
                                 student.addressLine1,
+                                student.addressLine2,
                                 student.city,
+                                student.state,
+                                student.country,
+                                student.postalCode,
                               ].whereType<String>().join(', '),
                             ),
                           _InfoRow(
@@ -205,7 +228,12 @@ class StudentProfilePage extends ConsumerWidget {
                       canManage: canManage,
                       currentUserId: tenant.user.userId,
                     ),
-                    _AcademicHistoryTab(studentKey: key),
+                    _AcademicHistoryTab(
+                      studentKey: key,
+                      student: student,
+                      canManage: canManage,
+                      currentUserId: tenant.user.userId,
+                    ),
                     const Padding(
                       padding: EdgeInsets.all(AppSpacing.md),
                       child: EmptyView(
@@ -492,8 +520,16 @@ class _EditParentLinkDialogState extends ConsumerState<_EditParentLinkDialog> {
 
 class _AcademicHistoryTab extends ConsumerWidget {
   final ({String schoolId, String branchId, String studentId}) studentKey;
+  final Student student;
+  final bool canManage;
+  final String currentUserId;
 
-  const _AcademicHistoryTab({required this.studentKey});
+  const _AcademicHistoryTab({
+    required this.studentKey,
+    required this.student,
+    required this.canManage,
+    required this.currentUserId,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -502,15 +538,19 @@ class _AcademicHistoryTab extends ConsumerWidget {
     return AsyncValueWidget(
       value: historyAsync,
       data: (records) {
-        if (records.isEmpty) {
-          return const EmptyView(
-            icon: Icons.history_edu_outlined,
-            message: 'No academic history yet.',
-          );
-        }
         return ListView(
           padding: const EdgeInsets.all(AppSpacing.md),
           children: [
+            StudentExtraClassesCard(
+              student: student,
+              canManage: canManage,
+              currentUserId: currentUserId,
+            ),
+            if (records.isEmpty)
+              const EmptyView(
+                icon: Icons.history_edu_outlined,
+                message: 'No academic history yet.',
+              ),
             for (final record in records.reversed)
               Card(
                 child: ListTile(
@@ -523,7 +563,7 @@ class _AcademicHistoryTab extends ConsumerWidget {
                     '${formatDisplayDate(record.startDate)}${record.endDate != null ? ' – ${formatDisplayDate(record.endDate!)}' : ' – present'}',
                   ),
                   subtitle: Text(
-                    'Roll no: ${record.rollNumber ?? '—'} · ${record.status.displayName}',
+                    '${record.isExtra ? 'Extra class${record.label.isEmpty ? '' : ' (${record.label})'} · ' : ''}Roll no: ${record.rollNumber ?? '—'} · ${record.status.displayName}',
                   ),
                 ),
               ),

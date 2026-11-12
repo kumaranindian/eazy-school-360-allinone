@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/constants/firestore_fields.dart';
 import 'blood_group.dart';
+import 'extra_placement.dart';
 import 'gender.dart';
 import 'student_status.dart';
 
@@ -51,6 +52,9 @@ class Student {
   final String? currentSectionId;
   final String? currentRollNumber;
 
+  /// Additional classes (see [ExtraPlacement]); empty for most students.
+  final List<ExtraPlacement> extraPlacements;
+
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final String? createdBy;
@@ -86,6 +90,7 @@ class Student {
     this.currentClassId,
     this.currentSectionId,
     this.currentRollNumber,
+    this.extraPlacements = const [],
     this.createdAt,
     this.updatedAt,
     this.createdBy,
@@ -114,6 +119,49 @@ class Student {
 
   bool get hasCurrentPlacement =>
       currentClassId != null && currentSectionId != null;
+
+  /// Every class and section the student attends this year: the main class
+  /// first, then the extra classes (e.g. afternoon day care). Empty when the
+  /// student has no main placement.
+  List<({String classId, String sectionId, String label})> get classSections =>
+      [
+        if (hasCurrentPlacement)
+          (classId: currentClassId!, sectionId: currentSectionId!, label: ''),
+        if (hasCurrentPlacement)
+          for (final e in extraPlacements)
+            (classId: e.classId, sectionId: e.sectionId, label: e.label),
+      ];
+
+  /// Section and roll number the student has in [classId]: the main
+  /// placement's when it is the main class, otherwise the extra class's.
+  ({String? sectionId, String? rollNumber}) placementInClass(String classId) {
+    if (currentClassId == classId) {
+      return (sectionId: currentSectionId, rollNumber: currentRollNumber);
+    }
+    for (final e in extraPlacements) {
+      if (e.classId == classId) {
+        return (sectionId: e.sectionId, rollNumber: e.rollNumber);
+      }
+    }
+    return (sectionId: null, rollNumber: null);
+  }
+
+  /// Whether an examination of [classId] (for [examSectionId], or the whole
+  /// class when null) covers the student through any of their classes.
+  bool attendsExam(String classId, String? examSectionId) => classSections.any(
+    (p) =>
+        p.classId == classId &&
+        (examSectionId == null || p.sectionId == examSectionId),
+  );
+
+  /// Whether the student attends this class and section, as the main class or
+  /// as an extra class.
+  bool attendsSection(String? classId, String? sectionId) =>
+      classId != null &&
+      sectionId != null &&
+      classSections.any(
+        (p) => p.classId == classId && p.sectionId == sectionId,
+      );
 
   Student copyWith({
     String? admissionNumber,
@@ -167,6 +215,7 @@ class Student {
       currentClassId: currentClassId,
       currentSectionId: currentSectionId,
       currentRollNumber: currentRollNumber,
+      extraPlacements: extraPlacements,
       createdAt: createdAt,
       updatedAt: updatedAt,
       createdBy: createdBy,
@@ -214,6 +263,7 @@ class Student {
       currentClassId: data['currentClassId'] as String?,
       currentSectionId: data['currentSectionId'] as String?,
       currentRollNumber: data['currentRollNumber'] as String?,
+      extraPlacements: ExtraPlacement.listFrom(data['extraPlacements']),
       createdAt: (data[FirestoreFields.createdAt] as Timestamp?)?.toDate(),
       updatedAt: (data[FirestoreFields.updatedAt] as Timestamp?)?.toDate(),
       createdBy: data[FirestoreFields.createdBy] as String?,

@@ -151,6 +151,50 @@ class StudentWriteController extends AsyncNotifier<void> {
         ),
   );
 
+  Future<bool> addExtraPlacement({
+    required String schoolId,
+    required String branchId,
+    required String studentId,
+    required String academicYearId,
+    required String classId,
+    required String sectionId,
+    String label = '',
+    String? rollNumber,
+    required String updatedBy,
+  }) => _run(
+    () => ref
+        .read(studentRepositoryProvider)
+        .addExtraPlacement(
+          schoolId: schoolId,
+          branchId: branchId,
+          studentId: studentId,
+          academicYearId: academicYearId,
+          classId: classId,
+          sectionId: sectionId,
+          label: label,
+          rollNumber: rollNumber,
+          updatedBy: updatedBy,
+        ),
+  );
+
+  Future<bool> removeExtraPlacement({
+    required String schoolId,
+    required String branchId,
+    required String studentId,
+    required String recordId,
+    required String updatedBy,
+  }) => _run(
+    () => ref
+        .read(studentRepositoryProvider)
+        .removeExtraPlacement(
+          schoolId: schoolId,
+          branchId: branchId,
+          studentId: studentId,
+          recordId: recordId,
+          updatedBy: updatedBy,
+        ),
+  );
+
   Future<bool> transferStudent({
     required String schoolId,
     required String branchId,

@@ -41,6 +41,18 @@ class MyHomeworkPage extends StatelessWidget {
   }
 }
 
+/// One list out of the per-class results: loading while any is loading, the
+/// first error if any failed, otherwise everything together.
+AsyncValue<List<Homework>> _combine(List<AsyncValue<List<Homework>>> parts) {
+  for (final p in parts) {
+    if (p.hasError) {
+      return AsyncError(p.error!, p.stackTrace ?? StackTrace.empty);
+    }
+  }
+  if (parts.any((p) => p.isLoading)) return const AsyncLoading();
+  return AsyncData([for (final p in parts) ...?p.value]);
+}
+
 class _ChildHomework extends ConsumerStatefulWidget {
   final Student child;
   final List<Student> children;
@@ -82,20 +94,27 @@ class _ChildHomeworkState extends ConsumerState<_ChildHomework> {
             'there is no homework to show.',
       );
     }
-    final hwKey = (
-      schoolId: c.schoolId,
-      branchId: c.branchId,
-      academicYearId: year,
-      classId: classId,
-      sectionId: sectionId,
-    );
+    // The main class and any extra class (e.g. day care) each have their own
+    // homework; the child sees all of it together.
+    final hwKeys = [
+      for (final p in c.classSections)
+        (
+          schoolId: c.schoolId,
+          branchId: c.branchId,
+          academicYearId: year,
+          classId: p.classId,
+          sectionId: p.sectionId,
+        ),
+    ];
     final subKey = (
       schoolId: c.schoolId,
       branchId: c.branchId,
       studentId: c.studentId,
       academicYearId: year,
     );
-    final hw = ref.watch(sectionHomeworkProvider(hwKey));
+    final hw = _combine([
+      for (final k in hwKeys) ref.watch(sectionHomeworkProvider(k)),
+    ]);
     final subs = ref.watch(childSubmissionsProvider(subKey));
     final updates = ref.watch(
       homeworkUpdatesProvider((
@@ -112,7 +131,9 @@ class _ChildHomeworkState extends ConsumerState<_ChildHomework> {
       return ErrorView(
         message: userMessageFor((hw.error ?? subs.error)!),
         onRetry: () {
-          ref.invalidate(sectionHomeworkProvider(hwKey));
+          for (final k in hwKeys) {
+            ref.invalidate(sectionHomeworkProvider(k));
+          }
           ref.invalidate(childSubmissionsProvider(subKey));
         },
       );
@@ -159,7 +180,9 @@ class _ChildHomeworkState extends ConsumerState<_ChildHomework> {
     return PageColumn(
       child: RefreshIndicator(
         onRefresh: () async {
-          ref.invalidate(sectionHomeworkProvider(hwKey));
+          for (final k in hwKeys) {
+            ref.invalidate(sectionHomeworkProvider(k));
+          }
           ref.invalidate(childSubmissionsProvider(subKey));
         },
         child: ListView(

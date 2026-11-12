@@ -155,6 +155,33 @@ abstract class StudentRepository {
     required String updatedBy,
   });
 
+  /// Adds an extra class (e.g. the afternoon day-care class of a child who is
+  /// in pre-school in the morning) without touching the main class: one new
+  /// ACTIVE `academicRecords` document of kind EXTRA plus the student's cache,
+  /// in one transaction. Fails if it duplicates the main class or another
+  /// extra, or when the student already has the maximum.
+  Future<void> addExtraPlacement({
+    required String schoolId,
+    required String branchId,
+    required String studentId,
+    required String academicYearId,
+    required String classId,
+    required String sectionId,
+    String label = '',
+    String? rollNumber,
+    required String updatedBy,
+  });
+
+  /// Ends an extra class: its record is closed (kept in the history) and it
+  /// leaves the student's cache.
+  Future<void> removeExtraPlacement({
+    required String schoolId,
+    required String branchId,
+    required String studentId,
+    required String recordId,
+    required String updatedBy,
+  });
+
   /// Chronological, oldest first — see
   /// `docs/milestone-3-student-parent-management.md` → "Academic History
   /// UI".

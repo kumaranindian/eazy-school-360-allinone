@@ -86,6 +86,15 @@ class _FormState extends ConsumerState<_Form> {
     super.dispose();
   }
 
+  /// Which of the child's classes the message is about (main class first,
+  /// then extra classes such as day care).
+  int _placeIndex = 0;
+
+  ({String classId, String sectionId, String label}) get _place {
+    final places = widget.child.classSections;
+    return places[_placeIndex.clamp(0, places.length - 1)];
+  }
+
   Future<void> _start(String sectionKey) async {
     if (_sending) return;
     final c = widget.child;
@@ -99,8 +108,8 @@ class _FormState extends ConsumerState<_Form> {
       schoolId: c.schoolId,
       branchId: c.branchId,
       academicYearId: c.currentAcademicYearId!,
-      classId: c.currentClassId!,
-      sectionId: c.currentSectionId!,
+      classId: _place.classId,
+      sectionId: _place.sectionId,
       studentId: c.studentId,
       studentName: c.displayName,
       parentUserId: widget.parentUserId,
@@ -168,8 +177,8 @@ class _FormState extends ConsumerState<_Form> {
     }
     final key = MessageContact.sectionKey(
       c.currentAcademicYearId!,
-      c.currentClassId!,
-      c.currentSectionId!,
+      _place.classId,
+      _place.sectionId,
     );
     final contacts = ref.watch(
       _contactsProvider((schoolId: c.schoolId, branchId: c.branchId, key: key)),
@@ -203,6 +212,32 @@ class _FormState extends ConsumerState<_Form> {
                 title: 'About ${c.displayName}',
                 child: Column(
                   children: [
+                    if (c.classSections.length > 1)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                        child: Wrap(
+                          spacing: AppSpacing.sm,
+                          children: [
+                            for (var i = 0; i < c.classSections.length; i++)
+                              ChoiceChip(
+                                label: Text(
+                                  c.classSections[i].label.isNotEmpty
+                                      ? c.classSections[i].label
+                                      : (i == 0
+                                            ? 'Main class'
+                                            : 'Extra class $i'),
+                                ),
+                                selected: i == _placeIndex,
+                                onSelected: _sending
+                                    ? null
+                                    : (_) => setState(() {
+                                        _placeIndex = i;
+                                        _choice = null;
+                                      }),
+                              ),
+                          ],
+                        ),
+                      ),
                     DropdownButtonFormField<int>(
                       value: _choice == null
                           ? null

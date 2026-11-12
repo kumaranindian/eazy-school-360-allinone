@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/firestore_fields.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/errors/error_mapper.dart';
+import '../../students/domain/extra_placement.dart';
 import '../../students/domain/student.dart';
 import '../../students/domain/student_status.dart';
 import '../domain/fee_enums.dart';
@@ -277,7 +278,51 @@ class FirebaseFeeConfigRepository implements FeeConfigRepository {
         if (page.docs.length < 200) break;
         cursor = page.docs.last;
       }
-      return students;
+
+      // Children who attend this class as an extra class (day care ...) are
+      // billed for it here, with this class on the invoice.
+      final extraKey = sectionId == null
+          ? ExtraPlacement.classKeyOf(academicYearId, classId)
+          : ExtraPlacement.sectionKeyOf(academicYearId, classId, sectionId);
+      final seen = {for (final s in students) s.studentId};
+      final extras = await paths.students
+          .where('extraPlacementKeys', arrayContains: extraKey)
+          .limit(maxPlacementStudents)
+          .get();
+      final extraStudents = <FeeStudent>[];
+      for (final d in extras.docs) {
+        if (seen.contains(d.id)) continue;
+        final s = Student.fromFirestore(schoolId, branchId, d.id, d.data());
+        final placement = s.extraPlacements.firstWhere(
+          (e) =>
+              e.academicYearId == academicYearId &&
+              e.classId == classId &&
+              (sectionId == null || e.sectionId == sectionId),
+          orElse: () => const ExtraPlacement(
+            recordId: '',
+            academicYearId: '',
+            classId: '',
+            sectionId: '',
+          ),
+        );
+        if (placement.recordId.isEmpty) continue;
+        extraStudents.add(
+          FeeStudent(
+            studentId: s.studentId,
+            name: s.displayName,
+            admissionNumber: s.admissionNumber,
+            classId: classId,
+            className: className,
+            sectionId: placement.sectionId,
+            sectionName: sectionNames[placement.sectionId] ?? '',
+            isEnrolled: s.status == StudentStatus.active,
+          ),
+        );
+      }
+      extraStudents.sort(
+        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      );
+      return [...students, ...extraStudents];
     } catch (error, stackTrace) {
       throw mapExceptionToFailure(error, stackTrace);
     }

@@ -98,7 +98,11 @@ class FirebaseInvoiceRepository implements InvoiceRepository {
       );
       final existingInvoices = await _existingIds(paths.invoices, [
         for (final s in students)
-          BillingPeriod.invoiceId(s.studentId, academicYearId, period.key),
+          ...InvoicePlanner.candidateInvoiceIds(
+            s.studentId,
+            academicYearId,
+            period,
+          ),
       ]);
       return BillingContext(
         students: students,
@@ -185,7 +189,7 @@ class FirebaseInvoiceRepository implements InvoiceRepository {
               sectionId: p.student.sectionId,
               sectionName: p.student.sectionName,
               periodKind: period.kind,
-              periodKey: period.key,
+              periodKey: p.periodKey,
               periodLabel: period.label,
               issueDateKey: issueDateKey,
               dueDateKey: p.dueDateKey,

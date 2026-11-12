@@ -20,7 +20,12 @@ const { stampClasses } = require('./exam_scope');
 const branchRef = (db, s, b) => db.collection('schools').doc(s).collection('branches').doc(b);
 
 /** Fields of a student document that change what a family may read. */
-const placementOf = (s) => (s ? [s.status, s.currentClassId, s.currentSectionId] : null);
+const extraKeysOf = (s) =>
+  (Array.isArray(s.extraPlacements) ? s.extraPlacements : [])
+    .map((e) => `${e && e.classId}__${e && e.sectionId}`)
+    .sort();
+
+const placementOf = (s) => (s ? [s.status, s.currentClassId, s.currentSectionId, extraKeysOf(s)] : null);
 
 function placementChanged(before, after) {
   return JSON.stringify(placementOf(before)) !== JSON.stringify(placementOf(after));

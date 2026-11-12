@@ -55,6 +55,29 @@ class _GenerateState extends ConsumerState<_Generate> {
 
   InvoicePlan? _plan;
   BillingPeriod? _period;
+  BillingContext? _billing;
+  List<BillableFeeOption> _options = const [];
+  Set<String> _selected = {};
+
+  /// Students ticked off in the preview; they get no invoice.
+  Set<String> _excluded = {};
+
+  List<ProposedInvoice> get _chosen => [
+    for (final p in _plan?.proposals ?? const <ProposedInvoice>[])
+      if (!_excluded.contains(p.student.studentId)) p,
+  ];
+
+  void _toggleStudent(String studentId, bool on) => setState(() {
+    final next = {..._excluded};
+    on ? next.remove(studentId) : next.add(studentId);
+    _excluded = next;
+  });
+
+  void _toggleAllStudents(bool on) => setState(() {
+    _excluded = on
+        ? <String>{}
+        : {for (final p in _plan!.proposals) p.student.studentId};
+  });
   bool _loading = false;
   String? _error;
   ({int done, int total})? _progress;
@@ -103,6 +126,43 @@ class _GenerateState extends ConsumerState<_Generate> {
     }
   }
 
+  InvoicePlan _planFor(
+    BillingContext billing,
+    BillingPeriod period,
+    Set<String> selected,
+  ) {
+    return InvoicePlanner.plan(
+      students: billing.students,
+      assignmentsByStudent: billing.assignmentsByStudent,
+      period: period,
+      academicYearId: widget.fee.year.academicYearId,
+      issueDateKey: _issueKey,
+      existingChargeIds: billing.existingChargeIds,
+      existingInvoiceIds: billing.existingInvoiceIds,
+      addDays: FeeDates.addDays,
+      selectedStructureIds: selected,
+    );
+  }
+
+  void _toggleFee(String structureId, bool on) {
+    final selected = {..._selected};
+    on ? selected.add(structureId) : selected.remove(structureId);
+    setState(() {
+      _selected = selected;
+      _plan = _planFor(_billing!, _period!, selected);
+    });
+  }
+
+  void _toggleAll(bool on) {
+    final selected = on
+        ? {for (final o in _options) o.structureId}
+        : <String>{};
+    setState(() {
+      _selected = selected;
+      _plan = _planFor(_billing!, _period!, selected);
+    });
+  }
+
   Future<void> _preview() async {
     final period = _buildPeriod();
     if (period == null) {
@@ -117,6 +177,9 @@ class _GenerateState extends ConsumerState<_Generate> {
       _loading = true;
       _error = null;
       _plan = null;
+      _billing = null;
+      _options = const [];
+      _excluded = {};
       _result = null;
     });
     try {
@@ -130,16 +193,16 @@ class _GenerateState extends ConsumerState<_Generate> {
             sectionId: _sectionId,
             period: period,
           );
-      final plan = InvoicePlanner.plan(
+      final options = InvoicePlanner.availableFees(
         students: billing.students,
         assignmentsByStudent: billing.assignmentsByStudent,
         period: period,
         academicYearId: fee.year.academicYearId,
         issueDateKey: _issueKey,
         existingChargeIds: billing.existingChargeIds,
-        existingInvoiceIds: billing.existingInvoiceIds,
-        addDays: FeeDates.addDays,
       );
+      final selected = {for (final o in options) o.structureId};
+      final plan = _planFor(billing, period, selected);
       AppLogger.debug(
         'Invoice preview: period=${period.key} kind=${period.kind.wireValue} '
         'students=${billing.students.length} '
@@ -149,6 +212,9 @@ class _GenerateState extends ConsumerState<_Generate> {
       );
       if (!mounted) return;
       setState(() {
+        _billing = billing;
+        _options = options;
+        _selected = selected;
         _plan = plan;
         _period = period;
         _loading = false;
@@ -169,14 +235,18 @@ class _GenerateState extends ConsumerState<_Generate> {
   }
 
   Future<void> _confirm() async {
-    final plan = _plan!;
+    final chosen = _chosen;
+    if (chosen.isEmpty) return;
+    final chosenTotal = chosen.fold<int>(0, (s, p) => s + p.payableMinor);
     final fee = widget.fee;
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Generate invoices?'),
         content: Text(
-          '${plan.proposals.length} invoices for ${_period!.label}, totalling ${Money.format(plan.payableMinor, currency: fee.currency)}. '
+          '${chosen.length} invoices for ${_period!.label} '
+          '(${_options.where((o) => _selected.contains(o.structureId)).map((o) => o.name).join(', ')}), '
+          'totalling ${Money.format(chosenTotal, currency: fee.currency)}. '
           'Each gets a number and is issued to the student. Issued invoices can be voided only by an authorized user.',
         ),
         actions: [
@@ -192,7 +262,7 @@ class _GenerateState extends ConsumerState<_Generate> {
       ),
     );
     if (ok != true || !mounted) return;
-    setState(() => _progress = (done: 0, total: plan.proposals.length));
+    setState(() => _progress = (done: 0, total: chosen.length));
     try {
       final result = await ref
           .read(invoiceRepositoryProvider)
@@ -202,7 +272,7 @@ class _GenerateState extends ConsumerState<_Generate> {
             academicYearId: fee.year.academicYearId,
             period: _period!,
             issueDateKey: _issueKey,
-            proposals: plan.proposals,
+            proposals: chosen,
             info: fee.info,
             actorId: fee.userId,
             onProgress: (done, total) {
@@ -212,10 +282,15 @@ class _GenerateState extends ConsumerState<_Generate> {
             },
           );
       if (!mounted) return;
+      notifyFeeDataChanged(context);
       setState(() {
         _result = result;
         _progress = null;
         _plan = null;
+        _billing = null;
+        _options = const [];
+        _selected = {};
+        _excluded = {};
       });
     } catch (error, stackTrace) {
       AppLogger.error(
@@ -456,14 +531,102 @@ class _GenerateState extends ConsumerState<_Generate> {
             result: _result!,
             onViewInvoices: () => context.push('/fees/invoices'),
           ),
+        if (_billing != null && _period != null)
+          _FeePicker(
+            options: _options,
+            selected: _selected,
+            currency: fee.currency,
+            enabled: !busy,
+            onToggle: _toggleFee,
+            onToggleAll: _toggleAll,
+          ),
         if (_plan != null)
           _Preview(
             plan: _plan!,
             currency: fee.currency,
             period: _period!,
+            chosen: _chosen,
+            excluded: _excluded,
+            enabled: !busy,
+            onToggleStudent: _toggleStudent,
+            onToggleAll: _toggleAllStudents,
             onConfirm: busy ? null : _confirm,
           ),
       ],
+    );
+  }
+}
+
+/// Which fee heads to put on the invoices. Only fees that still have
+/// something to bill are listed — one already invoiced to everyone for this
+/// period is not offered again.
+class _FeePicker extends StatelessWidget {
+  final List<BillableFeeOption> options;
+  final Set<String> selected;
+  final String currency;
+  final bool enabled;
+  final void Function(String structureId, bool on) onToggle;
+  final void Function(bool on) onToggleAll;
+
+  const _FeePicker({
+    required this.options,
+    required this.selected,
+    required this.currency,
+    required this.enabled,
+    required this.onToggle,
+    required this.onToggleAll,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    if (options.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.only(bottom: AppSpacing.md),
+        child: EmptyView(
+          icon: Icons.task_alt_outlined,
+          message:
+              'Every fee for this class and period has already been invoiced.',
+        ),
+      );
+    }
+    final all = selected.length == options.length;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+              child: Text('Fees to invoice', style: text.titleMedium),
+            ),
+            CheckboxListTile(
+              dense: true,
+              value: all ? true : (selected.isEmpty ? false : null),
+              tristate: true,
+              // Partly ticked -> select all; fully ticked -> clear.
+              onChanged: enabled ? (_) => onToggleAll(!all) : null,
+              title: const Text('Select all'),
+              controlAffinity: ListTileControlAffinity.leading,
+            ),
+            const Divider(height: 1),
+            for (final o in options)
+              CheckboxListTile(
+                dense: true,
+                value: selected.contains(o.structureId),
+                onChanged: enabled
+                    ? (v) => onToggle(o.structureId, v ?? false)
+                    : null,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(o.name),
+                subtitle: Text(
+                  '${o.students} student${o.students == 1 ? '' : 's'} · ${Money.format(o.totalMinor, currency: currency)}',
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -514,12 +677,22 @@ class _Preview extends StatelessWidget {
   final InvoicePlan plan;
   final String currency;
   final BillingPeriod period;
+  final List<ProposedInvoice> chosen;
+  final Set<String> excluded;
+  final bool enabled;
+  final void Function(String studentId, bool on) onToggleStudent;
+  final void Function(bool on) onToggleAll;
   final VoidCallback? onConfirm;
 
   const _Preview({
     required this.plan,
     required this.currency,
     required this.period,
+    required this.chosen,
+    required this.excluded,
+    required this.enabled,
+    required this.onToggleStudent,
+    required this.onToggleAll,
     required this.onConfirm,
   });
 
@@ -534,15 +707,15 @@ class _Preview extends StatelessWidget {
         Wrap(
           spacing: AppSpacing.md,
           children: [
-            Text('${plan.proposals.length} invoices'),
+            Text('${chosen.length} invoices'),
             Text(
-              'Subtotal ${Money.format(plan.subtotalMinor, currency: currency)}',
+              'Subtotal ${Money.format(chosen.fold<int>(0, (s, p) => s + p.subtotalMinor), currency: currency)}',
             ),
             Text(
-              'Concessions −${Money.format(plan.discountMinor, currency: currency)}',
+              'Concessions −${Money.format(chosen.fold<int>(0, (s, p) => s + p.discountMinor), currency: currency)}',
             ),
             Text(
-              'Total ${Money.format(plan.payableMinor, currency: currency)}',
+              'Total ${Money.format(chosen.fold<int>(0, (s, p) => s + p.payableMinor), currency: currency)}',
               style: text.titleSmall,
             ),
           ],
@@ -555,52 +728,78 @@ class _Preview extends StatelessWidget {
             child: EmptyView(
               icon: Icons.receipt_long_outlined,
               message:
-                  'Nothing to invoice for this selection. See the reasons above.',
+                  'Nothing to invoice for this selection. Choose at least one fee, or see the reasons above.',
             ),
           )
         else
           Card(
             child: Column(
               children: [
-                for (final p in plan.proposals.take(50))
-                  ExpansionTile(
-                    dense: true,
-                    title: Text(p.student.name),
-                    subtitle: Text(
-                      '${p.lines.map((l) => l.name).join(', ')} · due ${FeeDates.display(p.dueDateKey)}',
-                    ),
-                    trailing: Text(
-                      Money.format(p.payableMinor, currency: currency),
-                    ),
-                    children: [
-                      for (final l in p.lines)
-                        ListTile(
-                          dense: true,
-                          title: Text(l.name),
-                          subtitle: l.discountMinor > 0
-                              ? Text(
-                                  'Concession −${Money.format(l.discountMinor, currency: currency)}${l.concessionNote == null ? '' : ' (${l.concessionNote})'}',
-                                )
-                              : null,
-                          trailing: Text(
-                            Money.format(l.netMinor, currency: currency),
-                          ),
-                        ),
-                    ],
+                CheckboxListTile(
+                  dense: true,
+                  tristate: true,
+                  value: excluded.isEmpty
+                      ? true
+                      : (chosen.isEmpty ? false : null),
+                  // Partly ticked -> select all; fully ticked -> clear.
+                  onChanged: enabled
+                      ? (_) => onToggleAll(excluded.isNotEmpty)
+                      : null,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: Text(
+                    'Select all students (${chosen.length} of ${plan.proposals.length})',
                   ),
-                if (plan.proposals.length > 50)
-                  Padding(
-                    padding: const EdgeInsets.all(AppSpacing.sm),
-                    child: Text('…and ${plan.proposals.length - 50} more.'),
+                ),
+                const Divider(height: 1),
+                for (final p in plan.proposals)
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: !excluded.contains(p.student.studentId),
+                        onChanged: enabled
+                            ? (v) => onToggleStudent(
+                                p.student.studentId,
+                                v ?? false,
+                              )
+                            : null,
+                      ),
+                      Expanded(
+                        child: ExpansionTile(
+                          dense: true,
+                          title: Text(p.student.name),
+                          subtitle: Text(
+                            '${p.lines.map((l) => l.name).join(', ')} · due ${FeeDates.display(p.dueDateKey)}',
+                          ),
+                          trailing: Text(
+                            Money.format(p.payableMinor, currency: currency),
+                          ),
+                          children: [
+                            for (final l in p.lines)
+                              ListTile(
+                                dense: true,
+                                title: Text(l.name),
+                                subtitle: l.discountMinor > 0
+                                    ? Text(
+                                        'Concession −${Money.format(l.discountMinor, currency: currency)}${l.concessionNote == null ? '' : ' (${l.concessionNote})'}',
+                                      )
+                                    : null,
+                                trailing: Text(
+                                  Money.format(l.netMinor, currency: currency),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
               ],
             ),
           ),
         const SizedBox(height: AppSpacing.md),
         FilledButton.icon(
-          onPressed: plan.proposals.isEmpty ? null : onConfirm,
+          onPressed: chosen.isEmpty ? null : onConfirm,
           icon: const Icon(Icons.check),
-          label: Text('Generate ${plan.proposals.length} invoices'),
+          label: Text('Generate ${chosen.length} invoices'),
         ),
       ],
     );
