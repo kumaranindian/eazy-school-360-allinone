@@ -65,3 +65,9 @@ Threat model: anonymous internet traffic against a write path into a school's da
 - **Integrity**: validation is the staff form's validation; the id is derived from `requestId` (create-only); duplicates are flagged for staff, never merged.
 - **Not covered here**: the Flutter page cannot render a Turnstile widget (it relies on App Check); a school that sets the Turnstile secret must
   also ship a client that can solve it.
+
+## Notifications (phase 10)
+- Text carries the enquiry NUMBER and what happened; never remarks, rejection reasons, phone numbers or document names (tested against a seeded enquiry).
+- Recipients must be ACTIVE users of the same school; a notice for an enquiry of another branch's administrators is never created.
+- Parents are told only about confirmation, only via a parent record linked to an ACTIVE login, and the text contains no internal numbers.
+- Idempotent: derived ids + `create()`; a retried trigger writes only what is missing.

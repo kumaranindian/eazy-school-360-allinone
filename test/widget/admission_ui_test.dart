@@ -44,7 +44,7 @@ import '../support/staff_fakes.dart';
 const _uid = 'uid-1';
 
 /// A phone-width window tall enough to show a whole form without scrolling.
-const _tall = Size(390, 3400);
+const _tall = Size(390, 4600);
 
 final _year = AcademicYear(
   academicYearId: 'y1',
@@ -692,6 +692,31 @@ void main() {
         expect(p.consentText, startsWith('I agree'));
       },
     );
+
+    testWidgets('a notification can be switched off and is saved', (
+      tester,
+    ) async {
+      final repo = await _pump(
+        tester,
+        role: UserRole.schoolAdmin,
+        path: '/admissions/settings',
+        size: _tall,
+        repo: FakeAdmissionRepository(
+          settings: const AdmissionSettings(enabled: true, version: 4),
+        ),
+      );
+      expect(find.text('Notifications'), findsOneWidget);
+      await tester.tap(
+        find.text('An application is approved or not approved (the owner)'),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Save settings'));
+      await tester.tap(find.text('Save settings'));
+      await tester.pumpAndSettle();
+      final n = repo.savedSettings.single;
+      expect(n.notifies('decision'), isFalse);
+      expect(n.notifies('newEnquiry'), isTrue);
+    });
 
     testWidgets('equal prefixes are refused before saving', (tester) async {
       final repo = await _pump(

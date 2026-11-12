@@ -118,3 +118,9 @@ The enquiry gets `studentId` and `admissionNumber`; each admission fee record ge
   (`ip_…`, `phone_…`, `view_…`, and `school`). Enable a Firestore TTL policy on `expireAt` at deploy.
 - A public enquiry is an ordinary `admissionEnquiries/pub_{requestId}` (create-only, so retries are safe) with `channel: PUBLIC_PORTAL`,
   `source: Website`, `createdBy: public-portal`, and `consent {accepted, version, acceptedAt, ipHash}`.
+
+## Notifications (phase 10)
+Notices are ordinary `branches/{b}/notifications/{type}__{enquiryId}__{revision}__{userId}` documents (the collection the app feed and the push
+trigger already use; one delivery path). Types: `ADMISSION_ENQUIRY_NEW`, `ADMISSION_ASSIGNED`, `ADMISSION_APP_SUBMITTED`, `ADMISSION_APP_APPROVED`,
+`ADMISSION_APP_REJECTED`, `ADMISSION_CONFIRMED` (staff) and `ADMISSION_CONFIRMED_PARENT` (refType STUDENT). Settings: `notifications` {newEnquiry, assignment,
+applicationSubmitted, decision, confirmed, parentConfirmed} (booleans, default on).

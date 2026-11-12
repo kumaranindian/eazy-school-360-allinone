@@ -91,3 +91,13 @@ the branch's highest, skipping reserved numbers (create-only reservation, same k
 Family opens `/admission/{slug}` → sees the offered years/classes and the consent statement → sends → a NEW enquiry (source Website, no
 assignee) appears in the branch's list with the usual duplicate flag. Staff take it from there (assign, follow up…). Notifying staff of a new public enquiry
 is part of phase 10.
+
+## Who is told what (phase 10)
+| Event | Told | Not told |
+|---|---|---|
+| New enquiry (staff or website) | the branch's administrators (else the school's) | the person who created it |
+| Created with / changed to an assignee | the assignee | the person who assigned |
+| Application submitted | school administrators (+ branch administrators if they may approve) | the submitter |
+| Approved / not approved | the enquiry's owner (assignee, else branch administrators) | the decider; the reason is never included |
+| Admission confirmed | the owner; the parents **who already have a login** ("admission confirmed", name and number only) | the converter |
+Follow-up reminders (phase 4) are unchanged. Each row can be switched off in the settings.

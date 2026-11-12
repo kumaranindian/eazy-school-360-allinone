@@ -428,6 +428,39 @@ const publicCall = (name, fn) =>
   });
 exports.getAdmissionPortal = publicCall('getAdmissionPortal', admissionPublic.getPublicPortal);
 exports.submitPublicAdmissionEnquiry = publicCall('submitPublicAdmissionEnquiry', admissionPublic.submitPublicEnquiry);
+
+// Admission notifications (admission_notify.js). One status-history entry or one assignee
+// change makes at most one notice per person; ids are derived and created with create(), so
+// `retry: true` is safe: a failed run is repeated and only the missing notices are written.
+const admissionNotify = require('./admission_notify');
+const notifyCtx = () => ({ db, now: () => new Date() });
+exports.notifyAdmissionStatus = onDocumentCreated(
+  { document: 'schools/{schoolId}/branches/{branchId}/admissionStatusHistory/{entryId}', retry: true },
+  async (event) => {
+    try {
+      await admissionNotify.onStatusHistory(notifyCtx(), event.params, event.data && event.data.data());
+    } catch (e) {
+      logger.error('admission status notice failed', { category: errorCategory(e) });
+      throw e;
+    }
+  },
+);
+exports.notifyAdmissionAssignment = onDocumentUpdated(
+  { document: 'schools/{schoolId}/branches/{branchId}/admissionEnquiries/{enquiryId}', retry: true },
+  async (event) => {
+    try {
+      await admissionNotify.onEnquiryUpdated(
+        notifyCtx(),
+        event.params,
+        event.data.before.exists ? event.data.before.data() : undefined,
+        event.data.after.exists ? event.data.after.data() : undefined,
+      );
+    } catch (e) {
+      logger.error('admission assignment notice failed', { category: errorCategory(e) });
+      throw e;
+    }
+  },
+);
 exports.changeAdmissionEnquiryStatus = admissionCall('changeAdmissionEnquiryStatus', admission.changeEnquiryStatus, (d, r) => ({ enquiry: d.enquiryId, status: r.status }));
 
 exports.updatePlatformBranding = onCall(callOptions(), async (request) => {

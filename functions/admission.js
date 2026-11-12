@@ -163,10 +163,13 @@ const DEFAULT_SETTINGS = Object.freeze({
   academicYearIds: [],
   classIds: [],
   // Phase 9: the public enquiry page (admission/{slug}). Off until a school sets it up.
+  // Phase 10: which admission events notify people (all on by default).
+  notifications: Object.freeze({ newEnquiry: true, assignment: true, applicationSubmitted: true, decision: true, confirmed: true, parentConfirmed: true }),
   publicPortal: Object.freeze({ enabled: false, slug: '', branchId: '', introText: '', consentText: '', consentVersion: 0 }),
 });
 
 const PREFIX = /^[A-Z]{2,6}$/;
+const NOTIFICATION_KEYS = Object.keys(DEFAULT_SETTINGS.notifications);
 const PORTAL_SLUG = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
 const RESERVED_SLUGS = ['admin', 'api', 'login', 'www', 'app', 'static', 'assets', 'support', 'help'];
 
@@ -257,10 +260,22 @@ function validateSettings(input) {
   };
   const academicYearIds = idList('academicYearIds');
   const classIds = idList('classIds');
+  const notifications = { ...DEFAULT_SETTINGS.notifications };
+  if (i.notifications !== undefined) {
+    const n = i.notifications;
+    if (!n || typeof n !== 'object' || Array.isArray(n)) errors.notifications = 'must be an object of true/false switches';
+    else {
+      for (const [k, v] of Object.entries(n)) {
+        if (!NOTIFICATION_KEYS.includes(k)) errors.notifications = `unknown switch ${k}`;
+        else if (typeof v !== 'boolean') errors.notifications = `${k} must be true or false`;
+        else notifications[k] = v;
+      }
+    }
+  }
   const portal = validatePortal(i.publicPortal);
   if (portal.errors) errors.publicPortal = a_reason(portal.errors);
   if (Object.keys(errors).length) return { errors };
-  return { value: { publicPortal: portal.value, enabled, enquiryPrefix, applicationPrefix, sources, followUpDays, remindersEnabled, reminderTime, requiredDocumentTypes, customDocumentTypes, branchAdminsMayApprove, academicYearIds, classIds } };
+  return { value: { notifications, publicPortal: portal.value, enabled, enquiryPrefix, applicationPrefix, sources, followUpDays, remindersEnabled, reminderTime, requiredDocumentTypes, customDocumentTypes, branchAdminsMayApprove, academicYearIds, classIds } };
 }
 
 async function loadSettings(db, schoolId) {
@@ -662,6 +677,7 @@ module.exports = {
   TRANSITIONS,
   TERMINAL,
   DEFAULT_SETTINGS,
+  NOTIFICATION_KEYS,
   DEFAULT_SOURCES,
   normalizeMobile,
   canTransition,

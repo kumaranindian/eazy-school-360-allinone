@@ -51,6 +51,7 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
   bool _reminders = true;
   bool _branchApprove = false;
   bool _portalOn = false;
+  Map<String, bool> _notify = {};
   String _portalBranch = '';
   final _slug = TextEditingController();
   final _intro = TextEditingController();
@@ -85,6 +86,10 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
     _reminders = s.remindersEnabled;
     _branchApprove = s.branchAdminsMayApprove;
     _portalOn = s.publicPortal.enabled;
+    _notify = {
+      for (final (key, _) in admissionNotificationSwitches)
+        key: s.notifies(key),
+    };
     _portalBranch = s.publicPortal.branchId;
     _slug.text = s.publicPortal.slug;
     _intro.text = s.publicPortal.introText;
@@ -107,6 +112,7 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
       remindersEnabled: _reminders,
       reminderTime: _reminderTime,
       branchAdminsMayApprove: _branchApprove,
+      notifications: _notify,
       publicPortal: PublicPortalSettings(
         enabled: _portalOn,
         slug: _slug.text.trim().toLowerCase(),
@@ -499,6 +505,34 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
                                           : (v) => setState(
                                               () => _branchApprove = v,
                                             ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  ParentsCard(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const ParentsSectionTitle(
+                                          icon: Icons.notifications_outlined,
+                                          title: 'Notifications',
+                                        ),
+                                        for (final (key, label)
+                                            in admissionNotificationSwitches)
+                                          SwitchListTile(
+                                            contentPadding: EdgeInsets.zero,
+                                            title: Text(label),
+                                            value: _notify[key] ?? true,
+                                            onChanged: saving
+                                                ? null
+                                                : (v) => setState(
+                                                    () => _notify[key] = v,
+                                                  ),
+                                          ),
+                                        const Text(
+                                          'Notices name only the enquiry number. Remarks and reasons are never included.',
+                                        ),
+                                      ],
                                     ),
                                   ),
                                   const SizedBox(height: 16),

@@ -394,6 +394,44 @@ void main() {
       }
     });
 
+    test(
+      'every admission notice type opens the enquiry; the parent notice opens nothing',
+      () {
+        for (final type in [
+          'ADMISSION_ENQUIRY_NEW',
+          'ADMISSION_ASSIGNED',
+          'ADMISSION_APP_SUBMITTED',
+          'ADMISSION_APP_APPROVED',
+          'ADMISSION_APP_REJECTED',
+          'ADMISSION_CONFIRMED',
+        ]) {
+          expect(
+            NotificationNavigator.routeFor(
+              n(type, ref: 'e9'),
+              UserRole.schoolAdmin,
+            ),
+            '/admissions/enquiries/e9',
+            reason: type,
+          );
+          expect(
+            NotificationNavigator.routeFor(
+              n(type, ref: 'e9'),
+              UserRole.teacher,
+            ),
+            isNull,
+            reason: type,
+          );
+        }
+        expect(
+          NotificationNavigator.routeFor(
+            n('ADMISSION_CONFIRMED_PARENT', ref: 's1'),
+            UserRole.parent,
+          ),
+          isNull,
+        );
+      },
+    );
+
     test('without a reference they open the follow-up dashboard', () {
       expect(
         NotificationNavigator.routeFor(
@@ -906,6 +944,31 @@ void main() {
         expect(w.containsKey('branchId'), isFalse);
         expect((w['guardians'] as List), hasLength(1));
         expect(w['interestedClassId'], 'c1');
+      },
+    );
+  });
+
+  group('notification settings', () {
+    test(
+      'everything is on unless switched off; the wire carries every switch',
+      () {
+        const s = AdmissionSettings();
+        for (final (key, _) in admissionNotificationSwitches) {
+          expect(s.notifies(key), isTrue, reason: key);
+        }
+        final off = AdmissionSettings.fromMap({
+          'notifications': {
+            'decision': false,
+            'bogus': 'x',
+            'newEnquiry': true,
+          },
+        });
+        expect(off.notifies('decision'), isFalse);
+        expect(off.notifies('newEnquiry'), isTrue);
+        final wire = off.toWire()['notifications'] as Map;
+        expect(wire.keys, admissionNotificationSwitches.map((e) => e.$1));
+        expect(wire['decision'], isFalse);
+        expect(wire['assignment'], isTrue);
       },
     );
   });

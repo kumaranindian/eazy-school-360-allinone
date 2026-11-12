@@ -79,3 +79,7 @@ Repeating the call returns the first result with `duplicate: true`.
 The school/branch are never taken from the request. Settings: `saveAdmissionSettings` now also accepts `publicPortal`.
 Errors: `invalid-argument` (validation, no consent, a year/class not offered), `failed-precondition` (consent text changed), `permission-denied`
 (verification failed), `resource-exhausted` (rate limit), `not-found`.
+
+## Notifications (phase 10)
+No new callables. Two Firestore triggers (`functions/admission_notify.js`, `retry: true`): `notifyAdmissionStatus` on a new `admissionStatusHistory` entry
+and `notifyAdmissionAssignment` on an enquiry whose `assignedTo` changed. `saveAdmissionSettings` accepts `notifications` (only the six known switches, booleans).

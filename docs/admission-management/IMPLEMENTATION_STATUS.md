@@ -114,6 +114,12 @@ function `admissionFollowUpReminders`, notification types `ADMISSION_FOLLOWUP_DU
   `publicLimits.expireAt` must be enabled; the Flutter page has no Turnstile widget; the web build and a deployed round trip were not run.
 - Not done: staff notification of new public enquiries (phase 10), a "Public portal" badge in the enquiry list, a QR/share link helper.
 
+## Phase 10 — notifications (done)
+- `functions/admission_notify.js` + two triggers (`retry: true`), six switches in Admission settings, tap-through routing for the new notice types.
+- Tests: functions `admission_notify.test.js` (12), Dart domain (2) and widget (1) tests; the settings test viewport was made taller for the longer page.
+- Honest limits: the triggers and the push delivery were never run deployed; parents usually have no login at conversion, so the parent notice reaches only
+  families who already have one; there is no email/WhatsApp message to parents or applicants (push/in-app only); no per-user preference screen.
+
 ## Known limitations (phase 6)
 - The Storage rules are untested in an emulator (see above); the real upload → confirm round trip and `FirebaseAdmissionDocumentStore` are untested.
 - (Phase 7 added fees.) No conversion to a student (phase 8): an APPROVED application is the end of the road for now.

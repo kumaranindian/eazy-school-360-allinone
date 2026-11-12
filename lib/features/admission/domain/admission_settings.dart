@@ -51,6 +51,16 @@ class PublicPortalSettings {
   );
 }
 
+/// The admission events that notify people, in display order (key, label).
+const List<(String, String)> admissionNotificationSwitches = [
+  ('newEnquiry', 'A new enquiry arrives (branch administrators)'),
+  ('assignment', 'An enquiry is assigned to someone (the assignee)'),
+  ('applicationSubmitted', 'An application is submitted (who may approve)'),
+  ('decision', 'An application is approved or not approved (the owner)'),
+  ('confirmed', 'An admission is confirmed (the owner)'),
+  ('parentConfirmed', 'Tell the parents when the admission is confirmed'),
+];
+
 class AdmissionSettings {
   final bool enabled;
   final String enquiryPrefix;
@@ -74,6 +84,9 @@ class AdmissionSettings {
   /// Whether branch administrators may approve or reject applications.
   final bool branchAdminsMayApprove;
   final PublicPortalSettings publicPortal;
+
+  /// Which events notify people; a missing key means on.
+  final Map<String, bool> notifications;
   final int version;
 
   const AdmissionSettings({
@@ -90,6 +103,7 @@ class AdmissionSettings {
     this.customDocumentTypes = const [],
     this.branchAdminsMayApprove = false,
     this.publicPortal = const PublicPortalSettings(),
+    this.notifications = const {},
     this.version = 0,
   });
 
@@ -139,6 +153,12 @@ class AdmissionSettings {
       ],
       branchAdminsMayApprove: data['branchAdminsMayApprove'] == true,
       publicPortal: PublicPortalSettings.fromMap(data['publicPortal']),
+      notifications: {
+        if (data['notifications'] is Map)
+          for (final e in (data['notifications'] as Map).entries)
+            if (e.key is String && e.value is bool)
+              e.key as String: e.value as bool,
+      },
       version: data['version'] is int ? data['version'] as int : 0,
     );
   }
@@ -158,7 +178,13 @@ class AdmissionSettings {
     'customDocumentTypes': [for (final c in customDocumentTypes) c.toWire()],
     'branchAdminsMayApprove': branchAdminsMayApprove,
     'publicPortal': publicPortal.toWire(),
+    'notifications': {
+      for (final (key, _) in admissionNotificationSwitches) key: notifies(key),
+    },
   };
+
+  /// Whether the event [key] notifies people (on unless switched off).
+  bool notifies(String key) => notifications[key] != false;
 
   AdmissionSettings copyWith({
     bool? enabled,
@@ -174,6 +200,7 @@ class AdmissionSettings {
     List<CustomDocumentType>? customDocumentTypes,
     bool? branchAdminsMayApprove,
     PublicPortalSettings? publicPortal,
+    Map<String, bool>? notifications,
   }) => AdmissionSettings(
     enabled: enabled ?? this.enabled,
     enquiryPrefix: enquiryPrefix ?? this.enquiryPrefix,
@@ -189,6 +216,7 @@ class AdmissionSettings {
     branchAdminsMayApprove:
         branchAdminsMayApprove ?? this.branchAdminsMayApprove,
     publicPortal: publicPortal ?? this.publicPortal,
+    notifications: notifications ?? this.notifications,
     version: version,
   );
 
