@@ -67,6 +67,7 @@ A user belongs to **one school** (`/users/{uid}.schoolId`); several branches pos
 | D3 | Fee reminder policy | `schools/*/feeReminderSettings` (`updatedBy` uid; no personal data) | same token replacement of `updatedBy` | PENDING |
 | D8 | Admission enquiries, follow-ups and their histories | `schools/*/branches/*/admissionEnquiries`, `admissionStatusHistory`, `admissionActivities`, `admissionActivityHistory` (`createdBy`/`updatedBy`/`actorId`/`assignedTo`/`completedBy` uids; the prospective student's and guardians' details are about people who are not users) | uid fields replaced with the same token; prospective-family data is kept (it is a school record, not the deleted user's data) | PENDING |
 | D9 | Admission settings | `schools/*/admissionSettings` (`updatedBy` uid; no personal data) | same token replacement of `updatedBy` | PENDING |
+| D10 | Admission fees and fee payments | `schools/*/branches/*/admissionFees`, `admissionFeePayments` (`createdBy`/`updatedBy`/`recordedBy` uids; amounts and receipt numbers are financial records) | uid fields replaced with the same token; financial records are kept | PENDING |
 | D4 | School theme | `schools/*/branding` (`updatedBy` uid; no personal data); `platformBranding` is platform-wide and exempt | same token replacement of `updatedBy` | PENDING |
 
 ### E. Outside our database

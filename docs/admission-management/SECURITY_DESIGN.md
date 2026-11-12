@@ -35,3 +35,13 @@ Callables log ids, not names or phone numbers. Account-deletion handling: DATABA
 **Known gaps.** Platform admin cannot write (by design for now). Branch admin whose *home* role is
 not branch admin but who holds a per-branch admin role can use the callables but not read the
 school-wide settings document (rules check the home role there). No documents/Storage yet.
+
+## Admission fees (phase 7)
+- `admissionFees` and `admissionFeePayments` are read-only for clients (school admin, platform admin, branch admin of
+  the branch); every write is a callable. Rules tests: read scope and denied writes (including FINANCE) in
+  `firestore-tests/admission-rules.test.mjs`.
+- Nothing is "paid" except by a recorded payment; amounts are positive integer minor units (bounded); payments
+  cannot exceed the balance; refunds cannot exceed the money held; waivers and refunds are school-admin only.
+- Receipt numbers cannot repeat: the counter and the number reservation are written in the same transaction as the
+  payment (tested with concurrent payments).
+- Finance staff do not yet see these records (they would need the confidential enquiry too); a Finance view is part of phase 13.

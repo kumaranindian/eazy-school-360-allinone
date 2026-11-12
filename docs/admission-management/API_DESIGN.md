@@ -52,3 +52,14 @@ Ignored from the client: `schoolId`/`branchId` inside `enquiry`, `status`, `enqu
 
 Pure logic (validation, state machine, numbering, duplicate matching) is exported from
 `functions/admission.js` and unit-tested with an in-memory Firestore.
+
+## Admission fees (phase 7)
+All are callables (`functions/admission_fees.js`), `{schoolId, branchId, enquiryId, category, ...}`:
+
+| Callable | Who | Effect |
+|---|---|---|
+| `setAdmissionFee` | school/branch admin | create or change the amount (`amountMinor`, or from `feeStructureId`); cannot go below paid + waived; refused once the enquiry is closed/confirmed |
+| `recordAdmissionFeePayment` | school/branch admin | one manual payment, `requestId` idempotent, amount ≤ balance, issues an RCT receipt number; reference required for cheque/bank/UPI/card |
+| `waiveAdmissionFee` | school admin | waives the remaining balance (reason required) |
+| `refundAdmissionFee` | school admin | refund of money held (reason, `requestId` idempotent); allowed after the enquiry closes |
+| `cancelAdmissionFee` | school/branch admin | only when no money is held |

@@ -23,6 +23,7 @@ import '../../domain/admission_settings.dart';
 import '../widgets/activity_dialogs.dart';
 import '../widgets/application_widgets.dart';
 import '../widgets/enquiry_application_tabs.dart';
+import '../widgets/fees_tab.dart';
 import '../widgets/activity_widgets.dart';
 import '../widgets/admission_widgets.dart';
 
@@ -32,6 +33,7 @@ enum _Tab {
   visits,
   application,
   documents,
+  fees,
   timeline,
   notes,
 }
@@ -142,6 +144,7 @@ class _EnquiryDetailPageState extends ConsumerState<EnquiryDetailPage> {
                                   _Tab.visits => 'Visits',
                                   _Tab.application => 'Application',
                                   _Tab.documents => 'Documents',
+                                  _Tab.fees => 'Fees',
                                   _Tab.timeline => 'Timeline',
                                   _Tab.notes => 'Internal notes',
                                 }),
@@ -186,6 +189,7 @@ class _EnquiryDetailPageState extends ConsumerState<EnquiryDetailPage> {
                                     .value ??
                                 const AdmissionSettings(),
                           ),
+                          _Tab.fees => FeesTab(enquiry: e, keyData: key),
                           _Tab.timeline => _Timeline(enquiry: e, keyData: key),
                           _Tab.notes => _Notes(enquiry: e),
                         },

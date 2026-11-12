@@ -12,6 +12,7 @@ import '../../students/domain/paged_result.dart';
 import '../domain/admission_activity.dart';
 import '../domain/admission_application.dart';
 import '../domain/admission_enquiry.dart';
+import '../domain/admission_fee.dart';
 import '../domain/admission_repository.dart';
 import '../domain/admission_settings.dart';
 import '../domain/admission_status.dart';
@@ -34,6 +35,8 @@ class FirebaseAdmissionRepository implements AdmissionRepository {
   static const _applications = 'admissionApplications';
   static const _applicationHistory = 'admissionApplicationHistory';
   static const _documents = 'admissionDocuments';
+  static const _fees = 'admissionFees';
+  static const _feePayments = 'admissionFeePayments';
 
   DocumentReference<Map<String, dynamic>> _settingsDoc(String schoolId) => _db
       .collection(FirestoreFields.schoolsCollection)
@@ -922,6 +925,156 @@ class FirebaseAdmissionRepository implements AdmissionRepository {
       ..._target(schoolId, branchId, enquiryId),
       'documentId': documentId,
       'reason': ?reason,
+    });
+  }
+  // ---- admission fees (phase 7) ---------------------------------------
+
+  @override
+  Future<List<AdmissionFee>> fetchFees(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  ) async {
+    try {
+      final snap = await _col(
+        schoolId,
+        branchId,
+        _fees,
+      ).where('enquiryId', isEqualTo: enquiryId).limit(20).get();
+      final fees = [
+        for (final d in snap.docs) AdmissionFee.fromMap(d.id, d.data()),
+      ];
+      fees.sort((a, b) => a.category.index.compareTo(b.category.index));
+      return fees;
+    } catch (e, st) {
+      throw mapExceptionToFailure(e, st);
+    }
+  }
+
+  @override
+  Future<List<AdmissionFeePayment>> fetchFeePayments(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  ) async {
+    try {
+      final snap = await _col(schoolId, branchId, _feePayments)
+          .where('enquiryId', isEqualTo: enquiryId)
+          .orderBy('recordedAt', descending: true)
+          .limit(100)
+          .get();
+      return [
+        for (final d in snap.docs)
+          AdmissionFeePayment.fromMap(
+            d.id,
+            d.data(),
+            recordedAt: (d.data()['recordedAt'] as Timestamp?)?.toDate(),
+          ),
+      ];
+    } catch (e, st) {
+      throw mapExceptionToFailure(e, st);
+    }
+  }
+
+  @override
+  Future<void> setFee({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required FeeCategory category,
+    required int amountMinor,
+    String? feeStructureId,
+    String? dueDate,
+    String? note,
+    int? baseRevision,
+  }) async {
+    await _call('setAdmissionFee', {
+      ..._target(schoolId, branchId, enquiryId),
+      'category': category.wire,
+      'amountMinor': amountMinor,
+      'feeStructureId': ?feeStructureId,
+      'dueDate': ?dueDate,
+      'note': ?note,
+      'baseRevision': ?baseRevision,
+    });
+  }
+
+  @override
+  Future<void> cancelFee({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required FeeCategory category,
+    required String reason,
+  }) async {
+    await _call('cancelAdmissionFee', {
+      ..._target(schoolId, branchId, enquiryId),
+      'category': category.wire,
+      'reason': reason,
+    });
+  }
+
+  @override
+  Future<void> waiveFee({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required FeeCategory category,
+    required String reason,
+  }) async {
+    await _call('waiveAdmissionFee', {
+      ..._target(schoolId, branchId, enquiryId),
+      'category': category.wire,
+      'reason': reason,
+    });
+  }
+
+  @override
+  Future<String> recordPayment({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required FeeCategory category,
+    required String requestId,
+    required int amountMinor,
+    required AdmissionPaymentMethod method,
+    String? referenceNo,
+    String? paymentDate,
+    String? notes,
+  }) async {
+    final r = await _call('recordAdmissionFeePayment', {
+      ..._target(schoolId, branchId, enquiryId),
+      'category': category.wire,
+      'requestId': requestId,
+      'amountMinor': amountMinor,
+      'method': method.wire,
+      'referenceNo': ?referenceNo,
+      'paymentDate': ?paymentDate,
+      'notes': ?notes,
+    });
+    return r['receiptNumber'] as String? ?? '';
+  }
+
+  @override
+  Future<void> refund({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required FeeCategory category,
+    required String requestId,
+    required int amountMinor,
+    required AdmissionPaymentMethod method,
+    required String reason,
+    String? referenceNo,
+  }) async {
+    await _call('refundAdmissionFee', {
+      ..._target(schoolId, branchId, enquiryId),
+      'category': category.wire,
+      'requestId': requestId,
+      'amountMinor': amountMinor,
+      'method': method.wire,
+      'reason': reason,
+      'referenceNo': ?referenceNo,
     });
   }
 }

@@ -13,6 +13,7 @@ import '../../data/firebase_admission_repository.dart';
 import '../../domain/admission_activity.dart';
 import '../../domain/admission_application.dart';
 import '../../domain/admission_enquiry.dart';
+import '../../domain/admission_fee.dart';
 import '../../domain/admission_repository.dart';
 import '../../domain/admission_settings.dart';
 import '../../domain/admission_status.dart';
@@ -109,6 +110,21 @@ final enquiryDocumentsProvider = FutureProvider.autoDispose
       (ref, key) => ref
           .watch(admissionRepositoryProvider)
           .fetchDocuments(key.schoolId, key.branchId, key.enquiryId),
+    );
+
+/// The fee records of an enquiry and their payments. Invalidated after each change.
+final enquiryFeesProvider = FutureProvider.autoDispose
+    .family<List<AdmissionFee>, EnquiryKey>(
+      (ref, key) => ref
+          .watch(admissionRepositoryProvider)
+          .fetchFees(key.schoolId, key.branchId, key.enquiryId),
+    );
+
+final enquiryFeePaymentsProvider = FutureProvider.autoDispose
+    .family<List<AdmissionFeePayment>, EnquiryKey>(
+      (ref, key) => ref
+          .watch(admissionRepositoryProvider)
+          .fetchFeePayments(key.schoolId, key.branchId, key.enquiryId),
     );
 
 /// The application's history; every application event bumps its revision,
@@ -517,6 +533,118 @@ class AdmissionWriteController extends AsyncNotifier<void> {
         }) ??
         false;
   }
+
+  // ---- admission fees (phase 7) ---------------------------------------
+
+  Future<bool> setFee({
+    required EnquiryKey key,
+    required FeeCategory category,
+    required int amountMinor,
+    String? feeStructureId,
+    String? dueDate,
+    String? note,
+    int? baseRevision,
+  }) async =>
+      await _run(() async {
+        await _repo.setFee(
+          schoolId: key.schoolId,
+          branchId: key.branchId,
+          enquiryId: key.enquiryId,
+          category: category,
+          amountMinor: amountMinor,
+          feeStructureId: feeStructureId,
+          dueDate: dueDate,
+          note: note,
+          baseRevision: baseRevision,
+        );
+        return true;
+      }) ??
+      false;
+
+  Future<bool> cancelFee({
+    required EnquiryKey key,
+    required FeeCategory category,
+    required String reason,
+  }) async =>
+      await _run(() async {
+        await _repo.cancelFee(
+          schoolId: key.schoolId,
+          branchId: key.branchId,
+          enquiryId: key.enquiryId,
+          category: category,
+          reason: reason,
+        );
+        return true;
+      }) ??
+      false;
+
+  Future<bool> waiveFee({
+    required EnquiryKey key,
+    required FeeCategory category,
+    required String reason,
+  }) async =>
+      await _run(() async {
+        await _repo.waiveFee(
+          schoolId: key.schoolId,
+          branchId: key.branchId,
+          enquiryId: key.enquiryId,
+          category: category,
+          reason: reason,
+        );
+        return true;
+      }) ??
+      false;
+
+  /// The receipt number, or null on failure. [requestId] is created once per
+  /// dialog so a double tap or a retry never records the payment twice.
+  Future<String?> recordPayment({
+    required EnquiryKey key,
+    required FeeCategory category,
+    required String requestId,
+    required int amountMinor,
+    required AdmissionPaymentMethod method,
+    String? referenceNo,
+    String? paymentDate,
+    String? notes,
+  }) => _run(
+    () => _repo.recordPayment(
+      schoolId: key.schoolId,
+      branchId: key.branchId,
+      enquiryId: key.enquiryId,
+      category: category,
+      requestId: requestId,
+      amountMinor: amountMinor,
+      method: method,
+      referenceNo: referenceNo,
+      paymentDate: paymentDate,
+      notes: notes,
+    ),
+  );
+
+  Future<bool> refund({
+    required EnquiryKey key,
+    required FeeCategory category,
+    required String requestId,
+    required int amountMinor,
+    required AdmissionPaymentMethod method,
+    required String reason,
+    String? referenceNo,
+  }) async =>
+      await _run(() async {
+        await _repo.refund(
+          schoolId: key.schoolId,
+          branchId: key.branchId,
+          enquiryId: key.enquiryId,
+          category: category,
+          requestId: requestId,
+          amountMinor: amountMinor,
+          method: method,
+          reason: reason,
+          referenceNo: referenceNo,
+        );
+        return true;
+      }) ??
+      false;
 
   Future<bool> verifyDocument({
     required String schoolId,

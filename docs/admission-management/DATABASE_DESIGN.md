@@ -79,3 +79,21 @@ Firestore and applies the others in memory, so the index set stays small.
 ## Account deletion
 `admissionEnquiries`, `admissionStatusHistory`, `admissionActivities`, `admissionActivityHistory`, `admissionApplications`, `admissionApplicationHistory`, `admissionDocuments` are scanned for uid fields (`assignedTo` and `completedBy` were added to the processor's uid list for this module; token replacement);
 `admissionSettings` likewise. Prospective-family data is a school record and is kept (matrix D8/D9).
+
+## Admission fees (phase 7)
+An applicant is not a student, and the Fees module's invoices/payments/receipts are keyed by student. So the
+fees of an applicant are a small applicant-level record that reuses the Fees module's money rules and receipt
+series (no separate numbering, no payment gateway):
+
+- `branches/{b}/admissionFees/{enquiryId}__{CATEGORY}` — CATEGORY is APPLICATION | REGISTRATION | ADMISSION | CONFIRMATION
+  (one per enquiry and category, so setting a fee twice is idempotent). Fields: `amountMinor`, `waivedMinor`,
+  `paidMinor`, `refundedMinor`, `currency` (the school's), optional `feeStructureId` (an ACTIVE fee structure with
+  category ADMISSION; its amount is the default), `dueDate`, `note`, `status` (DUE | PARTIAL | PAID | WAIVED |
+  CANCELLED, derived), `lastReceiptNumber`, `revision`.
+- `branches/{b}/admissionFeePayments/{enquiryId}__{requestId}` — append-only: `kind` PAYMENT (with `receiptNumber`
+  `RCT-{startYear}-{seq}` and `numberSeq`) or REFUND (no receipt), method, reference, `paymentDate`, `recordedBy`.
+- Receipt numbers come from `feeCounters/receipt_{academicYearId}` and are reserved in `receiptNumbers/{number}`
+  in the same transaction (the exact shape the Fees module writes, plus `source: 'ADMISSION'`), so a number is
+  never issued twice across the two.
+- Index: `admissionFeePayments` (enquiryId, recordedAt desc).
+- At conversion (phase 8) the net paid amounts are carried into the new student's fee records.

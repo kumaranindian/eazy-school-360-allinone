@@ -5,6 +5,7 @@ import 'package:eazy_school_360/core/config/env_config_provider.dart';
 import 'package:eazy_school_360/core/constants/activation_status.dart';
 import 'package:eazy_school_360/core/permissions/user_role.dart';
 import 'package:eazy_school_360/core/routing/app_router.dart';
+import 'package:eazy_school_360/core/errors/app_failure.dart';
 import 'package:eazy_school_360/features/academic_setup/domain/academic_year.dart';
 import 'package:eazy_school_360/features/academic_setup/domain/academic_year_status.dart';
 import 'package:eazy_school_360/features/academic_setup/domain/school_class.dart';
@@ -16,6 +17,7 @@ import 'package:eazy_school_360/features/admission/domain/admission_activity.dar
 import 'package:eazy_school_360/features/admission/domain/admission_application.dart';
 import 'package:eazy_school_360/features/admission/presentation/providers/document_picker.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_enquiry.dart';
+import 'package:eazy_school_360/features/admission/domain/admission_fee.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_settings.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_status.dart';
 import 'package:eazy_school_360/features/admission/presentation/providers/admission_providers.dart';
@@ -2431,5 +2433,266 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
+  });
+
+  group('admission fees', () {
+    AdmissionFee fee(
+      FeeCategory c, {
+      int amount = 100000,
+      int paid = 0,
+      int refunded = 0,
+      AdmissionFeeStatus status = AdmissionFeeStatus.due,
+    }) => AdmissionFee(
+      id: '1__${c.wire}',
+      category: c,
+      currency: 'INR',
+      amountMinor: amount,
+      paidMinor: paid,
+      refundedMinor: refunded,
+      status: status,
+    );
+
+    Future<FakeAdmissionRepository> open(
+      WidgetTester tester, {
+      List<AdmissionFee> fees = const [],
+      List<AdmissionFeePayment> payments = const [],
+      UserRole role = UserRole.schoolAdmin,
+      AdmissionStatus status = AdmissionStatus.interested,
+    }) async {
+      final repo = await _pump(
+        tester,
+        role: role,
+        path: '/admissions/enquiries/1',
+        size: _tall,
+        repo:
+            FakeAdmissionRepository(
+                enquiries: [fakeEnquiry('1', status: status)],
+              )
+              ..fees = [...fees]
+              ..feePayments = [...payments],
+      );
+      await tester.tap(find.text('Fees'));
+      await tester.pumpAndSettle();
+      return repo;
+    }
+
+    testWidgets('an enquiry with no fees shows every category as not set', (
+      tester,
+    ) async {
+      await open(tester);
+      for (final c in FeeCategory.values) {
+        expect(find.text(c.label), findsOneWidget);
+      }
+      expect(find.text('Not set'), findsNWidgets(4));
+      expect(_btn('Set amount'), findsNWidgets(4));
+      expect(find.text('No payments recorded yet.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('setting an amount sends minor units', (tester) async {
+      final repo = await open(tester);
+      await tester.tap(_btn('Set amount').first);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, '500');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(repo.feeCalls, ['set APPLICATION 50000']);
+    });
+
+    testWidgets('a bad amount is refused before anything is sent', (
+      tester,
+    ) async {
+      final repo = await open(tester);
+      await tester.tap(_btn('Set amount').first);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, 'abc');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(find.text('Enter an amount greater than zero.'), findsOneWidget);
+      expect(repo.feeCalls, isEmpty);
+    });
+
+    testWidgets(
+      'recording a payment sends one request id and shows the receipt',
+      (tester) async {
+        final repo = await open(tester, fees: [fee(FeeCategory.application)]);
+        await tester.tap(_btn('Record payment'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField).first, '400');
+        await tester.tap(find.text('Record').last);
+        await tester.pumpAndSettle();
+        expect(repo.recordedPayments, hasLength(1));
+        expect(repo.recordedPayments.single['amountMinor'], 40000);
+        expect(repo.recordedPayments.single['method'], 'CASH');
+        expect(
+          (repo.recordedPayments.single['requestId'] as String).length,
+          greaterThan(8),
+        );
+        expect(find.textContaining('RCT-2026-000001'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'a payment above the balance or without a needed reference is refused',
+      (tester) async {
+        final repo = await open(
+          tester,
+          fees: [
+            fee(
+              FeeCategory.application,
+              amount: 100000,
+              paid: 60000,
+              status: AdmissionFeeStatus.partial,
+            ),
+          ],
+        );
+        await tester.tap(_btn('Record payment'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField).first, '500');
+        await tester.tap(find.text('Record').last);
+        await tester.pumpAndSettle();
+        expect(find.text('That is more than the balance due.'), findsOneWidget);
+        await tester.enterText(find.byType(TextField).first, '100');
+        await tester.tap(
+          find.byType(DropdownButtonFormField<AdmissionPaymentMethod>),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('UPI').last);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Record').last);
+        await tester.pumpAndSettle();
+        expect(find.text('A reference is needed for UPI.'), findsOneWidget);
+        expect(repo.recordedPayments, isEmpty);
+      },
+    );
+
+    testWidgets(
+      'a paid fee offers no payment; the payment list shows the receipt',
+      (tester) async {
+        await open(
+          tester,
+          fees: [
+            fee(
+              FeeCategory.application,
+              paid: 100000,
+              status: AdmissionFeeStatus.paid,
+            ),
+          ],
+          payments: [
+            const AdmissionFeePayment(
+              id: 'p1',
+              feeId: '1__APPLICATION',
+              category: FeeCategory.application,
+              isRefund: false,
+              amountMinor: 100000,
+              currency: 'INR',
+              method: AdmissionPaymentMethod.cash,
+              paymentDate: '2026-11-07',
+              receiptNumber: 'RCT-2026-000009',
+            ),
+          ],
+        );
+        expect(find.text('Paid'), findsWidgets);
+        expect(_btn('Record payment'), findsNothing);
+        expect(find.textContaining('Receipt RCT-2026-000009'), findsOneWidget);
+        expect(_btn('Refund'), findsOneWidget);
+      },
+    );
+
+    testWidgets('only the approval authority can waive or refund', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        role: UserRole.branchAdmin,
+        fees: [
+          fee(
+            FeeCategory.application,
+            paid: 20000,
+            status: AdmissionFeeStatus.partial,
+          ),
+        ],
+      );
+      expect(_btn('Record payment'), findsOneWidget);
+      expect(_btn('Waive balance'), findsNothing);
+      expect(_btn('Refund'), findsNothing);
+    });
+
+    testWidgets('a refund needs a reason and is sent once confirmed', (
+      tester,
+    ) async {
+      final repo = await open(
+        tester,
+        fees: [
+          fee(
+            FeeCategory.application,
+            paid: 100000,
+            status: AdmissionFeeStatus.paid,
+          ),
+        ],
+      );
+      await tester.tap(_btn('Refund'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, '300');
+      await tester.tap(find.text('Refund').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Give a reason for the refund.'), findsOneWidget);
+      await tester.enterText(find.byType(TextField).last, 'family moved');
+      await tester.tap(find.text('Refund').last);
+      await tester.pumpAndSettle();
+      expect(repo.feeCalls, ['refund APPLICATION 30000 family moved']);
+    });
+
+    testWidgets('a closed enquiry cannot take fees or payments, only refunds', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        status: AdmissionStatus.notInterested,
+        fees: [
+          fee(
+            FeeCategory.application,
+            paid: 50000,
+            status: AdmissionFeeStatus.partial,
+          ),
+        ],
+      );
+      expect(_btn('Set amount'), findsNothing);
+      expect(_btn('Change amount'), findsNothing);
+      expect(_btn('Record payment'), findsNothing);
+      expect(_btn('Refund'), findsOneWidget);
+    });
+
+    testWidgets('a server refusal is shown and nothing is claimed as saved', (
+      tester,
+    ) async {
+      final repo = await open(tester, fees: [fee(FeeCategory.application)]);
+      repo.failWith = const ValidationFailure('no');
+      await tester.tap(_btn('Record payment'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, '100');
+      await tester.tap(find.text('Record').last);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Payment recorded'), findsNothing);
+      expect(find.byType(SnackBar), findsOneWidget);
+    });
+
+    testWidgets('lays out on a phone and a desktop', (tester) async {
+      await open(
+        tester,
+        fees: [
+          fee(
+            FeeCategory.application,
+            paid: 20000,
+            status: AdmissionFeeStatus.partial,
+          ),
+        ],
+      );
+      for (final size in const [Size(360, 800), Size(1280, 900)]) {
+        tester.view.physicalSize = size;
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: '$size');
+      }
+    });
   });
 }

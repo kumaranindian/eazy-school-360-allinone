@@ -27,7 +27,7 @@ const DELETED_NAME = 'Deleted user';
 const UID_FIELDS = [
   'actorId', 'applicantUserId', 'approvedBy', 'assignedTo', 'authorId', 'calculatedBy', 'changedBy',
   'completedBy', 'concessionApprovedBy', 'createdBy', 'decidedBy', 'finalizedBy', 'flaggedBy', 'gradedBy',
-  'linkedUserId', 'lockedBy', 'parentUserId', 'publishedBy', 'recipientUserId', 'reviewedBy',
+  'linkedUserId', 'lockedBy', 'parentUserId', 'publishedBy', 'recipientUserId', 'recordedBy', 'reviewedBy',
   'reversedBy', 'senderUserId', 'submittedBy', 'supersededBy', 'teacherUserId', 'updatedBy',
   'uploadedBy', 'userId', 'voidedBy',
 ];
@@ -56,7 +56,7 @@ const NAME_FIELD = {
 
 // Collections under schools/{s}/branches/{b} that are scanned for the uid fields.
 const BRANCH_COLLECTIONS = [
-  'academicYears', 'admissionActivities', 'admissionActivityHistory', 'admissionApplicationHistory', 'admissionApplications', 'admissionDocuments', 'admissionEnquiries', 'admissionNumbers', 'admissionStatusHistory', 'announcementHistory', 'announcements', 'assignmentSlots',
+  'academicYears', 'admissionActivities', 'admissionActivityHistory', 'admissionApplicationHistory', 'admissionApplications', 'admissionDocuments', 'admissionEnquiries', 'admissionFeePayments', 'admissionFees', 'admissionNumbers', 'admissionStatusHistory', 'announcementHistory', 'announcements', 'assignmentSlots',
   'attendanceSessions', 'broadcastNotices', 'classSubjects', 'classes', 'conversationEvents',
   'conversations', 'departments', 'designations', 'examHistory', 'examRemarks', 'examinationSubjects',
   'examinations', 'gradingSchemes', 'holidays', 'homework', 'homeworkHistory', 'homeworkRevisions',

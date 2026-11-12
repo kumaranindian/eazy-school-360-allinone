@@ -1,6 +1,7 @@
 import 'package:eazy_school_360/features/admission/domain/admission_activity.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_application.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_enquiry.dart';
+import 'package:eazy_school_360/features/admission/domain/admission_fee.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_repository.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_settings.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_status.dart';
@@ -177,6 +178,10 @@ class FakeAdmissionRepository implements AdmissionRepository {
 
   AdmissionApplication? application;
   List<AdmissionDocument> documents = [];
+  List<AdmissionFee> fees = [];
+  List<AdmissionFeePayment> feePayments = [];
+  final List<String> feeCalls = [];
+  final List<Map<String, Object?>> recordedPayments = [];
   List<ApplicationEvent> applicationEvents = [];
   Map<ApplicationStatus, int> applicationCounts = const {};
   final List<ApplicationStatus?> fetchedApplicationStatuses = [];
@@ -563,6 +568,100 @@ class FakeAdmissionRepository implements AdmissionRepository {
     String branchId,
     String enquiryId,
   ) async => applicationEvents;
+
+  @override
+  Future<List<AdmissionFee>> fetchFees(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  ) async => fees;
+
+  @override
+  Future<List<AdmissionFeePayment>> fetchFeePayments(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  ) async => feePayments;
+
+  @override
+  Future<void> setFee({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required FeeCategory category,
+    required int amountMinor,
+    String? feeStructureId,
+    String? dueDate,
+    String? note,
+    int? baseRevision,
+  }) async {
+    if (failWith != null) throw failWith!;
+    feeCalls.add('set ${category.wire} $amountMinor');
+  }
+
+  @override
+  Future<void> cancelFee({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required FeeCategory category,
+    required String reason,
+  }) async {
+    if (failWith != null) throw failWith!;
+    feeCalls.add('cancel ${category.wire} $reason');
+  }
+
+  @override
+  Future<void> waiveFee({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required FeeCategory category,
+    required String reason,
+  }) async {
+    if (failWith != null) throw failWith!;
+    feeCalls.add('waive ${category.wire} $reason');
+  }
+
+  @override
+  Future<String> recordPayment({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required FeeCategory category,
+    required String requestId,
+    required int amountMinor,
+    required AdmissionPaymentMethod method,
+    String? referenceNo,
+    String? paymentDate,
+    String? notes,
+  }) async {
+    if (failWith != null) throw failWith!;
+    recordedPayments.add({
+      'category': category.wire,
+      'requestId': requestId,
+      'amountMinor': amountMinor,
+      'method': method.wire,
+      'referenceNo': referenceNo,
+    });
+    return 'RCT-2026-000001';
+  }
+
+  @override
+  Future<void> refund({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required FeeCategory category,
+    required String requestId,
+    required int amountMinor,
+    required AdmissionPaymentMethod method,
+    required String reason,
+    String? referenceNo,
+  }) async {
+    if (failWith != null) throw failWith!;
+    feeCalls.add('refund ${category.wire} $amountMinor $reason');
+  }
 
   @override
   Future<List<AdmissionDocument>> fetchDocuments(

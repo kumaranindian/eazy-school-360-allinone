@@ -82,9 +82,18 @@ function `admissionFollowUpReminders`, notification types `ADMISSION_FOLLOWUP_DU
 | **Storage rules** (`admission-storage-rules.test.mjs`) | **NOT verified.** 3 of 6 pass, but those are the deny-cases that also pass when nothing works; the allow-cases fail here, exactly as the existing Storage suites do in this sandbox (the Storage emulator's cross-service lookup does not work in it). The rule text compiles and the built size is 11.5 KB. **Run this file in CI before deploying Storage rules.** |
 | `flutter build web` | **not run** for this branch |
 
+## Phase 7 — admission fees (done)
+- Decision (confirmed by the product owner): applicant-level fee records that use the Fees module's receipt series and
+  money rules; the paid amounts are carried into the student's fee records at conversion (phase 8). No gateway.
+- Backend: `functions/admission_fees.js` (set / record payment / refund / waive / cancel), 5 callables, rules (read-only),
+  index, account-deletion decisions (D10). UI: a **Fees** tab on the enquiry (categories, totals, payments with receipt numbers).
+- Tests: functions `admission_fees.test.js` (9), rules (`admission-rules` 11 passing on the emulator), Dart domain (4) and
+  widget (10) tests; the fee-structure link is validated server-side but there is no picker in the UI yet (amount is typed).
+- Not done: Finance role view, posting into the student ledger (phase 8), fee receipt PDF for admission payments.
+
 ## Known limitations (phase 6)
 - The Storage rules are untested in an emulator (see above); the real upload → confirm round trip and `FirebaseAdmissionDocumentStore` are untested.
-- No application *fee* yet (phase 7) and no conversion to a student (phase 8): an APPROVED application is the end of the road for now.
+- (Phase 7 added fees.) No conversion to a student (phase 8): an APPROVED application is the end of the road for now.
 - The application edit form covers the essential fields (not every enquiry field, e.g. no source or internal remarks); a reviewer cannot send a draft back for changes (they reject documents instead).
 - Approving needs the school's required documents verified; there is no per-document expiry or duplicate-file detection.
 - PDF viewing uses the `printing` package's preview; it is not covered by a widget test.

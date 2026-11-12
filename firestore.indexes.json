@@ -1981,6 +1981,20 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "admissionFeePayments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "enquiryId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "recordedAt",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [

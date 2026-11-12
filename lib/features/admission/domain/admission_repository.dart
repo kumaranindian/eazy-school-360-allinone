@@ -2,6 +2,7 @@ import '../../students/domain/paged_result.dart';
 import 'admission_activity.dart';
 import 'admission_application.dart';
 import 'admission_enquiry.dart';
+import 'admission_fee.dart';
 import 'admission_settings.dart';
 import 'admission_status.dart';
 import 'enquiry_query.dart';
@@ -299,6 +300,76 @@ abstract class AdmissionRepository {
     required String enquiryId,
     required String documentId,
     String? reason,
+  });
+
+  // ---- admission fees (phase 7) ---------------------------------------
+
+  Future<List<AdmissionFee>> fetchFees(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  );
+
+  /// Payments and refunds of an enquiry, newest first.
+  Future<List<AdmissionFeePayment>> fetchFeePayments(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  );
+
+  Future<void> setFee({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required FeeCategory category,
+    required int amountMinor,
+    String? feeStructureId,
+    String? dueDate,
+    String? note,
+    int? baseRevision,
+  });
+
+  Future<void> cancelFee({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required FeeCategory category,
+    required String reason,
+  });
+
+  Future<void> waiveFee({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required FeeCategory category,
+    required String reason,
+  });
+
+  /// Records one manual payment; returns the receipt number. [requestId]
+  /// makes a retry return the same payment.
+  Future<String> recordPayment({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required FeeCategory category,
+    required String requestId,
+    required int amountMinor,
+    required AdmissionPaymentMethod method,
+    String? referenceNo,
+    String? paymentDate,
+    String? notes,
+  });
+
+  Future<void> refund({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required FeeCategory category,
+    required String requestId,
+    required int amountMinor,
+    required AdmissionPaymentMethod method,
+    required String reason,
+    String? referenceNo,
   });
 }
 

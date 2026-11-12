@@ -400,6 +400,12 @@ exports.admissionFollowUpReminders = onSchedule(
   },
 );
 
+const admissionFees = require('./admission_fees');
+exports.setAdmissionFee = admissionCall('setAdmissionFee', admissionFees.setAdmissionFee, (d) => ({ enquiry: d.enquiryId, category: d.category }));
+exports.cancelAdmissionFee = admissionCall('cancelAdmissionFee', admissionFees.cancelAdmissionFee, (d) => ({ enquiry: d.enquiryId, category: d.category }));
+exports.waiveAdmissionFee = admissionCall('waiveAdmissionFee', admissionFees.waiveAdmissionFee, (d) => ({ enquiry: d.enquiryId, category: d.category }));
+exports.recordAdmissionFeePayment = admissionCall('recordAdmissionFeePayment', admissionFees.recordAdmissionFeePayment, (d, r) => ({ enquiry: d.enquiryId, category: d.category, receipt: r.receiptNumber }));
+exports.refundAdmissionFee = admissionCall('refundAdmissionFee', admissionFees.refundAdmissionFee, (d) => ({ enquiry: d.enquiryId, category: d.category }));
 exports.changeAdmissionEnquiryStatus = admissionCall('changeAdmissionEnquiryStatus', admission.changeEnquiryStatus, (d, r) => ({ enquiry: d.enquiryId, status: r.status }));
 
 exports.updatePlatformBranding = onCall(callOptions(), async (request) => {

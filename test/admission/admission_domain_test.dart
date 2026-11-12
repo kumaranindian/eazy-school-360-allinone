@@ -2,6 +2,7 @@ import 'package:eazy_school_360/core/permissions/user_role.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_activity.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_application.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_enquiry.dart';
+import 'package:eazy_school_360/features/admission/domain/admission_fee.dart';
 import 'package:eazy_school_360/features/notifications/domain/feed_item.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_settings.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_status.dart';
@@ -786,5 +787,66 @@ void main() {
         );
       },
     );
+  });
+
+  group('admission fees', () {
+    AdmissionFee f({
+      int amount = 1000,
+      int waived = 0,
+      int paid = 0,
+      int refunded = 0,
+      AdmissionFeeStatus st = AdmissionFeeStatus.due,
+    }) => AdmissionFee(
+      id: 'x',
+      category: FeeCategory.application,
+      currency: 'INR',
+      amountMinor: amount,
+      waivedMinor: waived,
+      paidMinor: paid,
+      refundedMinor: refunded,
+      status: st,
+    );
+
+    test('balance and net paid', () {
+      expect(f(paid: 300, waived: 100).balanceMinor, 600);
+      expect(f(paid: 1000, refunded: 400).netPaidMinor, 600);
+      expect(f(paid: 1000, refunded: 400).balanceMinor, 400);
+      expect(f(st: AdmissionFeeStatus.cancelled).balanceMinor, 0);
+      expect(
+        f(paid: 1000, st: AdmissionFeeStatus.paid).canTakePayment,
+        isFalse,
+      );
+      expect(f().canTakePayment, isTrue);
+    });
+
+    test('summary ignores cancelled fees', () {
+      final s = AdmissionFeeSummary.of([
+        f(paid: 300),
+        f(amount: 500, st: AdmissionFeeStatus.cancelled),
+      ]);
+      expect((s.amountMinor, s.netPaidMinor, s.balanceMinor), (1000, 300, 700));
+    });
+
+    test('wire values parse; unknown categories and methods are null', () {
+      expect(FeeCategory.tryParse('ADMISSION'), FeeCategory.admission);
+      expect(FeeCategory.tryParse('x'), isNull);
+      expect(AdmissionPaymentMethod.tryParse('UPI')!.needsReference, isTrue);
+      expect(AdmissionPaymentMethod.cash.needsReference, isFalse);
+      expect(AdmissionFeeStatus.parse('???'), AdmissionFeeStatus.due);
+    });
+
+    test('fromMap reads the stored record', () {
+      final x = AdmissionFee.fromMap('e__ADMISSION', {
+        'category': 'ADMISSION',
+        'amountMinor': 5000,
+        'paidMinor': 2000,
+        'status': 'PARTIAL',
+        'revision': 3,
+      });
+      expect(
+        (x.category, x.balanceMinor, x.status, x.revision),
+        (FeeCategory.admission, 3000, AdmissionFeeStatus.partial, 3),
+      );
+    });
   });
 }

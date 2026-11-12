@@ -30,6 +30,8 @@ const ahist = (d, s = A, b = 'north', id = 'a1__1') => doc(d, 'schools', s, 'bra
 const app = (d, s = A, b = 'north', id = 'e1') => doc(d, 'schools', s, 'branches', b, 'admissionApplications', id);
 const apphist = (d, s = A, b = 'north', id = 'e1__1') => doc(d, 'schools', s, 'branches', b, 'admissionApplicationHistory', id);
 const adoc = (d, s = A, b = 'north', id = 'd1') => doc(d, 'schools', s, 'branches', b, 'admissionDocuments', id);
+const fee = (d, s = A, b = 'north', id = 'e1__APPLICATION') => doc(d, 'schools', s, 'branches', b, 'admissionFees', id);
+const feepay = (d, s = A, b = 'north', id = 'e1__req00001') => doc(d, 'schools', s, 'branches', b, 'admissionFeePayments', id);
 const seq = (d) => doc(d, 'schools', A, 'branches', 'north', 'admissionSequences', 'ENQ-2026');
 const settings = (d, s = A) => doc(d, 'schools', s, 'admissionSettings', 'config');
 const enquiry = (s, b) => ({ schoolId: s, branchId: b, enquiryNumber: 'ENQ-2026-00001', status: 'NEW', studentName: 'Asha Nair', revision: 1, ...base });
@@ -48,6 +50,8 @@ beforeEach(async () => {
         await setDoc(app(d, s, b), { schoolId: s, branchId: b, enquiryId: 'e1', status: 'DRAFT' });
         await setDoc(apphist(d, s, b), { schoolId: s, branchId: b, enquiryId: 'e1', revision: 1, event: 'CREATED' });
         await setDoc(adoc(d, s, b), { schoolId: s, branchId: b, enquiryId: 'e1', type: 'BIRTH_CERTIFICATE', status: 'UPLOADED' });
+        await setDoc(fee(d, s, b), { schoolId: s, branchId: b, enquiryId: 'e1', category: 'APPLICATION', amountMinor: 1000, status: 'DUE' });
+        await setDoc(feepay(d, s, b), { schoolId: s, branchId: b, enquiryId: 'e1', kind: 'PAYMENT', amountMinor: 1000 });
         await setDoc(ahist(d, s, b), { schoolId: s, branchId: b, activityId: 'a1', enquiryId: 'e1', revision: 1, event: 'CREATED' });
       }
       await setDoc(settings(d, s), { schoolId: s, enabled: true, version: 1 });
@@ -161,5 +165,22 @@ test('nobody writes applications, history or document records from a client', as
     await assertFails(setDoc(adoc(d, A, 'north', 'new'), { schoolId: A, status: 'VERIFIED' }));
     await assertFails(updateDoc(adoc(d), { status: 'VERIFIED' }));
     await assertFails(deleteDoc(adoc(d)));
+  }
+});
+
+test('admission fees and fee payments follow the same read scope, and nobody writes them from a client', async () => {
+  for (const read of [fee, feepay]) {
+    for (const uid of ['adm-admin', 'adm-platform', 'adm-north']) await assertSucceeds(getDoc(read(as(uid))));
+    for (const uid of ['adm-south', 'adm-teacher', 'adm-finance', 'adm-parent', 'adm-admin-b']) await assertFails(getDoc(read(as(uid))));
+    await assertFails(getDoc(read(env.unauthenticatedContext().firestore())));
+  }
+  for (const uid of ['adm-admin', 'adm-north', 'adm-platform', 'adm-finance']) {
+    const d = as(uid);
+    await assertFails(setDoc(fee(d, A, 'north', 'e1__ADMISSION'), { schoolId: A, branchId: 'north', status: 'PAID' }));
+    await assertFails(updateDoc(fee(d), { status: 'PAID', paidMinor: 1000 }));
+    await assertFails(deleteDoc(fee(d)));
+    await assertFails(setDoc(feepay(d, A, 'north', 'e1__new'), { schoolId: A, kind: 'PAYMENT' }));
+    await assertFails(updateDoc(feepay(d), { amountMinor: 1 }));
+    await assertFails(deleteDoc(feepay(d)));
   }
 });
