@@ -235,6 +235,7 @@ class _FollowUpsPageState extends ConsumerState<FollowUpsPage> {
           FollowUpBucket.today => 'Nothing is due today.',
           FollowUpBucket.overdue => 'Nothing is overdue.',
           FollowUpBucket.upcoming => 'No follow-ups are planned.',
+          FollowUpBucket.visits => 'No school visits are booked.',
           FollowUpBucket.mine => 'Nothing is assigned to you.',
           FollowUpBucket.unassigned => 'Every follow-up has an owner.',
           FollowUpBucket.completed => 'No follow-ups have been completed yet.',

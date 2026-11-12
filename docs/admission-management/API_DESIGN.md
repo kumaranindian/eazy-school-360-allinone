@@ -12,6 +12,7 @@ result object or throw an `HttpsError` whose `details.cause` carries the reason.
 | `changeAdmissionEnquiryStatus` | same | `{schoolId, branchId, enquiryId, status|"RESUME", reason?, baseRevision?}` | `{status, revision}` |
 
 | `scheduleAdmissionActivity` | same | `{schoolId, branchId, enquiryId, activity{type,scheduledDate,scheduledTime?,remarks?,assignedTo?}, requestId?}` | `{id, duplicate}` |
+| `scheduleAdmissionVisit` | same | `{schoolId, branchId, enquiryId, visit{purpose,scheduledDate,scheduledTime?,remarks?,assignedTo?}, requestId?}` | `{id, duplicate}` — also moves the enquiry to VISIT_SCHEDULED |
 | `rescheduleAdmissionActivity` | same | `{…, activityId, scheduledDate, scheduledTime?, reason?, baseRevision?}` | `{revision}` |
 | `reassignAdmissionActivity` | same | `{…, activityId, assignedTo|null, baseRevision?}` | `{revision}` |
 | `completeAdmissionActivity` | same | `{…, activityId, completion{outcome,parentFeedback?,remarks?}, next?{type,scheduledDate,…}, baseRevision?}` | `{revision, nextId?}` |
@@ -20,6 +21,8 @@ result object or throw an `HttpsError` whose `details.cause` carries the reason.
 Scheduled job `admissionFollowUpReminders` (hourly): for every school with admissions and reminders on, once its local
 time is inside the 3-hour window from `reminderTime`, it notifies the assignee (or the branch administrators when
 unassigned) of each open activity due today (DUE) or earlier, up to 30 days back (OVERDUE).
+
+School visits are activities of type `SCHOOL_VISIT` and **only** `scheduleAdmissionVisit` creates them (the generic call and a "next contact" refuse that type). Rescheduling, reassigning, completing and cancelling use the same callables as other activities; for a visit they also apply the status effects in WORKFLOWS.
 
 Rules: dates cannot be in the past (school time zone); only a SCHEDULED activity can change; a closed enquiry takes no new
 follow-ups; completing requires an outcome (3–500 characters); cancelling requires a reason.

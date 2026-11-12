@@ -14,7 +14,8 @@ Legend: ✅ done and tested · 🟡 partly · ⬜ not started.
 | 7 | Lifecycle state machine with history, reasons, no arbitrary status writes | ✅ lead stages · later statuses are reserved for their workflows (⬜) |
 | 8 | Follow-ups: six types, schedule, reschedule, reassign, complete (outcome, feedback, remarks, next contact), cancel, history, dashboard (today / overdue / upcoming / mine / unassigned / completed / no follow-up) | ✅ |
 | 8a | Automated reminders: due today + overdue, school time zone, no duplicates, existing notification pipeline | ✅ (in-app + push through the existing path) · email ⬜ |
-| 8b | School visits (multiple per enquiry, drive VISIT_* statuses, completion notes) | ⬜ Phase 5 — a visit can be logged today as a "School visit" activity, but it does **not** move the enquiry status |
+| 8b | School visits: several per enquiry; date and time; assigned staff; purpose; status; completion notes and parent feedback; rescheduling; cancellation with reason; every event in the enquiry timeline; drive VISIT_SCHEDULED / VISIT_COMPLETED | ✅ |
+| 8c | Timeline: status changes **and** every follow-up/visit event in one list | ✅ |
 | 9 | Applications, documents, verification | ⬜ |
 | 10 | Admission fees (on existing fee module) | ⬜ |
 | 11 | Convert to student (idempotent) | ⬜ |

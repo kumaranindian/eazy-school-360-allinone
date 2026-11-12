@@ -3,8 +3,8 @@
 Enquiry → follow-up → visit → application → documents → approval → fee → conversion
 to a student, built into the existing EazySchool 360 app (same tenants, roles, theme).
 
-**Status: Phases 0–4 of the master prompt are implemented** (assessment, admission
-foundation, enquiry management, enquiry lifecycle, follow-up management). Phases 5–16 are **not started**.
+**Status: Phases 0–5 of the master prompt are implemented** (assessment, admission
+foundation, enquiry management, enquiry lifecycle, follow-up management, school visits). Phases 6–16 are **not started**.
 See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for the honest list and
 [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for what comes next.
 

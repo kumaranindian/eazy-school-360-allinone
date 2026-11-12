@@ -30,6 +30,29 @@ Buckets (school-local "today"): **Today** (open, dated today), **Overdue** (open
 no planned date). Closing an enquiry cancels its open follow-ups.
 Reminders: DUE on the day, one OVERDUE per activity per scheduled date; a rescheduled activity gets one fresh notice.
 
+## School visits (phase 5)
+A visit is a follow-up of type School visit with a **purpose** (campus tour, meet the principal, assessment, counselling,
+other), booked through its own call because it also moves the enquiry:
+
+| Event | Enquiry status |
+|---|---|
+| Book a visit while NEW / CONTACTED / INTERESTED / VISIT_COMPLETED | → VISIT_SCHEDULED (history reason "Visit scheduled") |
+| Book another visit while already VISIT_SCHEDULED | unchanged; no extra history line |
+| Complete a visit, no other visit open | VISIT_SCHEDULED → VISIT_COMPLETED ("Visit completed") |
+| Complete a visit, another still open | unchanged |
+| Cancel the last open visit, no visit ever completed | VISIT_SCHEDULED → INTERESTED ("Visit cancelled") |
+| Cancel the last open visit, an earlier visit was completed | VISIT_SCHEDULED → VISIT_COMPLETED |
+| Reschedule / reassign | unchanged (a timeline entry records both dates / people) |
+| Enquiry closed | open visits are cancelled ("Enquiry closed") |
+
+Visits cannot be booked on enquiries that are ON_HOLD, NOT_INTERESTED, in an application stage, or closed (resume or reopen
+first). The status only follows visits **while it is VISIT_SCHEDULED**: if someone moves the enquiry elsewhere by hand
+(e.g. ON_HOLD), completing the visit never overrides that; resuming returns to the status it was on. The lifecycle table
+gained NEW → VISIT_SCHEDULED and VISIT_COMPLETED → VISIT_SCHEDULED; neither is settable by hand.
+
+The enquiry **timeline** merges the status history with every follow-up and visit event (booked, rescheduled from/to,
+reassigned, completed, cancelled with reason), newest first.
+
 ## Numbers
 `ENQ-<year>-<5 digits>` per branch and year, year from the enquiry date. Generated in the creating
 transaction (`maxAttempts: 10` for bursts of walk-ins). Concurrency test: six parallel creates

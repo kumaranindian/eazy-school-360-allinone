@@ -140,6 +140,10 @@ class AdmissionEnquiry {
   /// [activityCount] > 0 the next follow-up date is derived from them.
   final int activityCount;
   final int openActivityCount;
+
+  /// When a follow-up or visit last changed (server time); used to refresh
+  /// the timeline, because activity changes do not bump [revision].
+  final DateTime? lastActivityAt;
   final int revision;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -175,6 +179,7 @@ class AdmissionEnquiry {
     this.duplicateOf = const [],
     this.activityCount = 0,
     this.openActivityCount = 0,
+    this.lastActivityAt,
     this.createdAt,
     this.updatedAt,
   });
@@ -192,6 +197,7 @@ class AdmissionEnquiry {
     Map<String, dynamic> d, {
     DateTime? createdAt,
     DateTime? updatedAt,
+    DateTime? lastActivityAt,
   }) {
     final student = (d['student'] as Map?)?.cast<String, dynamic>() ?? {};
     final address = (d['address'] as Map?)?.cast<String, dynamic>() ?? {};
@@ -236,6 +242,7 @@ class AdmissionEnquiry {
           ? d['openActivityCount'] as int
           : 0,
       revision: d['revision'] is int ? d['revision'] as int : 1,
+      lastActivityAt: lastActivityAt,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );

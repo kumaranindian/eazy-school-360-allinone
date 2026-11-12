@@ -87,7 +87,9 @@ class ActivityCard extends StatelessWidget {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
-                          a.type.label,
+                          a.isVisit && a.purpose != null
+                              ? 'School visit · ${a.purpose!.label}'
+                              : a.type.label,
                           style: t.titleMedium?.copyWith(
                             color: p.textPrimary,
                             fontWeight: FontWeight.w800,
@@ -170,4 +172,25 @@ class ActivityCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A plain-language line for one activity event (the timeline).
+String describeActivityEvent(ActivityHistoryEntry e) {
+  final what = e.isVisit
+      ? (e.purpose == null
+            ? 'School visit'
+            : 'School visit (${e.purpose!.label.toLowerCase()})')
+      : e.type.label;
+  final when = e.toDate == null
+      ? ''
+      : ' for ${shortDate(e.toDate)}'
+            '${e.toTime == null ? '' : ' at ${timeText(e.toTime)}'}';
+  return switch (e.event) {
+    ActivityEvent.created => '$what scheduled$when',
+    ActivityEvent.rescheduled =>
+      '$what rescheduled from ${shortDate(e.fromDate)} to ${shortDate(e.toDate)}',
+    ActivityEvent.reassigned => '$what reassigned',
+    ActivityEvent.completed => '$what completed',
+    ActivityEvent.cancelled => '$what cancelled',
+  };
 }

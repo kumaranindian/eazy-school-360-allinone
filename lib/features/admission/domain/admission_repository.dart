@@ -124,6 +124,23 @@ abstract class AdmissionRepository {
     required String requestId,
   });
 
+  /// Books a school visit ([input] carries the purpose). The server also moves
+  /// the enquiry to VISIT_SCHEDULED when it is not there already.
+  Future<String> scheduleVisit({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required ActivityInput input,
+    required String requestId,
+  });
+
+  /// The history of every activity of one enquiry, newest first.
+  Future<List<ActivityHistoryEntry>> fetchActivityHistory(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  );
+
   Future<int> rescheduleActivity({
     required String schoolId,
     required String branchId,

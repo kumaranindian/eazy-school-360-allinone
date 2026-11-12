@@ -31,6 +31,12 @@ const TYPE_LABEL = {
   MEETING: 'Meeting',
   OTHER: 'Follow-up',
 };
+// School visits (phase 5) are activities of this type with a purpose. They have
+// their own scheduling callable because they also move the enquiry's status.
+const VISIT = 'SCHOOL_VISIT';
+const PURPOSES = ['CAMPUS_TOUR', 'MEET_PRINCIPAL', 'ASSESSMENT', 'COUNSELLING', 'OTHER'];
+// A visit can be booked while the enquiry is still a lead (or after an earlier visit).
+const VISIT_START_STATUSES = ['NEW', 'CONTACTED', 'INTERESTED', 'VISIT_SCHEDULED', 'VISIT_COMPLETED'];
 const SCHEDULED = 'SCHEDULED';
 const COMPLETED = 'COMPLETED';
 const CANCELLED = 'CANCELLED';
@@ -50,11 +56,14 @@ const histCol = (db, s, b) => a.branchRef(db, s, b).collection('admissionActivit
  * Returns { errors } or { value }. [today] (yyyy-mm-dd, school time) is the
  * earliest date allowed: nothing can be planned in the past.
  */
-function validateSchedule(input, { today }) {
+function validateSchedule(input, { today, allowVisit = false }) {
   const errors = {};
   const i = input || {};
   const type = a.trim(i.type);
   if (!TYPES.includes(type)) errors.type = 'is not an activity type';
+  else if (type === VISIT && !allowVisit) errors.type = 'school visits are scheduled as visits';
+  const purpose = a.trim(i.purpose);
+  if (type === VISIT && allowVisit && !PURPOSES.includes(purpose)) errors.purpose = 'is required (campus tour, meet principal, assessment, counselling or other)';
   const date = i.scheduledDate;
   if (!a.validDate(date)) errors.scheduledDate = 'must be a date (yyyy-mm-dd)';
   else if (today && date < today) errors.scheduledDate = 'cannot be in the past';
@@ -66,7 +75,7 @@ function validateSchedule(input, { today }) {
   const remarks = a.trim(i.remarks);
   if (remarks.length > 500) errors.remarks = 'up to 500 characters';
   if (Object.keys(errors).length) return { errors };
-  return { value: { type, scheduledDate: date, scheduledTime: time, remarks: remarks || null } };
+  return { value: { type, scheduledDate: date, scheduledTime: time, remarks: remarks || null, purpose: type === VISIT ? purpose : null } };
 }
 
 /** The completion record: { outcome (3-500), parentFeedback?, remarks? }. */
@@ -119,6 +128,9 @@ function writeHistory(tx, ctx, activity, revision, event, extra, uid) {
     branchId: activity.branchId,
     activityId: activity.id,
     enquiryId: activity.enquiryId,
+    // what kind of activity this entry is about, so the timeline can say so
+    type: activity.type || null,
+    purpose: activity.purpose || null,
     revision,
     event,
     ...extra,
@@ -146,6 +158,7 @@ function newActivityDoc(ctx, { schoolId, branchId, enquiryId, enquiry, value, as
     enquiryNumber: enquiry.enquiryNumber,
     studentName: enquiry.studentName,
     type: value.type,
+    purpose: value.purpose || null,
     scheduledDate: value.scheduledDate,
     scheduledTime: value.scheduledTime,
     assignedTo,
@@ -167,14 +180,25 @@ function newActivityDoc(ctx, { schoolId, branchId, enquiryId, enquiry, value, as
 
 // ---- callables -------------------------------------------------------------
 
+/** The status a visit event moves the enquiry to, or null (pure). */
+function visitStatusAfter({ event, status, otherOpenVisits, hasCompletedVisit }) {
+  if (status !== 'VISIT_SCHEDULED' || otherOpenVisits > 0) return null;
+  if (event === 'COMPLETED') return 'VISIT_COMPLETED';
+  if (event === 'CANCELLED') return hasCompletedVisit ? 'VISIT_COMPLETED' : 'INTERESTED';
+  return null;
+}
+
 /**
- * Plans an activity on an open enquiry. `requestId` (client-generated, optional)
- * makes the call retry-safe: the same id returns the activity already created.
+ * Plans an activity (or, with `visit`, a school visit) on an enquiry.
+ * `requestId` (client-generated, optional) makes the call retry-safe: the same
+ * id returns the activity already created. A visit also moves the enquiry to
+ * VISIT_SCHEDULED, in the same transaction, when it is not there already.
  */
-async function scheduleActivity(ctx, uid, token, data) {
+async function scheduleCore(ctx, uid, token, data, visit) {
   const c = await context(ctx, uid, token, data);
   if (c.error) return c;
-  const parsed = validateSchedule(data.activity, { today: c.today });
+  const input = visit ? { ...(data.visit || {}), type: VISIT } : data.activity;
+  const parsed = validateSchedule(input, { today: c.today, allowVisit: visit });
   if (parsed.errors) return { error: 'INVALID_ARGUMENT', reason: a.reasonOf(parsed.errors) };
   const requestId = data.requestId;
   if (requestId !== undefined && !(a.isStr(requestId) && REQUEST_ID.test(requestId))) return { error: 'INVALID_ARGUMENT', reason: 'requestId: 8-64 letters, digits, - or _' };
@@ -185,20 +209,25 @@ async function scheduleActivity(ctx, uid, token, data) {
     const ref = col(c.db, c.schoolId, c.branchId).doc(id);
     const existing = await tx.get(ref);
     if (existing.exists) return { result: { id, duplicate: true } };
-    if (a.TERMINAL.includes(cur.data.status)) return { error: 'FAILED_PRECONDITION', reason: 'a closed enquiry has no follow-ups' };
+    if (a.TERMINAL.includes(cur.data.status)) return { error: 'FAILED_PRECONDITION', reason: visit ? 'a closed enquiry has no visits' : 'a closed enquiry has no follow-ups' };
+    if (visit && !VISIT_START_STATUSES.includes(cur.data.status)) return { error: 'FAILED_PRECONDITION', reason: `a visit cannot be booked while the enquiry is ${cur.data.status}` };
     let assignedTo = cur.data.assignedTo || null;
-    if (data.activity && Object.prototype.hasOwnProperty.call(data.activity, 'assignedTo')) {
-      assignedTo = data.activity.assignedTo ? await a.assignableUser(c.db, c.schoolId, c.branchId, data.activity.assignedTo) : null;
-      if (data.activity.assignedTo && !assignedTo) return { error: 'INVALID_ARGUMENT', reason: 'assignedTo: that person cannot be assigned in this branch' };
+    if (input && Object.prototype.hasOwnProperty.call(input, 'assignedTo')) {
+      assignedTo = input.assignedTo ? await a.assignableUser(c.db, c.schoolId, c.branchId, input.assignedTo) : null;
+      if (input.assignedTo && !assignedTo) return { error: 'INVALID_ARGUMENT', reason: 'assignedTo: that person cannot be assigned in this branch' };
     }
     const open = await openOf(tx, ctx, c.schoolId, c.branchId, c.enquiryId);
     const doc = newActivityDoc(ctx, { schoolId: c.schoolId, branchId: c.branchId, enquiryId: c.enquiryId, enquiry: cur.data, value: parsed.value, assignedTo, uid });
     tx.set(ref, doc);
-    writeHistory(tx, ctx, { id, schoolId: c.schoolId, branchId: c.branchId, enquiryId: c.enquiryId }, 1, 'CREATED', { to: { scheduledDate: doc.scheduledDate, type: doc.type, assignedTo } }, uid);
+    writeHistory(tx, ctx, { id, schoolId: c.schoolId, branchId: c.branchId, enquiryId: c.enquiryId, type: doc.type, purpose: doc.purpose }, 1, 'CREATED', { to: { scheduledDate: doc.scheduledDate, scheduledTime: doc.scheduledTime, assignedTo } }, uid);
     syncEnquiry(tx, ctx, cur.ref, cur.data, { openDates: [...open.map((o) => o.data.scheduledDate), doc.scheduledDate], activityDelta: 1 });
+    if (visit && cur.data.status !== 'VISIT_SCHEDULED') a.applyStatus(tx, ctx, cur, { to: 'VISIT_SCHEDULED', reason: 'Visit scheduled', uid });
     return { result: { id, duplicate: false } };
   }, { maxAttempts: 10 });
 }
+
+const scheduleActivity = (ctx, uid, token, data) => scheduleCore(ctx, uid, token, data, false);
+const scheduleVisit = (ctx, uid, token, data) => scheduleCore(ctx, uid, token, data, true);
 
 async function loadActivity(tx, ctx, c, activityId) {
   if (!a.isStr(activityId) || !a.ID.test(activityId)) return null;
@@ -222,17 +251,30 @@ async function changeOpen(ctx, uid, token, data, { event, prepare }) {
     if (act.data.status !== SCHEDULED) return { error: 'FAILED_PRECONDITION', reason: 'only a scheduled activity can be changed' };
     if (data.baseRevision !== undefined && data.baseRevision !== act.data.revision) return { error: 'ABORTED', reason: 'changed by someone else; reload' };
     const open = await openOf(tx, ctx, c.schoolId, c.branchId, c.enquiryId);
+    // Visits also move the enquiry's status. Everything that decides it is read
+    // here, before the first write.
+    const isVisit = act.data.type === VISIT;
+    const otherOpenVisits = open.filter((o) => o.id !== act.id && o.data.type === VISIT).length;
+    let hasCompletedVisit = false;
+    if (isVisit && event === 'CANCELLED' && cur.data.status === 'VISIT_SCHEDULED' && otherOpenVisits === 0) {
+      const done = await tx.get(col(c.db, c.schoolId, c.branchId).where('enquiryId', '==', c.enquiryId).where('type', '==', VISIT).where('status', '==', COMPLETED).limit(1));
+      hasCompletedVisit = done.docs.length > 0;
+    }
     const nextRev = act.data.revision + 1;
     const out = prep.apply({ tx, act, cur, nextRev, open });
     if (out.error) return out;
     tx.update(act.ref, { ...out.update, revision: nextRev, updatedAt: ctx.now, updatedBy: uid });
-    writeHistory(tx, ctx, { id: act.id, schoolId: c.schoolId, branchId: c.branchId, enquiryId: c.enquiryId }, nextRev, event, out.history, uid);
+    writeHistory(tx, ctx, { id: act.id, schoolId: c.schoolId, branchId: c.branchId, enquiryId: c.enquiryId, type: act.data.type, purpose: act.data.purpose }, nextRev, event, out.history, uid);
     const others = open.filter((o) => o.id !== act.id).map((o) => o.data.scheduledDate);
     const openDates = [...others];
     if (out.stillOpen) openDates.push(out.update.scheduledDate || act.data.scheduledDate);
     if (out.extraOpenDate) openDates.push(out.extraOpenDate);
     syncEnquiry(tx, ctx, cur.ref, cur.data, { openDates, activityDelta: out.extraCreated ? 1 : 0 });
     if (out.after) out.after(tx, others);
+    if (isVisit) {
+      const to = visitStatusAfter({ event, status: cur.data.status, otherOpenVisits, hasCompletedVisit });
+      if (to) a.applyStatus(tx, ctx, cur, { to, reason: event === 'COMPLETED' ? 'Visit completed' : 'Visit cancelled', uid });
+    }
     return { result: { revision: nextRev, ...(out.result || {}) } };
   }, { maxAttempts: 10 });
 }
@@ -329,7 +371,7 @@ function completeActivity(ctx, uid, token, data) {
               const assigned = act.data.assignedTo || null;
               const doc = newActivityDoc(ctx, { schoolId: c.schoolId, branchId: c.branchId, enquiryId: c.enquiryId, enquiry: cur.data, value: next, assignedTo: assigned, uid });
               txx.set(col(c.db, c.schoolId, c.branchId).doc(nid), doc);
-              writeHistory(txx, ctx, { id: nid, schoolId: c.schoolId, branchId: c.branchId, enquiryId: c.enquiryId }, 1, 'CREATED', { to: { scheduledDate: doc.scheduledDate, type: doc.type, assignedTo: assigned }, reason: null }, uid);
+              writeHistory(txx, ctx, { id: nid, schoolId: c.schoolId, branchId: c.branchId, enquiryId: c.enquiryId, type: doc.type, purpose: doc.purpose }, 1, 'CREATED', { to: { scheduledDate: doc.scheduledDate, scheduledTime: doc.scheduledTime, assignedTo: assigned }, reason: null }, uid);
             };
             // the new activity is open too
             out.extraOpenDate = next.scheduledDate;
@@ -469,7 +511,7 @@ async function cancelOpenForClosed(tx, ctx, cur, uid) {
           updatedAt: ctx.now,
           updatedBy: uid,
         });
-        writeHistory(tx, ctx, { id: o.id, schoolId: d.schoolId, branchId: d.branchId, enquiryId: cur.ref.id }, rev, 'CANCELLED', { reason: 'Enquiry closed' }, uid);
+        writeHistory(tx, ctx, { id: o.id, schoolId: d.schoolId, branchId: d.branchId, enquiryId: cur.ref.id, type: o.data.type, purpose: o.data.purpose }, rev, 'CANCELLED', { reason: 'Enquiry closed' }, uid);
       }
       tx.update(cur.ref, { nextFollowUpDate: null, openActivityCount: 0 });
     },
@@ -480,6 +522,11 @@ async function cancelOpenForClosed(tx, ctx, cur, uid) {
 const shortId = (s) => crypto.createHash('sha1').update(String(s)).digest('hex').slice(0, 10);
 
 module.exports = {
+  VISIT,
+  PURPOSES,
+  VISIT_START_STATUSES,
+  visitStatusAfter,
+  scheduleVisit,
   TYPES,
   TYPE_LABEL,
   SCHEDULED,

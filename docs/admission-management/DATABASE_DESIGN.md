@@ -29,13 +29,13 @@ transaction. One series per branch, prefix and year. No client rule exists (deni
 ## `branches/{b}/admissionActivities/{id}` (phase 4)
 `schoolId, branchId, enquiryId, enquiryNumber, studentName (copied for dashboard lists), type
 (PHONE_CALL|WHATSAPP|EMAIL|SCHOOL_VISIT|MEETING|OTHER), scheduledDate (yyyy-mm-dd, school time zone),
-scheduledTime (hh:mm|null), assignedTo, status (SCHEDULED|COMPLETED|CANCELLED), remarks, outcome,
+scheduledTime (hh:mm|null), purpose (visits only: CAMPUS_TOUR|MEET_PRINCIPAL|ASSESSMENT|COUNSELLING|OTHER), assignedTo, status (SCHEDULED|COMPLETED|CANCELLED), remarks, outcome,
 parentFeedback, completedAt, completedBy, cancelReason, rescheduleCount, revision, createdAt/By, updatedAt/By`.
 Id is `{enquiryId}__{requestId}` when the client sends an idempotency key, so a retry returns the same activity.
 
 ## `branches/{b}/admissionActivityHistory/{activityId}__{revision}` (append-only)
-`schoolId, branchId, activityId, enquiryId, revision, event (CREATED|RESCHEDULED|REASSIGNED|COMPLETED|CANCELLED),
-from{...}, to{...}, reason, actorId, at`. Rescheduling keeps the old date in `from`; nothing is overwritten.
+`schoolId, branchId, activityId, enquiryId, type, purpose, revision, event (CREATED|RESCHEDULED|REASSIGNED|COMPLETED|CANCELLED),
+from{...}, to{...}, reason, actorId, at` (`type`/`purpose` say what the entry is about, so the timeline needs no second read). Rescheduling keeps the old date in `from`; nothing is overwritten.
 
 ## Derived fields on the enquiry
 `nextFollowUpDate` (earliest open activity), `openActivityCount`, `activityCount`, `lastActivityAt` — updated in the
@@ -52,7 +52,7 @@ with `create()` (an existing id is a no-op). Text names the enquiry **number** a
 
 ## Indexes (`firestore.indexes.json`)
 `admissionEnquiries`: `(assignedTo|status|interestedClassId|academicYearId|source, createdAt desc)`;
-`admissionStatusHistory`: `(enquiryId, revision)`; `admissionActivities`: `(status, scheduledDate)`, `(status, assignedTo, scheduledDate)`, `(enquiryId, scheduledDate desc)`, `(status, completedAt desc)`; `admissionActivityHistory`: `(enquiryId, at desc)`. Name search uses `studentNameLower`
+`admissionStatusHistory`: `(enquiryId, revision)`; `admissionActivities`: `(status, scheduledDate)`, `(status, assignedTo, scheduledDate)`, `(status, type, scheduledDate)` (visits list), `(enquiryId, scheduledDate desc)`, `(status, completedAt desc)`; `admissionActivityHistory`: `(enquiryId, at desc)`. Name search uses `studentNameLower`
 (single-field). Phone and number search use equality. The list sends **one** equality filter to
 Firestore and applies the others in memory, so the index set stays small.
 

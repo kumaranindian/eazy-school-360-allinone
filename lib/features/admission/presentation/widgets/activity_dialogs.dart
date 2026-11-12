@@ -103,12 +103,16 @@ class ScheduleActivityDialog extends StatefulWidget {
   final String? defaultAssignee;
   final bool askWho;
 
+  /// Book a school visit: the type is fixed and a purpose is asked for.
+  final bool visit;
+
   const ScheduleActivityDialog({
     super.key,
     required this.people,
     this.title = 'Schedule follow-up',
     this.defaultAssignee,
     this.askWho = true,
+    this.visit = false,
   });
 
   @override
@@ -117,6 +121,7 @@ class ScheduleActivityDialog extends StatefulWidget {
 
 class _ScheduleActivityDialogState extends State<ScheduleActivityDialog> {
   ActivityType _type = ActivityType.phoneCall;
+  VisitPurpose _purpose = VisitPurpose.campusTour;
   String? _date;
   String? _time;
   String? _who;
@@ -145,7 +150,8 @@ class _ScheduleActivityDialogState extends State<ScheduleActivityDialog> {
     Navigator.pop(
       context,
       ActivityInput(
-        type: _type,
+        type: widget.visit ? ActivityType.schoolVisit : _type,
+        purpose: widget.visit ? _purpose : null,
         scheduledDate: _date!,
         scheduledTime: _time,
         remarks: remarks.isEmpty ? null : remarks,
@@ -166,30 +172,45 @@ class _ScheduleActivityDialogState extends State<ScheduleActivityDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DropdownButtonFormField<ActivityType>(
-                value: _type,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Type'),
-                items: [
-                  for (final t in ActivityType.values)
-                    DropdownMenuItem(
-                      value: t,
-                      child: Row(
-                        children: [
-                          Icon(activityIcon(t), size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              t.label,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+              if (widget.visit)
+                DropdownButtonFormField<VisitPurpose>(
+                  value: _purpose,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Purpose *'),
+                  items: [
+                    for (final p in VisitPurpose.values)
+                      DropdownMenuItem(value: p, child: Text(p.label)),
+                  ],
+                  onChanged: (v) => setState(() => _purpose = v ?? _purpose),
+                )
+              else
+                DropdownButtonFormField<ActivityType>(
+                  value: _type,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Type'),
+                  items: [
+                    // Visits have their own booking (they also move the
+                    // enquiry's status).
+                    for (final t in ActivityType.values)
+                      if (t != ActivityType.schoolVisit)
+                        DropdownMenuItem(
+                          value: t,
+                          child: Row(
+                            children: [
+                              Icon(activityIcon(t), size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  t.label,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    ),
-                ],
-                onChanged: (v) => setState(() => _type = v ?? _type),
-              ),
+                        ),
+                  ],
+                  onChanged: (v) => setState(() => _type = v ?? _type),
+                ),
               const SizedBox(height: 12),
               _DateField(
                 label: 'Date *',
@@ -246,7 +267,10 @@ class _ScheduleActivityDialogState extends State<ScheduleActivityDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
-        FilledButton(onPressed: _submit, child: const Text('Schedule')),
+        FilledButton(
+          onPressed: _submit,
+          child: Text(widget.visit ? 'Book visit' : 'Schedule'),
+        ),
       ],
     );
   }
@@ -315,7 +339,11 @@ class _CompleteActivityDialogState extends State<CompleteActivityDialog> {
   Widget build(BuildContext context) {
     final today = SchoolTime.today();
     return AlertDialog(
-      title: Text('Complete ${widget.activity.type.label.toLowerCase()}'),
+      title: Text(
+        widget.activity.isVisit
+            ? 'Complete visit'
+            : 'Complete ${widget.activity.type.label.toLowerCase()}',
+      ),
       content: SizedBox(
         width: 420,
         child: SingleChildScrollView(
@@ -328,8 +356,12 @@ class _CompleteActivityDialogState extends State<CompleteActivityDialog> {
                 maxLines: 3,
                 onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
-                  labelText: 'Outcome *',
-                  helperText: 'What happened?',
+                  labelText: widget.activity.isVisit
+                      ? 'Visit notes *'
+                      : 'Outcome *',
+                  helperText: widget.activity.isVisit
+                      ? 'What did the family see and say?'
+                      : 'What happened?',
                   errorText: _tried && _outcome.text.trim().length < 3
                       ? 'Please describe the outcome'
                       : null,
@@ -367,7 +399,8 @@ class _CompleteActivityDialogState extends State<CompleteActivityDialog> {
                   decoration: const InputDecoration(labelText: 'Next type'),
                   items: [
                     for (final t in ActivityType.values)
-                      DropdownMenuItem(value: t, child: Text(t.label)),
+                      if (t != ActivityType.schoolVisit)
+                        DropdownMenuItem(value: t, child: Text(t.label)),
                   ],
                   onChanged: (v) => setState(() => _nextType = v ?? _nextType),
                 ),

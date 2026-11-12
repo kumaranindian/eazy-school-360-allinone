@@ -1045,6 +1045,355 @@ void main() {
     });
   });
 
+  group('school visits', () {
+    Future<FakeAdmissionRepository> openVisits(
+      WidgetTester tester, {
+      List<AdmissionActivity>? activities,
+      AdmissionStatus status = AdmissionStatus.newEnquiry,
+      List<ActivityHistoryEntry> history = const [],
+    }) async {
+      final repo = await _pump(
+        tester,
+        path: '/admissions/enquiries/1',
+        size: _tall,
+        repo: FakeAdmissionRepository(
+          enquiries: [fakeEnquiry('1', status: status)],
+          activities: activities ?? [],
+        )..activityHistory = [...history],
+      );
+      await tester.tap(find.text('Visits'));
+      await tester.pumpAndSettle();
+      return repo;
+    }
+
+    Future<void> pickToday(WidgetTester tester, String field) async {
+      await tester.tap(find.text(field));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('an enquiry with no visits invites booking one', (
+      tester,
+    ) async {
+      await openVisits(tester);
+      expect(find.textContaining('No school visits yet'), findsOneWidget);
+      expect(find.text('Book visit'), findsOneWidget);
+    });
+
+    testWidgets(
+      'booking asks for a purpose and a date, then sends a visit with a key',
+      (tester) async {
+        final repo = await openVisits(tester);
+        await tester.tap(find.text('Book visit'));
+        await tester.pumpAndSettle();
+        expect(find.text('Book a school visit'), findsOneWidget);
+        expect(find.text('Purpose *'), findsOneWidget);
+        await tester.tap(find.widgetWithText(FilledButton, 'Book visit'));
+        await tester.pumpAndSettle();
+        expect(find.text('Pick a date'), findsOneWidget);
+        expect(repo.visitsBooked, isEmpty);
+
+        await tester.tap(find.text('Campus tour'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Meet the principal').last);
+        await tester.pumpAndSettle();
+        await pickToday(tester, 'Select date');
+        await tester.tap(find.widgetWithText(FilledButton, 'Book visit'));
+        await tester.pumpAndSettle();
+
+        expect(repo.visitsBooked, hasLength(1));
+        final v = repo.visitsBooked.single;
+        expect(v.enquiryId, '1');
+        expect(v.input.type, ActivityType.schoolVisit);
+        expect(v.input.purpose, VisitPurpose.meetPrincipal);
+        expect(v.input.scheduledDate, _day(0));
+        expect(v.requestId, hasLength(20));
+        expect(
+          repo.scheduled,
+          isEmpty,
+          reason: 'not through the generic follow-up call',
+        );
+      },
+    );
+
+    testWidgets('visits and other follow-ups are listed on their own tabs', (
+      tester,
+    ) async {
+      final repo = await openVisits(
+        tester,
+        activities: [
+          fakeActivity(
+            'v1',
+            type: ActivityType.schoolVisit,
+            purpose: VisitPurpose.assessment,
+            date: _day(3),
+          ),
+          fakeActivity('c1', type: ActivityType.email, date: _day(1)),
+        ],
+      );
+      expect(find.text('School visit · Assessment'), findsOneWidget);
+      expect(find.text('Email'), findsNothing);
+      await tester.tap(find.text('Activities'));
+      await tester.pumpAndSettle();
+      expect(find.text('Email'), findsOneWidget);
+      expect(find.text('School visit · Assessment'), findsNothing);
+      expect(repo.scheduled, isEmpty);
+    });
+
+    testWidgets('the follow-up dialog does not offer School visit as a type', (
+      tester,
+    ) async {
+      await openVisits(tester);
+      await tester.tap(find.text('Activities'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Schedule follow-up'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Phone call'));
+      await tester.pumpAndSettle();
+      expect(find.text('Email'), findsWidgets);
+      expect(find.text('School visit'), findsNothing);
+    });
+
+    testWidgets(
+      'completing a visit asks for visit notes and sends them with parent feedback',
+      (tester) async {
+        final repo = await openVisits(
+          tester,
+          activities: [
+            fakeActivity(
+              'v1',
+              type: ActivityType.schoolVisit,
+              purpose: VisitPurpose.campusTour,
+              date: _day(1),
+              revision: 2,
+            ),
+          ],
+        );
+        await tester.tap(_btn('Complete'));
+        await tester.pumpAndSettle();
+        expect(find.text('Complete visit'), findsOneWidget);
+        await tester.tap(find.text('Mark completed'));
+        await tester.pumpAndSettle();
+        expect(find.text('Please describe the outcome'), findsOneWidget);
+        expect(repo.completed, isEmpty);
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Visit notes *'),
+          'Saw labs and the library',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Parent feedback (optional)'),
+          'Very impressed',
+        );
+        await tester.tap(find.text('Mark completed'));
+        await tester.pumpAndSettle();
+        final c = repo.completed.single;
+        expect(
+          [c.id, c.completion.outcome, c.completion.parentFeedback],
+          ['v1', 'Saw labs and the library', 'Very impressed'],
+        );
+      },
+    );
+
+    testWidgets('a visit can be rescheduled and cancelled with a reason', (
+      tester,
+    ) async {
+      final repo = await openVisits(
+        tester,
+        activities: [
+          fakeActivity(
+            'v1',
+            type: ActivityType.schoolVisit,
+            purpose: VisitPurpose.counselling,
+            date: _day(2),
+            revision: 3,
+          ),
+        ],
+      );
+      await tester.tap(_btn('Reschedule'));
+      await tester.pumpAndSettle();
+      await pickToday(tester, 'Select date');
+      await tester.tap(find.widgetWithText(FilledButton, 'Reschedule'));
+      await tester.pumpAndSettle();
+      expect(repo.rescheduled.single.base, 3);
+
+      await tester.tap(_btn('Cancel'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byType(TextField).last,
+        'Family cannot attend',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Cancel follow-up'));
+      await tester.pumpAndSettle();
+      expect(repo.cancelled.single, (id: 'v1', reason: 'Family cannot attend'));
+    });
+
+    testWidgets(
+      'a finished visit shows its notes and feedback; a closed enquiry books no more',
+      (tester) async {
+        await openVisits(
+          tester,
+          status: AdmissionStatus.rejected,
+          activities: [
+            fakeActivity(
+              'v1',
+              type: ActivityType.schoolVisit,
+              purpose: VisitPurpose.campusTour,
+              status: ActivityStatus.completed,
+              date: _day(-3),
+              outcome: 'Toured the campus',
+            ),
+          ],
+        );
+        expect(find.text('Toured the campus'), findsOneWidget);
+        FilledButton book() => tester.widget(
+          find.ancestor(
+            of: find.text('Book visit'),
+            matching: find.byWidgetPredicate((w) => w is FilledButton),
+          ),
+        );
+        expect(book().onPressed, isNull);
+      },
+    );
+
+    testWidgets(
+      'a server refusal (wrong status) is shown and nothing is claimed booked',
+      (tester) async {
+        final repo = await openVisits(tester);
+        repo.failWith = StateError('no');
+        await tester.tap(find.text('Book visit'));
+        await tester.pumpAndSettle();
+        await pickToday(tester, 'Select date');
+        await tester.tap(find.widgetWithText(FilledButton, 'Book visit'));
+        await tester.pumpAndSettle();
+        expect(repo.visitsBooked, isEmpty);
+        expect(find.byType(SnackBar), findsOneWidget);
+        expect(find.text('Visit booked.'), findsNothing);
+      },
+    );
+
+    testWidgets('the timeline lists status changes and visit events together', (
+      tester,
+    ) async {
+      DateTime t(int m) => DateTime(2026, 11, 7, 10, m);
+      await _pump(
+        tester,
+        path: '/admissions/enquiries/1',
+        size: _tall,
+        repo:
+            FakeAdmissionRepository(
+                enquiries: [
+                  fakeEnquiry('1', status: AdmissionStatus.visitScheduled),
+                ],
+                history: [
+                  StatusHistoryEntry(
+                    revision: 1,
+                    to: AdmissionStatus.newEnquiry,
+                    actorId: 'a',
+                    at: t(0),
+                  ),
+                  StatusHistoryEntry(
+                    revision: 2,
+                    from: AdmissionStatus.newEnquiry,
+                    to: AdmissionStatus.visitScheduled,
+                    reason: 'Visit scheduled',
+                    actorId: 'a',
+                    at: t(5),
+                  ),
+                ],
+              )
+              ..activityHistory = [
+                ActivityHistoryEntry(
+                  activityId: 'v1',
+                  revision: 1,
+                  event: ActivityEvent.created,
+                  type: ActivityType.schoolVisit,
+                  purpose: VisitPurpose.campusTour,
+                  toDate: '2026-11-10',
+                  toTime: '10:30',
+                  actorId: 'a',
+                  at: t(5),
+                ),
+                ActivityHistoryEntry(
+                  activityId: 'v1',
+                  revision: 2,
+                  event: ActivityEvent.rescheduled,
+                  type: ActivityType.schoolVisit,
+                  purpose: VisitPurpose.campusTour,
+                  fromDate: '2026-11-10',
+                  toDate: '2026-11-18',
+                  reason: 'Travelling',
+                  actorId: 'a',
+                  at: t(9),
+                ),
+              ],
+      );
+      await tester.tap(find.text('Timeline'));
+      await tester.pumpAndSettle();
+      expect(find.text('Enquiry created (New)'), findsOneWidget);
+      expect(find.text('New → Visit scheduled'), findsOneWidget);
+      expect(
+        find.textContaining('School visit (campus tour) scheduled for'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('10:30 AM'), findsOneWidget);
+      expect(find.textContaining('rescheduled from'), findsOneWidget);
+      expect(find.textContaining('Reason: Travelling'), findsOneWidget);
+    });
+
+    testWidgets('the follow-up dashboard has a Visits list', (tester) async {
+      final repo = await _pump(
+        tester,
+        path: '/admissions/follow-ups',
+        repo: FakeAdmissionRepository(
+          followUpCounts: const FollowUpCounts(today: 1, visits: 2),
+          activities: [
+            fakeActivity(
+              'v1',
+              type: ActivityType.schoolVisit,
+              purpose: VisitPurpose.assessment,
+              date: _day(2),
+              student: 'Ravi Menon',
+              enquiryId: '2',
+            ),
+            fakeActivity(
+              'c1',
+              type: ActivityType.email,
+              date: _day(2),
+              enquiryId: '3',
+            ),
+          ],
+        ),
+      );
+      await tester.tap(find.text('Visits 2'));
+      await tester.pumpAndSettle();
+      expect(repo.fetchedBuckets.last, FollowUpBucket.visits);
+      expect(find.text('School visit · Assessment'), findsOneWidget);
+      expect(find.text('Email'), findsNothing);
+    });
+
+    testWidgets('the admission home counts visits scheduled and completed', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        size: _tall,
+        repo: FakeAdmissionRepository(
+          counts: const {
+            AdmissionStatus.visitScheduled: 4,
+            AdmissionStatus.visitCompleted: 3,
+            AdmissionStatus.newEnquiry: 1,
+          },
+        ),
+      );
+      expect(find.text('Visits scheduled'), findsOneWidget);
+      expect(find.text('Visits completed'), findsOneWidget);
+      expect(find.text('4'), findsWidgets);
+      expect(find.text('3'), findsWidgets);
+    });
+  });
+
   group('follow-up settings and the form', () {
     testWidgets('reminders can be switched off and the time chosen', (
       tester,

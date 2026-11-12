@@ -256,6 +256,16 @@ class _Stats extends StatelessWidget {
         value: '${_n(AdmissionStatus.interested)}',
       ),
       AdmissionStatTile(
+        icon: Icons.event_available_outlined,
+        label: 'Visits scheduled',
+        value: '${_n(AdmissionStatus.visitScheduled)}',
+      ),
+      AdmissionStatTile(
+        icon: Icons.school_outlined,
+        label: 'Visits completed',
+        value: '${_n(AdmissionStatus.visitCompleted)}',
+      ),
+      AdmissionStatTile(
         icon: Icons.description_outlined,
         label: 'Applications pending',
         value: '$pendingApplications',

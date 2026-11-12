@@ -43,6 +43,19 @@ final enquiryHistoryProvider = FutureProvider.autoDispose
           .fetchHistory(args.$1.schoolId, args.$1.branchId, args.$1.enquiryId),
     );
 
+/// Every activity event of one enquiry, newest first. Activity changes do not
+/// bump the enquiry's revision, so [lastActivityAt] (millis) is part of the key.
+final enquiryActivityHistoryProvider = FutureProvider.autoDispose
+    .family<List<ActivityHistoryEntry>, (EnquiryKey, int)>(
+      (ref, args) => ref
+          .watch(admissionRepositoryProvider)
+          .fetchActivityHistory(
+            args.$1.schoolId,
+            args.$1.branchId,
+            args.$1.enquiryId,
+          ),
+    );
+
 final admissionCountsProvider = FutureProvider.autoDispose
     .family<Map<AdmissionStatus, int>, BranchKey>(
       (ref, key) => ref
@@ -199,6 +212,24 @@ class AdmissionWriteController extends AsyncNotifier<void> {
   }) async =>
       await _run(
         () => _repo.scheduleActivity(
+          schoolId: schoolId,
+          branchId: branchId,
+          enquiryId: enquiryId,
+          input: input,
+          requestId: requestId,
+        ),
+      ) !=
+      null;
+
+  Future<bool> scheduleVisit({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required ActivityInput input,
+    required String requestId,
+  }) async =>
+      await _run(
+        () => _repo.scheduleVisit(
           schoolId: schoolId,
           branchId: branchId,
           enquiryId: enquiryId,

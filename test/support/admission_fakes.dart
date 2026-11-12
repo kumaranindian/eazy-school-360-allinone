@@ -60,7 +60,9 @@ AdmissionActivity fakeActivity(
   int revision = 1,
   int rescheduleCount = 0,
   String student = 'Asha Nair',
+  VisitPurpose? purpose,
 }) => AdmissionActivity.fromMap(id, {
+  'purpose': purpose?.wire,
   'enquiryId': enquiryId,
   'enquiryNumber': 'ENQ-2026-${enquiryId.padLeft(5, '0')}',
   'studentName': student,
@@ -285,6 +287,8 @@ class FakeAdmissionRepository implements AdmissionRepository {
           a.isOpen && a.scheduledDate.compareTo(todayKey) < 0,
         FollowUpBucket.upcoming =>
           a.isOpen && a.scheduledDate.compareTo(todayKey) > 0,
+        FollowUpBucket.visits =>
+          a.isOpen && a.isVisit && a.scheduledDate.compareTo(todayKey) >= 0,
         FollowUpBucket.mine => a.isOpen && a.assignedTo == userId,
         FollowUpBucket.unassigned => a.isOpen && a.assignedTo == null,
         FollowUpBucket.completed => a.status == ActivityStatus.completed,
@@ -314,6 +318,34 @@ class FakeAdmissionRepository implements AdmissionRepository {
     ],
     nextCursor: null,
   );
+
+  final List<({String enquiryId, ActivityInput input, String requestId})>
+  visitsBooked = [];
+  List<ActivityHistoryEntry> activityHistory = [];
+
+  @override
+  Future<String> scheduleVisit({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required ActivityInput input,
+    required String requestId,
+  }) async {
+    _maybeFail();
+    visitsBooked.add((
+      enquiryId: enquiryId,
+      input: input,
+      requestId: requestId,
+    ));
+    return 'new-visit';
+  }
+
+  @override
+  Future<List<ActivityHistoryEntry>> fetchActivityHistory(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  ) async => activityHistory;
 
   @override
   Future<String> scheduleActivity({

@@ -355,6 +355,7 @@ exports.createAdmissionEnquiry = admissionCall('createAdmissionEnquiry', admissi
 exports.updateAdmissionEnquiry = admissionCall('updateAdmissionEnquiry', admission.updateEnquiry, (d) => ({ enquiry: d.enquiryId }));
 exports.assignAdmissionEnquiry = admissionCall('assignAdmissionEnquiry', admission.assignEnquiry, (d) => ({ enquiry: d.enquiryId }));
 exports.scheduleAdmissionActivity = admissionCall('scheduleAdmissionActivity', admissionActivities.scheduleActivity, (d, r) => ({ enquiry: d.enquiryId, activity: r.id }));
+exports.scheduleAdmissionVisit = admissionCall('scheduleAdmissionVisit', admissionActivities.scheduleVisit, (d, r) => ({ enquiry: d.enquiryId, visit: r.id }));
 exports.rescheduleAdmissionActivity = admissionCall('rescheduleAdmissionActivity', admissionActivities.rescheduleActivity, (d) => ({ enquiry: d.enquiryId, activity: d.activityId }));
 exports.reassignAdmissionActivity = admissionCall('reassignAdmissionActivity', admissionActivities.reassignActivity, (d) => ({ enquiry: d.enquiryId, activity: d.activityId }));
 exports.completeAdmissionActivity = admissionCall('completeAdmissionActivity', admissionActivities.completeActivity, (d) => ({ enquiry: d.enquiryId, activity: d.activityId }));

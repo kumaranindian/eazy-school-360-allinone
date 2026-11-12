@@ -4,6 +4,7 @@ import 'package:eazy_school_360/features/admission/domain/admission_enquiry.dart
 import 'package:eazy_school_360/features/notifications/domain/feed_item.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_settings.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_status.dart';
+import 'package:eazy_school_360/features/admission/domain/admission_timeline.dart';
 import 'package:eazy_school_360/features/admission/domain/enquiry_query.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -333,13 +334,14 @@ void main() {
         today: 1,
         overdue: 2,
         upcoming: 3,
-        mine: 4,
-        unassigned: 5,
-        completed: 6,
+        visits: 4,
+        mine: 5,
+        unassigned: 6,
+        completed: 7,
       );
       expect(
         [for (final b in FollowUpBucket.values) c.of(b)],
-        [1, 2, 3, 4, 5, 6],
+        [1, 2, 3, 4, 5, 6, 7],
       );
     });
 
@@ -413,6 +415,157 @@ void main() {
           isNull,
         );
       }
+    });
+  });
+
+  group('school visits', () {
+    test('purposes round-trip; unknown is null', () {
+      for (final p in VisitPurpose.values) {
+        expect(VisitPurpose.tryParse(p.wire), p);
+      }
+      expect(VisitPurpose.tryParse('PARTY'), isNull);
+      expect(VisitPurpose.values.map((p) => p.label), [
+        'Campus tour',
+        'Meet the principal',
+        'Assessment',
+        'Counselling',
+        'Other',
+      ]);
+    });
+
+    test('a visit is an activity of type school visit with a purpose', () {
+      final v = fakeActivity(
+        '1',
+        type: ActivityType.schoolVisit,
+        purpose: VisitPurpose.assessment,
+      );
+      expect(v.isVisit, isTrue);
+      expect(v.purpose, VisitPurpose.assessment);
+      expect(fakeActivity('2').isVisit, isFalse);
+      expect(fakeActivity('2').purpose, isNull);
+    });
+
+    test(
+      'the visit payload carries the purpose; a plain follow-up does not',
+      () {
+        const visit = ActivityInput(
+          type: ActivityType.schoolVisit,
+          purpose: VisitPurpose.campusTour,
+          scheduledDate: '2026-11-10',
+          scheduledTime: '10:00',
+        );
+        expect(visit.toWire()['purpose'], 'CAMPUS_TOUR');
+        expect(visit.toWire()['type'], 'SCHOOL_VISIT');
+        const plain = ActivityInput(
+          type: ActivityType.email,
+          scheduledDate: '2026-11-10',
+        );
+        expect(plain.toWire().containsKey('purpose'), isFalse);
+      },
+    );
+
+    test('a history entry reads what changed', () {
+      final e = ActivityHistoryEntry.fromMap({
+        'activityId': 'a1',
+        'revision': 2,
+        'event': 'RESCHEDULED',
+        'type': 'SCHOOL_VISIT',
+        'purpose': 'MEET_PRINCIPAL',
+        'from': {'scheduledDate': '2026-11-10'},
+        'to': {'scheduledDate': '2026-11-18', 'scheduledTime': '09:00'},
+        'reason': 'Travelling',
+        'actorId': 'u1',
+      });
+      expect(e.event, ActivityEvent.rescheduled);
+      expect(e.isVisit, isTrue);
+      expect(
+        [e.fromDate, e.toDate, e.toTime, e.reason],
+        ['2026-11-10', '2026-11-18', '09:00', 'Travelling'],
+      );
+      final bare = ActivityHistoryEntry.fromMap(const {});
+      expect(bare.event, ActivityEvent.created);
+      expect(bare.type, ActivityType.other);
+    });
+
+    test('the timeline merges status and activity history, newest first', () {
+      DateTime t(int m) => DateTime(2026, 11, 7, 10, m);
+      final status = [
+        StatusHistoryEntry(
+          revision: 1,
+          to: AdmissionStatus.newEnquiry,
+          actorId: 'a',
+          at: t(0),
+        ),
+        StatusHistoryEntry(
+          revision: 2,
+          from: AdmissionStatus.newEnquiry,
+          to: AdmissionStatus.visitScheduled,
+          actorId: 'a',
+          at: t(5),
+        ),
+      ];
+      final activity = [
+        ActivityHistoryEntry(
+          activityId: 'v',
+          revision: 1,
+          event: ActivityEvent.created,
+          type: ActivityType.schoolVisit,
+          actorId: 'a',
+          at: t(5),
+        ),
+        ActivityHistoryEntry(
+          activityId: 'c',
+          revision: 1,
+          event: ActivityEvent.created,
+          type: ActivityType.phoneCall,
+          actorId: 'a',
+          at: t(2),
+        ),
+        ActivityHistoryEntry(
+          activityId: 'v',
+          revision: 2,
+          event: ActivityEvent.completed,
+          type: ActivityType.schoolVisit,
+          actorId: 'a',
+          at: t(9),
+        ),
+      ];
+      final items = mergeTimeline(status, activity);
+      String label(TimelineItem i) => switch (i) {
+        StatusTimelineItem(:final entry) => 'S${entry.revision}',
+        ActivityTimelineItem(:final entry) =>
+          '${entry.activityId}${entry.revision}',
+      };
+      expect(
+        items.map(label),
+        ['v2', 'S2', 'v1', 'c1', 'S1'],
+        reason:
+            'same minute: the status change reads above the booking that caused it',
+      );
+    });
+
+    test('an entry whose server time has not arrived yet is the newest', () {
+      final items = mergeTimeline(
+        [
+          StatusHistoryEntry(
+            revision: 1,
+            to: AdmissionStatus.newEnquiry,
+            actorId: 'a',
+            at: DateTime(2026, 11, 7),
+          ),
+        ],
+        const [
+          ActivityHistoryEntry(
+            activityId: 'x',
+            revision: 1,
+            event: ActivityEvent.created,
+            type: ActivityType.email,
+            actorId: 'a',
+          ),
+        ],
+      );
+      expect(items.first, isA<ActivityTimelineItem>());
+      expect(mergeTimeline(const [], const []), isEmpty);
     });
   });
 }

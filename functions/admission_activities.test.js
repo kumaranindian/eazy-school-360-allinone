@@ -43,6 +43,8 @@ const enquiry = (db, id) => db.store.get(`schools/sA/branches/b1/admissionEnquir
 const act = (db, id) => db.store.get(`schools/sA/branches/b1/admissionActivities/${id}`);
 const schedule = (db, id, activity = {}, uid = 'adminA', extra = {}) =>
   f.scheduleActivity(ctx(db), uid, undefined, base(id, { activity: { type: 'PHONE_CALL', scheduledDate: '2026-11-10', ...activity }, ...extra }));
+const visit = (db, id, v = {}, uid = 'adminA', extra = {}) =>
+  f.scheduleVisit(ctx(db), uid, undefined, base(id, { visit: { purpose: 'CAMPUS_TOUR', scheduledDate: '2026-11-10', ...v }, ...extra }));
 const histOf = (db, activityId) =>
   [...db.store.keys()]
     .filter((k) => k.startsWith(`schools/sA/branches/b1/admissionActivityHistory/${activityId}__`))
@@ -53,7 +55,7 @@ const histOf = (db, activityId) =>
 
 test('schedule validation: type, date, time, no past dates', () => {
   const ok = f.validateSchedule({ type: 'EMAIL', scheduledDate: '2026-11-07', scheduledTime: '09:30', remarks: ' hi ' }, { today: '2026-11-07' });
-  assert.deepStrictEqual(ok.value, { type: 'EMAIL', scheduledDate: '2026-11-07', scheduledTime: '09:30', remarks: 'hi' });
+  assert.deepStrictEqual(ok.value, { type: 'EMAIL', scheduledDate: '2026-11-07', scheduledTime: '09:30', remarks: 'hi', purpose: null });
   assert.ok(f.validateSchedule({ type: 'FAX', scheduledDate: '2026-11-08' }, { today: '2026-11-07' }).errors.type);
   assert.ok(f.validateSchedule({ type: 'EMAIL', scheduledDate: '2026-11-06' }, { today: '2026-11-07' }).errors.scheduledDate);
   assert.ok(f.validateSchedule({ type: 'EMAIL', scheduledDate: '2026-02-31' }, { today: '2026-01-01' }).errors.scheduledDate);
@@ -335,7 +337,7 @@ test('a follow-up due today notifies its assignee once; a re-run sends nothing n
 
 test('the text names the enquiry number and kind of contact, never the family', async () => {
   const { db, id } = await setup();
-  await schedule(db, id, { scheduledDate: '2026-11-07', type: 'SCHOOL_VISIT', assignedTo: 'teacher1' });
+  await visit(db, id, { scheduledDate: '2026-11-07', assignedTo: 'teacher1' });
   await run(db);
   const text = JSON.stringify(notices(db)[0]);
   assert.match(text, /School visit for enquiry ENQ-2026-00001 is due today/);
@@ -441,4 +443,212 @@ test('one failing school does not stop the others', async () => {
   assert.strictEqual(r.created, 1);
   assert.strictEqual(r.failed, 1);
   assert.ok(logs.includes('admission reminders: school failed'));
+});
+
+// ---- school visits (phase 5) -----------------------------------------------
+
+const statusOf = (db, id) => enquiry(db, id).status;
+const enquiryHist = (db, id) =>
+  [...db.store.keys()]
+    .filter((k) => k.startsWith(`schools/sA/branches/b1/admissionStatusHistory/${id}__`))
+    .sort((x, y) => Number(x.split('__').pop()) - Number(y.split('__').pop()))
+    .map((k) => db.store.get(k));
+const done = (db, id, activityId, outcome = 'Toured the campus') =>
+  f.completeActivity(ctx(db), 'adminA', undefined, base(id, { activityId, completion: { outcome } }));
+const cancelV = (db, id, activityId) => f.cancelActivity(ctx(db), 'adminA', undefined, base(id, { activityId, reason: 'Family cannot attend' }));
+
+test('visit validation: purpose is required, the type is fixed, no past dates', () => {
+  const ok = f.validateSchedule({ type: 'SCHOOL_VISIT', purpose: 'ASSESSMENT', scheduledDate: '2026-11-08', scheduledTime: '11:00' }, { today: '2026-11-07', allowVisit: true });
+  assert.deepStrictEqual(ok.value, { type: 'SCHOOL_VISIT', scheduledDate: '2026-11-08', scheduledTime: '11:00', remarks: null, purpose: 'ASSESSMENT' });
+  assert.ok(f.validateSchedule({ type: 'SCHOOL_VISIT', scheduledDate: '2026-11-08' }, { today: '2026-11-07', allowVisit: true }).errors.purpose);
+  assert.ok(f.validateSchedule({ type: 'SCHOOL_VISIT', purpose: 'PARTY', scheduledDate: '2026-11-08' }, { today: '2026-11-07', allowVisit: true }).errors.purpose);
+  assert.ok(f.validateSchedule({ type: 'SCHOOL_VISIT', purpose: 'CAMPUS_TOUR', scheduledDate: '2026-11-06' }, { today: '2026-11-07', allowVisit: true }).errors.scheduledDate);
+  assert.ok(f.validateSchedule({ type: 'SCHOOL_VISIT', purpose: 'CAMPUS_TOUR', scheduledDate: '2026-11-08' }, { today: '2026-11-07' }).errors.type, 'not through the generic call');
+});
+
+test('the status after a visit event is a pure function of what the enquiry looks like', () => {
+  const x = f.visitStatusAfter;
+  assert.strictEqual(x({ event: 'COMPLETED', status: 'VISIT_SCHEDULED', otherOpenVisits: 0, hasCompletedVisit: false }), 'VISIT_COMPLETED');
+  assert.strictEqual(x({ event: 'COMPLETED', status: 'VISIT_SCHEDULED', otherOpenVisits: 1, hasCompletedVisit: false }), null);
+  assert.strictEqual(x({ event: 'CANCELLED', status: 'VISIT_SCHEDULED', otherOpenVisits: 0, hasCompletedVisit: false }), 'INTERESTED');
+  assert.strictEqual(x({ event: 'CANCELLED', status: 'VISIT_SCHEDULED', otherOpenVisits: 0, hasCompletedVisit: true }), 'VISIT_COMPLETED');
+  assert.strictEqual(x({ event: 'CANCELLED', status: 'VISIT_SCHEDULED', otherOpenVisits: 2, hasCompletedVisit: true }), null);
+  for (const status of ['NEW', 'INTERESTED', 'ON_HOLD', 'VISIT_COMPLETED', 'APPROVED']) assert.strictEqual(x({ event: 'COMPLETED', status, otherOpenVisits: 0, hasCompletedVisit: false }), null, status);
+  assert.strictEqual(x({ event: 'RESCHEDULED', status: 'VISIT_SCHEDULED', otherOpenVisits: 0, hasCompletedVisit: false }), null);
+});
+
+test('booking a visit stores it as a visit, moves the enquiry to VISIT_SCHEDULED, and records both', async () => {
+  const { db, id } = await setup();
+  const r = await visit(db, id, { purpose: 'MEET_PRINCIPAL', scheduledTime: '10:30', remarks: 'Bring the birth certificate' });
+  assert.strictEqual(r.result.duplicate, false);
+  const d = act(db, r.result.id);
+  assert.deepStrictEqual([d.type, d.purpose, d.scheduledDate, d.scheduledTime, d.status, d.remarks], ['SCHOOL_VISIT', 'MEET_PRINCIPAL', '2026-11-10', '10:30', 'SCHEDULED', 'Bring the birth certificate']);
+  const e = enquiry(db, id);
+  assert.deepStrictEqual([e.status, e.nextFollowUpDate, e.openActivityCount, e.activityCount], ['VISIT_SCHEDULED', '2026-11-10', 1, 1]);
+  const h = enquiryHist(db, id);
+  assert.deepStrictEqual(h.map((x) => `${x.from}>${x.to}`), ['null>NEW', 'NEW>VISIT_SCHEDULED']);
+  assert.strictEqual(h[1].reason, 'Visit scheduled');
+  assert.strictEqual(h[1].actorId, 'adminA');
+  const ah = histOf(db, r.result.id);
+  assert.deepStrictEqual([ah[0].event, ah[0].type, ah[0].purpose], ['CREATED', 'SCHOOL_VISIT', 'MEET_PRINCIPAL']);
+});
+
+test('the generic follow-up call refuses a visit (and a visit cannot be the "next contact")', async () => {
+  const { db, id } = await setup();
+  assert.strictEqual((await schedule(db, id, { type: 'SCHOOL_VISIT' })).error, 'INVALID_ARGUMENT');
+  const p = await schedule(db, id);
+  const r = await f.completeActivity(ctx(db), 'adminA', undefined, base(id, { activityId: p.result.id, completion: { outcome: 'Spoke on phone' }, next: { type: 'SCHOOL_VISIT', scheduledDate: '2026-11-12' } }));
+  assert.strictEqual(r.error, 'INVALID_ARGUMENT');
+  assert.strictEqual(act(db, p.result.id).status, 'SCHEDULED');
+  assert.strictEqual(statusOf(db, id), 'NEW');
+});
+
+test('visits can be booked from the lead stages and after a completed visit; not from other statuses', async () => {
+  for (const status of ['CONTACTED', 'INTERESTED']) {
+    const { db, id } = await setup();
+    await a.changeEnquiryStatus(ctx(db), 'adminA', undefined, base(id, { status }));
+    assert.ok((await visit(db, id)).result, status);
+    assert.strictEqual(statusOf(db, id), 'VISIT_SCHEDULED');
+  }
+  for (const [status, extra] of [['ON_HOLD', { reason: 'Away' }], ['NOT_INTERESTED', {}]]) {
+    const { db, id } = await setup();
+    await a.changeEnquiryStatus(ctx(db), 'adminA', undefined, base(id, { status, ...extra }));
+    assert.strictEqual((await visit(db, id)).error, 'FAILED_PRECONDITION', status);
+    assert.strictEqual(statusOf(db, id), status);
+  }
+  const closed = await setup();
+  await a.changeEnquiryStatus(ctx(closed.db), 'adminA', undefined, base(closed.id, { status: 'WITHDRAWN', reason: 'Moved' }));
+  assert.strictEqual((await visit(closed.db, closed.id)).error, 'FAILED_PRECONDITION');
+  const later = await setup();
+  enquiry(later.db, later.id).status = 'UNDER_REVIEW';
+  assert.strictEqual((await visit(later.db, later.id)).error, 'FAILED_PRECONDITION', 'application stages are not visit stages');
+});
+
+test('several visits: the status follows the last open one', async () => {
+  const { db, id } = await setup();
+  const v1 = await visit(db, id, { scheduledDate: '2026-11-10' });
+  const v2 = await visit(db, id, { scheduledDate: '2026-11-14', purpose: 'ASSESSMENT' });
+  let e = enquiry(db, id);
+  assert.deepStrictEqual([e.status, e.openActivityCount, e.nextFollowUpDate], ['VISIT_SCHEDULED', 2, '2026-11-10']);
+  assert.deepStrictEqual(enquiryHist(db, id).map((x) => x.to), ['NEW', 'VISIT_SCHEDULED'], 'the second booking is not a status change');
+
+  await done(db, id, v1.result.id, 'Toured the campus');
+  assert.strictEqual(statusOf(db, id), 'VISIT_SCHEDULED', 'another visit is still open');
+  await done(db, id, v2.result.id, 'Assessment went well');
+  e = enquiry(db, id);
+  assert.deepStrictEqual([e.status, e.openActivityCount, e.nextFollowUpDate], ['VISIT_COMPLETED', 0, null]);
+  assert.deepStrictEqual(enquiryHist(db, id).map((x) => x.to), ['NEW', 'VISIT_SCHEDULED', 'VISIT_COMPLETED']);
+
+  const v3 = await visit(db, id, { scheduledDate: '2026-11-20' });
+  assert.ok(v3.result);
+  assert.strictEqual(statusOf(db, id), 'VISIT_SCHEDULED', 'a later visit reopens the stage');
+});
+
+test('completing a visit records the notes and parent feedback', async () => {
+  const { db, id } = await setup();
+  const v = await visit(db, id);
+  await f.completeActivity(ctx(db), 'adminA', undefined, base(id, { activityId: v.result.id, completion: { outcome: 'Saw labs and library', parentFeedback: 'Loved the playground', remarks: 'Strong candidate' } }));
+  const d = act(db, v.result.id);
+  assert.deepStrictEqual([d.status, d.outcome, d.parentFeedback, d.remarks, d.completedBy], ['COMPLETED', 'Saw labs and library', 'Loved the playground', 'Strong candidate', 'adminA']);
+  assert.strictEqual(enquiryHist(db, id).at(-1).reason, 'Visit completed');
+});
+
+test('cancelling the only visit returns the enquiry to INTERESTED; after an earlier completed visit, to VISIT_COMPLETED', async () => {
+  const only = await setup();
+  const v = await visit(only.db, only.id);
+  const c = await cancelV(only.db, only.id, v.result.id);
+  assert.ok(c.result);
+  assert.strictEqual(statusOf(only.db, only.id), 'INTERESTED');
+  const d = act(only.db, v.result.id);
+  assert.deepStrictEqual([d.status, d.cancelReason], ['CANCELLED', 'Family cannot attend']);
+  assert.strictEqual(enquiryHist(only.db, only.id).at(-1).reason, 'Visit cancelled');
+
+  const { db, id } = await setup();
+  const first = await visit(db, id, { scheduledDate: '2026-11-09' });
+  await done(db, id, first.result.id);
+  const second = await visit(db, id, { scheduledDate: '2026-11-15' });
+  assert.strictEqual(statusOf(db, id), 'VISIT_SCHEDULED');
+  await cancelV(db, id, second.result.id);
+  assert.strictEqual(statusOf(db, id), 'VISIT_COMPLETED');
+
+  const two = await setup();
+  const a1 = await visit(two.db, two.id, { scheduledDate: '2026-11-09' });
+  await visit(two.db, two.id, { scheduledDate: '2026-11-15' });
+  await cancelV(two.db, two.id, a1.result.id);
+  assert.strictEqual(statusOf(two.db, two.id), 'VISIT_SCHEDULED', 'one visit is still planned');
+});
+
+test('rescheduling a visit keeps the status and writes a timeline entry with both dates', async () => {
+  const { db, id } = await setup();
+  const v = await visit(db, id, { scheduledDate: '2026-11-10' });
+  const r = await f.rescheduleActivity(ctx(db), 'adminA', undefined, base(id, { activityId: v.result.id, scheduledDate: '2026-11-18', scheduledTime: '09:00', reason: 'Family travelling' }));
+  assert.ok(r.result);
+  assert.strictEqual(statusOf(db, id), 'VISIT_SCHEDULED');
+  const h = histOf(db, v.result.id).at(-1);
+  assert.deepStrictEqual([h.event, h.type, h.purpose, h.from.scheduledDate, h.to.scheduledDate, h.reason], ['RESCHEDULED', 'SCHOOL_VISIT', 'CAMPUS_TOUR', '2026-11-10', '2026-11-18', 'Family travelling']);
+  assert.strictEqual(act(db, v.result.id).rescheduleCount, 1);
+});
+
+test('a visit only moves the status while the enquiry is at VISIT_SCHEDULED (a manual change detaches it)', async () => {
+  const { db, id } = await setup();
+  const v = await visit(db, id);
+  await a.changeEnquiryStatus(ctx(db), 'adminA', undefined, base(id, { status: 'ON_HOLD', reason: 'Parent travelling' }));
+  await done(db, id, v.result.id);
+  assert.strictEqual(statusOf(db, id), 'ON_HOLD', 'completing a visit never overrides a hold');
+  assert.strictEqual(enquiry(db, id).heldFrom, 'VISIT_SCHEDULED');
+  await a.changeEnquiryStatus(ctx(db), 'adminA', undefined, base(id, { status: 'RESUME' }));
+  assert.strictEqual(statusOf(db, id), 'VISIT_SCHEDULED');
+});
+
+test('closing the enquiry cancels its open visits and keeps them in the timeline', async () => {
+  const { db, id } = await setup();
+  const v = await visit(db, id);
+  await a.changeEnquiryStatus(ctx(db), 'adminA', undefined, base(id, { status: 'REJECTED', reason: 'Seats full' }));
+  assert.deepStrictEqual([act(db, v.result.id).status, act(db, v.result.id).cancelReason], ['CANCELLED', 'Enquiry closed']);
+  const h = histOf(db, v.result.id).at(-1);
+  assert.deepStrictEqual([h.event, h.type, h.purpose], ['CANCELLED', 'SCHOOL_VISIT', 'CAMPUS_TOUR']);
+  assert.strictEqual(statusOf(db, id), 'REJECTED');
+});
+
+test('visits: who may book, tenant isolation, module switch, idempotent retry, concurrency', async () => {
+  const { db, id } = await setup();
+  for (const uid of ['teacher1', 'parentA', 'adminB', 'nobody']) assert.strictEqual((await visit(db, id, {}, uid)).error, 'PERMISSION_DENIED', uid);
+  assert.strictEqual((await f.scheduleVisit(ctx(db), 'branch1', undefined, { schoolId: 'sA', branchId: 'b2', enquiryId: id, visit: { purpose: 'CAMPUS_TOUR', scheduledDate: '2026-11-10' } })).error, 'PERMISSION_DENIED');
+  assert.ok((await visit(db, id, {}, 'branch1')).result, 'the branch admin of that branch may');
+
+  const retry = await setup();
+  const one = await visit(retry.db, retry.id, {}, 'adminA', { requestId: 'visit-req-001' });
+  const two = await visit(retry.db, retry.id, {}, 'adminA', { requestId: 'visit-req-001' });
+  assert.strictEqual(one.result.id, two.result.id);
+  assert.strictEqual(two.result.duplicate, true);
+  assert.strictEqual(enquiry(retry.db, retry.id).activityCount, 1);
+  assert.deepStrictEqual(enquiryHist(retry.db, retry.id).map((x) => x.to), ['NEW', 'VISIT_SCHEDULED'], 'the retry changed nothing');
+
+  const off = await setup();
+  off.db.store.set('schools/sA/admissionSettings/config', { ...a.DEFAULT_SETTINGS, enabled: false, version: 2 });
+  assert.strictEqual((await visit(off.db, off.id)).error, 'FAILED_PRECONDITION');
+
+  const race = await setup();
+  const rs = await Promise.all([1, 2, 3].map((n) => visit(race.db, race.id, { scheduledDate: `2026-11-${10 + n}` })));
+  assert.ok(rs.every((r) => r.result));
+  const e = enquiry(race.db, race.id);
+  assert.deepStrictEqual([e.status, e.activityCount, e.openActivityCount], ['VISIT_SCHEDULED', 3, 3]);
+  assert.deepStrictEqual(enquiryHist(race.db, race.id).map((x) => x.to), ['NEW', 'VISIT_SCHEDULED'], 'only the first booking changed the status');
+});
+
+test('a visit reminder says "School visit" and names the enquiry number only', async () => {
+  const { db, id } = await setup();
+  await visit(db, id, { scheduledDate: '2026-11-07', assignedTo: 'teacher1' });
+  assert.strictEqual((await run(db)).created, 1);
+  const text = JSON.stringify(notices(db)[0]);
+  assert.match(text, /School visit for enquiry ENQ-2026-00001 is due today/);
+  assert.ok(!text.includes('Asha'));
+});
+
+test('the lifecycle table now lets an enquiry go from NEW and from VISIT_COMPLETED to VISIT_SCHEDULED', () => {
+  assert.ok(a.canTransition('NEW', 'VISIT_SCHEDULED'));
+  assert.ok(a.canTransition('VISIT_COMPLETED', 'VISIT_SCHEDULED'));
+  assert.ok(!a.canTransition('REJECTED', 'VISIT_SCHEDULED'));
+  assert.ok(!a.canTransition('APPROVED', 'VISIT_SCHEDULED'));
+  assert.strictEqual(a.resolveManualChange('NEW', 'VISIT_SCHEDULED').error, 'FAILED_PRECONDITION', 'still not settable by hand');
 });

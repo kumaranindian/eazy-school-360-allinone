@@ -15,13 +15,14 @@ import '../../../students/presentation/widgets/parents/parents_ui.dart';
 import '../../../../core/regional/school_time.dart';
 import '../../domain/admission_activity.dart';
 import '../../domain/admission_enquiry.dart';
+import '../../domain/admission_timeline.dart';
 import '../../domain/admission_status.dart';
 import '../providers/admission_providers.dart';
 import '../widgets/activity_dialogs.dart';
 import '../widgets/activity_widgets.dart';
 import '../widgets/admission_widgets.dart';
 
-enum _Tab { overview, activities, timeline, notes }
+enum _Tab { overview, activities, visits, timeline, notes }
 
 /// One enquiry: overview, status history and internal notes, with the actions
 /// that are allowed from its current status (change status, assign, edit).
@@ -126,6 +127,7 @@ class _EnquiryDetailPageState extends ConsumerState<EnquiryDetailPage> {
                                 label: Text(switch (t) {
                                   _Tab.overview => 'Overview',
                                   _Tab.activities => 'Activities',
+                                  _Tab.visits => 'Visits',
                                   _Tab.timeline => 'Timeline',
                                   _Tab.notes => 'Internal notes',
                                 }),
@@ -143,6 +145,11 @@ class _EnquiryDetailPageState extends ConsumerState<EnquiryDetailPage> {
                           _Tab.activities => _Activities(
                             enquiry: e,
                             keyData: key,
+                          ),
+                          _Tab.visits => _Activities(
+                            enquiry: e,
+                            keyData: key,
+                            visits: true,
                           ),
                           _Tab.timeline => _Timeline(enquiry: e, keyData: key),
                           _Tab.notes => _Notes(enquiry: e),
@@ -580,53 +587,82 @@ class _Timeline extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = AdminDashboardPalette.of(context);
-    final history = ref.watch(
+    final status = ref.watch(
       enquiryHistoryProvider((keyData, enquiry.revision)),
     );
+    // Activity changes do not bump the enquiry's revision; the time of the last
+    // activity change does change, so it keys the second history.
+    final activity = ref.watch(
+      enquiryActivityHistoryProvider((
+        keyData,
+        enquiry.lastActivityAt?.millisecondsSinceEpoch ?? 0,
+      )),
+    );
+    Widget body() {
+      if (status.isLoading || activity.isLoading) {
+        return const Padding(
+          padding: EdgeInsets.all(16),
+          child: Center(child: CircularProgressIndicator()),
+        );
+      }
+      final err = status.error ?? activity.error;
+      if (err != null) return Text(userMessageFor(err));
+      final items = mergeTimeline(
+        status.value ?? const [],
+        activity.value ?? const [],
+      );
+      if (items.isEmpty) return const Text('No history yet.');
+      return Column(
+        children: [
+          for (final item in items)
+            switch (item) {
+              StatusTimelineItem(:final entry) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.circle, size: 12, color: p.primary),
+                title: Text(
+                  entry.from == null
+                      ? 'Enquiry created (${entry.to.label})'
+                      : entry.resumed
+                      ? 'Resumed: ${entry.from!.label} → ${entry.to.label}'
+                      : '${entry.from!.label} → ${entry.to.label}',
+                ),
+                subtitle: Text(
+                  [
+                    if (entry.at != null) _stamp(entry.at!),
+                    if (entry.reason != null) 'Reason: ${entry.reason}',
+                  ].join(' · '),
+                ),
+              ),
+              ActivityTimelineItem(:final entry) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  activityIcon(entry.type),
+                  size: 18,
+                  color: p.textSecondary,
+                ),
+                title: Text(describeActivityEvent(entry)),
+                subtitle: Text(
+                  [
+                    if (entry.at != null) _stamp(entry.at!),
+                    if (entry.reason != null) 'Reason: ${entry.reason}',
+                  ].join(' · '),
+                ),
+              ),
+            },
+        ],
+      );
+    }
+
     return ParentsCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const ParentsSectionTitle(
             icon: Icons.timeline,
-            title: 'Status history',
+            title: 'Status, follow-ups and visits',
           ),
           const SizedBox(height: 8),
-          history.when(
-            loading: () => const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (err, _) => Text(userMessageFor(err)),
-            data: (entries) => entries.isEmpty
-                ? const Text('No history yet.')
-                : Column(
-                    children: [
-                      for (final h in entries.reversed)
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            Icons.circle,
-                            size: 12,
-                            color: p.primary,
-                          ),
-                          title: Text(
-                            h.from == null
-                                ? 'Enquiry created (${h.to.label})'
-                                : h.resumed
-                                ? 'Resumed: ${h.from!.label} → ${h.to.label}'
-                                : '${h.from!.label} → ${h.to.label}',
-                          ),
-                          subtitle: Text(
-                            [
-                              if (h.at != null) _stamp(h.at!),
-                              if (h.reason != null) 'Reason: ${h.reason}',
-                            ].join(' · '),
-                          ),
-                        ),
-                    ],
-                  ),
-          ),
+          body(),
         ],
       ),
     );
@@ -755,7 +791,15 @@ class _StatusDialogState extends State<_StatusDialog> {
 class _Activities extends ConsumerStatefulWidget {
   final AdmissionEnquiry enquiry;
   final EnquiryKey keyData;
-  const _Activities({required this.enquiry, required this.keyData});
+
+  /// True for the Visits tab (only school visits); false lists every other
+  /// kind of follow-up.
+  final bool visits;
+  const _Activities({
+    required this.enquiry,
+    required this.keyData,
+    this.visits = false,
+  });
 
   @override
   ConsumerState<_Activities> createState() => _ActivitiesState();
@@ -773,6 +817,8 @@ class _ActivitiesState extends ConsumerState<_Activities> {
     if (!mounted) return;
     if (ok) {
       ref.invalidate(enquiryActivitiesProvider(_k));
+      ref.invalidate(enquiryActivityHistoryProvider);
+      ref.invalidate(followUpCountsProvider);
       context.showSnackBar(done);
     } else {
       final err = ref.read(admissionWriteControllerProvider).error;
@@ -793,20 +839,29 @@ class _ActivitiesState extends ConsumerState<_Activities> {
       builder: (_) => ScheduleActivityDialog(
         people: people,
         defaultAssignee: widget.enquiry.assignedTo,
+        visit: widget.visits,
+        title: widget.visits ? 'Book a school visit' : 'Schedule follow-up',
       ),
     );
     if (input == null || !mounted) return;
+    final controller = ref.read(admissionWriteControllerProvider.notifier);
     await _run(
-      () => ref
-          .read(admissionWriteControllerProvider.notifier)
-          .scheduleActivity(
-            schoolId: _k.schoolId,
-            branchId: _k.branchId,
-            enquiryId: _k.enquiryId,
-            input: input,
-            requestId: AdmissionWriteController.newRequestId(),
-          ),
-      'Follow-up scheduled.',
+      () => widget.visits
+          ? controller.scheduleVisit(
+              schoolId: _k.schoolId,
+              branchId: _k.branchId,
+              enquiryId: _k.enquiryId,
+              input: input,
+              requestId: AdmissionWriteController.newRequestId(),
+            )
+          : controller.scheduleActivity(
+              schoolId: _k.schoolId,
+              branchId: _k.branchId,
+              enquiryId: _k.enquiryId,
+              input: input,
+              requestId: AdmissionWriteController.newRequestId(),
+            ),
+      widget.visits ? 'Visit booked.' : 'Follow-up scheduled.',
     );
   }
 
@@ -938,7 +993,7 @@ class _ActivitiesState extends ConsumerState<_Activities> {
           child: FilledButton.icon(
             onPressed: closed || busy ? null : _schedule,
             icon: const Icon(Icons.add_alert_outlined),
-            label: const Text('Schedule follow-up'),
+            label: Text(widget.visits ? 'Book visit' : 'Schedule follow-up'),
           ),
         ),
         const SizedBox(height: 12),
@@ -948,45 +1003,55 @@ class _ActivitiesState extends ConsumerState<_Activities> {
             child: Center(child: CircularProgressIndicator()),
           ),
           error: (e, _) => ParentsCard(child: Text(userMessageFor(e))),
-          data: (list) => list.isEmpty
-              ? const ParentsCard(
-                  child: Text(
-                    'No follow-ups yet. Schedule the first call, visit or '
-                    'message so the family is not forgotten.',
-                  ),
-                )
-              : Column(
-                  children: [
-                    for (final a in list) ...[
-                      ActivityCard(
-                        activity: a,
-                        todayKey: todayKey,
-                        assigneeName: names[a.assignedTo],
-                        actions: !a.isOpen || closed
-                            ? const []
-                            : [
-                                FilledButton.tonal(
-                                  onPressed: busy ? null : () => _complete(a),
-                                  child: const Text('Complete'),
-                                ),
-                                OutlinedButton(
-                                  onPressed: busy ? null : () => _reschedule(a),
-                                  child: const Text('Reschedule'),
-                                ),
-                                OutlinedButton(
-                                  onPressed: busy ? null : () => _reassign(a),
-                                  child: const Text('Reassign'),
-                                ),
-                                TextButton(
-                                  onPressed: busy ? null : () => _cancel(a),
-                                  child: const Text('Cancel'),
-                                ),
-                              ],
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                  ],
+          data: (all) {
+            final list = [
+              for (final a in all)
+                if (a.isVisit == widget.visits) a,
+            ];
+            if (list.isEmpty) {
+              return ParentsCard(
+                child: Text(
+                  widget.visits
+                      ? 'No school visits yet. Book a campus tour or meeting '
+                            'so the family can see the school.'
+                      : 'No follow-ups yet. Schedule the first call or '
+                            'message so the family is not forgotten.',
                 ),
+              );
+            }
+            return Column(
+              children: [
+                for (final a in list) ...[
+                  ActivityCard(
+                    activity: a,
+                    todayKey: todayKey,
+                    assigneeName: names[a.assignedTo],
+                    actions: !a.isOpen || closed
+                        ? const []
+                        : [
+                            FilledButton.tonal(
+                              onPressed: busy ? null : () => _complete(a),
+                              child: const Text('Complete'),
+                            ),
+                            OutlinedButton(
+                              onPressed: busy ? null : () => _reschedule(a),
+                              child: const Text('Reschedule'),
+                            ),
+                            OutlinedButton(
+                              onPressed: busy ? null : () => _reassign(a),
+                              child: const Text('Reassign'),
+                            ),
+                            TextButton(
+                              onPressed: busy ? null : () => _cancel(a),
+                              child: const Text('Cancel'),
+                            ),
+                          ],
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ],
+            );
+          },
         ),
       ],
     );

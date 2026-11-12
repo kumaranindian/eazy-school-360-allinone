@@ -26,6 +26,7 @@ class FirebaseAdmissionRepository implements AdmissionRepository {
   static const _enquiries = 'admissionEnquiries';
   static const _history = 'admissionStatusHistory';
   static const _activities = 'admissionActivities';
+  static const _activityHistory = 'admissionActivityHistory';
 
   DocumentReference<Map<String, dynamic>> _settingsDoc(String schoolId) => _db
       .collection(FirestoreFields.schoolsCollection)
@@ -50,6 +51,7 @@ class FirebaseAdmissionRepository implements AdmissionRepository {
         d.data() ?? const {},
         createdAt: (d.data()?['createdAt'] as Timestamp?)?.toDate(),
         updatedAt: (d.data()?['updatedAt'] as Timestamp?)?.toDate(),
+        lastActivityAt: (d.data()?['lastActivityAt'] as Timestamp?)?.toDate(),
       );
 
   @override
@@ -383,6 +385,11 @@ class FirebaseAdmissionRepository implements AdmissionRepository {
         open
             .where('scheduledDate', isGreaterThan: todayKey)
             .orderBy('scheduledDate'),
+      FollowUpBucket.visits =>
+        open
+            .where('type', isEqualTo: ActivityType.schoolVisit.wire)
+            .where('scheduledDate', isGreaterThanOrEqualTo: todayKey)
+            .orderBy('scheduledDate'),
       FollowUpBucket.mine =>
         open.where('assignedTo', isEqualTo: userId).orderBy('scheduledDate'),
       FollowUpBucket.unassigned =>
@@ -455,6 +462,7 @@ class FirebaseAdmissionRepository implements AdmissionRepository {
         today: results[FollowUpBucket.today.index],
         overdue: results[FollowUpBucket.overdue.index],
         upcoming: results[FollowUpBucket.upcoming.index],
+        visits: results[FollowUpBucket.visits.index],
         mine: results[FollowUpBucket.mine.index],
         unassigned: results[FollowUpBucket.unassigned.index],
         completed: results[FollowUpBucket.completed.index],
@@ -512,6 +520,46 @@ class FirebaseAdmissionRepository implements AdmissionRepository {
       'requestId': requestId,
     });
     return r['id'] as String? ?? '';
+  }
+
+  @override
+  Future<String> scheduleVisit({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required ActivityInput input,
+    required String requestId,
+  }) async {
+    final r = await _call('scheduleAdmissionVisit', {
+      ..._target(schoolId, branchId, enquiryId),
+      'visit': input.toWire(),
+      'requestId': requestId,
+    });
+    return r['id'] as String? ?? '';
+  }
+
+  @override
+  Future<List<ActivityHistoryEntry>> fetchActivityHistory(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  ) async {
+    try {
+      final snap = await _col(schoolId, branchId, _activityHistory)
+          .where('enquiryId', isEqualTo: enquiryId)
+          .orderBy('at', descending: true)
+          .limit(100)
+          .get();
+      return [
+        for (final d in snap.docs)
+          ActivityHistoryEntry.fromMap(
+            d.data(),
+            at: (d.data()['at'] as Timestamp?)?.toDate(),
+          ),
+      ];
+    } catch (e, st) {
+      throw mapExceptionToFailure(e, st);
+    }
   }
 
   @override
