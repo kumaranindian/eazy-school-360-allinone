@@ -12,12 +12,14 @@ Legend: ✅ done and tested · 🟡 partly · ⬜ not started.
 | 5 | Enquiry list: search name/mobile/number; filter year, class, status, source, date; paging | ✅ · filter by assigned staff: repository supports, no UI · sorting: newest first only · export ⬜ |
 | 6 | Duplicate detection (mobile + name + DOB + year), flag only | ✅ |
 | 7 | Lifecycle state machine with history, reasons, no arbitrary status writes | ✅ lead stages · later statuses are reserved for their workflows (⬜) |
-| 8 | Follow-ups, school visits | ⬜ (only a "next follow-up date" field exists) |
+| 8 | Follow-ups: six types, schedule, reschedule, reassign, complete (outcome, feedback, remarks, next contact), cancel, history, dashboard (today / overdue / upcoming / mine / unassigned / completed / no follow-up) | ✅ |
+| 8a | Automated reminders: due today + overdue, school time zone, no duplicates, existing notification pipeline | ✅ (in-app + push through the existing path) · email ⬜ |
+| 8b | School visits (multiple per enquiry, drive VISIT_* statuses, completion notes) | ⬜ Phase 5 — a visit can be logged today as a "School visit" activity, but it does **not** move the enquiry status |
 | 9 | Applications, documents, verification | ⬜ |
 | 10 | Admission fees (on existing fee module) | ⬜ |
 | 11 | Convert to student (idempotent) | ⬜ |
 | 12 | Public enquiry portal | ⬜ |
-| 13 | Notifications | ⬜ |
+| 13 | Notifications | 🟡 follow-up due/overdue only · new enquiry, assignment, application, approval, confirmation ⬜ |
 | 14 | Dashboard counts | ✅ counts and conversion rate · reports and CSV/PDF export ⬜ |
 | 15 | Responsive UI for implemented screens | ✅ (tests at 320/390/820/1440 px and 1.5× text) |
 | 16 | RBAC in UI and backend | ✅ for implemented operations |

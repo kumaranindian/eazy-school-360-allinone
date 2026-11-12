@@ -19,6 +19,8 @@ finance, parent, another school, or signed-out users (rules tests).
 **Integrity.** Status changes and history are written in one transaction; history ids include the
 revision; `baseRevision` makes concurrent edits fail instead of overwriting.
 
+**Follow-ups.** The same rules as enquiries: read-only to clients (activities and history), every change a callable that re-checks the caller and the tenant path; an activity can only be changed through the enquiry it belongs to; the client cannot set status, assignee identity checks (the assignee must be an active member of the branch), school or branch. Reminder text carries no personal data (enquiry number and kind of contact). Idempotent writes: a client key for scheduling and `create()` with derived ids for notifications.
+
 **Abuse.** Creation is limited to administrators, so there is no public spam surface yet. The
 public form (Phase 9) needs a verified school identifier, rate limiting and CAPTCHA before it is
 built.

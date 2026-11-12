@@ -7,6 +7,8 @@
 | Create / edit / assign / change status (callables) | – | ✅ any branch | ✅ own branch | – | – | – |
 | Read settings (rules) | ✅ | ✅ | ✅ | – | – | – |
 | Open / save settings (UI `manageSchool`, callable) | – | ✅ | – | – | – | – |
+| Schedule / reschedule / reassign / complete / cancel follow-ups (callables) | – | ✅ any branch | ✅ own branch | – | – | – |
+| Receive follow-up reminders | – | ✅ when assigned or no branch admin exists | ✅ when assigned or unassigned in their branch | – | – | – |
 | Admission-staff role | not built | | | | | |
 
 Enforced in three places that must agree: `RolePermissions` (what the UI offers),

@@ -8,9 +8,12 @@
    routes already guarded by `manageAdmissions`).
 2. Indexes: `firebase deploy --only firestore:indexes --project <dev>` — wait until the new
    `admissionEnquiries` / `admissionStatusHistory` indexes are READY.
-3. Functions: `cd functions && npm test`, then deploy the five `*Admission*` callables:
+3. Functions: `cd functions && npm test`, then deploy the `*Admission*` callables:
    `saveAdmissionSettings, createAdmissionEnquiry, updateAdmissionEnquiry, assignAdmissionEnquiry,
-   changeAdmissionEnquiryStatus`.
+   changeAdmissionEnquiryStatus, scheduleAdmissionActivity, rescheduleAdmissionActivity,
+   reassignAdmissionActivity, completeAdmissionActivity, cancelAdmissionActivity` and the scheduled
+   function `admissionFollowUpReminders` (hourly). Deploy it on **dev** and check the logs for one cycle before prod.
+   Existing enquiries created before phase 4 have no `activityCount`; the app and server treat that as 0, so no backfill is needed.
 4. Rules: **never** `firebase deploy --only firestore:rules` with the default config. Build and deploy the
    stripped artifact: `node tool/build_rules.js --check` then `tool/deploy_rules.sh <project> --dry-run`
    (current build is ~148 KB of 256 KB).
@@ -20,7 +23,8 @@
 
 ## Rollback
 - Switch the module off per school (Admission settings) — existing data stays, new enquiries stop.
-- Functions/rules/indexes are additive: remove the five callables or redeploy the previous rules;
+- Reminders can be switched off per school (Admission settings → Daily follow-up reminders) or by disabling the `admissionFollowUpReminders` function.
+- Functions/rules/indexes are additive: remove the callables or redeploy the previous rules;
   nothing else reads these collections. Data is not deleted by rollback.
 
 ## Prerequisites / config

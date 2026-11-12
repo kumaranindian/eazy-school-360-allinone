@@ -11,6 +11,19 @@ result object or throw an `HttpsError` whose `details.cause` carries the reason.
 | `assignAdmissionEnquiry` | same | `{schoolId, branchId, enquiryId, assignedTo|null}` | `{revision}` |
 | `changeAdmissionEnquiryStatus` | same | `{schoolId, branchId, enquiryId, status|"RESUME", reason?, baseRevision?}` | `{status, revision}` |
 
+| `scheduleAdmissionActivity` | same | `{schoolId, branchId, enquiryId, activity{type,scheduledDate,scheduledTime?,remarks?,assignedTo?}, requestId?}` | `{id, duplicate}` |
+| `rescheduleAdmissionActivity` | same | `{…, activityId, scheduledDate, scheduledTime?, reason?, baseRevision?}` | `{revision}` |
+| `reassignAdmissionActivity` | same | `{…, activityId, assignedTo|null, baseRevision?}` | `{revision}` |
+| `completeAdmissionActivity` | same | `{…, activityId, completion{outcome,parentFeedback?,remarks?}, next?{type,scheduledDate,…}, baseRevision?}` | `{revision, nextId?}` |
+| `cancelAdmissionActivity` | same | `{…, activityId, reason, baseRevision?}` | `{revision}` |
+
+Scheduled job `admissionFollowUpReminders` (hourly): for every school with admissions and reminders on, once its local
+time is inside the 3-hour window from `reminderTime`, it notifies the assignee (or the branch administrators when
+unassigned) of each open activity due today (DUE) or earlier, up to 30 days back (OVERDUE).
+
+Rules: dates cannot be in the past (school time zone); only a SCHEDULED activity can change; a closed enquiry takes no new
+follow-ups; completing requires an outcome (3–500 characters); cancelling requires a reason.
+
 Error mapping: `PERMISSION_DENIED` (wrong role/school/branch), `NOT_FOUND`, `INVALID_ARGUMENT`
 (validation; `cause` lists fields), `FAILED_PRECONDITION` (module off, illegal transition,
 closed enquiry), `ABORTED` (stale `baseRevision`/`baseVersion`).
