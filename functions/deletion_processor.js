@@ -56,7 +56,7 @@ const NAME_FIELD = {
 
 // Collections under schools/{s}/branches/{b} that are scanned for the uid fields.
 const BRANCH_COLLECTIONS = [
-  'academicYears', 'admissionActivities', 'admissionActivityHistory', 'admissionEnquiries', 'admissionNumbers', 'admissionStatusHistory', 'announcementHistory', 'announcements', 'assignmentSlots',
+  'academicYears', 'admissionActivities', 'admissionActivityHistory', 'admissionApplicationHistory', 'admissionApplications', 'admissionDocuments', 'admissionEnquiries', 'admissionNumbers', 'admissionStatusHistory', 'announcementHistory', 'announcements', 'assignmentSlots',
   'attendanceSessions', 'broadcastNotices', 'classSubjects', 'classes', 'conversationEvents',
   'conversations', 'departments', 'designations', 'examHistory', 'examRemarks', 'examinationSubjects',
   'examinations', 'gradingSchemes', 'holidays', 'homework', 'homeworkHistory', 'homeworkRevisions',

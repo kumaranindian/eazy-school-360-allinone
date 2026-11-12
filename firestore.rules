@@ -3603,6 +3603,15 @@ service cloud.firestore {
         match /admissionActivityHistory/{entryId} {
           allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
         }
+        match /admissionApplications/{applicationId} {
+          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+        }
+        match /admissionApplicationHistory/{entryId} {
+          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+        }
+        match /admissionDocuments/{documentId} {
+          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+        }
 
         // ---- Announcements (Milestone 9) -------------------------------
         match /announcements/{announcementId} {

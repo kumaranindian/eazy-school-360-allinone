@@ -146,6 +146,38 @@ service firebase.storage {
       allow delete: if false;
     }
 
+    // schools/{schoolId}/branches/{branchId}/admissionDocs/{enquiryId}/{docId}/
+    // {fileName} (admission applications) — birth certificates, photographs,
+    // transfer certificates, address proof… Sensitive: only the school admin and
+    // the branch admin of THIS branch may read (a platform admin may read for
+    // support), nobody else — not teachers, finance, parents or other branches.
+    // Writes are CREATE-ONLY and only against an upload the server approved:
+    // admissionDocuments/{docId} must exist in status UPLOADING for this enquiry,
+    // name exactly this path, and declare exactly this size and content type
+    // (requestAdmissionDocumentUpload validated type, size <= 5MB and MIME). The
+    // file is never replaced or deleted from a client; the server marks a document
+    // removed or abandoned and cleans up uploads that were never confirmed.
+    function admissionStaff(schoolId, branchId) {
+      return isActiveCaller() && callerProfile().schoolId == schoolId
+        && (callerProfile().role == 'SCHOOL_ADMIN' || roleIn(branchId) == 'BRANCH_ADMIN');
+    }
+
+    match /schools/{schoolId}/branches/{branchId}/admissionDocs/{enquiryId}/{docId}/{fileName} {
+      allow read: if admissionStaff(schoolId, branchId)
+        || (isActiveCaller() && callerProfile().role == 'PLATFORM_ADMIN');
+      allow create: if admissionStaff(schoolId, branchId)
+        && firestore.exists(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/admissionDocuments/$(docId))
+        && firestore.get(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/admissionDocuments/$(docId)).data.status == 'UPLOADING'
+        && firestore.get(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/admissionDocuments/$(docId)).data.enquiryId == enquiryId
+        && firestore.get(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/admissionDocuments/$(docId)).data.storagePath
+           == 'schools/' + schoolId + '/branches/' + branchId + '/admissionDocs/' + enquiryId + '/' + docId + '/' + fileName
+        && request.resource.size == firestore.get(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/admissionDocuments/$(docId)).data.sizeBytes
+        && request.resource.contentType == firestore.get(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/admissionDocuments/$(docId)).data.contentType
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/jpeg|image/png|image/webp');
+      allow update, delete: if false;
+    }
+
     // schools/{schoolId}/branches/{branchId}/leaveDocs/{applicantUid}/
     // {applicationId}/{fileName} (Milestone 7) — supporting documents for a
     // leave application (often medical). The path carries the APPLICANT's uid:

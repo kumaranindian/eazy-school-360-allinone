@@ -27,6 +27,9 @@ const enq = (d, s = A, b = 'north', id = 'e1') => doc(d, 'schools', s, 'branches
 const hist = (d, s = A, b = 'north', id = 'e1__1') => doc(d, 'schools', s, 'branches', b, 'admissionStatusHistory', id);
 const act = (d, s = A, b = 'north', id = 'a1') => doc(d, 'schools', s, 'branches', b, 'admissionActivities', id);
 const ahist = (d, s = A, b = 'north', id = 'a1__1') => doc(d, 'schools', s, 'branches', b, 'admissionActivityHistory', id);
+const app = (d, s = A, b = 'north', id = 'e1') => doc(d, 'schools', s, 'branches', b, 'admissionApplications', id);
+const apphist = (d, s = A, b = 'north', id = 'e1__1') => doc(d, 'schools', s, 'branches', b, 'admissionApplicationHistory', id);
+const adoc = (d, s = A, b = 'north', id = 'd1') => doc(d, 'schools', s, 'branches', b, 'admissionDocuments', id);
 const seq = (d) => doc(d, 'schools', A, 'branches', 'north', 'admissionSequences', 'ENQ-2026');
 const settings = (d, s = A) => doc(d, 'schools', s, 'admissionSettings', 'config');
 const enquiry = (s, b) => ({ schoolId: s, branchId: b, enquiryNumber: 'ENQ-2026-00001', status: 'NEW', studentName: 'Asha Nair', revision: 1, ...base });
@@ -42,6 +45,9 @@ beforeEach(async () => {
         await setDoc(enq(d, s, b), enquiry(s, b));
         await setDoc(hist(d, s, b), { schoolId: s, branchId: b, enquiryId: 'e1', revision: 1, from: null, to: 'NEW' });
         await setDoc(act(d, s, b), { schoolId: s, branchId: b, enquiryId: 'e1', status: 'SCHEDULED', scheduledDate: '2026-11-10' });
+        await setDoc(app(d, s, b), { schoolId: s, branchId: b, enquiryId: 'e1', status: 'DRAFT' });
+        await setDoc(apphist(d, s, b), { schoolId: s, branchId: b, enquiryId: 'e1', revision: 1, event: 'CREATED' });
+        await setDoc(adoc(d, s, b), { schoolId: s, branchId: b, enquiryId: 'e1', type: 'BIRTH_CERTIFICATE', status: 'UPLOADED' });
         await setDoc(ahist(d, s, b), { schoolId: s, branchId: b, activityId: 'a1', enquiryId: 'e1', revision: 1, event: 'CREATED' });
       }
       await setDoc(settings(d, s), { schoolId: s, enabled: true, version: 1 });
@@ -132,5 +138,28 @@ test('nobody writes activities or their history from a client', async () => {
     await assertFails(setDoc(ahist(d, A, 'north', 'a1__2'), { schoolId: A }));
     await assertFails(updateDoc(ahist(d), { event: 'EDITED' }));
     await assertFails(deleteDoc(ahist(d)));
+  }
+});
+
+test('applications, their history and document records follow the same read scope', async () => {
+  for (const read of [app, apphist, adoc]) {
+    for (const uid of ['adm-admin', 'adm-platform', 'adm-north']) await assertSucceeds(getDoc(read(as(uid))));
+    for (const uid of ['adm-south', 'adm-teacher', 'adm-finance', 'adm-parent', 'adm-admin-b']) await assertFails(getDoc(read(as(uid))));
+    await assertFails(getDoc(read(env.unauthenticatedContext().firestore())));
+    await assertFails(getDoc(read(as('adm-admin'), B, 'north')));
+  }
+});
+
+test('nobody writes applications, history or document records from a client', async () => {
+  for (const uid of ['adm-admin', 'adm-north', 'adm-platform', 'adm-teacher']) {
+    const d = as(uid);
+    await assertFails(setDoc(app(d, A, 'north', 'new'), { schoolId: A, branchId: 'north', status: 'APPROVED' }));
+    await assertFails(updateDoc(app(d), { status: 'APPROVED' }));
+    await assertFails(deleteDoc(app(d)));
+    await assertFails(setDoc(apphist(d, A, 'north', 'e1__2'), { schoolId: A }));
+    await assertFails(updateDoc(apphist(d), { event: 'EDITED' }));
+    await assertFails(setDoc(adoc(d, A, 'north', 'new'), { schoolId: A, status: 'VERIFIED' }));
+    await assertFails(updateDoc(adoc(d), { status: 'VERIFIED' }));
+    await assertFails(deleteDoc(adoc(d)));
   }
 });

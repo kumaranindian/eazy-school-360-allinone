@@ -37,7 +37,8 @@ const TRANSITIONS = Object.freeze({
   NEW: ['CONTACTED', 'INTERESTED', 'VISIT_SCHEDULED', ...OPEN_ALTERNATES],
   CONTACTED: ['INTERESTED', 'VISIT_SCHEDULED', ...OPEN_ALTERNATES],
   INTERESTED: ['VISIT_SCHEDULED', 'APPLICATION_SUBMITTED', ...OPEN_ALTERNATES],
-  VISIT_SCHEDULED: ['VISIT_COMPLETED', 'INTERESTED', ...OPEN_ALTERNATES],
+  // A family may apply before the visit happens.
+  VISIT_SCHEDULED: ['VISIT_COMPLETED', 'APPLICATION_SUBMITTED', 'INTERESTED', ...OPEN_ALTERNATES],
   // A second (or later) visit is allowed after one was completed.
   VISIT_COMPLETED: ['APPLICATION_SUBMITTED', 'VISIT_SCHEDULED', 'INTERESTED', ...OPEN_ALTERNATES],
   APPLICATION_SUBMITTED: ['UNDER_REVIEW', 'ON_HOLD', 'REJECTED', 'WITHDRAWN'],
@@ -52,6 +53,26 @@ const TRANSITIONS = Object.freeze({
 });
 
 const TERMINAL = ['REJECTED', 'WITHDRAWN', 'ADMISSION_CONFIRMED'];
+
+// Documents a school can ask for (phase 6). The built-in keys are fixed; a school
+// can add its own (customDocumentTypes) and choose which are required before an
+// application can be approved.
+const BUILT_IN_DOCUMENT_TYPES = Object.freeze({
+  BIRTH_CERTIFICATE: 'Birth certificate',
+  STUDENT_PHOTO: 'Student photograph',
+  PARENT_PHOTO: 'Parent photographs',
+  TRANSFER_CERTIFICATE: 'Transfer certificate',
+  PREVIOUS_RECORDS: 'Previous academic records',
+  ADDRESS_PROOF: 'Address proof',
+});
+const CUSTOM_DOC_ID = /^[A-Z][A-Z0-9_]{2,23}$/;
+
+/** The document types of a school: built-ins plus its own, as { KEY: label }. */
+function documentTypesOf(settings) {
+  const out = { ...BUILT_IN_DOCUMENT_TYPES };
+  for (const c of (settings && settings.customDocumentTypes) || []) out[c.id] = c.label;
+  return out;
+}
 
 const ROLE_ASSIGNABLE = ['SCHOOL_ADMIN', 'BRANCH_ADMIN', 'TEACHER', 'FINANCE'];
 
@@ -133,6 +154,11 @@ const DEFAULT_SETTINGS = Object.freeze({
   followUpDays: 3,
   remindersEnabled: true,
   reminderTime: '09:00',
+  // Phase 6: which documents must be verified before approval, extra document
+  // types, and whether branch administrators may approve or reject applications.
+  requiredDocumentTypes: ['BIRTH_CERTIFICATE', 'STUDENT_PHOTO'],
+  customDocumentTypes: [],
+  branchAdminsMayApprove: false,
   academicYearIds: [],
   classIds: [],
 });
@@ -167,6 +193,31 @@ function validateSettings(input) {
   const reminderTime = i.reminderTime === undefined ? DEFAULT_SETTINGS.reminderTime : i.reminderTime;
   const reminderMinute = isStr(reminderTime) ? feeReminders.minutesOf(reminderTime) : null;
   if (reminderMinute === null || reminderMinute < 360 || reminderMinute > 1260) errors.reminderTime = 'a time between 06:00 and 21:00';
+  const branchAdminsMayApprove = i.branchAdminsMayApprove === undefined ? DEFAULT_SETTINGS.branchAdminsMayApprove : i.branchAdminsMayApprove;
+  if (typeof branchAdminsMayApprove !== 'boolean') errors.branchAdminsMayApprove = 'must be true or false';
+  let customDocumentTypes = [];
+  if (i.customDocumentTypes !== undefined) {
+    const list = i.customDocumentTypes;
+    if (!Array.isArray(list) || list.length > 10) errors.customDocumentTypes = 'up to 10 document types';
+    else {
+      const seen = new Set();
+      for (const c of list) {
+        const id = trim(c && c.id).toUpperCase();
+        const label = trim(c && c.label);
+        if (!CUSTOM_DOC_ID.test(id) || BUILT_IN_DOCUMENT_TYPES[id] || seen.has(id)) errors.customDocumentTypes = 'each type needs a unique id (3-24 capital letters, digits or _) and a label';
+        else if (label.length < 2 || label.length > 40) errors.customDocumentTypes = 'a label is 2-40 characters';
+        else customDocumentTypes.push({ id, label });
+        seen.add(id);
+      }
+    }
+  }
+  const known = new Set([...Object.keys(BUILT_IN_DOCUMENT_TYPES), ...customDocumentTypes.map((c) => c.id)]);
+  let requiredDocumentTypes = DEFAULT_SETTINGS.requiredDocumentTypes;
+  if (i.requiredDocumentTypes !== undefined) {
+    const list = i.requiredDocumentTypes;
+    if (!Array.isArray(list) || list.some((k) => !isStr(k) || !known.has(k))) errors.requiredDocumentTypes = 'must name document types the school has';
+    else requiredDocumentTypes = [...new Set(list)];
+  }
   const idList = (key) => {
     const v = i[key] === undefined ? [] : i[key];
     if (!Array.isArray(v) || v.length > 100 || v.some((x) => !isStr(x) || !ID.test(x))) {
@@ -178,7 +229,7 @@ function validateSettings(input) {
   const academicYearIds = idList('academicYearIds');
   const classIds = idList('classIds');
   if (Object.keys(errors).length) return { errors };
-  return { value: { enabled, enquiryPrefix, applicationPrefix, sources, followUpDays, remindersEnabled, reminderTime, academicYearIds, classIds } };
+  return { value: { enabled, enquiryPrefix, applicationPrefix, sources, followUpDays, remindersEnabled, reminderTime, requiredDocumentTypes, customDocumentTypes, branchAdminsMayApprove, academicYearIds, classIds } };
 }
 
 async function loadSettings(db, schoolId) {
@@ -531,14 +582,18 @@ async function changeEnquiryStatus(ctx, uid, token, data) {
     if (step.error) return step;
     // Closing an enquiry also closes its open follow-ups (read before any write).
     const closing = TERMINAL.includes(step.to) ? await require('./admission_activities').cancelOpenForClosed(tx, ctx, cur, uid) : null;
+    const appClosing = TERMINAL.includes(step.to) ? await require('./admission_applications').closeForEnquiry(tx, ctx, cur, step.to, data.reason, uid) : null;
     const rev = applyStatus(tx, ctx, cur, { to: step.to, reason: data.reason, uid, resume: step.resume });
     if (closing) closing.apply();
+    if (appClosing) appClosing.apply();
     return { result: { status: step.to, revision: rev } };
   });
 }
 
 module.exports = {
-  // helpers shared with admission_activities.js
+  BUILT_IN_DOCUMENT_TYPES,
+  documentTypesOf,
+  // helpers shared with admission_activities.js and admission_applications.js
   ID,
   isStr,
   trim,

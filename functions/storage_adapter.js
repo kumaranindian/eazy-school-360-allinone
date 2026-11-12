@@ -1,7 +1,8 @@
 'use strict';
 
-// The small storage surface the deletion processor needs, over a Cloud Storage
-// bucket (kept separate so the processor can be tested without Storage).
+// The small storage surface the deletion processor and the admission document
+// workflow need, over a Cloud Storage bucket (kept separate so they can be
+// tested without Storage).
 function bucketStorage(bucket) {
   const names = async (prefix) => {
     const [files] = await bucket.getFiles({ prefix });
@@ -16,6 +17,15 @@ function bucketStorage(bucket) {
     },
     list: names,
     deleteFile: async (path) => void (await bucket.file(path).delete({ ignoreNotFound: true })),
+    // { exists, size, contentType } of one object, read with admin rights (what
+    // is actually stored, not what a client claims).
+    stat: async (path) => {
+      const file = bucket.file(path);
+      const [exists] = await file.exists();
+      if (!exists) return { exists: false };
+      const [meta] = await file.getMetadata();
+      return { exists: true, size: Number(meta.size), contentType: meta.contentType || null };
+    },
   };
 }
 
