@@ -108,3 +108,13 @@ Created in the same transaction, in the exact shape the existing admission form 
 `admissionNumbers/{key}` (the reservation the rules and `admitStudent` use), `parents/{id}` (reused by mobile, else
 `p_{mobile}`), `students/{id}/parentLinks/{parentId}`, and the union of the class/section keys in `parentAccess/{parentId}`.
 The enquiry gets `studentId` and `admissionNumber`; each admission fee record gets `studentId`.
+
+## Public enquiry page (phase 9)
+- `admissionSettings/config.publicPortal` `{enabled, slug, branchId, introText, consentText, consentVersion}`. `consentVersion` is
+  server-managed: it goes up when the consent text changes.
+- `admissionPortalSlugs/{slug}` (top level, server-only): `{schoolId, branchId, enabled}`. Unique across schools (checked in
+  the same transaction as the settings save); released when the address changes.
+- `schools/{s}/publicLimits/{key}` (server-only): fixed-window counters `{count, windowStart, expireAt}` keyed by a salted hash
+  (`ip_…`, `phone_…`, `view_…`, and `school`). Enable a Firestore TTL policy on `expireAt` at deploy.
+- A public enquiry is an ordinary `admissionEnquiries/pub_{requestId}` (create-only, so retries are safe) with `channel: PUBLIC_PORTAL`,
+  `source: Website`, `createdBy: public-portal`, and `consent {accepted, version, acceptedAt, ipHash}`.

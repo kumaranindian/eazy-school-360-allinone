@@ -268,6 +268,7 @@ const STATUS = {
   EMAIL_IN_USE: 'already-exists',
   UNAUTHENTICATED: 'unauthenticated',
   RATE_LIMITED: 'resource-exhausted',
+  RESOURCE_EXHAUSTED: 'resource-exhausted',
   RESEND_COOLDOWN: 'resource-exhausted',
   DELIVERY_FAILED: 'unavailable',
   OTP_UNAVAILABLE: 'failed-precondition',
@@ -408,6 +409,25 @@ exports.recordAdmissionFeePayment = admissionCall('recordAdmissionFeePayment', a
 exports.refundAdmissionFee = admissionCall('refundAdmissionFee', admissionFees.refundAdmissionFee, (d) => ({ enquiry: d.enquiryId, category: d.category }));
 const admissionConversion = require('./admission_conversion');
 exports.convertAdmissionToStudent = admissionCall('convertAdmissionToStudent', admissionConversion.convertToStudent, (d, r) => ({ enquiry: d.enquiryId, student: r.studentId }));
+
+// The public enquiry page: callable by anyone, so it never reads the caller's
+// identity; school and branch come from the registered page address only.
+const admissionPublic = require('./admission_public');
+const publicCall = (name, fn) =>
+  onCall(callOptions(), async (request) => {
+    const raw = request.rawRequest || {};
+    const out = await fn(
+      { ...adminCtx(), wall: () => new Date(), clientIp: raw.ip || null, turnstileSecret: process.env.TURNSTILE_SECRET_KEY || null },
+      null,
+      null,
+      request.data,
+    );
+    if (out.error) fail(out);
+    logger.info(name, { slug: request.data && request.data.slug });
+    return out.result;
+  });
+exports.getAdmissionPortal = publicCall('getAdmissionPortal', admissionPublic.getPublicPortal);
+exports.submitPublicAdmissionEnquiry = publicCall('submitPublicAdmissionEnquiry', admissionPublic.submitPublicEnquiry);
 exports.changeAdmissionEnquiryStatus = admissionCall('changeAdmissionEnquiryStatus', admission.changeEnquiryStatus, (d, r) => ({ enquiry: d.enquiryId, status: r.status }));
 
 exports.updatePlatformBranding = onCall(callOptions(), async (request) => {

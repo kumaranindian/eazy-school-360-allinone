@@ -8,6 +8,9 @@ abstract final class AppRoutes {
   static const String login = '/login';
   static const String register = '/register';
   static const String forgotPassword = '/forgot-password';
+
+  /// The public admission enquiry form (no sign-in): `/admission/{slug}`.
+  static const String publicAdmission = '/admission/:slug';
   static const String accountInactive = '/account-inactive';
   static const String changePassword = '/change-password';
   static const String createSchool = '/create-school';

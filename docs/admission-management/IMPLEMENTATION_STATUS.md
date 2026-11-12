@@ -103,6 +103,17 @@ function `admissionFollowUpReminders`, notification types `ADMISSION_FOLLOWUP_DU
 - Not done: no student fee assignment is created (assign fees in the Fees module as usual), no parent login, no photo/document copy
   to the student record, no notification (phase 10).
 
+## Phase 9 — public enquiry page (done)
+- Backend `functions/admission_public.js` (`getAdmissionPortal`, `submitPublicAdmissionEnquiry`), settings (`publicPortal`, unique page address,
+  versioned consent) in `saveAdmissionSettings`, deletion-matrix row D12. Route `/admission/:slug` (open to signed-out visitors), the public form,
+  and a *Public enquiry page* card in Admission settings.
+- Tests: functions `admission_public.test.js` (16), rules (+2: server-only bookkeeping, signed-out cannot touch enquiries), Dart: 8 public-form widget tests,
+  1 settings widget test, 3 domain tests.
+- **Not verified here / needs your action before real use:** App Check enforcement and a reCAPTCHA web key must be configured (otherwise only the
+  honeypot and rate limits protect the page); the Turnstile verifier is unit-tested with a fake fetch only; the Firestore TTL policy on
+  `publicLimits.expireAt` must be enabled; the Flutter page has no Turnstile widget; the web build and a deployed round trip were not run.
+- Not done: staff notification of new public enquiries (phase 10), a "Public portal" badge in the enquiry list, a QR/share link helper.
+
 ## Known limitations (phase 6)
 - The Storage rules are untested in an emulator (see above); the real upload → confirm round trip and `FirebaseAdmissionDocumentStore` are untested.
 - (Phase 7 added fees.) No conversion to a student (phase 8): an APPROVED application is the end of the road for now.

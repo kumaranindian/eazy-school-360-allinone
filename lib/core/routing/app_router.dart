@@ -7,6 +7,7 @@ import '../../features/account_deletion/presentation/pages/account_deletion_page
 import '../../features/authentication/presentation/pages/account_inactive_page.dart';
 import '../../features/authentication/presentation/pages/change_initial_password_page.dart';
 import '../../features/authentication/presentation/providers/initial_password_providers.dart';
+import '../../features/admission/presentation/pages/public_enquiry_page.dart';
 import '../../features/authentication/presentation/pages/forgot_password_page.dart';
 import '../../features/authentication/presentation/pages/login_page.dart';
 import '../../features/authentication/presentation/pages/register_page.dart';
@@ -80,6 +81,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // safe, non-breaking lookup key change for routes that predate
       // Milestone 3 too.
       final path = state.fullPath ?? state.matchedLocation;
+
+      // The public enquiry form is open to everyone, signed in or not; it
+      // never shows or needs tenant data.
+      if (path == AppRoutes.publicAdmission) return null;
 
       if (!authState.hasValue && !authState.hasError) {
         return path == '/' ? null : ReturnTo.redirect('/', state.uri);
@@ -177,6 +182,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.forgotPassword,
         builder: (context, state) => const ForgotPasswordPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.publicAdmission,
+        builder: (context, state) =>
+            PublicEnquiryPage(slug: state.pathParameters['slug'] ?? ''),
       ),
       GoRoute(
         path: AppRoutes.changePassword,

@@ -196,3 +196,23 @@ test('conversion records follow the same read scope and are never written from a
     await assertFails(deleteDoc(conv(as(uid))));
   }
 });
+
+test('the public page bookkeeping (portal addresses, rate-limit counters) is server-only', async () => {
+  await env.withSecurityRulesDisabled(async (c) => {
+    await setDoc(doc(c.firestore(), 'admissionPortalSlugs', 'adm-slug'), { schoolId: A, branchId: 'north', enabled: true });
+    await setDoc(doc(c.firestore(), 'schools', A, 'publicLimits', 'ip_x'), { count: 1 });
+  });
+  const unauth = env.unauthenticatedContext().firestore();
+  for (const d of [unauth, as('adm-admin'), as('adm-platform'), as('adm-north')]) {
+    await assertFails(getDoc(doc(d, 'admissionPortalSlugs', 'adm-slug')));
+    await assertFails(setDoc(doc(d, 'admissionPortalSlugs', 'mine'), { schoolId: A, branchId: 'north', enabled: true }));
+    await assertFails(getDoc(doc(d, 'schools', A, 'publicLimits', 'ip_x')));
+    await assertFails(setDoc(doc(d, 'schools', A, 'publicLimits', 'ip_y'), { count: 0 }));
+  }
+});
+
+test('a signed-out visitor cannot read or write any enquiry (the public form goes through the server only)', async () => {
+  const unauth = env.unauthenticatedContext().firestore();
+  await assertFails(getDoc(enq(unauth)));
+  await assertFails(setDoc(enq(unauth, A, 'north', 'pub_x'), enquiry(A, 'north')));
+});

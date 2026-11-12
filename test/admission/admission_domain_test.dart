@@ -3,6 +3,7 @@ import 'package:eazy_school_360/features/admission/domain/admission_activity.dar
 import 'package:eazy_school_360/features/admission/domain/admission_application.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_enquiry.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_fee.dart';
+import 'package:eazy_school_360/features/admission/domain/public_portal.dart';
 import 'package:eazy_school_360/features/notifications/domain/feed_item.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_settings.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_status.dart';
@@ -848,5 +849,64 @@ void main() {
         (FeeCategory.admission, 3000, AdmissionFeeStatus.partial, 3),
       );
     });
+  });
+
+  group('public enquiry page settings', () {
+    test('read and written back, the consent version is not sent', () {
+      final s = AdmissionSettings.fromMap({
+        'enabled': true,
+        'publicPortal': {
+          'enabled': true,
+          'slug': 'rosewood',
+          'branchId': 'b1',
+          'consentText': 'I agree to be contacted.',
+          'consentVersion': 4,
+        },
+      });
+      expect(s.publicPortal.enabled, isTrue);
+      expect(s.publicPortal.consentVersion, 4);
+      expect(s.publicPortal.path, '/admission/rosewood');
+      final wire = s.toWire()['publicPortal'] as Map;
+      expect(wire.containsKey('consentVersion'), isFalse);
+      expect(wire['slug'], 'rosewood');
+    });
+
+    test('missing data means off; addresses are validated like the server', () {
+      expect(AdmissionSettings.fromMap({}).publicPortal.enabled, isFalse);
+      expect(PublicPortalSettings.fromMap(null).slug, '');
+      for (final ok in ['rosewood', 'a1-b2', 'abc']) {
+        expect(
+          PublicPortalSettings.slugPattern.hasMatch(ok),
+          isTrue,
+          reason: ok,
+        );
+      }
+      for (final bad in ['ab', '-abc', 'abc-', 'Abc', 'a b c', 'a_b_c', '']) {
+        expect(
+          PublicPortalSettings.slugPattern.hasMatch(bad),
+          isFalse,
+          reason: bad,
+        );
+      }
+    });
+
+    test(
+      'the public form payload carries one guardian and no school or branch',
+      () {
+        const input = PublicEnquiryInput(
+          firstName: 'Asha',
+          lastName: 'Nair',
+          academicYearId: 'ay1',
+          classId: 'c1',
+          guardianName: 'Meena',
+          guardianPhone: '9876543210',
+        );
+        final w = input.toWire();
+        expect(w.containsKey('schoolId'), isFalse);
+        expect(w.containsKey('branchId'), isFalse);
+        expect((w['guardians'] as List), hasLength(1));
+        expect(w['interestedClassId'], 'c1');
+      },
+    );
   });
 }

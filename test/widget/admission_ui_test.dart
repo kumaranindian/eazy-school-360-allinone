@@ -641,6 +641,58 @@ void main() {
       expect(repo.savedSettings.single.version, 2, reason: 'base version sent');
     });
 
+    testWidgets(
+      'the public enquiry page is set up with an address, branch and consent',
+      (tester) async {
+        final repo = await _pump(
+          tester,
+          role: UserRole.schoolAdmin,
+          path: '/admissions/settings',
+          size: _tall,
+          repo: FakeAdmissionRepository(
+            settings: const AdmissionSettings(enabled: true, version: 3),
+          ),
+        );
+        expect(
+          find.widgetWithText(TextFormField, 'Page address *'),
+          findsNothing,
+        );
+        await tester.tap(find.text('Let families send an enquiry online'));
+        await tester.pumpAndSettle();
+        // Without an address or consent text nothing is saved.
+        await tester.ensureVisible(find.text('Save settings'));
+        await tester.tap(find.text('Save settings'));
+        await tester.pumpAndSettle();
+        expect(repo.savedSettings, isEmpty);
+        expect(find.text('Choose a branch'), findsOneWidget);
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Page address *'),
+          'Rosewood-High',
+        );
+        await tester.tap(
+          find.widgetWithText(
+            DropdownButtonFormField<String>,
+            'Branch that receives enquiries *',
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Main').last);
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Consent statement *'),
+          'I agree that the school may contact me about this enquiry.',
+        );
+        await tester.ensureVisible(find.text('Save settings'));
+        await tester.tap(find.text('Save settings'));
+        await tester.pumpAndSettle();
+        final p = repo.savedSettings.single.publicPortal;
+        expect(p.enabled, isTrue);
+        expect(p.slug, 'rosewood-high');
+        expect(p.branchId, 'main');
+        expect(p.consentText, startsWith('I agree'));
+      },
+    );
+
     testWidgets('equal prefixes are refused before saving', (tester) async {
       final repo = await _pump(
         tester,

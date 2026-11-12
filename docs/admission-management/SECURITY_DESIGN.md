@@ -53,3 +53,15 @@ school-wide settings document (rules check the home role there). No documents/St
 - The parents' portal access is added only through `parentAccess` (union of keys), the same index the app maintains; no
   login is created (parents get access through the existing "give login" flow).
 - Existing parents are matched by exact mobile; a mismatch of people sharing a mobile is possible, as elsewhere in the app.
+
+## Public enquiry page (phase 9)
+Threat model: anonymous internet traffic against a write path into a school's data.
+- **Tenant**: only the registered slug selects school and branch; a caller-supplied `schoolId`, `branchId`, `status`, `assignedTo` or `remarks` is ignored (tested).
+- **Abuse**: a hidden honeypot field (silent success, nothing stored); per-address (5/hour), per-mobile (3/day) and per-school (300/hour) limits
+  and a view limit (60/hour per address); App Check (set `ENFORCE_APP_CHECK=true` once web/Android send tokens: reCAPTCHA v3 on web) and optional
+  Cloudflare Turnstile (`TURNSTILE_SECRET_KEY`; when set, every submission needs a valid token). Keep the secret out of source control.
+- **Privacy**: addresses and mobiles are only stored as salted hashes in counters (set `PUBLIC_PORTAL_SALT`); the enquiry keeps a hash of the address for
+  abuse tracing. Consent is explicit, versioned and timestamped. The reply never reveals duplicates, other enquiries or internal ids.
+- **Integrity**: validation is the staff form's validation; the id is derived from `requestId` (create-only); duplicates are flagged for staff, never merged.
+- **Not covered here**: the Flutter page cannot render a Turnstile widget (it relies on App Check); a school that sets the Turnstile secret must
+  also ship a client that can solve it.

@@ -2,6 +2,55 @@ import 'admission_application.dart';
 
 /// School-wide admission settings (`schools/{s}/admissionSettings/config`),
 /// written only by the `saveAdmissionSettings` callable.
+/// The public enquiry page (`admission/{slug}`). [consentVersion] is managed by
+/// the server: it grows whenever the consent text changes.
+class PublicPortalSettings {
+  final bool enabled;
+  final String slug;
+  final String branchId;
+  final String introText;
+  final String consentText;
+  final int consentVersion;
+
+  const PublicPortalSettings({
+    this.enabled = false,
+    this.slug = '',
+    this.branchId = '',
+    this.introText = '',
+    this.consentText = '',
+    this.consentVersion = 0,
+  });
+
+  factory PublicPortalSettings.fromMap(Object? data) {
+    if (data is! Map) return const PublicPortalSettings();
+    return PublicPortalSettings(
+      enabled: data['enabled'] == true,
+      slug: data['slug'] as String? ?? '',
+      branchId: data['branchId'] as String? ?? '',
+      introText: data['introText'] as String? ?? '',
+      consentText: data['consentText'] as String? ?? '',
+      consentVersion: data['consentVersion'] is int
+          ? data['consentVersion'] as int
+          : 0,
+    );
+  }
+
+  Map<String, dynamic> toWire() => {
+    'enabled': enabled,
+    'slug': slug,
+    'branchId': branchId,
+    'introText': introText,
+    'consentText': consentText,
+  };
+
+  /// The path visitors open.
+  String get path => '/admission/$slug';
+
+  static final RegExp slugPattern = RegExp(
+    r'^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$',
+  );
+}
+
 class AdmissionSettings {
   final bool enabled;
   final String enquiryPrefix;
@@ -24,6 +73,7 @@ class AdmissionSettings {
 
   /// Whether branch administrators may approve or reject applications.
   final bool branchAdminsMayApprove;
+  final PublicPortalSettings publicPortal;
   final int version;
 
   const AdmissionSettings({
@@ -39,6 +89,7 @@ class AdmissionSettings {
     this.requiredDocumentTypes = const ['BIRTH_CERTIFICATE', 'STUDENT_PHOTO'],
     this.customDocumentTypes = const [],
     this.branchAdminsMayApprove = false,
+    this.publicPortal = const PublicPortalSettings(),
     this.version = 0,
   });
 
@@ -87,6 +138,7 @@ class AdmissionSettings {
             ),
       ],
       branchAdminsMayApprove: data['branchAdminsMayApprove'] == true,
+      publicPortal: PublicPortalSettings.fromMap(data['publicPortal']),
       version: data['version'] is int ? data['version'] as int : 0,
     );
   }
@@ -105,6 +157,7 @@ class AdmissionSettings {
     'requiredDocumentTypes': requiredDocumentTypes,
     'customDocumentTypes': [for (final c in customDocumentTypes) c.toWire()],
     'branchAdminsMayApprove': branchAdminsMayApprove,
+    'publicPortal': publicPortal.toWire(),
   };
 
   AdmissionSettings copyWith({
@@ -120,6 +173,7 @@ class AdmissionSettings {
     List<String>? requiredDocumentTypes,
     List<CustomDocumentType>? customDocumentTypes,
     bool? branchAdminsMayApprove,
+    PublicPortalSettings? publicPortal,
   }) => AdmissionSettings(
     enabled: enabled ?? this.enabled,
     enquiryPrefix: enquiryPrefix ?? this.enquiryPrefix,
@@ -134,6 +188,7 @@ class AdmissionSettings {
     customDocumentTypes: customDocumentTypes ?? this.customDocumentTypes,
     branchAdminsMayApprove:
         branchAdminsMayApprove ?? this.branchAdminsMayApprove,
+    publicPortal: publicPortal ?? this.publicPortal,
     version: version,
   );
 

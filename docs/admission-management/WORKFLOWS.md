@@ -86,3 +86,8 @@ guardian's parent record and the next free admission-number reservation, then wr
 links, access index, conversion record and the status change together. Any failure rolls everything back, so there is no
 half-converted state to repair; a retry after success returns the same student. Admission numbers: the next `ADM-####` after
 the branch's highest, skipping reserved numbers (create-only reservation, same key as the rules).
+
+## Public enquiry (phase 9)
+Family opens `/admission/{slug}` → sees the offered years/classes and the consent statement → sends → a NEW enquiry (source Website, no
+assignee) appears in the branch's list with the usual duplicate flag. Staff take it from there (assign, follow up…). Notifying staff of a new public enquiry
+is part of phase 10.

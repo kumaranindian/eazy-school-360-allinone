@@ -70,3 +70,12 @@ All are callables (`functions/admission_fees.js`), `{schoolId, branchId, enquiry
 admin when `branchAdminsMayApprove`). Refused unless the enquiry and application are both APPROVED, the section exists
 in the class and year, date of birth and gender are known, and (when admission fees are still due) `acceptOutstandingFees` is true.
 Repeating the call returns the first result with `duplicate: true`.
+
+## Public enquiry page (phase 9) — callable by anyone
+| Callable | Input | Reply |
+|---|---|---|
+| `getAdmissionPortal` | `{slug}` | school and branch names, welcome text, consent text and version, the offered academic years and classes; `NOT_FOUND` for an unknown, disabled or malformed address (all alike) |
+| `submitPublicAdmissionEnquiry` | `{slug, requestId, enquiry:{student, academicYearId, interestedClassId, guardians:[one]}, consent:{accepted, version}, captchaToken?, website?}` | `{reference}` only |
+The school/branch are never taken from the request. Settings: `saveAdmissionSettings` now also accepts `publicPortal`.
+Errors: `invalid-argument` (validation, no consent, a year/class not offered), `failed-precondition` (consent text changed), `permission-denied`
+(verification failed), `resource-exhausted` (rate limit), `not-found`.

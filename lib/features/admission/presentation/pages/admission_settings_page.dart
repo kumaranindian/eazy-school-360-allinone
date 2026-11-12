@@ -9,6 +9,7 @@ import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/utils/responsive.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/loading/async_value_widget.dart';
+import '../../../school_setup/presentation/providers/school_providers.dart';
 import '../../../students/presentation/widgets/parents/parents_ui.dart';
 import '../../domain/admission_application.dart';
 import '../../domain/admission_settings.dart';
@@ -49,6 +50,11 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
   bool _enabled = false;
   bool _reminders = true;
   bool _branchApprove = false;
+  bool _portalOn = false;
+  String _portalBranch = '';
+  final _slug = TextEditingController();
+  final _intro = TextEditingController();
+  final _consent = TextEditingController();
   Set<String> _requiredDocs = {};
   List<CustomDocumentType> _customDocs = [];
   final _newDocType = TextEditingController();
@@ -63,6 +69,9 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
     _followUp.dispose();
     _newSource.dispose();
     _newDocType.dispose();
+    _slug.dispose();
+    _intro.dispose();
+    _consent.dispose();
     super.dispose();
   }
 
@@ -75,6 +84,11 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
     _followUp.text = '${s.followUpDays}';
     _reminders = s.remindersEnabled;
     _branchApprove = s.branchAdminsMayApprove;
+    _portalOn = s.publicPortal.enabled;
+    _portalBranch = s.publicPortal.branchId;
+    _slug.text = s.publicPortal.slug;
+    _intro.text = s.publicPortal.introText;
+    _consent.text = s.publicPortal.consentText;
     _requiredDocs = {...s.requiredDocumentTypes};
     _customDocs = [...s.customDocumentTypes];
     _reminderTime = s.reminderTime;
@@ -93,6 +107,14 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
       remindersEnabled: _reminders,
       reminderTime: _reminderTime,
       branchAdminsMayApprove: _branchApprove,
+      publicPortal: PublicPortalSettings(
+        enabled: _portalOn,
+        slug: _slug.text.trim().toLowerCase(),
+        branchId: _portalBranch,
+        introText: _intro.text.trim(),
+        consentText: _consent.text.trim(),
+        consentVersion: base.publicPortal.consentVersion,
+      ),
       customDocumentTypes: _customDocs,
       requiredDocumentTypes: [
         for (final k in {
@@ -477,6 +499,109 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
                                           : (v) => setState(
                                               () => _branchApprove = v,
                                             ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  ParentsCard(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const ParentsSectionTitle(
+                                          icon: Icons.public_outlined,
+                                          title: 'Public enquiry page',
+                                        ),
+                                        SwitchListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          title: const Text(
+                                            'Let families send an enquiry online',
+                                          ),
+                                          subtitle: const Text(
+                                            'Anyone with the link can send an enquiry. It arrives as a new enquiry from "Website".',
+                                          ),
+                                          value: _portalOn,
+                                          onChanged: saving
+                                              ? null
+                                              : (v) => setState(
+                                                  () => _portalOn = v,
+                                                ),
+                                        ),
+                                        if (_portalOn) ...[
+                                          TextFormField(
+                                            controller: _slug,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Page address *',
+                                              helperText:
+                                                  'Lowercase letters, digits and hyphens, e.g. rosewood-high',
+                                            ),
+                                            validator: (v) =>
+                                                PublicPortalSettings.slugPattern
+                                                    .hasMatch(
+                                                      (v ?? '')
+                                                          .trim()
+                                                          .toLowerCase(),
+                                                    )
+                                                ? null
+                                                : '3-40 lowercase letters, digits or hyphens',
+                                          ),
+                                          const SizedBox(height: 12),
+                                          DropdownButtonFormField<String>(
+                                            value: _portalBranch.isEmpty
+                                                ? null
+                                                : _portalBranch,
+                                            isExpanded: true,
+                                            decoration: const InputDecoration(
+                                              labelText:
+                                                  'Branch that receives enquiries *',
+                                            ),
+                                            items: [
+                                              for (final b
+                                                  in ref
+                                                          .watch(
+                                                            branchesStreamProvider(
+                                                              schoolId,
+                                                            ),
+                                                          )
+                                                          .value ??
+                                                      const [])
+                                                DropdownMenuItem(
+                                                  value: b.branchId,
+                                                  child: Text(b.name),
+                                                ),
+                                            ],
+                                            onChanged: (v) => setState(
+                                              () => _portalBranch = v ?? '',
+                                            ),
+                                            validator: (v) => v == null
+                                                ? 'Choose a branch'
+                                                : null,
+                                          ),
+                                          const SizedBox(height: 12),
+                                          TextFormField(
+                                            controller: _intro,
+                                            maxLines: 2,
+                                            maxLength: 500,
+                                            decoration: const InputDecoration(
+                                              labelText:
+                                                  'Welcome text (optional)',
+                                            ),
+                                          ),
+                                          TextFormField(
+                                            controller: _consent,
+                                            maxLines: 3,
+                                            maxLength: 1000,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Consent statement *',
+                                              helperText:
+                                                  'Shown beside the checkbox. Changing it asks every visitor to agree again.',
+                                            ),
+                                            validator: (v) =>
+                                                (v ?? '').trim().length < 20
+                                                ? 'At least 20 characters'
+                                                : null,
+                                          ),
+                                        ],
+                                      ],
                                     ),
                                   ),
                                   const SizedBox(height: 20),

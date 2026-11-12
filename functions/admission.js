@@ -117,6 +117,7 @@ const branchRef = (db, schoolId, branchId) => db.collection('schools').doc(schoo
 const enquiryCol = (db, schoolId, branchId) => branchRef(db, schoolId, branchId).collection('admissionEnquiries');
 const historyCol = (db, schoolId, branchId) => branchRef(db, schoolId, branchId).collection('admissionStatusHistory');
 const sequenceDoc = (db, schoolId, branchId, key) => branchRef(db, schoolId, branchId).collection('admissionSequences').doc(key);
+const a_reason = (errors) => Object.entries(errors).map(([k, v]) => `${k} ${v}`).join(', ');
 const reasonOf = (errors) => Object.entries(errors).map(([k, v]) => `${k}: ${v}`).join('; ');
 
 // ---- state machine (pure) --------------------------------------------------
@@ -161,9 +162,37 @@ const DEFAULT_SETTINGS = Object.freeze({
   branchAdminsMayApprove: false,
   academicYearIds: [],
   classIds: [],
+  // Phase 9: the public enquiry page (admission/{slug}). Off until a school sets it up.
+  publicPortal: Object.freeze({ enabled: false, slug: '', branchId: '', introText: '', consentText: '', consentVersion: 0 }),
 });
 
 const PREFIX = /^[A-Z]{2,6}$/;
+const PORTAL_SLUG = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
+const RESERVED_SLUGS = ['admin', 'api', 'login', 'www', 'app', 'static', 'assets', 'support', 'help'];
+
+/** The public-page part of the settings. consentVersion is server-managed (see saveAdmissionSettings). */
+function validatePortal(input) {
+  const errors = {};
+  const i = input || {};
+  const d = DEFAULT_SETTINGS.publicPortal;
+  const enabled = i.enabled === true;
+  if (i.enabled !== undefined && typeof i.enabled !== 'boolean') errors.enabled = 'must be true or false';
+  const slug = i.slug === undefined ? '' : trim(i.slug).toLowerCase();
+  if (slug && (!PORTAL_SLUG.test(slug) || RESERVED_SLUGS.includes(slug))) errors.slug = '3-40 lowercase letters, digits or hyphens';
+  const branchId = i.branchId === undefined ? '' : trim(i.branchId);
+  if (branchId && !ID.test(branchId)) errors.branchId = 'is not a valid branch';
+  const introText = i.introText === undefined ? '' : trim(i.introText);
+  if (introText.length > 500) errors.introText = 'up to 500 characters';
+  const consentText = i.consentText === undefined ? '' : trim(i.consentText);
+  if (consentText.length > 1000) errors.consentText = 'up to 1000 characters';
+  if (enabled) {
+    if (!slug) errors.slug = 'choose the page address';
+    if (!branchId) errors.branchId = 'choose the branch that receives enquiries';
+    if (consentText.length < 20) errors.consentText = 'a consent statement of at least 20 characters is required';
+  }
+  if (Object.keys(errors).length) return { errors };
+  return { value: { enabled, slug, branchId, introText, consentText, consentVersion: d.consentVersion } };
+}
 
 /** Validates a settings payload; returns { errors } or { value }. */
 function validateSettings(input) {
@@ -228,8 +257,10 @@ function validateSettings(input) {
   };
   const academicYearIds = idList('academicYearIds');
   const classIds = idList('classIds');
+  const portal = validatePortal(i.publicPortal);
+  if (portal.errors) errors.publicPortal = a_reason(portal.errors);
   if (Object.keys(errors).length) return { errors };
-  return { value: { enabled, enquiryPrefix, applicationPrefix, sources, followUpDays, remindersEnabled, reminderTime, requiredDocumentTypes, customDocumentTypes, branchAdminsMayApprove, academicYearIds, classIds } };
+  return { value: { publicPortal: portal.value, enabled, enquiryPrefix, applicationPrefix, sources, followUpDays, remindersEnabled, reminderTime, requiredDocumentTypes, customDocumentTypes, branchAdminsMayApprove, academicYearIds, classIds } };
 }
 
 async function loadSettings(db, schoolId) {
@@ -257,7 +288,25 @@ async function saveAdmissionSettings(ctx, uid, token, data) {
     const prev = (await tx.get(ref)).data();
     const current = prev && Number.isInteger(prev.version) ? prev.version : 0;
     if (data.baseVersion !== undefined && data.baseVersion !== current) return { error: 'ABORTED', reason: 'settings changed by someone else; reload' };
-    tx.set(ref, { schoolId, version: current + 1, ...parsed.value, updatedAt: now, updatedBy: uid });
+    // The public page address is unique across schools; the consent statement
+    // is versioned so each submission records exactly which text was accepted.
+    const portal = { ...parsed.value.publicPortal };
+    const before = (prev && prev.publicPortal) || DEFAULT_SETTINGS.publicPortal;
+    portal.consentVersion = before.consentVersion || 0;
+    if (portal.consentText && portal.consentText !== before.consentText) portal.consentVersion += 1;
+    const slugs = db.collection('admissionPortalSlugs');
+    let taken = null;
+    let oldSlug = null;
+    if (portal.slug) {
+      taken = await tx.get(slugs.doc(portal.slug));
+      if (taken.exists && taken.data().schoolId !== schoolId) return { error: 'FAILED_PRECONDITION', reason: 'that page address is already used by another school' };
+      const branch = await tx.get(branchRef(db, schoolId, portal.branchId));
+      if (!branch.exists) return { error: 'INVALID_ARGUMENT', reason: 'publicPortal.branchId: that branch does not exist' };
+    }
+    if (before.slug && before.slug !== portal.slug) oldSlug = await tx.get(slugs.doc(before.slug));
+    tx.set(ref, { schoolId, version: current + 1, ...parsed.value, publicPortal: portal, updatedAt: now, updatedBy: uid });
+    if (portal.slug) tx.set(slugs.doc(portal.slug), { schoolId, branchId: portal.branchId, enabled: portal.enabled, updatedAt: now });
+    if (oldSlug && oldSlug.exists && oldSlug.data().schoolId === schoolId) tx.delete(slugs.doc(before.slug));
     return { result: { version: current + 1 } };
   });
 }
