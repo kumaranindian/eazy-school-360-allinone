@@ -45,3 +45,11 @@ school-wide settings document (rules check the home role there). No documents/St
 - Receipt numbers cannot repeat: the counter and the number reservation are written in the same transaction as the
   payment (tested with concurrent payments).
 - Finance staff do not yet see these records (they would need the confidential enquiry too); a Finance view is part of phase 13.
+
+## Conversion (phase 8)
+- `admissionConversions` is read-only for clients like the other admission collections (rules test added). The conversion
+  itself is a callable guarded by the approval authority; a teacher, another school's admin or an unapproved branch admin is refused.
+- Ids are derived from the enquiry (`s_`, `r_`), so a retry or two concurrent conversions cannot create two students (tested).
+- The parents' portal access is added only through `parentAccess` (union of keys), the same index the app maintains; no
+  login is created (parents get access through the existing "give login" flow).
+- Existing parents are matched by exact mobile; a mismatch of people sharing a mobile is possible, as elsewhere in the app.

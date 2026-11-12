@@ -91,6 +91,18 @@ function `admissionFollowUpReminders`, notification types `ADMISSION_FOLLOWUP_DU
   widget (10) tests; the fee-structure link is validated server-side but there is no picker in the UI yet (amount is typed).
 - Not done: Finance role view, posting into the student ledger (phase 8), fee receipt PDF for admission payments.
 
+## Phase 8 — convert to student (done)
+- `functions/admission_conversion.js` (`convertAdmissionToStudent`), all-or-nothing in one transaction; `admissionConversions` record
+  (read-only rules, account-deletion row D11); UI: a *Convert to student* card on an approved application (section, roll number,
+  unpaid-fee confirmation) and, afterwards, the admission number and parents linked.
+- Tests: functions `admission_conversion.test.js` (12: full write set, idempotent repeat, concurrency, number skipping, parent reuse,
+  state/authority/placement/fee gates), rules (12), Dart widget tests (6).
+- **Fee carry-over is recorded, not posted:** the Fees module has no credit/advance concept and invoices are generated from student
+  fee assignments, so the paid admission amounts (with receipt numbers) are stored in the conversion record and linked to the student
+  (`admissionFees.studentId`); they are NOT yet applied against the student's first invoice. This needs a decision on a credit concept.
+- Not done: no student fee assignment is created (assign fees in the Fees module as usual), no parent login, no photo/document copy
+  to the student record, no notification (phase 10).
+
 ## Known limitations (phase 6)
 - The Storage rules are untested in an emulator (see above); the real upload → confirm round trip and `FirebaseAdmissionDocumentStore` are untested.
 - (Phase 7 added fees.) No conversion to a student (phase 8): an APPROVED application is the end of the road for now.

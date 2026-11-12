@@ -79,3 +79,10 @@ produce six distinct consecutive numbers.
 On create: enquiries in the branch with the same normalised primary mobile and academic year are
 fetched (≤25), then compared on normalised name and date of birth. Matches are stored in
 `duplicateOf` (≤5) and shown as a warning; nothing is merged or blocked.
+
+## Convert to student (phase 8)
+APPROVED → (convert) → ADMISSION_CONFIRMED. One transaction: re-read the enquiry, application, placement, fee records, each
+guardian's parent record and the next free admission-number reservation, then write student, placement, reservation, parents,
+links, access index, conversion record and the status change together. Any failure rolls everything back, so there is no
+half-converted state to repair; a retry after success returns the same student. Admission numbers: the next `ADM-####` after
+the branch's highest, skipping reserved numbers (create-only reservation, same key as the rules).

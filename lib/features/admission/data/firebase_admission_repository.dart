@@ -11,6 +11,7 @@ import '../../../core/errors/error_mapper.dart';
 import '../../students/domain/paged_result.dart';
 import '../domain/admission_activity.dart';
 import '../domain/admission_application.dart';
+import '../domain/admission_conversion.dart';
 import '../domain/admission_enquiry.dart';
 import '../domain/admission_fee.dart';
 import '../domain/admission_repository.dart';
@@ -36,6 +37,7 @@ class FirebaseAdmissionRepository implements AdmissionRepository {
   static const _applicationHistory = 'admissionApplicationHistory';
   static const _documents = 'admissionDocuments';
   static const _fees = 'admissionFees';
+  static const _conversions = 'admissionConversions';
   static const _feePayments = 'admissionFeePayments';
 
   DocumentReference<Map<String, dynamic>> _settingsDoc(String schoolId) => _db
@@ -1076,6 +1078,48 @@ class FirebaseAdmissionRepository implements AdmissionRepository {
       'reason': reason,
       'referenceNo': ?referenceNo,
     });
+  }
+  // ---- conversion to a student (phase 8) ------------------------------
+
+  @override
+  Future<AdmissionConversion?> fetchConversion(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  ) async {
+    try {
+      final snap = await _col(
+        schoolId,
+        branchId,
+        _conversions,
+      ).doc(enquiryId).get();
+      final d = snap.data();
+      if (d == null) return null;
+      return AdmissionConversion.fromMap(
+        d,
+        convertedAt: (d['convertedAt'] as Timestamp?)?.toDate(),
+      );
+    } catch (e, st) {
+      throw mapExceptionToFailure(e, st);
+    }
+  }
+
+  @override
+  Future<ConversionResult> convertToStudent({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required ConversionInput input,
+  }) async {
+    final r = await _call('convertAdmissionToStudent', {
+      ..._target(schoolId, branchId, enquiryId),
+      'conversion': input.toWire(),
+    });
+    return ConversionResult(
+      studentId: r['studentId'] as String? ?? '',
+      admissionNumber: r['admissionNumber'] as String? ?? '',
+      duplicate: r['duplicate'] == true,
+    );
   }
 }
 

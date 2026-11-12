@@ -20,6 +20,7 @@ import '../providers/document_picker.dart';
 import 'activity_dialogs.dart';
 import 'admission_widgets.dart';
 import 'application_widgets.dart';
+import 'conversion_card.dart';
 
 /// The application of one enquiry: start it, edit the draft, submit, take it
 /// into review, approve or reject (where allowed), and add review comments.
@@ -436,6 +437,14 @@ class _Application extends ConsumerWidget {
             ],
           ),
         ),
+        if (a.status == ApplicationStatus.approved) ...[
+          const SizedBox(height: 12),
+          ConversionCard(
+            application: a,
+            keyData: keyData,
+            canConvert: canDecide,
+          ),
+        ],
       ],
     );
   }

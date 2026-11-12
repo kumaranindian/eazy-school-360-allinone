@@ -97,3 +97,14 @@ series (no separate numbering, no payment gateway):
   never issued twice across the two.
 - Index: `admissionFeePayments` (enquiryId, recordedAt desc).
 - At conversion (phase 8) the net paid amounts are carried into the new student's fee records.
+
+## Conversion to a student (phase 8)
+`branches/{b}/admissionConversions/{enquiryId}` — written once, by `convertAdmissionToStudent`, in the same
+transaction as everything it creates. It is the idempotency key and the audit record: `studentId`,
+`admissionNumber`, `academicYearId/classId/sectionId`, `parentIds`, a per-category fee snapshot (`fees`, `feeNetPaidMinor`,
+`feeBalanceMinor`, `acceptedOutstandingFees`), `convertedBy`, `convertedAt`.
+Created in the same transaction, in the exact shape the existing admission form and parent screens write:
+`students/s_{enquiryId}` (+ `admissionEnquiryId`), `students/{id}/academicRecords/r_{enquiryId}`,
+`admissionNumbers/{key}` (the reservation the rules and `admitStudent` use), `parents/{id}` (reused by mobile, else
+`p_{mobile}`), `students/{id}/parentLinks/{parentId}`, and the union of the class/section keys in `parentAccess/{parentId}`.
+The enquiry gets `studentId` and `admissionNumber`; each admission fee record gets `studentId`.

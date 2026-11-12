@@ -63,3 +63,10 @@ All are callables (`functions/admission_fees.js`), `{schoolId, branchId, enquiry
 | `waiveAdmissionFee` | school admin | waives the remaining balance (reason required) |
 | `refundAdmissionFee` | school admin | refund of money held (reason, `requestId` idempotent); allowed after the enquiry closes |
 | `cancelAdmissionFee` | school/branch admin | only when no money is held |
+
+## Conversion (phase 8)
+`convertAdmissionToStudent` `{schoolId, branchId, enquiryId, conversion: {academicYearId, classId, sectionId, rollNumber?, dateOfBirth?, gender?, acceptOutstandingFees?}}`
+→ `{studentId, admissionNumber, parentIds, duplicate}`. Caller must hold the approval authority (school admin, or branch
+admin when `branchAdminsMayApprove`). Refused unless the enquiry and application are both APPROVED, the section exists
+in the class and year, date of birth and gender are known, and (when admission fees are still due) `acceptOutstandingFees` is true.
+Repeating the call returns the first result with `duplicate: true`.

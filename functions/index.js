@@ -406,6 +406,8 @@ exports.cancelAdmissionFee = admissionCall('cancelAdmissionFee', admissionFees.c
 exports.waiveAdmissionFee = admissionCall('waiveAdmissionFee', admissionFees.waiveAdmissionFee, (d) => ({ enquiry: d.enquiryId, category: d.category }));
 exports.recordAdmissionFeePayment = admissionCall('recordAdmissionFeePayment', admissionFees.recordAdmissionFeePayment, (d, r) => ({ enquiry: d.enquiryId, category: d.category, receipt: r.receiptNumber }));
 exports.refundAdmissionFee = admissionCall('refundAdmissionFee', admissionFees.refundAdmissionFee, (d) => ({ enquiry: d.enquiryId, category: d.category }));
+const admissionConversion = require('./admission_conversion');
+exports.convertAdmissionToStudent = admissionCall('convertAdmissionToStudent', admissionConversion.convertToStudent, (d, r) => ({ enquiry: d.enquiryId, student: r.studentId }));
 exports.changeAdmissionEnquiryStatus = admissionCall('changeAdmissionEnquiryStatus', admission.changeEnquiryStatus, (d, r) => ({ enquiry: d.enquiryId, status: r.status }));
 
 exports.updatePlatformBranding = onCall(callOptions(), async (request) => {

@@ -3618,6 +3618,9 @@ service cloud.firestore {
         match /admissionFeePayments/{paymentId} {
           allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
         }
+        match /admissionConversions/{enquiryId} {
+          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+        }
 
         // ---- Announcements (Milestone 9) -------------------------------
         match /announcements/{announcementId} {

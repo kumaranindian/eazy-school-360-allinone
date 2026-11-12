@@ -1,5 +1,6 @@
 import 'package:eazy_school_360/features/admission/domain/admission_activity.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_application.dart';
+import 'package:eazy_school_360/features/admission/domain/admission_conversion.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_enquiry.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_fee.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_repository.dart';
@@ -178,6 +179,8 @@ class FakeAdmissionRepository implements AdmissionRepository {
 
   AdmissionApplication? application;
   List<AdmissionDocument> documents = [];
+  AdmissionConversion? conversion;
+  final List<ConversionInput> conversions = [];
   List<AdmissionFee> fees = [];
   List<AdmissionFeePayment> feePayments = [];
   final List<String> feeCalls = [];
@@ -661,6 +664,33 @@ class FakeAdmissionRepository implements AdmissionRepository {
   }) async {
     if (failWith != null) throw failWith!;
     feeCalls.add('refund ${category.wire} $amountMinor $reason');
+  }
+
+  @override
+  Future<AdmissionConversion?> fetchConversion(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  ) async => conversion;
+
+  @override
+  Future<ConversionResult> convertToStudent({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required ConversionInput input,
+  }) async {
+    if (failWith != null) throw failWith!;
+    conversions.add(input);
+    conversion = const AdmissionConversion(
+      studentId: 's_1',
+      admissionNumber: 'ADM-0001',
+    );
+    return const ConversionResult(
+      studentId: 's_1',
+      admissionNumber: 'ADM-0001',
+      duplicate: false,
+    );
   }
 
   @override

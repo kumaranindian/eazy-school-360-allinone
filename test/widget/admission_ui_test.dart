@@ -9,6 +9,7 @@ import 'package:eazy_school_360/core/errors/app_failure.dart';
 import 'package:eazy_school_360/features/academic_setup/domain/academic_year.dart';
 import 'package:eazy_school_360/features/academic_setup/domain/academic_year_status.dart';
 import 'package:eazy_school_360/features/academic_setup/domain/school_class.dart';
+import 'package:eazy_school_360/features/academic_setup/domain/section.dart';
 import 'package:eazy_school_360/features/academic_setup/presentation/providers/academic_structure_providers.dart';
 import 'package:eazy_school_360/core/regional/school_time.dart';
 import 'dart:convert';
@@ -16,6 +17,7 @@ import 'dart:convert';
 import 'package:eazy_school_360/features/admission/domain/admission_activity.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_application.dart';
 import 'package:eazy_school_360/features/admission/presentation/providers/document_picker.dart';
+import 'package:eazy_school_360/features/admission/domain/admission_conversion.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_enquiry.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_fee.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_settings.dart';
@@ -126,7 +128,21 @@ Future<FakeAdmissionRepository> _pump(
         ),
       ),
       academicStructureRepositoryProvider.overrideWithValue(
-        FakeAcademicStructureRepository(years: [_year], classes: [_class5]),
+        FakeAcademicStructureRepository(
+          years: [_year],
+          classes: [_class5],
+          sections: const [
+            Section(
+              sectionId: 'secA',
+              schoolId: 'school-1',
+              branchId: 'main',
+              academicYearId: 'y1',
+              classId: 'c5',
+              name: 'A',
+              status: ActivationStatus.active,
+            ),
+          ],
+        ),
       ),
       admissionRepositoryProvider.overrideWithValue(fake),
       admissionDocumentStoreProvider.overrideWithValue(
@@ -2693,6 +2709,143 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull, reason: '$size');
       }
+    });
+  });
+
+  group('conversion to a student', () {
+    Future<FakeAdmissionRepository> open(
+      WidgetTester tester, {
+      UserRole role = UserRole.schoolAdmin,
+      ApplicationStatus status = ApplicationStatus.approved,
+      List<AdmissionFee> fees = const [],
+      AdmissionConversion? conversion,
+    }) async {
+      final repo = await _pump(
+        tester,
+        role: role,
+        path: '/admissions/enquiries/1',
+        size: _tall,
+        repo:
+            FakeAdmissionRepository(
+                enquiries: [fakeEnquiry('1', status: AdmissionStatus.approved)],
+              )
+              ..application = fakeApplication('1', status: status)
+              ..fees = [...fees]
+              ..conversion = conversion,
+      );
+      await tester.tap(find.text('Application'));
+      await tester.pumpAndSettle();
+      return repo;
+    }
+
+    testWidgets(
+      'an approved application offers conversion; a section is required',
+      (tester) async {
+        final repo = await open(tester);
+        expect(_btn('Convert to student'), findsOneWidget);
+        await tester.tap(_btn('Convert to student'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Convert').last);
+        await tester.pumpAndSettle();
+        expect(find.text('Choose a section.'), findsOneWidget);
+        expect(repo.conversions, isEmpty);
+      },
+    );
+
+    testWidgets('choosing a section converts and shows the admission number', (
+      tester,
+    ) async {
+      final repo = await open(tester);
+      await tester.tap(_btn('Convert to student'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('A').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, '12');
+      await tester.tap(find.text('Convert').last);
+      await tester.pumpAndSettle();
+      expect(repo.conversions, hasLength(1));
+      expect(repo.conversions.single.classId, 'c5');
+      expect(repo.conversions.single.sectionId, 'secA');
+      expect(repo.conversions.single.rollNumber, '12');
+      expect(find.text('Converted to student'), findsOneWidget);
+      expect(find.text('ADM-0001'), findsOneWidget);
+    });
+
+    testWidgets('unpaid fees need an explicit confirmation', (tester) async {
+      final repo = await open(
+        tester,
+        fees: const [
+          AdmissionFee(
+            id: '1__APPLICATION',
+            category: FeeCategory.application,
+            currency: 'INR',
+            amountMinor: 100000,
+          ),
+        ],
+      );
+      await tester.tap(_btn('Convert to student'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('A').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Convert').last);
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Confirm that the unpaid fees may remain due.'),
+        findsOneWidget,
+      );
+      expect(repo.conversions, isEmpty);
+      await tester.tap(find.byType(CheckboxListTile));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Convert').last);
+      await tester.pumpAndSettle();
+      expect(repo.conversions.single.acceptOutstandingFees, isTrue);
+    });
+
+    testWidgets('a converted application shows the student, no button', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        conversion: const AdmissionConversion(
+          studentId: 's_1',
+          admissionNumber: 'ADM-0042',
+          parentIds: ['p1', 'p2'],
+        ),
+      );
+      expect(find.text('ADM-0042'), findsOneWidget);
+      expect(_btn('Convert to student'), findsNothing);
+    });
+
+    testWidgets('a branch admin without approval rights cannot convert', (
+      tester,
+    ) async {
+      await open(tester, role: UserRole.branchAdmin);
+      expect(_btn('Convert to student'), findsNothing);
+      expect(
+        find.textContaining('An administrator who may decide'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a server refusal is shown, nothing is claimed', (
+      tester,
+    ) async {
+      final repo = await open(tester);
+      repo.failWith = const ValidationFailure('no');
+      await tester.tap(_btn('Convert to student'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('A').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Convert').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Converted to student'), findsNothing);
+      expect(find.byType(SnackBar), findsOneWidget);
     });
   });
 }

@@ -1,6 +1,7 @@
 import '../../students/domain/paged_result.dart';
 import 'admission_activity.dart';
 import 'admission_application.dart';
+import 'admission_conversion.dart';
 import 'admission_enquiry.dart';
 import 'admission_fee.dart';
 import 'admission_settings.dart';
@@ -370,6 +371,24 @@ abstract class AdmissionRepository {
     required AdmissionPaymentMethod method,
     required String reason,
     String? referenceNo,
+  });
+
+  // ---- conversion to a student (phase 8) ------------------------------
+
+  /// The conversion record of an enquiry, or null when it was not converted.
+  Future<AdmissionConversion?> fetchConversion(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  );
+
+  /// Creates the student, placement, parents and links in one server
+  /// transaction. Repeating the call returns the first result.
+  Future<ConversionResult> convertToStudent({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required ConversionInput input,
   });
 }
 

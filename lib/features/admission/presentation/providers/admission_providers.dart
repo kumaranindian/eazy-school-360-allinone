@@ -12,6 +12,7 @@ import '../../../users/presentation/providers/user_providers.dart';
 import '../../data/firebase_admission_repository.dart';
 import '../../domain/admission_activity.dart';
 import '../../domain/admission_application.dart';
+import '../../domain/admission_conversion.dart';
 import '../../domain/admission_enquiry.dart';
 import '../../domain/admission_fee.dart';
 import '../../domain/admission_repository.dart';
@@ -125,6 +126,14 @@ final enquiryFeePaymentsProvider = FutureProvider.autoDispose
       (ref, key) => ref
           .watch(admissionRepositoryProvider)
           .fetchFeePayments(key.schoolId, key.branchId, key.enquiryId),
+    );
+
+/// The conversion record of an enquiry (null until converted).
+final enquiryConversionProvider = FutureProvider.autoDispose
+    .family<AdmissionConversion?, EnquiryKey>(
+      (ref, key) => ref
+          .watch(admissionRepositoryProvider)
+          .fetchConversion(key.schoolId, key.branchId, key.enquiryId),
     );
 
 /// The application's history; every application event bumps its revision,
@@ -645,6 +654,19 @@ class AdmissionWriteController extends AsyncNotifier<void> {
         return true;
       }) ??
       false;
+
+  /// Converts the approved application into a student; null on failure.
+  Future<ConversionResult?> convertToStudent({
+    required EnquiryKey key,
+    required ConversionInput input,
+  }) => _run(
+    () => _repo.convertToStudent(
+      schoolId: key.schoolId,
+      branchId: key.branchId,
+      enquiryId: key.enquiryId,
+      input: input,
+    ),
+  );
 
   Future<bool> verifyDocument({
     required String schoolId,
