@@ -2,7 +2,7 @@
 
 | Capability | Platform admin | School admin | Branch admin | Teacher | Finance | Parent |
 |---|---|---|---|---|---|---|
-| See Admissions in the app (`manageAdmissions`) | – | ✅ | ✅ | – | – | – |
+| See Admissions in the app (`manageAdmissions`) | ✅ (project convention: platform admin holds every permission; with no school/branch the page shows "No branch found") | ✅ | ✅ | – | – | – |
 | Read enquiries and history (rules) | ✅ support | ✅ | ✅ own branch | – | – | – |
 | Create / edit / assign / change status (callables) | – | ✅ any branch | ✅ own branch | – | – | – |
 | Read settings (rules) | ✅ | ✅ | ✅ | – | – | – |

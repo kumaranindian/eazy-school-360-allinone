@@ -24,6 +24,7 @@ abstract final class RolePermissions {
       Permission.manageOwnProfile,
       Permission.manageAcademicSetup,
       Permission.viewAcademicSetup,
+      Permission.manageAdmissions,
       Permission.manageStudentData,
       Permission.viewStudentData,
       Permission.viewParents,
