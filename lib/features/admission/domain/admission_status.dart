@@ -47,6 +47,11 @@ enum AdmissionStatus {
   /// Still moving through the pipeline (not closed, not dropped).
   bool get isOpen => !isClosed && this != notInterested;
 
+  /// An application can be started while the enquiry is at one of these
+  /// (`APPLY_FROM` on the server).
+  bool get canStartApplication =>
+      this == interested || this == visitScheduled || this == visitCompleted;
+
   /// Whether the server requires a reason for moving to this status.
   bool get needsReason => this == rejected || this == withdrawn;
 

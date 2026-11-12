@@ -1,3 +1,5 @@
+import 'admission_application.dart';
+
 /// School-wide admission settings (`schools/{s}/admissionSettings/config`),
 /// written only by the `saveAdmissionSettings` callable.
 class AdmissionSettings {
@@ -15,6 +17,13 @@ class AdmissionSettings {
   /// Empty means "all academic years / classes are open for admissions".
   final List<String> academicYearIds;
   final List<String> classIds;
+
+  /// Documents that must be VERIFIED before an application can be approved.
+  final List<String> requiredDocumentTypes;
+  final List<CustomDocumentType> customDocumentTypes;
+
+  /// Whether branch administrators may approve or reject applications.
+  final bool branchAdminsMayApprove;
   final int version;
 
   const AdmissionSettings({
@@ -27,6 +36,9 @@ class AdmissionSettings {
     this.reminderTime = '09:00',
     this.academicYearIds = const [],
     this.classIds = const [],
+    this.requiredDocumentTypes = const ['BIRTH_CERTIFICATE', 'STUDENT_PHOTO'],
+    this.customDocumentTypes = const [],
+    this.branchAdminsMayApprove = false,
     this.version = 0,
   });
 
@@ -62,6 +74,19 @@ class AdmissionSettings {
       reminderTime: data['reminderTime'] as String? ?? '09:00',
       academicYearIds: strings(data['academicYearIds'], const []),
       classIds: strings(data['classIds'], const []),
+      requiredDocumentTypes: strings(data['requiredDocumentTypes'], const [
+        'BIRTH_CERTIFICATE',
+        'STUDENT_PHOTO',
+      ]),
+      customDocumentTypes: [
+        for (final c in (data['customDocumentTypes'] as List? ?? const []))
+          if (c is Map && c['id'] is String && c['label'] is String)
+            CustomDocumentType(
+              id: c['id'] as String,
+              label: c['label'] as String,
+            ),
+      ],
+      branchAdminsMayApprove: data['branchAdminsMayApprove'] == true,
       version: data['version'] is int ? data['version'] as int : 0,
     );
   }
@@ -77,6 +102,9 @@ class AdmissionSettings {
     'reminderTime': reminderTime,
     'academicYearIds': academicYearIds,
     'classIds': classIds,
+    'requiredDocumentTypes': requiredDocumentTypes,
+    'customDocumentTypes': [for (final c in customDocumentTypes) c.toWire()],
+    'branchAdminsMayApprove': branchAdminsMayApprove,
   };
 
   AdmissionSettings copyWith({
@@ -89,6 +117,9 @@ class AdmissionSettings {
     String? reminderTime,
     List<String>? academicYearIds,
     List<String>? classIds,
+    List<String>? requiredDocumentTypes,
+    List<CustomDocumentType>? customDocumentTypes,
+    bool? branchAdminsMayApprove,
   }) => AdmissionSettings(
     enabled: enabled ?? this.enabled,
     enquiryPrefix: enquiryPrefix ?? this.enquiryPrefix,
@@ -99,6 +130,17 @@ class AdmissionSettings {
     reminderTime: reminderTime ?? this.reminderTime,
     academicYearIds: academicYearIds ?? this.academicYearIds,
     classIds: classIds ?? this.classIds,
+    requiredDocumentTypes: requiredDocumentTypes ?? this.requiredDocumentTypes,
+    customDocumentTypes: customDocumentTypes ?? this.customDocumentTypes,
+    branchAdminsMayApprove:
+        branchAdminsMayApprove ?? this.branchAdminsMayApprove,
     version: version,
   );
+
+  /// Every document type this school uses (built-in then its own), as
+  /// key → label, in display order.
+  Map<String, String> get documentTypes => {
+    ...builtInDocumentTypes,
+    for (final c in customDocumentTypes) c.id: c.label,
+  };
 }

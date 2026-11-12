@@ -110,6 +110,22 @@ class AdmissionDashboardPage extends ConsumerWidget {
                         const SizedBox(height: 16),
                         ParentsCard(
                           onTap: () =>
+                              context.push(AppRoutes.admissionApplications),
+                          child: const Row(
+                            children: [
+                              Expanded(
+                                child: ParentsSectionTitle(
+                                  icon: Icons.description_outlined,
+                                  title: 'Applications',
+                                ),
+                              ),
+                              Icon(Icons.chevron_right),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ParentsCard(
+                          onTap: () =>
                               context.push(AppRoutes.admissionEnquiries),
                           child: const Row(
                             children: [

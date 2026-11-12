@@ -53,6 +53,23 @@ gained NEW → VISIT_SCHEDULED and VISIT_COMPLETED → VISIT_SCHEDULED; neither 
 The enquiry **timeline** merges the status history with every follow-up and visit event (booked, rescheduled from/to,
 reassigned, completed, cancelled with reason), newest first.
 
+## Applications and documents (phase 6)
+**Application:** DRAFT → SUBMITTED → UNDER_REVIEW → APPROVED | REJECTED (WITHDRAWN when the enquiry closes). Each step also moves the enquiry:
+
+| Application | Enquiry |
+|---|---|
+| create (from Interested / Visit scheduled / Visit completed) | unchanged |
+| submit | → APPLICATION_SUBMITTED |
+| start review | → UNDER_REVIEW |
+| approve (all required documents VERIFIED) | → APPROVED |
+| reject (comment required) | → REJECTED (open follow-ups and visits cancelled) |
+| enquiry withdrawn / rejected by hand | application → WITHDRAWN / REJECTED |
+
+A draft can be edited; after submission it is locked. Comments are internal and kept in the history. An enquiry that is ON_HOLD cannot submit (resume first).
+
+**Document:** request → UPLOADING → (bytes uploaded, server confirms) → UPLOADED → VERIFIED | REJECTED(reason); any listed document can be REMOVED while the application is open;
+an unconfirmed upload becomes ABANDONED after 24 h. A rejected or removed document does not count toward "required"; a replacement does. After approval or rejection documents are frozen.
+
 ## Numbers
 `ENQ-<year>-<5 digits>` per branch and year, year from the enquiry date. Generated in the creating
 transaction (`maxAttempts: 10` for bursts of walk-ins). Concurrency test: six parallel creates

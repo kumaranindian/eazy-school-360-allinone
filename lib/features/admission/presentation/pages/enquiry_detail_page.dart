@@ -14,15 +14,27 @@ import '../../../academic_setup/presentation/providers/academic_structure_provid
 import '../../../students/presentation/widgets/parents/parents_ui.dart';
 import '../../../../core/regional/school_time.dart';
 import '../../domain/admission_activity.dart';
+import '../../domain/admission_application.dart';
 import '../../domain/admission_enquiry.dart';
 import '../../domain/admission_timeline.dart';
 import '../../domain/admission_status.dart';
 import '../providers/admission_providers.dart';
+import '../../domain/admission_settings.dart';
 import '../widgets/activity_dialogs.dart';
+import '../widgets/application_widgets.dart';
+import '../widgets/enquiry_application_tabs.dart';
 import '../widgets/activity_widgets.dart';
 import '../widgets/admission_widgets.dart';
 
-enum _Tab { overview, activities, visits, timeline, notes }
+enum _Tab {
+  overview,
+  activities,
+  visits,
+  application,
+  documents,
+  timeline,
+  notes,
+}
 
 /// One enquiry: overview, status history and internal notes, with the actions
 /// that are allowed from its current status (change status, assign, edit).
@@ -128,6 +140,8 @@ class _EnquiryDetailPageState extends ConsumerState<EnquiryDetailPage> {
                                   _Tab.overview => 'Overview',
                                   _Tab.activities => 'Activities',
                                   _Tab.visits => 'Visits',
+                                  _Tab.application => 'Application',
+                                  _Tab.documents => 'Documents',
                                   _Tab.timeline => 'Timeline',
                                   _Tab.notes => 'Internal notes',
                                 }),
@@ -150,6 +164,27 @@ class _EnquiryDetailPageState extends ConsumerState<EnquiryDetailPage> {
                             enquiry: e,
                             keyData: key,
                             visits: true,
+                          ),
+                          _Tab.application => ApplicationTab(
+                            enquiry: e,
+                            keyData: key,
+                            settings:
+                                ref
+                                    .watch(
+                                      admissionSettingsProvider(key.schoolId),
+                                    )
+                                    .value ??
+                                const AdmissionSettings(),
+                          ),
+                          _Tab.documents => DocumentsTab(
+                            keyData: key,
+                            settings:
+                                ref
+                                    .watch(
+                                      admissionSettingsProvider(key.schoolId),
+                                    )
+                                    .value ??
+                                const AdmissionSettings(),
                           ),
                           _Tab.timeline => _Timeline(enquiry: e, keyData: key),
                           _Tab.notes => _Notes(enquiry: e),
@@ -598,18 +633,33 @@ class _Timeline extends ConsumerWidget {
         enquiry.lastActivityAt?.millisecondsSinceEpoch ?? 0,
       )),
     );
+    final application = ref.watch(applicationProvider(keyData)).value;
+    final applicationEvents = application == null
+        ? null
+        : ref.watch(
+            applicationHistoryProvider((keyData, application.revision)),
+          );
+    final labels =
+        ref
+            .watch(admissionSettingsProvider(keyData.schoolId))
+            .value
+            ?.documentTypes ??
+        builtInDocumentTypes;
     Widget body() {
-      if (status.isLoading || activity.isLoading) {
+      if (status.isLoading ||
+          activity.isLoading ||
+          (applicationEvents?.isLoading ?? false)) {
         return const Padding(
           padding: EdgeInsets.all(16),
           child: Center(child: CircularProgressIndicator()),
         );
       }
-      final err = status.error ?? activity.error;
+      final err = status.error ?? activity.error ?? applicationEvents?.error;
       if (err != null) return Text(userMessageFor(err));
       final items = mergeTimeline(
         status.value ?? const [],
         activity.value ?? const [],
+        applicationEvents?.value ?? const [],
       );
       if (items.isEmpty) return const Text('No history yet.');
       return Column(
@@ -630,6 +680,21 @@ class _Timeline extends ConsumerWidget {
                   [
                     if (entry.at != null) _stamp(entry.at!),
                     if (entry.reason != null) 'Reason: ${entry.reason}',
+                  ].join(' · '),
+                ),
+              ),
+              ApplicationTimelineItem(:final entry) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  Icons.description_outlined,
+                  size: 18,
+                  color: p.textSecondary,
+                ),
+                title: Text(describeApplicationEvent(entry, labels)),
+                subtitle: Text(
+                  [
+                    if (entry.at != null) _stamp(entry.at!),
+                    if (entry.comment != null) 'Note: ${entry.comment}',
                   ].join(' · '),
                 ),
               ),
@@ -659,7 +724,7 @@ class _Timeline extends ConsumerWidget {
         children: [
           const ParentsSectionTitle(
             icon: Icons.timeline,
-            title: 'Status, follow-ups and visits',
+            title: 'Status, follow-ups, visits and application',
           ),
           const SizedBox(height: 8),
           body(),

@@ -10,6 +10,7 @@ import '../../../../core/utils/responsive.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../../students/presentation/widgets/parents/parents_ui.dart';
+import '../../domain/admission_application.dart';
 import '../../domain/admission_settings.dart';
 import '../providers/admission_providers.dart';
 
@@ -47,6 +48,10 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
   final _newSource = TextEditingController();
   bool _enabled = false;
   bool _reminders = true;
+  bool _branchApprove = false;
+  Set<String> _requiredDocs = {};
+  List<CustomDocumentType> _customDocs = [];
+  final _newDocType = TextEditingController();
   String _reminderTime = '09:00';
   List<String> _sources = [];
   AdmissionSettings? _loaded;
@@ -57,6 +62,7 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
     _applicationPrefix.dispose();
     _followUp.dispose();
     _newSource.dispose();
+    _newDocType.dispose();
     super.dispose();
   }
 
@@ -68,6 +74,9 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
     _applicationPrefix.text = s.applicationPrefix;
     _followUp.text = '${s.followUpDays}';
     _reminders = s.remindersEnabled;
+    _branchApprove = s.branchAdminsMayApprove;
+    _requiredDocs = {...s.requiredDocumentTypes};
+    _customDocs = [...s.customDocumentTypes];
     _reminderTime = s.reminderTime;
     _sources = [...s.sources];
   }
@@ -83,6 +92,15 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
       sources: _sources,
       remindersEnabled: _reminders,
       reminderTime: _reminderTime,
+      branchAdminsMayApprove: _branchApprove,
+      customDocumentTypes: _customDocs,
+      requiredDocumentTypes: [
+        for (final k in {
+          ...builtInDocumentTypes.keys,
+          ..._customDocs.map((c) => c.id),
+        })
+          if (_requiredDocs.contains(k)) k,
+      ],
     );
     final ok = await ref
         .read(admissionWriteControllerProvider.notifier)
@@ -99,6 +117,22 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
         isError: true,
       );
     }
+  }
+
+  void _addDocType() {
+    final label = _newDocType.text.trim();
+    if (label.length < 2 || label.length > 40 || _customDocs.length >= 10) {
+      return;
+    }
+    final id = CustomDocumentType.idFor(label);
+    if (builtInDocumentTypes.containsKey(id) ||
+        _customDocs.any((c) => c.id == id)) {
+      return;
+    }
+    setState(() {
+      _customDocs = [..._customDocs, CustomDocumentType(id: id, label: label)];
+      _newDocType.clear();
+    });
   }
 
   void _addSource() {
@@ -355,6 +389,94 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
                                             ),
                                           ),
                                       ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  ParentsCard(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const ParentsSectionTitle(
+                                          icon: Icons.folder_open_outlined,
+                                          title: 'Application documents',
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Tick the documents that must be verified before an application can be approved.',
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodySmall,
+                                        ),
+                                        for (final e in {
+                                          ...builtInDocumentTypes,
+                                          for (final c in _customDocs)
+                                            c.id: c.label,
+                                        }.entries)
+                                          CheckboxListTile(
+                                            contentPadding: EdgeInsets.zero,
+                                            controlAffinity:
+                                                ListTileControlAffinity.leading,
+                                            title: Text(e.value),
+                                            value: _requiredDocs.contains(
+                                              e.key,
+                                            ),
+                                            onChanged: saving
+                                                ? null
+                                                : (v) => setState(() {
+                                                    v == true
+                                                        ? _requiredDocs.add(
+                                                            e.key,
+                                                          )
+                                                        : _requiredDocs.remove(
+                                                            e.key,
+                                                          );
+                                                  }),
+                                          ),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: TextField(
+                                                controller: _newDocType,
+                                                maxLength: 40,
+                                                onSubmitted: (_) =>
+                                                    _addDocType(),
+                                                decoration:
+                                                    const InputDecoration(
+                                                      labelText:
+                                                          'Add a document type',
+                                                      counterText: '',
+                                                    ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            IconButton.filledTonal(
+                                              tooltip: 'Add document type',
+                                              onPressed: _addDocType,
+                                              icon: const Icon(Icons.add),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  ParentsCard(
+                                    child: SwitchListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: const Text(
+                                        'Branch administrators may approve applications',
+                                      ),
+                                      subtitle: const Text(
+                                        'Off: only school administrators approve or reject. On: a branch administrator may for their own branch.',
+                                      ),
+                                      value: _branchApprove,
+                                      onChanged: saving
+                                          ? null
+                                          : (v) => setState(
+                                              () => _branchApprove = v,
+                                            ),
                                     ),
                                   ),
                                   const SizedBox(height: 20),

@@ -6,7 +6,7 @@ Legend: ✅ done and tested · 🟡 partly · ⬜ not started.
 |---|---|---|
 | 1 | Phase 0 assessment documents | ✅ |
 | 2 | Settings: module switch, prefixes, sources, follow-up days | ✅ (`saveAdmissionSettings`, Admission settings page) |
-| 2a | Settings: open years/classes, mandatory documents, fee settings, notification preferences | ⬜ (years/classes: server supports, UI deferred — see CURRENT_ARCHITECTURE) |
+| 2a | Settings: open years/classes, fee settings, notification preferences | ⬜ (years/classes: server supports, UI deferred — see CURRENT_ARCHITECTURE) · mandatory documents ✅ (phase 6) |
 | 3 | Number generation: unique, tenant-aware, transactional, retry-safe, never client-counted | ✅ enquiry numbers · 🟡 application numbers (prefix stored, generator exists, used from Phase 6) |
 | 4 | Enquiry: student, guardians (up to 4), source, year/class/branch, previous school, remarks, assignment | ✅ |
 | 5 | Enquiry list: search name/mobile/number; filter year, class, status, source, date; paging | ✅ · filter by assigned staff: repository supports, no UI · sorting: newest first only · export ⬜ |
@@ -16,7 +16,10 @@ Legend: ✅ done and tested · 🟡 partly · ⬜ not started.
 | 8a | Automated reminders: due today + overdue, school time zone, no duplicates, existing notification pipeline | ✅ (in-app + push through the existing path) · email ⬜ |
 | 8b | School visits: several per enquiry; date and time; assigned staff; purpose; status; completion notes and parent feedback; rescheduling; cancellation with reason; every event in the enquiry timeline; drive VISIT_SCHEDULED / VISIT_COMPLETED | ✅ |
 | 8c | Timeline: status changes **and** every follow-up/visit event in one list | ✅ |
-| 9 | Applications, documents, verification | ⬜ |
+| 9 | Application created from an enquiry with its own number; student, parent, year, class, branch and submission details; draft → submitted → under review → approved / rejected with review comments | ✅ |
+| 9a | Documents: birth certificate, student photograph, parent photographs, transfer certificate, previous records, address proof, school-defined types; metadata (type, path, file metadata, upload and verification status, verifier, time, rejection reason) | ✅ |
+| 9b | Secure storage: authorised uploads, MIME and size validation, tenant paths, protected reads, retry handling, abandoned-upload cleanup | ✅ code and tests · 🟡 the Storage-rules tests could not be executed in the build sandbox (see TEST_PLAN) |
+| 9c | Settings: which documents are required, school-defined types, whether branch administrators may approve | ✅ |
 | 10 | Admission fees (on existing fee module) | ⬜ |
 | 11 | Convert to student (idempotent) | ⬜ |
 | 12 | Public enquiry portal | ⬜ |

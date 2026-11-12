@@ -22,6 +22,22 @@ Scheduled job `admissionFollowUpReminders` (hourly): for every school with admis
 time is inside the 3-hour window from `reminderTime`, it notifies the assignee (or the branch administrators when
 unassigned) of each open activity due today (DUE) or earlier, up to 30 days back (OVERDUE).
 
+Applications and documents (phase 6) — same caller rule (school admin; branch admin of that branch), module must be on:
+
+| Callable | Input | Result / effect |
+|---|---|---|
+| `createAdmissionApplication` | `{schoolId, branchId, enquiryId}` | `{id, applicationNumber, duplicate}` — enquiry must be Interested / Visit scheduled / Visit completed |
+| `updateAdmissionApplication` | `{…, application{…}, baseRevision?}` | `{revision}` — DRAFT only |
+| `submitAdmissionApplication` | `{…, baseRevision?}` | DRAFT → SUBMITTED; enquiry → APPLICATION_SUBMITTED (needs name, date of birth, year, class, a guardian with a mobile) |
+| `reviewAdmissionApplication` | `{…, action: START\|COMMENT, comment?}` | START: SUBMITTED → UNDER_REVIEW (enquiry → UNDER_REVIEW); COMMENT: internal note |
+| `decideAdmissionApplication` | `{…, decision: APPROVE\|REJECT, comment?}` | **School admin only, or a branch admin when the school allows it.** APPROVE needs every required document VERIFIED; REJECT needs a comment and closes the enquiry and its follow-ups |
+| `requestAdmissionDocumentUpload` | `{…, document{type,fileName,contentType,sizeBytes}, requestId?}` | `{id, storagePath}` — records an UPLOADING document (≤5 MB; PDF/JPEG/PNG/WebP; photographs images only; ≤40 per application) |
+| `confirmAdmissionDocumentUpload` | `{…, documentId}` | reads the stored object with admin rights; size and content type must equal what was declared **and the first bytes must be the real signature of that format** (PDF/PNG/JPEG/WebP), else the object is deleted and the record ABANDONED |
+| `verifyAdmissionDocument` | `{…, documentId, decision: VERIFY\|REJECT, reason?, baseRevision?}` | UPLOADED → VERIFIED / REJECTED (reason required) |
+| `removeAdmissionDocument` | `{…, documentId, reason?}` | UPLOADED/VERIFIED/REJECTED → REMOVED (record and stored file kept) |
+
+Scheduled `admissionDocumentCleanup` (daily): an upload still UPLOADING after 24 h is deleted from Storage (if the bytes arrived) and marked ABANDONED.
+
 School visits are activities of type `SCHOOL_VISIT` and **only** `scheduleAdmissionVisit` creates them (the generic call and a "next contact" refuse that type). Rescheduling, reassigning, completing and cancelling use the same callables as other activities; for a visit they also apply the status effects in WORKFLOWS.
 
 Rules: dates cannot be in the past (school time zone); only a SCHEDULED activity can change; a closed enquiry takes no new

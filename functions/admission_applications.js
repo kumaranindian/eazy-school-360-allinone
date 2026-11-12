@@ -60,6 +60,23 @@ function storagePathOf(schoolId, branchId, enquiryId, docId, contentType) {
   return `schools/${schoolId}/branches/${branchId}/admissionDocs/${enquiryId}/${docId}/document${EXTENSION[contentType]}`;
 }
 
+/**
+ * Whether the first bytes of a file are those of the format it claims to be.
+ * A content type is only what the uploader wrote into the object's metadata;
+ * the signature is what the bytes actually are.
+ */
+function matchesSignature(contentType, head) {
+  const b = Buffer.from(head || []);
+  const at = (i, ...v) => v.every((x, k) => b[i + k] === x);
+  switch (contentType) {
+    case 'application/pdf': return at(0, 0x25, 0x50, 0x44, 0x46, 0x2d); // %PDF-
+    case 'image/png': return at(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
+    case 'image/jpeg': return at(0, 0xff, 0xd8, 0xff);
+    case 'image/webp': return at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50); // RIFF....WEBP
+    default: return false;
+  }
+}
+
 /** Validates an upload request. Returns { errors } or { value }. */
 function validateUploadRequest(input, settings) {
   const errors = {};
@@ -422,6 +439,7 @@ async function confirmDocumentUpload(ctx, uid, token, data) {
   if (pre.status === UPLOADED || pre.status === VERIFIED) return { result: { id: snap.id, status: pre.status } };
   if (pre.status !== UPLOADING) return { error: 'FAILED_PRECONDITION', reason: `this upload is ${pre.status}; start a new one` };
   const stat = await ctx.storage.stat(pre.storagePath);
+  const head = stat.exists ? await ctx.storage.head(pre.storagePath, 12) : null;
   return db.runTransaction(async (tx) => {
     const app = await loadApplication(tx, c);
     const doc = await loadDocument(tx, c, data.documentId);
@@ -433,6 +451,11 @@ async function confirmDocumentUpload(ctx, uid, token, data) {
       tx.update(doc.ref, { status: ABANDONED, rejectionReason: 'the uploaded file did not match the request', revision: doc.data.revision + 1, updatedAt: now, updatedBy: uid });
       await ctx.storage.deleteFile(doc.data.storagePath);
       return { error: 'FAILED_PRECONDITION', reason: 'the uploaded file did not match its declared type or size; upload it again' };
+    }
+    if (!matchesSignature(doc.data.contentType, head)) {
+      tx.update(doc.ref, { status: ABANDONED, rejectionReason: 'the file is not the format it claims to be', revision: doc.data.revision + 1, updatedAt: now, updatedBy: uid });
+      await ctx.storage.deleteFile(doc.data.storagePath);
+      return { error: 'FAILED_PRECONDITION', reason: 'the file is not a valid PDF or image of the declared type; upload it again' };
     }
     const rev = logEvent(tx, ctx, app, 'DOCUMENT_UPLOADED', { documentType: doc.data.type, documentId: doc.ref.id }, uid);
     tx.update(app.ref, { revision: rev, updatedAt: now, updatedBy: uid });
@@ -542,6 +565,7 @@ module.exports = {
   IMAGE_TYPES,
   PHOTO_DOCUMENTS,
   storagePathOf,
+  matchesSignature,
   validateUploadRequest,
   missingRequired,
   mayDecide,

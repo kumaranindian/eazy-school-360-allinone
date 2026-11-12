@@ -1,13 +1,11 @@
 # Plan
 
-Done: Phases 0–5 (see IMPLEMENTATION_STATUS). Remaining, in order — each ends with tests and a
+Done: Phases 0–6 (see IMPLEMENTATION_STATUS). Remaining, in order — each ends with tests and a
 status update, and none is deployed without approval.
 
 4. ~~Follow-ups~~ **done** (activities, history, dashboard, reminders).
 5. ~~Visits~~ **done** (visit activities with purpose; drive VISIT_SCHEDULED / VISIT_COMPLETED; merged timeline).
-6. **Applications and documents** — `admissionApplications`, `admissionDocuments`, Storage rules
-   (tenant path, MIME/size/signature checks, no public download), verification workflow, APPLICATION_SUBMITTED /
-   UNDER_REVIEW / APPROVED through `applyStatus`.
+6. ~~Applications and documents~~ **done** (applications, documents, Storage rules, verification, approval). The server also checks each file's real format (PDF/PNG/JPEG/WebP signature), not just the declared type.
 7. **Admission fees** — reuse the fee module (invoice + payment + receipt); no parallel ledger.
 8. **Conversion** — Cloud Function state machine with idempotency key, resumable steps, reconciliation;
    reuse student/parent services; reuse the `ADM-` numbering at this point.

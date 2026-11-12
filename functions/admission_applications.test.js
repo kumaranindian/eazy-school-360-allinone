@@ -22,12 +22,21 @@ const seed = (settings = {}, extra = {}) => ({
   ...extra,
 });
 
+const SIGNATURES = {
+  'application/pdf': Buffer.from('%PDF-1.7\n'),
+  'image/png': Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]),
+  'image/jpeg': Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0]),
+  'image/webp': Buffer.from('RIFF\0\0\0\0WEBP'),
+};
+
 // a tiny stand-in for the storage adapter
 function fakeStorage() {
   const files = new Map();
   return {
     files,
-    stat: async (p) => (files.has(p) ? { exists: true, ...files.get(p) } : { exists: false }),
+    stat: async (p) => (files.has(p) ? { exists: true, size: files.get(p).size, contentType: files.get(p).contentType } : { exists: false }),
+    // the first bytes: the real signature of the declared type unless a test overrides it
+    head: async (p) => files.get(p).head || SIGNATURES[files.get(p).contentType] || Buffer.from('????????????'),
     deleteFile: async (p) => void files.delete(p),
   };
 }
@@ -107,6 +116,20 @@ test('upload validation: type, name, content type, size; photographs must be ima
   assert.ok(!f.validateUploadRequest({ type: 'STUDENT_PHOTO', fileName: 'p.png', contentType: 'image/png', sizeBytes: 9 }, s).errors);
   const custom = { ...s, customDocumentTypes: [{ id: 'CASTE_CERT', label: 'Caste certificate' }] };
   assert.ok(f.validateUploadRequest({ type: 'CASTE_CERT', fileName: 'c.pdf', contentType: 'application/pdf', sizeBytes: 9 }, custom).value, 'a school-defined type');
+});
+
+test('signatures: a file must really be what it claims to be', () => {
+  const m = f.matchesSignature;
+  assert.ok(m('application/pdf', Buffer.from('%PDF-1.4 ...')));
+  assert.ok(!m('application/pdf', Buffer.from('MZ\x90\x00 an executable')));
+  assert.ok(m('image/png', SIGNATURES['image/png']));
+  assert.ok(m('image/jpeg', SIGNATURES['image/jpeg']));
+  assert.ok(m('image/webp', SIGNATURES['image/webp']));
+  assert.ok(!m('image/webp', Buffer.from('RIFF\0\0\0\0WAVE')), 'RIFF alone is not WebP');
+  assert.ok(!m('image/png', SIGNATURES['image/jpeg']));
+  assert.ok(!m('text/html', Buffer.from('<html>')));
+  assert.ok(!m('application/pdf', Buffer.alloc(0)));
+  assert.ok(!m('application/pdf', null));
 });
 
 test('the storage path is tenant-scoped and ends in a fixed, type-derived name', () => {
@@ -410,6 +433,18 @@ test('confirming checks what is really stored: missing, wrong size and wrong typ
   assert.strictEqual((await confirm(db, storage, id, r.result.id)).error, 'FAILED_PRECONDITION', 'an abandoned upload cannot be revived');
   assert.strictEqual((await confirm(db, storage, id, 'nope')).error, 'NOT_FOUND');
   assert.strictEqual((await confirm(db, storage, id, '../x')).error, 'NOT_FOUND');
+});
+
+test('confirming refuses a file whose bytes are not the declared format, and deletes it', async () => {
+  const { db, storage, id } = await setup();
+  await create(db, storage, id);
+  const r = await request(db, storage, id, { sizeBytes: 500 });
+  storage.files.set(r.result.storagePath, { size: 500, contentType: 'application/pdf', head: Buffer.from('MZ\x90\x00 not a pdf') });
+  const c = await confirm(db, storage, id, r.result.id);
+  assert.strictEqual(c.error, 'FAILED_PRECONDITION');
+  assert.match(c.reason, /not a valid PDF or image/);
+  assert.strictEqual(docOf(db, r.result.id).status, 'ABANDONED');
+  assert.ok(!storage.files.has(r.result.storagePath));
 });
 
 test('a document belongs to one enquiry: it cannot be confirmed or verified through another', async () => {

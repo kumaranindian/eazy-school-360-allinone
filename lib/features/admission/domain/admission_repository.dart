@@ -1,5 +1,6 @@
 import '../../students/domain/paged_result.dart';
 import 'admission_activity.dart';
+import 'admission_application.dart';
 import 'admission_enquiry.dart';
 import 'admission_settings.dart';
 import 'admission_status.dart';
@@ -181,4 +182,139 @@ abstract class AdmissionRepository {
     ActivityInput? next,
     int? baseRevision,
   });
+
+  // ---- applications and documents (phase 6) ---------------------------
+
+  /// The application of an enquiry (its id is the enquiry id), or null.
+  Stream<AdmissionApplication?> watchApplication(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  );
+
+  /// One page of applications, newest first; [status] narrows the list.
+  Future<PagedResult<AdmissionApplication>> fetchApplications({
+    required String schoolId,
+    required String branchId,
+    ApplicationStatus? status,
+    int pageSize = 25,
+    Object? cursor,
+  });
+
+  Future<List<ApplicationEvent>> fetchApplicationHistory(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  );
+
+  /// Every document record of an application, newest first.
+  Future<List<AdmissionDocument>> fetchDocuments(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  );
+
+  /// Counts of applications by status (server-side).
+  Future<Map<ApplicationStatus, int>> countApplications(
+    String schoolId,
+    String branchId,
+  );
+
+  /// Starts the application (one per enquiry; repeating returns the same one).
+  Future<String> createApplication({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+  });
+
+  Future<int> updateApplication({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required ApplicationInput input,
+    int? baseRevision,
+  });
+
+  Future<int> submitApplication({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    int? baseRevision,
+  });
+
+  /// [action] is `START` (take into review) or `COMMENT` (an internal note).
+  Future<int> reviewApplication({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String action,
+    String? comment,
+    int? baseRevision,
+  });
+
+  /// [decision] is `APPROVE` or `REJECT` (a rejection needs [comment]).
+  Future<int> decideApplication({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String decision,
+    String? comment,
+    int? baseRevision,
+  });
+
+  /// Step 1 of an upload: the server validates and says where to put the bytes.
+  Future<DocumentUploadIntent> requestDocumentUpload({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String type,
+    required String fileName,
+    required String contentType,
+    required int sizeBytes,
+    required String requestId,
+  });
+
+  /// Step 3: the server checks the stored object and marks it uploaded.
+  Future<void> confirmDocumentUpload({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String documentId,
+  });
+
+  /// [decision] is `VERIFY` or `REJECT` (a rejection needs [reason]).
+  Future<void> verifyDocument({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String documentId,
+    required String decision,
+    String? reason,
+    int? baseRevision,
+  });
+
+  Future<void> removeDocument({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String documentId,
+    String? reason,
+  });
+}
+
+/// The bytes of admission documents. Kept apart from the repository so the
+/// upload flow can be tested without Firebase Storage. Reads go through the
+/// authenticated Storage SDK (rules decide), never a shareable download link.
+abstract class AdmissionDocumentStore {
+  /// Puts [bytes] at [path] (create-only: the Storage rules refuse overwrites).
+  Future<void> upload({
+    required String path,
+    required List<int> bytes,
+    required String contentType,
+  });
+
+  /// The stored bytes (at most [AdmissionDocumentStore.maxRead]).
+  Future<List<int>> read(String path);
+
+  static const int maxRead = 6 * 1024 * 1024;
 }

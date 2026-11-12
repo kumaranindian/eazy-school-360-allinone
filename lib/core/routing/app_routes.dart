@@ -60,6 +60,9 @@ abstract final class AppRoutes {
   static const String admissions = '/admissions';
   static const String admissionEnquiries = '/admissions/enquiries';
   static const String admissionFollowUps = '/admissions/follow-ups';
+  static const String admissionApplications = '/admissions/applications';
+  static const String admissionEditApplication =
+      '/admissions/enquiries/:enquiryId/application/edit';
   static const String admissionNewEnquiry = '/admissions/enquiries/new';
   static const String admissionEnquiry = '/admissions/enquiries/:enquiryId';
   static const String admissionEditEnquiry =
@@ -218,6 +221,8 @@ abstract final class AppRoutes {
     admissions: Permission.manageAdmissions,
     admissionEnquiries: Permission.manageAdmissions,
     admissionFollowUps: Permission.manageAdmissions,
+    admissionApplications: Permission.manageAdmissions,
+    admissionEditApplication: Permission.manageAdmissions,
     admissionNewEnquiry: Permission.manageAdmissions,
     admissionEnquiry: Permission.manageAdmissions,
     admissionEditEnquiry: Permission.manageAdmissions,

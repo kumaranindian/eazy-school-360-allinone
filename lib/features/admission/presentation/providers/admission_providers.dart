@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/errors/app_failure.dart';
 import '../../../../core/regional/school_time.dart';
 
 import '../../../academic_setup/presentation/providers/academic_setup_keys.dart';
@@ -10,6 +11,7 @@ import '../../../staff/presentation/providers/staff_providers.dart';
 import '../../../users/presentation/providers/user_providers.dart';
 import '../../data/firebase_admission_repository.dart';
 import '../../domain/admission_activity.dart';
+import '../../domain/admission_application.dart';
 import '../../domain/admission_enquiry.dart';
 import '../../domain/admission_repository.dart';
 import '../../domain/admission_settings.dart';
@@ -19,6 +21,13 @@ final admissionRepositoryProvider = Provider<AdmissionRepository>((ref) {
   // Reads go through Firestore (rules-gated); writes through callables.
   return FirebaseAdmissionRepository(db: ref.watch(firestoreProvider));
 });
+
+/// The bytes of admission documents (Storage). Overridden in tests.
+final admissionDocumentStoreProvider = Provider<AdmissionDocumentStore>(
+  (ref) => FirebaseAdmissionDocumentStore(
+    storage: ref.watch(firebaseStorageProvider),
+  ),
+);
 
 final admissionSettingsProvider = StreamProvider.autoDispose
     .family<AdmissionSettings, String>(
@@ -84,6 +93,42 @@ final followUpCountsProvider = FutureProvider.autoDispose
             todayKey: SchoolTime.todayKey(),
             userId: key.userId,
           ),
+    );
+
+/// The application of an enquiry (null until one is started).
+final applicationProvider = StreamProvider.autoDispose
+    .family<AdmissionApplication?, EnquiryKey>(
+      (ref, key) => ref
+          .watch(admissionRepositoryProvider)
+          .watchApplication(key.schoolId, key.branchId, key.enquiryId),
+    );
+
+/// The document records of an application. Invalidated after each change.
+final enquiryDocumentsProvider = FutureProvider.autoDispose
+    .family<List<AdmissionDocument>, EnquiryKey>(
+      (ref, key) => ref
+          .watch(admissionRepositoryProvider)
+          .fetchDocuments(key.schoolId, key.branchId, key.enquiryId),
+    );
+
+/// The application's history; every application event bumps its revision,
+/// which is part of the key.
+final applicationHistoryProvider = FutureProvider.autoDispose
+    .family<List<ApplicationEvent>, (EnquiryKey, int)>(
+      (ref, args) => ref
+          .watch(admissionRepositoryProvider)
+          .fetchApplicationHistory(
+            args.$1.schoolId,
+            args.$1.branchId,
+            args.$1.enquiryId,
+          ),
+    );
+
+final applicationCountsProvider = FutureProvider.autoDispose
+    .family<Map<ApplicationStatus, int>, BranchKey>(
+      (ref, key) => ref
+          .watch(admissionRepositoryProvider)
+          .countApplications(key.schoolId, key.branchId),
     );
 
 /// A person an enquiry can be assigned to: staff of the branch that have a
@@ -321,6 +366,202 @@ class AdmissionWriteController extends AsyncNotifier<void> {
         return 'ok';
       }) !=
       null;
+
+  AdmissionDocumentStore get _store => ref.read(admissionDocumentStoreProvider);
+
+  Future<bool> createApplication({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+  }) async =>
+      await _run(
+        () => _repo.createApplication(
+          schoolId: schoolId,
+          branchId: branchId,
+          enquiryId: enquiryId,
+        ),
+      ) !=
+      null;
+
+  Future<bool> updateApplication({
+    required String schoolId,
+    required String branchId,
+    required AdmissionApplication application,
+    required ApplicationInput input,
+  }) async =>
+      await _run(
+        () => _repo.updateApplication(
+          schoolId: schoolId,
+          branchId: branchId,
+          enquiryId: application.enquiryId,
+          input: input,
+          baseRevision: application.revision,
+        ),
+      ) !=
+      null;
+
+  Future<bool> submitApplication({
+    required String schoolId,
+    required String branchId,
+    required AdmissionApplication application,
+  }) async =>
+      await _run(
+        () => _repo.submitApplication(
+          schoolId: schoolId,
+          branchId: branchId,
+          enquiryId: application.enquiryId,
+          baseRevision: application.revision,
+        ),
+      ) !=
+      null;
+
+  Future<bool> reviewApplication({
+    required String schoolId,
+    required String branchId,
+    required AdmissionApplication application,
+    required String action,
+    String? comment,
+  }) async =>
+      await _run(
+        () => _repo.reviewApplication(
+          schoolId: schoolId,
+          branchId: branchId,
+          enquiryId: application.enquiryId,
+          action: action,
+          comment: comment,
+          baseRevision: action == 'COMMENT' ? null : application.revision,
+        ),
+      ) !=
+      null;
+
+  Future<bool> decideApplication({
+    required String schoolId,
+    required String branchId,
+    required AdmissionApplication application,
+    required String decision,
+    String? comment,
+  }) async =>
+      await _run(
+        () => _repo.decideApplication(
+          schoolId: schoolId,
+          branchId: branchId,
+          enquiryId: application.enquiryId,
+          decision: decision,
+          comment: comment,
+          baseRevision: application.revision,
+        ),
+      ) !=
+      null;
+
+  /// How long to wait before re-sending bytes that failed to upload (shortened
+  /// in tests).
+  static Duration uploadRetryDelay = const Duration(seconds: 2);
+
+  /// Uploads one file: ask the server, put the bytes at the approved path
+  /// (retrying a few times — a flaky network must not lose the document), then
+  /// ask the server to confirm what arrived. A file that fails the local limits
+  /// is never sent.
+  Future<bool> uploadDocument({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String type,
+    required String fileName,
+    required List<int> bytes,
+  }) async {
+    final photo = photoDocumentTypes.contains(type);
+    final problem = DocumentLimits.problem(
+      fileName: fileName,
+      sizeBytes: bytes.length,
+      photo: photo,
+    );
+    if (problem != null) {
+      state = AsyncError(ValidationFailure(problem), StackTrace.current);
+      return false;
+    }
+    final contentType = DocumentLimits.contentTypeFor(fileName, photo: photo)!;
+    return await _run(() async {
+          final intent = await _repo.requestDocumentUpload(
+            schoolId: schoolId,
+            branchId: branchId,
+            enquiryId: enquiryId,
+            type: type,
+            fileName: fileName,
+            contentType: contentType,
+            sizeBytes: bytes.length,
+            requestId: newRequestId(),
+          );
+          Object? last;
+          for (var attempt = 0; attempt < 3; attempt++) {
+            try {
+              await _store.upload(
+                path: intent.storagePath,
+                bytes: bytes,
+                contentType: contentType,
+              );
+              last = null;
+              break;
+            } catch (e) {
+              last = e;
+              if (attempt < 2) await Future<void>.delayed(uploadRetryDelay);
+            }
+          }
+          if (last != null) throw last;
+          await _repo.confirmDocumentUpload(
+            schoolId: schoolId,
+            branchId: branchId,
+            enquiryId: enquiryId,
+            documentId: intent.id,
+          );
+          return true;
+        }) ??
+        false;
+  }
+
+  Future<bool> verifyDocument({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required AdmissionDocument document,
+    required bool verify,
+    String? reason,
+  }) async =>
+      await _run(() async {
+        await _repo.verifyDocument(
+          schoolId: schoolId,
+          branchId: branchId,
+          enquiryId: enquiryId,
+          documentId: document.id,
+          decision: verify ? 'VERIFY' : 'REJECT',
+          reason: reason,
+          baseRevision: document.revision,
+        );
+        return true;
+      }) ??
+      false;
+
+  Future<bool> removeDocument({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required AdmissionDocument document,
+    String? reason,
+  }) async =>
+      await _run(() async {
+        await _repo.removeDocument(
+          schoolId: schoolId,
+          branchId: branchId,
+          enquiryId: enquiryId,
+          documentId: document.id,
+          reason: reason,
+        );
+        return true;
+      }) ??
+      false;
+
+  /// The bytes of a stored document, for the viewer.
+  Future<List<int>> readDocument(AdmissionDocument d) =>
+      _store.read(d.storagePath);
 
   Future<bool> saveSettings({
     required String schoolId,

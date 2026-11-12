@@ -1,5 +1,6 @@
 import 'package:eazy_school_360/core/permissions/user_role.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_activity.dart';
+import 'package:eazy_school_360/features/admission/domain/admission_application.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_enquiry.dart';
 import 'package:eazy_school_360/features/notifications/domain/feed_item.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_settings.dart';
@@ -535,6 +536,7 @@ void main() {
         StatusTimelineItem(:final entry) => 'S${entry.revision}',
         ActivityTimelineItem(:final entry) =>
           '${entry.activityId}${entry.revision}',
+        ApplicationTimelineItem(:final entry) => 'A${entry.revision}',
       };
       expect(
         items.map(label),
@@ -567,5 +569,222 @@ void main() {
       expect(items.first, isA<ActivityTimelineItem>());
       expect(mergeTimeline(const [], const []), isEmpty);
     });
+  });
+
+  group('applications and documents', () {
+    test('statuses round-trip; open and final are as the server sees them', () {
+      for (final st in ApplicationStatus.values) {
+        expect(ApplicationStatus.tryParse(st.wire), st);
+      }
+      for (final st in DocumentStatus.values) {
+        expect(DocumentStatus.tryParse(st.wire), st);
+      }
+      expect(ApplicationStatus.tryParse('NOPE'), isNull);
+      expect(ApplicationStatus.values.where((s) => s.isOpen), [
+        ApplicationStatus.draft,
+        ApplicationStatus.submitted,
+        ApplicationStatus.underReview,
+      ]);
+      expect(ApplicationStatus.approved.isOpen, isFalse);
+      expect(ApplicationStatus.rejected.isFinal, isTrue);
+      expect(ApplicationStatus.approved.isFinal, isFalse);
+      expect(DocumentStatus.values.where((s) => s.isListed), [
+        DocumentStatus.uploaded,
+        DocumentStatus.verified,
+        DocumentStatus.rejected,
+      ]);
+    });
+
+    test(
+      'an application can be started from the same enquiry statuses as on the server',
+      () {
+        final can = AdmissionStatus.values
+            .where((s) => s.canStartApplication)
+            .toList();
+        expect(can, [
+          AdmissionStatus.interested,
+          AdmissionStatus.visitScheduled,
+          AdmissionStatus.visitCompleted,
+        ]);
+      },
+    );
+
+    test(
+      'an application is parsed and starts the edit form from its values',
+      () {
+        final a = fakeApplication(
+          '1',
+          status: ApplicationStatus.submitted,
+          revision: 4,
+        );
+        expect(
+          [a.applicationNumber, a.studentName, a.classId, a.status, a.revision],
+          ['APP-2026-00001', 'Asha Nair', 'c5', ApplicationStatus.submitted, 4],
+        );
+        final input = a.toInput();
+        expect(input.details.firstName, 'Asha');
+        expect(input.details.guardians.single.phone, '9876543210');
+        final wire = input.toWire();
+        expect(wire.containsKey('submissionNotes'), isTrue);
+        for (final k in [
+          'status',
+          'schoolId',
+          'branchId',
+          'applicationNumber',
+          'revision',
+        ]) {
+          expect(wire.containsKey(k), isFalse, reason: k);
+        }
+        final bare = AdmissionApplication.fromMap('x', const {});
+        expect(bare.status, ApplicationStatus.draft);
+      },
+    );
+
+    test('a document is parsed; images and PDFs are told apart', () {
+      expect(fakeDocument('d1').isPdf, isTrue);
+      final photo = fakeDocument(
+        'd2',
+        contentType: 'image/png',
+        fileName: 'p.png',
+      );
+      expect(photo.isImage, isTrue);
+      expect(photo.isPdf, isFalse);
+      expect(
+        AdmissionDocument.fromMap('x', const {}).status,
+        DocumentStatus.uploading,
+      );
+    });
+
+    test(
+      'upload limits: size, empty, extension, and photographs must be images',
+      () {
+        String? check(String name, int size, {bool photo = false}) =>
+            DocumentLimits.problem(
+              fileName: name,
+              sizeBytes: size,
+              photo: photo,
+            );
+        expect(check('birth.pdf', 100), isNull);
+        expect(check('scan.JPG', 100), isNull);
+        expect(check('a.jpeg', 100), isNull);
+        expect(check('a.webp', 100), isNull);
+        expect(
+          check('x.pdf', 5 * 1024 * 1024),
+          isNull,
+          reason: '5 MB exactly is fine',
+        );
+        expect(check('x.pdf', 5 * 1024 * 1024 + 1), contains('5 MB'));
+        expect(check('x.pdf', 0), contains('empty'));
+        expect(check('x.exe', 100), isNotNull);
+        expect(check('noextension', 100), isNotNull);
+        expect(check('x.pdf', 100, photo: true), contains('Photographs'));
+        expect(check('x.png', 100, photo: true), isNull);
+        expect(
+          DocumentLimits.contentTypeFor('a.pdf', photo: false),
+          'application/pdf',
+        );
+        expect(
+          DocumentLimits.contentTypeFor('a.png', photo: false),
+          'image/png',
+        );
+        expect(DocumentLimits.contentTypeFor('a.gif', photo: false), isNull);
+      },
+    );
+
+    test('the school-defined type id is one the server accepts', () {
+      final ok = RegExp(r'^[A-Z][A-Z0-9_]{2,23}$');
+      for (final label in [
+        'Caste certificate',
+        'Aadhaar card',
+        '  medical  report ',
+        'ID',
+        '2nd form',
+        'x',
+        'A very long document type name that goes on',
+      ]) {
+        final id = CustomDocumentType.idFor(label);
+        expect(ok.hasMatch(id), isTrue, reason: '$label -> $id');
+      }
+      expect(
+        CustomDocumentType.idFor('Caste certificate'),
+        'CASTE_CERTIFICATE',
+      );
+    });
+
+    test(
+      'settings carry required documents, custom types and the approval switch',
+      () {
+        const d = AdmissionSettings();
+        expect(d.requiredDocumentTypes, ['BIRTH_CERTIFICATE', 'STUDENT_PHOTO']);
+        expect(d.branchAdminsMayApprove, isFalse);
+        expect(d.documentTypes.keys, builtInDocumentTypes.keys);
+        final s = AdmissionSettings.fromMap({
+          'requiredDocumentTypes': ['ADDRESS_PROOF'],
+          'customDocumentTypes': [
+            {'id': 'CASTE_CERT', 'label': 'Caste certificate'},
+            {'id': 5},
+          ],
+          'branchAdminsMayApprove': true,
+        });
+        expect(s.requiredDocumentTypes, ['ADDRESS_PROOF']);
+        expect(s.documentTypes['CASTE_CERT'], 'Caste certificate');
+        expect(s.branchAdminsMayApprove, isTrue);
+        final wire = s.toWire();
+        expect(wire['customDocumentTypes'], [
+          {'id': 'CASTE_CERT', 'label': 'Caste certificate'},
+        ]);
+        expect(wire['branchAdminsMayApprove'], isTrue);
+      },
+    );
+
+    test(
+      'the timeline includes application events, ahead of activities in a tie',
+      () {
+        DateTime t(int m) => DateTime(2026, 11, 7, 10, m);
+        final items = mergeTimeline(
+          [
+            StatusHistoryEntry(
+              revision: 3,
+              from: AdmissionStatus.interested,
+              to: AdmissionStatus.applicationSubmitted,
+              actorId: 'a',
+              at: t(5),
+            ),
+          ],
+          [
+            ActivityHistoryEntry(
+              activityId: 'v',
+              revision: 1,
+              event: ActivityEvent.created,
+              type: ActivityType.email,
+              actorId: 'a',
+              at: t(5),
+            ),
+          ],
+          [
+            ApplicationEvent(
+              revision: 2,
+              event: 'SUBMITTED',
+              actorId: 'a',
+              at: t(5),
+            ),
+          ],
+        );
+        expect(items.map((i) => i.runtimeType.toString()), [
+          'StatusTimelineItem',
+          'ApplicationTimelineItem',
+          'ActivityTimelineItem',
+        ]);
+        expect(
+          ApplicationEvent.fromMap(const {
+            'event': 'APPROVED',
+            'from': 'UNDER_REVIEW',
+            'to': 'APPROVED',
+            'revision': 5,
+          }).to,
+          ApplicationStatus.approved,
+        );
+      },
+    );
   });
 }

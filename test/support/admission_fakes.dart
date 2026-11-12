@@ -1,4 +1,5 @@
 import 'package:eazy_school_360/features/admission/domain/admission_activity.dart';
+import 'package:eazy_school_360/features/admission/domain/admission_application.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_enquiry.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_repository.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_settings.dart';
@@ -76,6 +77,87 @@ AdmissionActivity fakeActivity(
   'rescheduleCount': rescheduleCount,
 });
 
+AdmissionApplication fakeApplication(
+  String enquiryId, {
+  ApplicationStatus status = ApplicationStatus.draft,
+  int revision = 1,
+  String number = 'APP-2026-00001',
+  String? decisionComment,
+}) => AdmissionApplication.fromMap(enquiryId, {
+  'schoolId': 'school-1',
+  'branchId': 'main',
+  'enquiryId': enquiryId,
+  'enquiryNumber': 'ENQ-2026-${enquiryId.padLeft(5, '0')}',
+  'applicationNumber': number,
+  'status': status.wire,
+  'student': {
+    'firstName': 'Asha',
+    'lastName': 'Nair',
+    'dateOfBirth': '2020-05-01',
+    'gender': 'FEMALE',
+  },
+  'academicYearId': 'y1',
+  'classId': 'c5',
+  'guardians': [
+    {'name': 'Meena Nair', 'phone': '9876543210', 'primary': true},
+  ],
+  'decisionComment': decisionComment,
+  'revision': revision,
+});
+
+AdmissionDocument fakeDocument(
+  String id, {
+  String type = 'BIRTH_CERTIFICATE',
+  DocumentStatus status = DocumentStatus.uploaded,
+  String fileName = 'birth.pdf',
+  String contentType = 'application/pdf',
+  int size = 2048,
+  String? rejectionReason,
+  int revision = 2,
+}) => AdmissionDocument.fromMap(id, {
+  'type': type,
+  'label': builtInDocumentTypes[type] ?? type,
+  'fileName': fileName,
+  'contentType': contentType,
+  'sizeBytes': size,
+  'storagePath':
+      'schools/school-1/branches/main/admissionDocs/1/$id/document.pdf',
+  'status': status.wire,
+  'rejectionReason': rejectionReason,
+  'revision': revision,
+});
+
+/// Records uploads and serves reads; can be told to fail the first uploads.
+class FakeDocumentStore implements AdmissionDocumentStore {
+  final List<({String path, int size, String contentType})> uploads = [];
+  final Map<String, List<int>> files = {};
+  int failUploads = 0;
+  int attempts = 0;
+  Object? failReadWith;
+
+  @override
+  Future<void> upload({
+    required String path,
+    required List<int> bytes,
+    required String contentType,
+  }) async {
+    attempts++;
+    if (failUploads > 0) {
+      failUploads--;
+      throw StateError('network');
+    }
+    uploads.add((path: path, size: bytes.length, contentType: contentType));
+    files[path] = bytes;
+  }
+
+  @override
+  Future<List<int>> read(String path) async {
+    final f = failReadWith;
+    if (f != null) throw f;
+    return files[path] ?? const [];
+  }
+}
+
 /// In-memory [AdmissionRepository] that records what the UI asks for.
 class FakeAdmissionRepository implements AdmissionRepository {
   AdmissionSettings settings;
@@ -92,6 +174,31 @@ class FakeAdmissionRepository implements AdmissionRepository {
   final List<({String id, String? to})> assigned = [];
   final List<AdmissionSettings> savedSettings = [];
   Object? failWith;
+
+  AdmissionApplication? application;
+  List<AdmissionDocument> documents = [];
+  List<ApplicationEvent> applicationEvents = [];
+  Map<ApplicationStatus, int> applicationCounts = const {};
+  final List<ApplicationStatus?> fetchedApplicationStatuses = [];
+  final List<String> applicationCalls = [];
+  final List<ApplicationInput> applicationUpdates = [];
+  final List<({String action, String? comment})> reviews = [];
+  final List<({String decision, String? comment})> decisions = [];
+  final List<
+    ({
+      String type,
+      String fileName,
+      String contentType,
+      int size,
+      String requestId,
+    })
+  >
+  uploadRequests = [];
+  final List<String> confirmedDocuments = [];
+  final List<({String id, String decision, String? reason, int? base})>
+  documentDecisions = [];
+  final List<({String id, String? reason})> removedDocuments = [];
+  Object? confirmFailsWith;
 
   final List<AdmissionActivity> activities;
   FollowUpCounts followUpCounts;
@@ -423,5 +530,185 @@ class FakeAdmissionRepository implements AdmissionRepository {
     _maybeFail();
     completed.add((id: activityId, completion: completion, next: next));
     return next == null ? null : 'next-activity';
+  }
+
+  // ---- applications and documents -------------------------------------
+
+  @override
+  Stream<AdmissionApplication?> watchApplication(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  ) => Stream.value(application?.enquiryId == enquiryId ? application : null);
+
+  @override
+  Future<PagedResult<AdmissionApplication>> fetchApplications({
+    required String schoolId,
+    required String branchId,
+    ApplicationStatus? status,
+    int pageSize = 25,
+    Object? cursor,
+  }) async {
+    fetchedApplicationStatuses.add(status);
+    final a = application;
+    return PagedResult(
+      items: [if (a != null && (status == null || a.status == status)) a],
+      nextCursor: null,
+    );
+  }
+
+  @override
+  Future<List<ApplicationEvent>> fetchApplicationHistory(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  ) async => applicationEvents;
+
+  @override
+  Future<List<AdmissionDocument>> fetchDocuments(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  ) async => documents;
+
+  @override
+  Future<Map<ApplicationStatus, int>> countApplications(
+    String schoolId,
+    String branchId,
+  ) async => applicationCounts;
+
+  @override
+  Future<String> createApplication({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+  }) async {
+    _maybeFail();
+    applicationCalls.add('create:$enquiryId');
+    application = fakeApplication(enquiryId);
+    return 'APP-2026-00001';
+  }
+
+  @override
+  Future<int> updateApplication({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required ApplicationInput input,
+    int? baseRevision,
+  }) async {
+    _maybeFail();
+    applicationUpdates.add(input);
+    applicationCalls.add('update:$enquiryId:$baseRevision');
+    return (baseRevision ?? 0) + 1;
+  }
+
+  @override
+  Future<int> submitApplication({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    int? baseRevision,
+  }) async {
+    _maybeFail();
+    applicationCalls.add('submit:$enquiryId:$baseRevision');
+    return (baseRevision ?? 0) + 1;
+  }
+
+  @override
+  Future<int> reviewApplication({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String action,
+    String? comment,
+    int? baseRevision,
+  }) async {
+    _maybeFail();
+    reviews.add((action: action, comment: comment));
+    return (baseRevision ?? 0) + 1;
+  }
+
+  @override
+  Future<int> decideApplication({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String decision,
+    String? comment,
+    int? baseRevision,
+  }) async {
+    _maybeFail();
+    decisions.add((decision: decision, comment: comment));
+    return (baseRevision ?? 0) + 1;
+  }
+
+  @override
+  Future<DocumentUploadIntent> requestDocumentUpload({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String type,
+    required String fileName,
+    required String contentType,
+    required int sizeBytes,
+    required String requestId,
+  }) async {
+    _maybeFail();
+    uploadRequests.add((
+      type: type,
+      fileName: fileName,
+      contentType: contentType,
+      size: sizeBytes,
+      requestId: requestId,
+    ));
+    return const DocumentUploadIntent(
+      id: 'doc-new',
+      storagePath:
+          'schools/school-1/branches/main/admissionDocs/1/doc-new/document.pdf',
+    );
+  }
+
+  @override
+  Future<void> confirmDocumentUpload({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String documentId,
+  }) async {
+    final f = confirmFailsWith;
+    if (f != null) throw f;
+    confirmedDocuments.add(documentId);
+  }
+
+  @override
+  Future<void> verifyDocument({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String documentId,
+    required String decision,
+    String? reason,
+    int? baseRevision,
+  }) async {
+    _maybeFail();
+    documentDecisions.add((
+      id: documentId,
+      decision: decision,
+      reason: reason,
+      base: baseRevision,
+    ));
+  }
+
+  @override
+  Future<void> removeDocument({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String documentId,
+    String? reason,
+  }) async {
+    _maybeFail();
+    removedDocuments.add((id: documentId, reason: reason));
   }
 }

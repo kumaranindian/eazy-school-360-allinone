@@ -17,6 +17,11 @@ function bucketStorage(bucket) {
     },
     list: names,
     deleteFile: async (path) => void (await bucket.file(path).delete({ ignoreNotFound: true })),
+    // The first [n] bytes of an object (to check its real format).
+    head: async (path, n) => {
+      const [buf] = await bucket.file(path).download({ start: 0, end: n - 1 });
+      return buf;
+    },
     // { exists, size, contentType } of one object, read with admin rights (what
     // is actually stored, not what a client claims).
     stat: async (path) => {

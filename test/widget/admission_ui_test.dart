@@ -10,7 +10,11 @@ import 'package:eazy_school_360/features/academic_setup/domain/academic_year_sta
 import 'package:eazy_school_360/features/academic_setup/domain/school_class.dart';
 import 'package:eazy_school_360/features/academic_setup/presentation/providers/academic_structure_providers.dart';
 import 'package:eazy_school_360/core/regional/school_time.dart';
+import 'dart:convert';
+
 import 'package:eazy_school_360/features/admission/domain/admission_activity.dart';
+import 'package:eazy_school_360/features/admission/domain/admission_application.dart';
+import 'package:eazy_school_360/features/admission/presentation/providers/document_picker.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_enquiry.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_settings.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_status.dart';
@@ -65,6 +69,8 @@ Future<FakeAdmissionRepository> _pump(
   Size size = const Size(390, 844),
   double textScale = 1.0,
   FakeAdmissionRepository? repo,
+  FakeDocumentStore? store,
+  DocumentPicker? picker,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -121,6 +127,10 @@ Future<FakeAdmissionRepository> _pump(
         FakeAcademicStructureRepository(years: [_year], classes: [_class5]),
       ),
       admissionRepositoryProvider.overrideWithValue(fake),
+      admissionDocumentStoreProvider.overrideWithValue(
+        store ?? FakeDocumentStore(),
+      ),
+      if (picker != null) documentPickerProvider.overrideWithValue(picker),
       assigneesProvider.overrideWith(
         (ref, key) async => [(userId: 'u-staff', name: 'Ravi Menon')],
       ),
@@ -167,6 +177,19 @@ String _day(int days) {
   final t = SchoolTime.today();
   return SchoolTime.keyOf(DateTime(t.year, t.month, t.day + days));
 }
+
+/// Chooses a fixed file (or nothing) without a platform dialog.
+class _FakePicker implements DocumentPicker {
+  PickedDocument? next;
+  final List<bool> asked = [];
+  @override
+  Future<PickedDocument?> pick({required bool photoOnly}) async {
+    asked.add(photoOnly);
+    return next;
+  }
+}
+
+List<int> _bytes(int n) => List<int>.filled(n, 7);
 
 /// A button of any style (filled, tonal, outlined, text) carrying [label].
 Finder _btn(String label) => find.ancestor(
@@ -1394,6 +1417,875 @@ void main() {
     });
   });
 
+  group('applications', () {
+    Future<FakeAdmissionRepository> open(
+      WidgetTester tester, {
+      AdmissionApplication? application,
+      AdmissionStatus status = AdmissionStatus.interested,
+      UserRole role = UserRole.schoolAdmin,
+      AdmissionSettings settings = const AdmissionSettings(
+        enabled: true,
+        version: 1,
+      ),
+      List<ApplicationEvent> events = const [],
+    }) async {
+      final repo = await _pump(
+        tester,
+        role: role,
+        path: '/admissions/enquiries/1',
+        size: _tall,
+        repo:
+            FakeAdmissionRepository(
+                settings: settings,
+                enquiries: [fakeEnquiry('1', status: status)],
+              )
+              ..application = application
+              ..applicationEvents = [...events],
+      );
+      await tester.tap(find.text('Application'));
+      await tester.pumpAndSettle();
+      return repo;
+    }
+
+    testWidgets('no application yet: it can be started from Interested', (
+      tester,
+    ) async {
+      final repo = await open(tester);
+      expect(find.text('No application yet'), findsOneWidget);
+      await tester.tap(find.text('Start application'));
+      await tester.pumpAndSettle();
+      expect(repo.applicationCalls, ['create:1']);
+    });
+
+    testWidgets('from New it explains what must happen first', (tester) async {
+      await open(tester, status: AdmissionStatus.newEnquiry);
+      FilledButton start() => tester.widget(
+        find.ancestor(
+          of: find.text('Start application'),
+          matching: find.byWidgetPredicate((w) => w is FilledButton),
+        ),
+      );
+      expect(start().onPressed, isNull);
+      expect(
+        find.textContaining('once the enquiry is Interested'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+      'a draft shows its number and can be edited or submitted after confirming',
+      (tester) async {
+        final repo = await open(
+          tester,
+          application: fakeApplication('1', revision: 3),
+        );
+        expect(find.text('APP-2026-00001'), findsOneWidget);
+        expect(find.text('Draft'), findsOneWidget);
+        expect(find.text('Edit details'), findsOneWidget);
+        await tester.tap(find.text('Submit application'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Back'));
+        await tester.pumpAndSettle();
+        expect(
+          repo.applicationCalls,
+          isEmpty,
+          reason: 'backing out sends nothing',
+        );
+        await tester.tap(find.text('Submit application'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'Submit'));
+        await tester.pumpAndSettle();
+        expect(repo.applicationCalls, ['submit:1:3']);
+      },
+    );
+
+    testWidgets(
+      'a submitted application is taken into review, and can be commented on',
+      (tester) async {
+        final repo = await open(
+          tester,
+          application: fakeApplication(
+            '1',
+            status: ApplicationStatus.submitted,
+          ),
+        );
+        await tester.tap(find.text('Start review'));
+        await tester.pumpAndSettle();
+        expect(repo.reviews.single.action, 'START');
+        await tester.tap(find.text('Add comment'));
+        await tester.pumpAndSettle();
+        FilledButton add() =>
+            tester.widget(find.widgetWithText(FilledButton, 'Add comment'));
+        expect(add().onPressed, isNull);
+        await tester.enterText(find.byType(TextField).last, 'Parent called');
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'Add comment'));
+        await tester.pumpAndSettle();
+        expect(repo.reviews.last, (
+          action: 'COMMENT',
+          comment: 'Parent called',
+        ));
+      },
+    );
+
+    testWidgets(
+      'a school admin approves after confirming, or rejects with a reason',
+      (tester) async {
+        final repo = await open(
+          tester,
+          application: fakeApplication(
+            '1',
+            status: ApplicationStatus.underReview,
+            revision: 6,
+          ),
+        );
+        await tester.tap(find.text('Approve'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'Approve'));
+        await tester.pumpAndSettle();
+        expect(repo.decisions.single.decision, 'APPROVE');
+
+        await tester.tap(_btn('Reject'));
+        await tester.pumpAndSettle();
+        FilledButton go() => tester.widget(
+          find.widgetWithText(FilledButton, 'Reject application'),
+        );
+        expect(go().onPressed, isNull, reason: 'a reason is required');
+        await tester.enterText(find.byType(TextField).last, 'Seats are full');
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.widgetWithText(FilledButton, 'Reject application'),
+        );
+        await tester.pumpAndSettle();
+        expect(repo.decisions.last, (
+          decision: 'REJECT',
+          comment: 'Seats are full',
+        ));
+      },
+    );
+
+    testWidgets('a branch admin cannot decide unless the school allows it', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        role: UserRole.branchAdmin,
+        application: fakeApplication(
+          '1',
+          status: ApplicationStatus.underReview,
+        ),
+      );
+      expect(find.text('Approve'), findsNothing);
+      expect(find.text('Reject'), findsNothing);
+      expect(
+        find.textContaining('A school administrator decides'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Add comment'),
+        findsOneWidget,
+        reason: 'comments are still open to them',
+      );
+    });
+
+    testWidgets(
+      'where the school allows it a branch admin can approve and reject',
+      (tester) async {
+        await open(
+          tester,
+          role: UserRole.branchAdmin,
+          settings: const AdmissionSettings(
+            enabled: true,
+            version: 1,
+            branchAdminsMayApprove: true,
+          ),
+          application: fakeApplication(
+            '1',
+            status: ApplicationStatus.underReview,
+          ),
+        );
+        expect(find.text('Approve'), findsOneWidget);
+        expect(find.text('Reject'), findsOneWidget);
+        expect(
+          find.textContaining('A school administrator decides'),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets(
+      'a decided application offers no further actions and shows the decision note',
+      (tester) async {
+        await open(
+          tester,
+          application: fakeApplication(
+            '1',
+            status: ApplicationStatus.rejected,
+            decisionComment: 'Seats are full',
+          ),
+        );
+        expect(find.text('Rejected'), findsOneWidget);
+        expect(find.textContaining('Seats are full'), findsOneWidget);
+        for (final a in [
+          'Approve',
+          'Reject',
+          'Submit application',
+          'Start review',
+          'Add comment',
+          'Edit details',
+        ]) {
+          expect(find.text(a), findsNothing, reason: a);
+        }
+      },
+    );
+
+    testWidgets('a server refusal is shown and nothing is claimed done', (
+      tester,
+    ) async {
+      final repo = await open(tester, application: fakeApplication('1'));
+      repo.failWith = StateError('no');
+      await tester.tap(find.text('Submit application'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Submit'));
+      await tester.pumpAndSettle();
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.text('Application submitted.'), findsNothing);
+    });
+
+    testWidgets('the timeline shows application and document events in words', (
+      tester,
+    ) async {
+      DateTime t(int m) => DateTime(2026, 11, 7, 10, m);
+      await open(
+        tester,
+        application: fakeApplication(
+          '1',
+          status: ApplicationStatus.submitted,
+          revision: 4,
+        ),
+        events: [
+          ApplicationEvent(
+            revision: 1,
+            event: 'CREATED',
+            actorId: 'a',
+            at: t(0),
+          ),
+          ApplicationEvent(
+            revision: 2,
+            event: 'DOCUMENT_UPLOADED',
+            documentType: 'BIRTH_CERTIFICATE',
+            actorId: 'a',
+            at: t(2),
+          ),
+          ApplicationEvent(
+            revision: 3,
+            event: 'DOCUMENT_REJECTED',
+            documentType: 'BIRTH_CERTIFICATE',
+            comment: 'Blurred',
+            actorId: 'a',
+            at: t(3),
+          ),
+          ApplicationEvent(
+            revision: 4,
+            event: 'SUBMITTED',
+            actorId: 'a',
+            at: t(4),
+          ),
+        ],
+      );
+      await tester.tap(find.text('Timeline'));
+      await tester.pumpAndSettle();
+      expect(find.text('Application started'), findsOneWidget);
+      expect(find.text('Birth certificate uploaded'), findsOneWidget);
+      expect(find.text('Birth certificate rejected'), findsOneWidget);
+      expect(find.textContaining('Note: Blurred'), findsOneWidget);
+      expect(find.text('Application submitted'), findsOneWidget);
+    });
+  });
+
+  group('application list and edit form', () {
+    testWidgets(
+      'the list shows counts per status, filters, and opens the enquiry',
+      (tester) async {
+        final repo = await _pump(
+          tester,
+          path: '/admissions/applications',
+          repo: FakeAdmissionRepository()
+            ..application = fakeApplication(
+              '1',
+              status: ApplicationStatus.underReview,
+            )
+            ..applicationCounts = {
+              ApplicationStatus.underReview: 1,
+              ApplicationStatus.draft: 2,
+            },
+        );
+        expect(find.text('All 3'), findsOneWidget);
+        expect(find.text('Draft 2'), findsOneWidget);
+        expect(find.text('Under review 1'), findsOneWidget);
+        expect(find.text('Asha Nair'), findsOneWidget);
+        expect(find.text('APP-2026-00001 · ENQ-2026-00001'), findsOneWidget);
+        await tester.tap(find.text('Draft 2'));
+        await tester.pumpAndSettle();
+        expect(repo.fetchedApplicationStatuses.last, ApplicationStatus.draft);
+        expect(find.text('No applications here yet.'), findsOneWidget);
+      },
+    );
+
+    testWidgets('the admission home links to the applications', (tester) async {
+      await _pump(tester, size: _tall);
+      await tester.tap(find.text('Applications'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('All'), findsWidgets);
+    });
+
+    testWidgets('editing a draft sends the changed details with the revision', (
+      tester,
+    ) async {
+      final repo = await _pump(
+        tester,
+        path: '/admissions/enquiries/1/application/edit',
+        size: _tall,
+        repo: FakeAdmissionRepository()
+          ..application = fakeApplication('1', revision: 5),
+      );
+      expect(find.text('Edit application APP-2026-00001'), findsOneWidget);
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'First name *'),
+        'Asha Rose',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Notes for the reviewer'),
+        'Sibling in Class 7',
+      );
+      await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(repo.applicationCalls, ['update:1:5']);
+      final sent = repo.applicationUpdates.single;
+      expect(sent.details.firstName, 'Asha Rose');
+      expect(sent.details.guardians.first.phone, '9876543210');
+      expect(sent.submissionNotes, 'Sibling in Class 7');
+      expect(sent.toWire().containsKey('status'), isFalse);
+    });
+
+    testWidgets('required fields are checked before anything is sent', (
+      tester,
+    ) async {
+      final repo = await _pump(
+        tester,
+        path: '/admissions/enquiries/1/application/edit',
+        size: _tall,
+        repo: FakeAdmissionRepository()..application = fakeApplication('1'),
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'First name *'),
+        '',
+      );
+      await tester.ensureVisible(find.widgetWithText(FilledButton, 'Save'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(find.text('First name is required'), findsOneWidget);
+      expect(repo.applicationUpdates, isEmpty);
+    });
+
+    testWidgets('a submitted application cannot be edited', (tester) async {
+      await _pump(
+        tester,
+        path: '/admissions/enquiries/1/application/edit',
+        size: _tall,
+        repo: FakeAdmissionRepository()
+          ..application = fakeApplication(
+            '1',
+            status: ApplicationStatus.submitted,
+          ),
+      );
+      expect(
+        find.text('Only a draft application can be edited.'),
+        findsOneWidget,
+      );
+      expect(find.text('Save'), findsNothing);
+    });
+  });
+
+  group('documents', () {
+    setUp(() => AdmissionWriteController.uploadRetryDelay = Duration.zero);
+    tearDown(
+      () => AdmissionWriteController.uploadRetryDelay = const Duration(
+        seconds: 2,
+      ),
+    );
+
+    Future<
+      ({
+        FakeAdmissionRepository repo,
+        FakeDocumentStore store,
+        _FakePicker picker,
+      })
+    >
+    open(
+      WidgetTester tester, {
+      AdmissionApplication? application,
+      List<AdmissionDocument> documents = const [],
+      UserRole role = UserRole.schoolAdmin,
+      AdmissionSettings settings = const AdmissionSettings(
+        enabled: true,
+        version: 1,
+      ),
+      Size size = _tall,
+    }) async {
+      final store = FakeDocumentStore();
+      final picker = _FakePicker();
+      final repo = await _pump(
+        tester,
+        role: role,
+        path: '/admissions/enquiries/1',
+        size: size,
+        store: store,
+        picker: picker,
+        repo:
+            FakeAdmissionRepository(
+                settings: settings,
+                enquiries: [
+                  fakeEnquiry(
+                    '1',
+                    status: AdmissionStatus.applicationSubmitted,
+                  ),
+                ],
+              )
+              ..application =
+                  application ??
+                  fakeApplication('1', status: ApplicationStatus.underReview)
+              ..documents = [...documents],
+      );
+      await tester.tap(find.text('Documents'));
+      await tester.pumpAndSettle();
+      return (repo: repo, store: store, picker: picker);
+    }
+
+    testWidgets('documents belong to the application', (tester) async {
+      final repo = await _pump(
+        tester,
+        path: '/admissions/enquiries/1',
+        size: _tall,
+        repo: FakeAdmissionRepository(enquiries: [fakeEnquiry('1')]),
+      );
+      expect(repo.application, isNull);
+      await tester.tap(find.text('Documents'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Start the application first'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+      'every document type is listed, required ones marked, with the progress line',
+      (tester) async {
+        await open(tester);
+        for (final label in builtInDocumentTypes.values) {
+          expect(find.text(label), findsWidgets, reason: label);
+        }
+        expect(find.text('Required'), findsNWidgets(2));
+        expect(
+          find.textContaining('0 of 2 required documents verified'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(
+            'Still needed: Birth certificate, Student photograph',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets('progress follows verification; all verified says so', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        documents: [
+          fakeDocument('d1', status: DocumentStatus.verified),
+          fakeDocument(
+            'd2',
+            type: 'STUDENT_PHOTO',
+            fileName: 'p.png',
+            contentType: 'image/png',
+            status: DocumentStatus.uploaded,
+          ),
+        ],
+      );
+      expect(
+        find.textContaining('1 of 2 required documents verified'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Still needed: Student photograph'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('all required verified', (tester) async {
+      await open(
+        tester,
+        documents: [
+          fakeDocument('d1', status: DocumentStatus.verified),
+          fakeDocument(
+            'd2',
+            type: 'STUDENT_PHOTO',
+            fileName: 'p.png',
+            contentType: 'image/png',
+            status: DocumentStatus.verified,
+          ),
+        ],
+      );
+      expect(
+        find.text('All 2 required documents are verified.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the school can require nothing, or its own types', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        settings: const AdmissionSettings(
+          enabled: true,
+          version: 1,
+          requiredDocumentTypes: [],
+        ),
+      );
+      expect(find.text('This school requires no documents.'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('a school-defined type appears with its label', (tester) async {
+      await open(
+        tester,
+        settings: const AdmissionSettings(
+          enabled: true,
+          version: 1,
+          customDocumentTypes: [
+            CustomDocumentType(id: 'CASTE_CERT', label: 'Caste certificate'),
+          ],
+          requiredDocumentTypes: ['CASTE_CERT'],
+        ),
+      );
+      expect(find.text('Caste certificate'), findsOneWidget);
+      expect(find.text('Required'), findsOneWidget);
+    });
+
+    testWidgets(
+      'uploading: ask, put the bytes at the approved path, then confirm',
+      (tester) async {
+        final w = await open(tester);
+        w.picker.next = PickedDocument('birth.pdf', _bytes(1000));
+        await tester.tap(_btn('Upload').first);
+        await tester.pumpAndSettle();
+        final r = w.repo.uploadRequests.single;
+        expect(
+          [r.type, r.fileName, r.contentType, r.size],
+          ['BIRTH_CERTIFICATE', 'birth.pdf', 'application/pdf', 1000],
+        );
+        expect(r.requestId, hasLength(20));
+        expect(
+          w.store.uploads.single.path,
+          'schools/school-1/branches/main/admissionDocs/1/doc-new/document.pdf',
+        );
+        expect(
+          [w.store.uploads.single.size, w.store.uploads.single.contentType],
+          [1000, 'application/pdf'],
+        );
+        expect(w.repo.confirmedDocuments, ['doc-new']);
+        expect(w.picker.asked, [false]);
+        expect(find.text('Document uploaded.'), findsOneWidget);
+      },
+    );
+
+    testWidgets('a photograph is picked as an image only', (tester) async {
+      final w = await open(tester);
+      w.picker.next = PickedDocument('child.png', _bytes(500));
+      await tester.tap(_btn('Upload').at(1));
+      await tester.pumpAndSettle();
+      expect(w.picker.asked, [true]);
+      expect(w.repo.uploadRequests.single.type, 'STUDENT_PHOTO');
+      expect(w.repo.uploadRequests.single.contentType, 'image/png');
+    });
+
+    testWidgets('a flaky network is retried before giving up', (tester) async {
+      final w = await open(tester);
+      w.store.failUploads = 2;
+      w.picker.next = PickedDocument('birth.pdf', _bytes(100));
+      await tester.tap(_btn('Upload').first);
+      await tester.pumpAndSettle();
+      expect(w.store.attempts, 3);
+      expect(w.repo.confirmedDocuments, ['doc-new']);
+      expect(
+        w.repo.uploadRequests,
+        hasLength(1),
+        reason: 'one request, the same approved path every time',
+      );
+    });
+
+    testWidgets(
+      'if every attempt fails the document is not confirmed and the error is shown',
+      (tester) async {
+        final w = await open(tester);
+        w.store.failUploads = 5;
+        w.picker.next = PickedDocument('birth.pdf', _bytes(100));
+        await tester.tap(_btn('Upload').first);
+        await tester.pumpAndSettle();
+        expect(w.store.attempts, 3);
+        expect(w.repo.confirmedDocuments, isEmpty);
+        expect(find.byType(SnackBar), findsOneWidget);
+        expect(find.text('Document uploaded.'), findsNothing);
+      },
+    );
+
+    testWidgets('a file the server cannot confirm is reported', (tester) async {
+      final w = await open(tester);
+      w.repo.confirmFailsWith = StateError('mismatch');
+      w.picker.next = PickedDocument('birth.pdf', _bytes(100));
+      await tester.tap(_btn('Upload').first);
+      await tester.pumpAndSettle();
+      expect(w.store.uploads, hasLength(1));
+      expect(find.text('Document uploaded.'), findsNothing);
+      expect(find.byType(SnackBar), findsOneWidget);
+    });
+
+    testWidgets(
+      'files that break the limits are stopped before anything is sent',
+      (tester) async {
+        final w = await open(tester);
+        for (final f in [
+          PickedDocument('big.pdf', _bytes(DocumentLimits.maxBytes + 1)),
+          PickedDocument('empty.pdf', const []),
+          PickedDocument('virus.exe', _bytes(10)),
+        ]) {
+          w.picker.next = f;
+          await tester.tap(_btn('Upload').first);
+          await tester.pumpAndSettle();
+          expect(find.byType(SnackBar), findsOneWidget, reason: f.name);
+          ScaffoldMessenger.of(
+            tester.element(find.byType(Scaffold).first),
+          ).clearSnackBars();
+          await tester.pumpAndSettle();
+        }
+        w.picker.next = PickedDocument('photo.pdf', _bytes(10));
+        await tester.tap(_btn('Upload').at(1));
+        await tester.pumpAndSettle();
+        expect(w.repo.uploadRequests, isEmpty);
+        expect(w.store.attempts, 0);
+      },
+    );
+
+    testWidgets('closing the picker uploads nothing', (tester) async {
+      final w = await open(tester);
+      await tester.tap(_btn('Upload').first);
+      await tester.pumpAndSettle();
+      expect(w.repo.uploadRequests, isEmpty);
+    });
+
+    testWidgets('verify, reject (with a reason) and remove', (tester) async {
+      final w = await open(
+        tester,
+        documents: [
+          fakeDocument('d1', revision: 4),
+          fakeDocument('d2', type: 'ADDRESS_PROOF', fileName: 'bill.pdf'),
+          fakeDocument(
+            'd3',
+            type: 'PREVIOUS_RECORDS',
+            fileName: 'marks.pdf',
+            status: DocumentStatus.verified,
+          ),
+        ],
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Verify').first);
+      await tester.pumpAndSettle();
+      expect(w.repo.documentDecisions.single, (
+        id: 'd1',
+        decision: 'VERIFY',
+        reason: null,
+        base: 4,
+      ));
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Reject').last);
+      await tester.pumpAndSettle();
+      FilledButton go() =>
+          tester.widget(find.widgetWithText(FilledButton, 'Reject document'));
+      expect(go().onPressed, isNull);
+      await tester.enterText(find.byType(TextField).last, 'Not legible');
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Reject document'));
+      await tester.pumpAndSettle();
+      expect(w.repo.documentDecisions.last, (
+        id: 'd2',
+        decision: 'REJECT',
+        reason: 'Not legible',
+        base: 2,
+      ));
+
+      expect(
+        find.widgetWithText(FilledButton, 'Verify'),
+        findsNWidgets(2),
+        reason: 'a verified document has no Verify',
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Remove').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Remove document'));
+      await tester.pumpAndSettle();
+      expect(w.repo.removedDocuments.single.id, 'd1');
+    });
+
+    testWidgets(
+      'a rejected document shows its reason; removed and abandoned records are not listed',
+      (tester) async {
+        await open(
+          tester,
+          documents: [
+            fakeDocument(
+              'd1',
+              status: DocumentStatus.rejected,
+              rejectionReason: 'Blurred',
+            ),
+            fakeDocument(
+              'd2',
+              type: 'ADDRESS_PROOF',
+              fileName: 'gone.pdf',
+              status: DocumentStatus.removed,
+            ),
+            fakeDocument(
+              'd3',
+              type: 'ADDRESS_PROOF',
+              fileName: 'failed.pdf',
+              status: DocumentStatus.abandoned,
+            ),
+          ],
+        );
+        expect(find.text('Reason: Blurred'), findsOneWidget);
+        expect(find.text('gone.pdf'), findsNothing);
+        expect(find.text('failed.pdf'), findsNothing);
+        expect(
+          find.textContaining('0 of 2'),
+          findsOneWidget,
+          reason: 'a rejected document does not count',
+        );
+      },
+    );
+
+    testWidgets('once decided, documents can be viewed but not changed', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        application: fakeApplication('1', status: ApplicationStatus.approved),
+        documents: [fakeDocument('d1', status: DocumentStatus.verified)],
+      );
+      expect(find.text('View'), findsOneWidget);
+      for (final a in ['Upload', 'Verify', 'Reject', 'Remove']) {
+        expect(find.text(a), findsNothing, reason: a);
+      }
+    });
+
+    testWidgets(
+      'viewing reads the bytes through the store (no link) and shows an image',
+      (tester) async {
+        final w = await open(
+          tester,
+          documents: [
+            fakeDocument(
+              'd1',
+              type: 'STUDENT_PHOTO',
+              fileName: 'child.png',
+              contentType: 'image/png',
+            ),
+          ],
+        );
+        w.store.files['schools/school-1/branches/main/admissionDocs/1/d1/document.pdf'] =
+            base64Decode(
+              'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAHdRLkQAAAABJRU5ErkJggg==',
+            );
+        await tester.tap(find.text('View'));
+        await tester.pumpAndSettle();
+        expect(find.text('Student photograph · child.png'), findsOneWidget);
+        Finder shown() => find.descendant(
+          of: find.byType(Dialog),
+          matching: find.byType(Image),
+        );
+        expect(shown(), findsOneWidget);
+        await tester.tap(find.byTooltip('Close'));
+        await tester.pumpAndSettle();
+        expect(shown(), findsNothing);
+      },
+    );
+
+    testWidgets('a file that cannot be read says so', (tester) async {
+      final w = await open(tester, documents: [fakeDocument('d1')]);
+      w.store.failReadWith = StateError('denied');
+      await tester.tap(find.text('View'));
+      await tester.pumpAndSettle();
+      expect(find.byType(Dialog), findsOneWidget);
+      expect(find.textContaining('Something went wrong'), findsOneWidget);
+    });
+  });
+
+  group('application settings', () {
+    testWidgets(
+      'required documents, a new type and the approval switch are saved',
+      (tester) async {
+        final repo = await _pump(
+          tester,
+          role: UserRole.schoolAdmin,
+          path: '/admissions/settings',
+          size: const Size(390, 5200),
+          repo: FakeAdmissionRepository(
+            settings: const AdmissionSettings(enabled: true, version: 4),
+          ),
+        );
+        await tester.tap(
+          find.widgetWithText(CheckboxListTile, 'Address proof'),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.widgetWithText(CheckboxListTile, 'Student photograph'),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Add a document type'),
+          'Caste certificate',
+        );
+        await tester.tap(find.byTooltip('Add document type'));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.widgetWithText(CheckboxListTile, 'Caste certificate'),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.widgetWithText(
+            SwitchListTile,
+            'Branch administrators may approve applications',
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Save settings'));
+        await tester.tap(find.text('Save settings'));
+        await tester.pumpAndSettle();
+        final saved = repo.savedSettings.single;
+        expect(saved.requiredDocumentTypes, [
+          'BIRTH_CERTIFICATE',
+          'ADDRESS_PROOF',
+          'CASTE_CERTIFICATE',
+        ]);
+        expect(saved.customDocumentTypes.single.id, 'CASTE_CERTIFICATE');
+        expect(saved.customDocumentTypes.single.label, 'Caste certificate');
+        expect(saved.branchAdminsMayApprove, isTrue);
+        expect(saved.version, 4);
+      },
+    );
+  });
+
   group('follow-up settings and the form', () {
     testWidgets('reminders can be switched off and the time chosen', (
       tester,
@@ -1497,6 +2389,7 @@ void main() {
       'form': '/admissions/enquiries/new',
       'details': '/admissions/enquiries/1',
       'follow-ups': '/admissions/follow-ups',
+      'applications': '/admissions/applications',
     };
     for (final (name, size, scale) in [
       ('small phone', const Size(320, 640), 1.0),

@@ -522,20 +522,35 @@ class _RescheduleActivityDialogState extends State<RescheduleActivityDialog> {
   }
 }
 
-/// Ask for a required reason (cancelling a follow-up).
+/// Ask for a reason (cancelling, rejecting, commenting). [required] (default)
+/// keeps the action disabled until at least three characters are typed.
 Future<String?> askReason(
   BuildContext context, {
   required String title,
   required String action,
+  String label = 'Reason *',
+  bool required = true,
 }) => showDialog<String>(
   context: context,
-  builder: (_) => _ReasonDialog(title: title, action: action),
+  builder: (_) => _ReasonDialog(
+    title: title,
+    action: action,
+    label: label,
+    required: required,
+  ),
 );
 
 class _ReasonDialog extends StatefulWidget {
   final String title;
   final String action;
-  const _ReasonDialog({required this.title, required this.action});
+  final String label;
+  final bool required;
+  const _ReasonDialog({
+    required this.title,
+    required this.action,
+    required this.label,
+    required this.required,
+  });
 
   @override
   State<_ReasonDialog> createState() => _ReasonDialogState();
@@ -552,15 +567,15 @@ class _ReasonDialogState extends State<_ReasonDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final ok = _reason.text.trim().length >= 3;
+    final ok = !widget.required || _reason.text.trim().length >= 3;
     return AlertDialog(
       title: Text(widget.title),
       content: TextField(
         controller: _reason,
-        maxLength: 200,
+        maxLength: 500,
         autofocus: true,
         onChanged: (_) => setState(() {}),
-        decoration: const InputDecoration(labelText: 'Reason *'),
+        decoration: InputDecoration(labelText: widget.label),
       ),
       actions: [
         TextButton(

@@ -8,10 +8,13 @@
    routes already guarded by `manageAdmissions`).
 2. Indexes: `firebase deploy --only firestore:indexes --project <dev>` — wait until the new
    `admissionEnquiries` / `admissionStatusHistory` indexes are READY.
+2b. Storage rules: `storage.rules` gained the `admissionDocs` block — deploy the BUILT rules together with the Firestore ones (`tool/deploy_rules.sh`), and **run `firestore-tests/admission-storage-rules.test.mjs` in CI first** (it could not be executed in the build sandbox).
 3. Functions: `cd functions && npm test`, then deploy the `*Admission*` callables:
    `saveAdmissionSettings, createAdmissionEnquiry, updateAdmissionEnquiry, assignAdmissionEnquiry,
    changeAdmissionEnquiryStatus, scheduleAdmissionActivity, rescheduleAdmissionActivity,
-   reassignAdmissionActivity, completeAdmissionActivity, cancelAdmissionActivity` and the scheduled
+   reassignAdmissionActivity, completeAdmissionActivity, cancelAdmissionActivity, scheduleAdmissionVisit`,
+   `createAdmissionApplication, updateAdmissionApplication, submitAdmissionApplication, reviewAdmissionApplication, decideAdmissionApplication`,
+   `requestAdmissionDocumentUpload, confirmAdmissionDocumentUpload, verifyAdmissionDocument, removeAdmissionDocument`, plus `admissionDocumentCleanup` (daily) and the scheduled
    function `admissionFollowUpReminders` (hourly). Deploy it on **dev** and check the logs for one cycle before prod.
    Existing enquiries created before phase 4 have no `activityCount`; the app and server treat that as 0, so no backfill is needed.
 4. Rules: **never** `firebase deploy --only firestore:rules` with the default config. Build and deploy the

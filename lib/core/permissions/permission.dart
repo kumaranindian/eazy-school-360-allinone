@@ -46,6 +46,12 @@ enum Permission {
   /// write; platform admins may read for support but manage nothing here.
   manageAdmissions,
 
+  /// Approve or reject an admission application. Held by school and platform
+  /// administrators; a branch administrator may only when the school has
+  /// switched that on (`branchAdminsMayApprove`), which the UI and the server
+  /// both check on top of this.
+  decideAdmissions,
+
   /// Create/edit staff, departments, designations, lifecycle status,
   /// teacher assignments, staff photos and documents (Milestone 4).
   manageStaff,

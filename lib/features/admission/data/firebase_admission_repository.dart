@@ -1,5 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:typed_data';
+
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 import '../../../core/config/functions_region.dart';
 import '../../../core/constants/firestore_fields.dart';
@@ -7,6 +10,7 @@ import '../../../core/errors/app_failure.dart';
 import '../../../core/errors/error_mapper.dart';
 import '../../students/domain/paged_result.dart';
 import '../domain/admission_activity.dart';
+import '../domain/admission_application.dart';
 import '../domain/admission_enquiry.dart';
 import '../domain/admission_repository.dart';
 import '../domain/admission_settings.dart';
@@ -27,6 +31,9 @@ class FirebaseAdmissionRepository implements AdmissionRepository {
   static const _history = 'admissionStatusHistory';
   static const _activities = 'admissionActivities';
   static const _activityHistory = 'admissionActivityHistory';
+  static const _applications = 'admissionApplications';
+  static const _applicationHistory = 'admissionApplicationHistory';
+  static const _documents = 'admissionDocuments';
 
   DocumentReference<Map<String, dynamic>> _settingsDoc(String schoolId) => _db
       .collection(FirestoreFields.schoolsCollection)
@@ -638,5 +645,328 @@ class FirebaseAdmissionRepository implements AdmissionRepository {
       'baseRevision': ?baseRevision,
     });
     return r['nextId'] as String?;
+  }
+
+  // ---- applications and documents (phase 6) ---------------------------
+
+  AdmissionApplication _application(DocumentSnapshot<Map<String, dynamic>> d) =>
+      AdmissionApplication.fromMap(
+        d.id,
+        d.data() ?? const {},
+        submittedAt: (d.data()?['submittedAt'] as Timestamp?)?.toDate(),
+        decidedAt: (d.data()?['decidedAt'] as Timestamp?)?.toDate(),
+      );
+
+  @override
+  Stream<AdmissionApplication?> watchApplication(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  ) => _col(
+    schoolId,
+    branchId,
+    _applications,
+  ).doc(enquiryId).snapshots().map((d) => d.exists ? _application(d) : null);
+
+  @override
+  Future<PagedResult<AdmissionApplication>> fetchApplications({
+    required String schoolId,
+    required String branchId,
+    ApplicationStatus? status,
+    int pageSize = 25,
+    Object? cursor,
+  }) async {
+    try {
+      Query<Map<String, dynamic>> q = _col(schoolId, branchId, _applications);
+      if (status != null) q = q.where('status', isEqualTo: status.wire);
+      q = q.orderBy('createdAt', descending: true).limit(pageSize);
+      if (cursor != null) {
+        q = q.startAfterDocument(
+          cursor as DocumentSnapshot<Map<String, dynamic>>,
+        );
+      }
+      final snap = await q.get();
+      return PagedResult(
+        items: [for (final d in snap.docs) _application(d)],
+        nextCursor: snap.docs.length < pageSize ? null : snap.docs.last,
+      );
+    } catch (e, st) {
+      throw mapExceptionToFailure(e, st);
+    }
+  }
+
+  @override
+  Future<List<ApplicationEvent>> fetchApplicationHistory(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  ) async {
+    try {
+      final snap = await _col(schoolId, branchId, _applicationHistory)
+          .where('enquiryId', isEqualTo: enquiryId)
+          .orderBy('at', descending: true)
+          .limit(100)
+          .get();
+      return [
+        for (final d in snap.docs)
+          ApplicationEvent.fromMap(
+            d.data(),
+            at: (d.data()['at'] as Timestamp?)?.toDate(),
+          ),
+      ];
+    } catch (e, st) {
+      throw mapExceptionToFailure(e, st);
+    }
+  }
+
+  @override
+  Future<List<AdmissionDocument>> fetchDocuments(
+    String schoolId,
+    String branchId,
+    String enquiryId,
+  ) async {
+    try {
+      final snap = await _col(
+        schoolId,
+        branchId,
+        _documents,
+      ).where('applicationId', isEqualTo: enquiryId).limit(100).get();
+      final docs = [
+        for (final d in snap.docs)
+          AdmissionDocument.fromMap(
+            d.id,
+            d.data(),
+            uploadedAt: (d.data()['uploadedAt'] as Timestamp?)?.toDate(),
+            verifiedAt: (d.data()['verifiedAt'] as Timestamp?)?.toDate(),
+          ),
+      ];
+      docs.sort(
+        (a, b) => (b.uploadedAt ?? DateTime.now()).compareTo(
+          a.uploadedAt ?? DateTime.now(),
+        ),
+      );
+      return docs;
+    } catch (e, st) {
+      throw mapExceptionToFailure(e, st);
+    }
+  }
+
+  @override
+  Future<Map<ApplicationStatus, int>> countApplications(
+    String schoolId,
+    String branchId,
+  ) async {
+    try {
+      final col = _col(schoolId, branchId, _applications);
+      final entries = await Future.wait([
+        for (final s in ApplicationStatus.values)
+          col
+              .where('status', isEqualTo: s.wire)
+              .count()
+              .get()
+              .then((r) => MapEntry(s, r.count ?? 0)),
+      ]);
+      return Map.fromEntries(entries);
+    } catch (e, st) {
+      throw mapExceptionToFailure(e, st);
+    }
+  }
+
+  @override
+  Future<String> createApplication({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+  }) async {
+    final r = await _call(
+      'createAdmissionApplication',
+      _target(schoolId, branchId, enquiryId),
+    );
+    return r['applicationNumber'] as String? ?? '';
+  }
+
+  @override
+  Future<int> updateApplication({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required ApplicationInput input,
+    int? baseRevision,
+  }) async {
+    final r = await _call('updateAdmissionApplication', {
+      ..._target(schoolId, branchId, enquiryId),
+      'application': input.toWire(),
+      'baseRevision': ?baseRevision,
+    });
+    return r['revision'] is int ? r['revision'] as int : 0;
+  }
+
+  @override
+  Future<int> submitApplication({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    int? baseRevision,
+  }) async {
+    final r = await _call('submitAdmissionApplication', {
+      ..._target(schoolId, branchId, enquiryId),
+      'baseRevision': ?baseRevision,
+    });
+    return r['revision'] is int ? r['revision'] as int : 0;
+  }
+
+  @override
+  Future<int> reviewApplication({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String action,
+    String? comment,
+    int? baseRevision,
+  }) async {
+    final r = await _call('reviewAdmissionApplication', {
+      ..._target(schoolId, branchId, enquiryId),
+      'action': action,
+      'comment': ?comment,
+      'baseRevision': ?baseRevision,
+    });
+    return r['revision'] is int ? r['revision'] as int : 0;
+  }
+
+  @override
+  Future<int> decideApplication({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String decision,
+    String? comment,
+    int? baseRevision,
+  }) async {
+    final r = await _call('decideAdmissionApplication', {
+      ..._target(schoolId, branchId, enquiryId),
+      'decision': decision,
+      'comment': ?comment,
+      'baseRevision': ?baseRevision,
+    });
+    return r['revision'] is int ? r['revision'] as int : 0;
+  }
+
+  @override
+  Future<DocumentUploadIntent> requestDocumentUpload({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String type,
+    required String fileName,
+    required String contentType,
+    required int sizeBytes,
+    required String requestId,
+  }) async {
+    final r = await _call('requestAdmissionDocumentUpload', {
+      ..._target(schoolId, branchId, enquiryId),
+      'document': {
+        'type': type,
+        'fileName': fileName,
+        'contentType': contentType,
+        'sizeBytes': sizeBytes,
+      },
+      'requestId': requestId,
+    });
+    return DocumentUploadIntent(
+      id: r['id'] as String? ?? '',
+      storagePath: r['storagePath'] as String? ?? '',
+    );
+  }
+
+  @override
+  Future<void> confirmDocumentUpload({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String documentId,
+  }) async {
+    await _call('confirmAdmissionDocumentUpload', {
+      ..._target(schoolId, branchId, enquiryId),
+      'documentId': documentId,
+    });
+  }
+
+  @override
+  Future<void> verifyDocument({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String documentId,
+    required String decision,
+    String? reason,
+    int? baseRevision,
+  }) async {
+    await _call('verifyAdmissionDocument', {
+      ..._target(schoolId, branchId, enquiryId),
+      'documentId': documentId,
+      'decision': decision,
+      'reason': ?reason,
+      'baseRevision': ?baseRevision,
+    });
+  }
+
+  @override
+  Future<void> removeDocument({
+    required String schoolId,
+    required String branchId,
+    required String enquiryId,
+    required String documentId,
+    String? reason,
+  }) async {
+    await _call('removeAdmissionDocument', {
+      ..._target(schoolId, branchId, enquiryId),
+      'documentId': documentId,
+      'reason': ?reason,
+    });
+  }
+}
+
+/// Admission documents in Firebase Storage. Uploads and reads are authorised by
+/// `storage.rules`; a read uses the authenticated SDK (`getData`), so no link
+/// that could be forwarded is ever created.
+class FirebaseAdmissionDocumentStore implements AdmissionDocumentStore {
+  final FirebaseStorage _storage;
+  FirebaseAdmissionDocumentStore({FirebaseStorage? storage})
+    : _storage = storage ?? FirebaseStorage.instance;
+
+  @override
+  Future<void> upload({
+    required String path,
+    required List<int> bytes,
+    required String contentType,
+  }) async {
+    try {
+      await _storage
+          .ref(path)
+          .putData(
+            Uint8List.fromList(bytes),
+            SettableMetadata(contentType: contentType),
+          )
+          .timeout(const Duration(minutes: 2));
+    } catch (e, st) {
+      throw mapExceptionToFailure(e, st);
+    }
+  }
+
+  @override
+  Future<List<int>> read(String path) async {
+    try {
+      final data = await _storage
+          .ref(path)
+          .getData(AdmissionDocumentStore.maxRead)
+          .timeout(const Duration(minutes: 2));
+      if (data == null) {
+        throw const NotFoundFailure('That file could not be found.');
+      }
+      return data;
+    } catch (e, st) {
+      if (e is AppFailure) rethrow;
+      throw mapExceptionToFailure(e, st);
+    }
   }
 }

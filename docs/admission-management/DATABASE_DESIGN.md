@@ -37,6 +37,26 @@ Id is `{enquiryId}__{requestId}` when the client sends an idempotency key, so a 
 `schoolId, branchId, activityId, enquiryId, type, purpose, revision, event (CREATED|RESCHEDULED|REASSIGNED|COMPLETED|CANCELLED),
 from{...}, to{...}, reason, actorId, at` (`type`/`purpose` say what the entry is about, so the timeline needs no second read). Rescheduling keeps the old date in `from`; nothing is overwritten.
 
+## `branches/{b}/admissionApplications/{enquiryId}` (phase 6)
+One application per enquiry; **the id is the enquiry id** (so creating it twice returns the same one). `schoolId, branchId, enquiryId,
+enquiryNumber, applicationNumber ("APP-2026-00001", transactional series, prefix from settings), status (DRAFT|SUBMITTED|UNDER_REVIEW|
+APPROVED|REJECTED|WITHDRAWN), source, student{...}, studentName, academicYearId, classId, guardians[], primaryPhone, address{...},
+previousSchool, previousClass, specialRequirements, submissionNotes, submittedAt/By, reviewStartedAt/By, decidedAt/By, decisionComment,
+revision, createdAt/By, updatedAt/By`. The student details are a **copy** of the enquiry made at creation; editing the draft never rewrites the enquiry.
+
+## `branches/{b}/admissionApplicationHistory/{enquiryId}__{revision}` (append-only)
+`event (CREATED|SUBMITTED|REVIEW_STARTED|COMMENTED|APPROVED|REJECTED|CLOSED_WITH_ENQUIRY|DOCUMENT_UPLOADED|DOCUMENT_VERIFIED|DOCUMENT_REJECTED|DOCUMENT_REMOVED),
+from, to, comment, documentType, documentId, actorId, at` — every event bumps the application's revision (the entry id). Comments are internal.
+
+## `branches/{b}/admissionDocuments/{id}`
+`schoolId, branchId, enquiryId, applicationId, type, label, fileName, contentType, sizeBytes, storagePath, status
+(UPLOADING|UPLOADED|VERIFIED|REJECTED|REMOVED|ABANDONED), expiresAt (UPLOADING only), uploadedAt, verifiedAt/By, rejectionReason, revision, audit`.
+No file contents and **no download URL** are stored. Storage object: `schools/{s}/branches/{b}/admissionDocs/{enquiryId}/{docId}/document.{pdf|jpg|png|webp}`.
+
+## Settings added in phase 6
+`requiredDocumentTypes` (default BIRTH_CERTIFICATE, STUDENT_PHOTO), `customDocumentTypes` [{id, label}] (≤10, id 3-24 capitals/digits/_ and not a built-in),
+`branchAdminsMayApprove` (default false).
+
 ## Derived fields on the enquiry
 `nextFollowUpDate` (earliest open activity), `openActivityCount`, `activityCount`, `lastActivityAt` — updated in the
 same transaction as the activity change. The enquiry's `revision` is **not** bumped by activity changes, and
@@ -52,10 +72,10 @@ with `create()` (an existing id is a no-op). Text names the enquiry **number** a
 
 ## Indexes (`firestore.indexes.json`)
 `admissionEnquiries`: `(assignedTo|status|interestedClassId|academicYearId|source, createdAt desc)`;
-`admissionStatusHistory`: `(enquiryId, revision)`; `admissionActivities`: `(status, scheduledDate)`, `(status, assignedTo, scheduledDate)`, `(status, type, scheduledDate)` (visits list), `(enquiryId, scheduledDate desc)`, `(status, completedAt desc)`; `admissionActivityHistory`: `(enquiryId, at desc)`. Name search uses `studentNameLower`
+`admissionStatusHistory`: `(enquiryId, revision)`; `admissionActivities`: `(status, scheduledDate)`, `(status, assignedTo, scheduledDate)`, `(status, type, scheduledDate)` (visits list), `(enquiryId, scheduledDate desc)`, `(status, completedAt desc)`; `admissionActivityHistory`: `(enquiryId, at desc)`; `admissionApplications`: `(status, createdAt desc)`; `admissionApplicationHistory`: `(enquiryId, at desc)`. Name search uses `studentNameLower`
 (single-field). Phone and number search use equality. The list sends **one** equality filter to
 Firestore and applies the others in memory, so the index set stays small.
 
 ## Account deletion
-`admissionEnquiries`, `admissionStatusHistory`, `admissionActivities`, `admissionActivityHistory` are scanned for uid fields (`assignedTo` and `completedBy` were added to the processor's uid list for this module; token replacement);
+`admissionEnquiries`, `admissionStatusHistory`, `admissionActivities`, `admissionActivityHistory`, `admissionApplications`, `admissionApplicationHistory`, `admissionDocuments` are scanned for uid fields (`assignedTo` and `completedBy` were added to the processor's uid list for this module; token replacement);
 `admissionSettings` likewise. Prospective-family data is a school record and is kept (matrix D8/D9).
