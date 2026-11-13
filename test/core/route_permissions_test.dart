@@ -11,6 +11,9 @@ void main() {
       'login',
       'register',
       'forgotPassword',
+      // The public admission enquiry form: open to anyone on purpose. It reads
+      // and writes only through two callables that decide the school themselves.
+      'publicAdmission',
       'accountInactive',
       'changePassword',
       'createSchool',

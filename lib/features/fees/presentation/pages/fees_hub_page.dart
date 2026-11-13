@@ -90,6 +90,14 @@ class _Hub extends ConsumerWidget {
         subtitle: 'Record payments and view receipts',
         onTap: () => open('/fees/payments'),
       ),
+      if (can(Permission.collectPayments))
+        _NavRow(
+          icon: Icons.how_to_reg_outlined,
+          color: context.brandTone(AppColors.accent),
+          title: 'Admission fees',
+          subtitle: 'Collect fees from applicants',
+          onTap: () => open('/admissions/fees'),
+        ),
     ];
 
     return ListView(

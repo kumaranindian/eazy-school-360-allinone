@@ -213,7 +213,7 @@ class ParentsSectionTitle extends StatelessWidget {
   }
 }
 
-enum ParentsTone { success, neutral, warning }
+enum ParentsTone { success, neutral, warning, danger }
 
 /// A small rounded status pill ("Active", "Enabled", "Activated").
 class ParentsBadge extends StatelessWidget {
@@ -228,6 +228,7 @@ class ParentsBadge extends StatelessWidget {
       ParentsTone.success => p.success,
       ParentsTone.warning => p.warning,
       ParentsTone.neutral => p.textSecondary,
+      ParentsTone.danger => Theme.of(context).colorScheme.error,
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),

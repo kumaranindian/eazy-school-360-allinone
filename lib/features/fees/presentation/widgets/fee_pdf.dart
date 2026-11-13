@@ -33,6 +33,9 @@ abstract final class FeePdf {
   static const String officeCopy = 'OFFICE COPY';
   static const String parentCopy = 'PARENT COPY';
 
+  /// The same text, for other printable documents (admission reports).
+  static String money(int minor, String currency) => _money(minor, currency);
+
   /// "INR 1,500.00", "JPY 1,500", "KWD 1,500.250".
   static String _money(int minor, String currency) {
     final decimals = Currencies.of(currency).decimals;

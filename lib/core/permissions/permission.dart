@@ -40,6 +40,18 @@ enum Permission {
   /// (`firestore.rules` → `teacherOfParent`), never by browsing the branch.
   viewParents,
 
+  /// The admission-enquiry area (enquiries, lifecycle, settings). Held by the
+  /// school admin and the branch admin. `firestore.rules` limits reads to those
+  /// roles and the admission Cloud Functions enforce the same scope on every
+  /// write; platform admins may read for support but manage nothing here.
+  manageAdmissions,
+
+  /// Approve or reject an admission application. Held by school and platform
+  /// administrators; a branch administrator may only when the school has
+  /// switched that on (`branchAdminsMayApprove`), which the UI and the server
+  /// both check on top of this.
+  decideAdmissions,
+
   /// Create/edit staff, departments, designations, lifecycle status,
   /// teacher assignments, staff photos and documents (Milestone 4).
   manageStaff,

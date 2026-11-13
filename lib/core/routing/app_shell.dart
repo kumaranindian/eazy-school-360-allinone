@@ -75,6 +75,14 @@ class AppShell extends ConsumerWidget {
     ),
     (
       NavDestination(
+        label: 'Admissions',
+        icon: Icons.contact_phone_outlined,
+        selectedIcon: Icons.contact_phone,
+      ),
+      AppRoutes.admissions,
+    ),
+    (
+      NavDestination(
         label: 'Staff',
         icon: Icons.badge_outlined,
         selectedIcon: Icons.badge,
@@ -249,6 +257,11 @@ class AppShell extends ConsumerWidget {
       'Parents & guardians',
       'Contacts and linked children',
       Icons.family_restroom_outlined,
+    ),
+    AppRoutes.admissions: (
+      'Admissions',
+      'Enquiries, follow-ups and applications',
+      Icons.contact_phone_outlined,
     ),
     // AppRoutes.staff draws its own compact header (StaffHero), like teachers.
     // AppRoutes.teachers draws its own compact header (TeachersHero), which

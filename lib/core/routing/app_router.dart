@@ -7,6 +7,7 @@ import '../../features/account_deletion/presentation/pages/account_deletion_page
 import '../../features/authentication/presentation/pages/account_inactive_page.dart';
 import '../../features/authentication/presentation/pages/change_initial_password_page.dart';
 import '../../features/authentication/presentation/providers/initial_password_providers.dart';
+import '../../features/admission/presentation/pages/public_enquiry_page.dart';
 import '../../features/authentication/presentation/pages/forgot_password_page.dart';
 import '../../features/authentication/presentation/pages/login_page.dart';
 import '../../features/authentication/presentation/pages/register_page.dart';
@@ -27,6 +28,7 @@ import '../../features/school_setup/presentation/pages/create_school_page.dart';
 import '../../features/school_setup/presentation/pages/school_setup_page.dart';
 import '../../features/attendance/presentation/attendance_routes.dart';
 import '../../features/staff/presentation/staff_routes.dart';
+import '../../features/admission/presentation/admission_routes.dart';
 import '../../features/students/presentation/parents_routes.dart';
 import '../../features/students/presentation/students_routes.dart';
 import '../../features/users/presentation/pages/users_page.dart';
@@ -79,6 +81,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // safe, non-breaking lookup key change for routes that predate
       // Milestone 3 too.
       final path = state.fullPath ?? state.matchedLocation;
+
+      // The public enquiry form is open to everyone, signed in or not; it
+      // never shows or needs tenant data.
+      if (path == AppRoutes.publicAdmission) return null;
 
       if (!authState.hasValue && !authState.hasError) {
         return path == '/' ? null : ReturnTo.redirect('/', state.uri);
@@ -178,6 +184,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ForgotPasswordPage(),
       ),
       GoRoute(
+        path: AppRoutes.publicAdmission,
+        builder: (context, state) =>
+            PublicEnquiryPage(slug: state.pathParameters['slug'] ?? ''),
+      ),
+      GoRoute(
         path: AppRoutes.changePassword,
         builder: (context, state) => const ChangeInitialPasswordPage(),
       ),
@@ -222,6 +233,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(routes: academicSetupRoutes()),
           StatefulShellBranch(routes: studentsRoutes()),
           StatefulShellBranch(routes: parentsRoutes()),
+          StatefulShellBranch(routes: admissionRoutes()),
           StatefulShellBranch(routes: staffRoutes()),
           StatefulShellBranch(routes: attendanceRoutes()),
           StatefulShellBranch(routes: feesRoutes()),
