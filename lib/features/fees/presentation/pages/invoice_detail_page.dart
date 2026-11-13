@@ -2,7 +2,6 @@ import '../../../../core/utils/date_formatting.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:printing/printing.dart';
 
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/extensions/context_extensions.dart';
@@ -20,7 +19,7 @@ import '../../domain/money.dart';
 import '../../domain/payment.dart';
 import '../providers/fee_providers.dart';
 import '../widgets/fee_action_dialogs.dart';
-import '../widgets/fee_pdf.dart';
+import '../widgets/fee_print.dart';
 import '../widgets/fee_row_actions.dart';
 import '../widgets/fee_widgets.dart';
 
@@ -99,12 +98,9 @@ class _Detail extends ConsumerWidget {
     required this.parentView,
   });
 
-  Future<void> _print(BuildContext context) async {
+  Future<void> _print(BuildContext context, WidgetRef ref) async {
     try {
-      await Printing.layoutPdf(
-        onLayout: (_) => FeePdf.invoice(invoice),
-        name: invoice.invoiceNumber,
-      );
+      await FeePrint.printInvoice(ref, invoice);
     } catch (error) {
       if (context.mounted) {
         context.showSnackBar(userMessageFor(error), isError: true);
@@ -112,12 +108,9 @@ class _Detail extends ConsumerWidget {
     }
   }
 
-  Future<void> _download(BuildContext context) async {
+  Future<void> _download(BuildContext context, WidgetRef ref) async {
     try {
-      await Printing.sharePdf(
-        bytes: await FeePdf.invoice(invoice),
-        filename: '${invoice.invoiceNumber}.pdf',
-      );
+      await FeePrint.downloadInvoice(ref, invoice);
     } catch (error) {
       if (context.mounted) {
         context.showSnackBar(userMessageFor(error), isError: true);
@@ -268,12 +261,12 @@ class _Detail extends ConsumerWidget {
             OutlinedButton.icon(
               icon: const Icon(Icons.print_outlined),
               label: const Text('Print'),
-              onPressed: () => _print(context),
+              onPressed: () => _print(context, ref),
             ),
             OutlinedButton.icon(
               icon: const Icon(Icons.picture_as_pdf_outlined),
               label: const Text('PDF'),
-              onPressed: () => _download(context),
+              onPressed: () => _download(context, ref),
             ),
           ],
         ),

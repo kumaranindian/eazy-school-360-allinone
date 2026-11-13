@@ -1,7 +1,6 @@
 import '../../../../core/utils/date_formatting.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:printing/printing.dart';
 
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/extensions/context_extensions.dart';
@@ -15,7 +14,7 @@ import '../../domain/fee_dates.dart';
 import '../../domain/money.dart';
 import '../../domain/payment.dart';
 import '../providers/fee_providers.dart';
-import '../widgets/fee_pdf.dart';
+import '../widgets/fee_print.dart';
 
 /// `/fees/receipts/:receiptId` (staff) and `/my-fees/receipts/:id?b=<branch>`
 /// (parent, read-only). A reversed payment's receipt is kept and shown as
@@ -211,10 +210,7 @@ class _ReceiptBodyState extends ConsumerState<ReceiptBody> {
                           label: const Text('Print'),
                           onPressed: () async {
                             try {
-                              await Printing.layoutPdf(
-                                onLayout: (_) => FeePdf.receipt(receipt),
-                                name: receipt.receiptNumber,
-                              );
+                              await FeePrint.printReceipt(ref, receipt);
                             } catch (error) {
                               if (context.mounted) {
                                 context.showSnackBar(
@@ -230,10 +226,7 @@ class _ReceiptBodyState extends ConsumerState<ReceiptBody> {
                           label: const Text('Download PDF'),
                           onPressed: () async {
                             try {
-                              await Printing.sharePdf(
-                                bytes: await FeePdf.receipt(receipt),
-                                filename: '${receipt.receiptNumber}.pdf',
-                              );
+                              await FeePrint.downloadReceipt(ref, receipt);
                             } catch (error) {
                               if (context.mounted) {
                                 context.showSnackBar(

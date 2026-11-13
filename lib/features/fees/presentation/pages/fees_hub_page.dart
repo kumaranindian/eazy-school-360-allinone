@@ -384,37 +384,54 @@ class _Totals extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     final rate = summary.collectionRate;
+    String m(int v) => Money.format(v, currency: currency);
+    final upcoming = summary.outstandingMinor - summary.overdueMinor;
     final tiles = [
       _AmountTile(
         icon: Icons.groups_outlined,
         color: context.brandTone(AppColors.accent),
-        value: Money.format(summary.payableMinor, currency: currency),
+        value: m(summary.payableMinor),
         label: 'Total billed',
         hint: 'after concessions',
       ),
       _AmountTile(
         icon: Icons.check_circle_outline,
         color: AppColors.success,
-        value: Money.format(summary.collectedMinor, currency: currency),
+        value: m(summary.collectedMinor),
         label: 'Total paid',
         hint: rate == null
             ? null
             : '${rate.toStringAsFixed(1)}% of collectable',
       ),
       _AmountTile(
+        icon: Icons.volunteer_activism_outlined,
+        color: context.brandTone(AppColors.secondary),
+        value: m(summary.waivedMinor),
+        label: 'Waived',
+        hint: 'written off, not collectable',
+      ),
+      _AmountTile(
         icon: Icons.hourglass_bottom,
         color: context.brandTone(AppColors.gold),
-        value: Money.format(summary.outstandingMinor, currency: currency),
+        value: m(summary.outstandingMinor),
         label: 'Balance due',
+        hint: 'billed − waived − paid',
       ),
       _AmountTile(
         icon: Icons.warning_amber_rounded,
         color: summary.overdueMinor > 0
             ? scheme.error
             : context.brandTone(AppColors.secondary),
-        value: Money.format(summary.overdueMinor, currency: currency),
+        value: m(summary.overdueMinor),
         label: 'Overdue',
-        hint: '${summary.overdueInvoiceCount} invoices',
+        hint: '${summary.overdueInvoiceCount} invoices past due',
+      ),
+      _AmountTile(
+        icon: Icons.event_outlined,
+        color: context.brandTone(AppColors.accent),
+        value: m(upcoming),
+        label: 'Not yet due',
+        hint: 'balance still within due date',
       ),
     ];
     return Column(
@@ -437,7 +454,7 @@ class _Totals extends StatelessWidget {
         ),
         LayoutBuilder(
           builder: (context, constraints) {
-            final columns = constraints.maxWidth >= 760 ? 4 : 2;
+            final columns = constraints.maxWidth >= 760 ? 3 : 2;
             return Column(
               children: [
                 for (var i = 0; i < tiles.length; i += columns) ...[
@@ -475,12 +492,7 @@ class _Totals extends StatelessWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.sm),
-        Text(
-          'Invoiced ${Money.format(summary.grossMinor, currency: currency)} − concessions ${Money.format(summary.discountMinor, currency: currency)} = '
-          '${Money.format(summary.payableMinor, currency: currency)}; waived ${Money.format(summary.waivedMinor, currency: currency)}. '
-          'Void invoices and reversed payments are excluded.',
-          style: text.bodySmall,
-        ),
+        _Reconciliation(summary: summary, currency: currency),
         if (!summary.isBalanced)
           Padding(
             padding: const EdgeInsets.only(top: AppSpacing.sm),
@@ -490,6 +502,68 @@ class _Totals extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// How the headline numbers add up, line by line, so nothing is "missing":
+/// invoiced − concessions = billed; billed − waived − paid = balance due.
+class _Reconciliation extends StatelessWidget {
+  final FeeSummary summary;
+  final String currency;
+
+  const _Reconciliation({required this.summary, required this.currency});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    String m(int v) => Money.format(v, currency: currency);
+    Widget row(String label, String value, {bool strong = false}) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: strong
+                  ? text.bodyMedium?.copyWith(fontWeight: FontWeight.w700)
+                  : text.bodyMedium,
+            ),
+          ),
+          Text(
+            value,
+            style: strong
+                ? text.bodyMedium?.copyWith(fontWeight: FontWeight.w700)
+                : text.bodyMedium,
+          ),
+        ],
+      ),
+    );
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('How the numbers add up', style: text.titleSmall),
+            const SizedBox(height: AppSpacing.xs),
+            row('Invoiced (before concessions)', m(summary.grossMinor)),
+            row('− Concessions given at billing', m(summary.discountMinor)),
+            const Divider(height: AppSpacing.md),
+            row('Total billed', m(summary.payableMinor), strong: true),
+            row('− Waived', m(summary.waivedMinor)),
+            row('− Paid', m(summary.collectedMinor)),
+            const Divider(height: AppSpacing.md),
+            row('Balance due', m(summary.outstandingMinor), strong: true),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Void invoices and reversed payments are excluded.',
+              style: text.bodySmall,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
