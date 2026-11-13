@@ -130,55 +130,32 @@ test('Storage: a suspended school\'s users lose file access too', async () => {
 
 // ---- dashboard numbers ---------------------------------------------------------------
 
-test('stats and usage: platform admins with a second factor read them; nobody else; nobody writes', async () => {
-  for (const uid of ['pfo-owner', 'pfo-viewer']) {
-    await assertSucceeds(getDoc(doc(mfa(uid), 'platformStats', 'current')));
-    await assertSucceeds(getDoc(doc(mfa(uid), 'schoolUsage', A)));
-    await assertFails(getDoc(doc(as(uid), 'platformStats', 'current')), `${uid} without a second factor`);
+test('stats, usage and notices have no client access at all (they are read through callables)', async () => {
+  const everyone = [['owner', mfa('pfo-owner')], ['viewer', mfa('pfo-viewer')], ['admin', as('pfo-admin')], ['branch', as('pfo-branch')], ['teacher', as('pfo-teacher')], ['anon', env.unauthenticatedContext().firestore()]];
+  for (const [who, d] of everyone) {
+    await assertFails(getDoc(doc(d, 'platformStats', 'current')), `${who} stats`);
+    await assertFails(getDoc(doc(d, 'schoolUsage', A)), `${who} usage`);
+    await assertFails(getDoc(doc(d, 'platformNotices', 'all')), `${who} notice`);
+    await assertFails(getDocs(query(collection(d, 'platformNotices'), where('audienceAll', '==', true))), `${who} notice list`);
+    await assertFails(getDocs(query(collection(d, 'platformNotices'), where('schoolIds', 'array-contains', A))), `${who} notice list for the school`);
   }
-  for (const uid of ['pfo-admin', 'pfo-teacher', 'pfo-admin-b']) {
-    await assertFails(getDoc(doc(as(uid), 'platformStats', 'current')), uid);
-    await assertFails(getDoc(doc(as(uid), 'schoolUsage', A)), uid);
-  }
-  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'platformStats', 'current')));
+});
+
+test('nobody writes stats, usage or notices from a client', async () => {
   for (const d of [mfa('pfo-owner'), as('pfo-admin')]) {
     await assertFails(setDoc(doc(d, 'platformStats', 'current'), { forged: 1 }));
     await assertFails(updateDoc(doc(d, 'platformStats', 'current'), { students: 9 }));
     await assertFails(setDoc(doc(d, 'schoolUsage', A), { students: 9 }));
-    await assertFails(deleteDoc(doc(d, 'platformStats', 'current')));
-  }
-});
-
-// ---- notices ---------------------------------------------------------------------------
-
-test('notices: a school\'s admins read the ones for everyone and for their school, never another school\'s', async () => {
-  for (const uid of ['pfo-admin', 'pfo-branch']) {
-    const d = as(uid);
-    await assertSucceeds(getDoc(doc(d, 'platformNotices', 'all')));
-    await assertSucceeds(getDoc(doc(d, 'platformNotices', 'a-only')));
-    await assertFails(getDoc(doc(d, 'platformNotices', 'b-only')), uid);
-    await assertSucceeds(getDocs(query(collection(d, 'platformNotices'), where('audienceAll', '==', true))));
-    await assertSucceeds(getDocs(query(collection(d, 'platformNotices'), where('schoolIds', 'array-contains', A))));
-    await assertFails(getDocs(collection(d, 'platformNotices')), 'an unfiltered list would expose other schools\' notices');
-  }
-});
-
-test('notices: teachers, parents, other schools\' admins, paused admins and signed-out users read nothing', async () => {
-  await assertFails(getDoc(doc(as('pfo-teacher'), 'platformNotices', 'all')));
-  await assertFails(getDoc(doc(as('pfo-admin-b'), 'platformNotices', 'a-only')));
-  await assertFails(getDoc(doc(as('pfo-paused-admin'), 'platformNotices', 'all')));
-  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'platformNotices', 'all')));
-});
-
-test('notices: platform admins read them all (second factor required); nobody writes from a client', async () => {
-  await assertSucceeds(getDoc(doc(mfa('pfo-viewer'), 'platformNotices', 'b-only')));
-  await assertFails(getDoc(doc(as('pfo-viewer'), 'platformNotices', 'b-only')));
-  for (const d of [mfa('pfo-owner'), as('pfo-admin')]) {
     await assertFails(setDoc(doc(d, 'platformNotices', 'forged'), { title: 'x', audienceAll: true, schoolIds: [], status: 'ACTIVE' }));
     await assertFails(updateDoc(doc(d, 'platformNotices', 'all'), { title: 'edited' }));
     await assertFails(deleteDoc(doc(d, 'platformNotices', 'all')));
   }
 });
+
+// ---- notices ---------------------------------------------------------------------------
+
+
+
 
 // ---- app settings, billing, offboarding ----------------------------------------------
 

@@ -26,6 +26,18 @@ class SupportGrant {
   bool isActiveAt(DateTime now) =>
       !revoked && expiresAt != null && now.isBefore(expiresAt!);
 
+  /// From the `listMySupportGrants` / `listSchoolSupportAccess` callables.
+  factory SupportGrant.fromCallable(Map<String, dynamic> m) => SupportGrant(
+    schoolId: (m['schoolId'] as String?) ?? '',
+    adminUid: (m['adminUid'] as String?) ?? '',
+    adminName: (m['adminName'] as String?) ?? '',
+    adminEmail: (m['adminEmail'] as String?) ?? '',
+    reason: (m['reason'] as String?) ?? '',
+    ticket: m['ticket'] as String?,
+    expiresAt: _ms(m['expiresAtMs']),
+    revoked: m['revoked'] == true,
+  );
+
   factory SupportGrant.fromMap(Map<String, dynamic> m) => SupportGrant(
     schoolId: (m['schoolId'] as String?) ?? '',
     adminUid: (m['adminUid'] as String?) ?? '',
@@ -60,6 +72,18 @@ class SupportAccessLogEntry {
     required this.revokedBy,
   });
 
+  factory SupportAccessLogEntry.fromCallable(Map<String, dynamic> m) =>
+      SupportAccessLogEntry(
+        event: (m['event'] as String?) ?? '',
+        adminName: (m['adminName'] as String?) ?? '',
+        adminEmail: (m['adminEmail'] as String?) ?? '',
+        reason: m['reason'] as String?,
+        ticket: m['ticket'] as String?,
+        expiresAt: _ms(m['expiresAtMs']),
+        at: _ms(m['atMs']),
+        revokedBy: m['revokedBy'] as String?,
+      );
+
   factory SupportAccessLogEntry.fromMap(Map<String, dynamic> m) =>
       SupportAccessLogEntry(
         event: (m['event'] as String?) ?? '',
@@ -83,3 +107,6 @@ DateTime? _date(Object? v) {
     return null;
   }
 }
+
+DateTime? _ms(Object? v) =>
+    v is num ? DateTime.fromMillisecondsSinceEpoch(v.toInt()) : null;

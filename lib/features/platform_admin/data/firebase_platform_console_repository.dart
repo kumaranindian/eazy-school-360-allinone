@@ -10,6 +10,7 @@ import '../domain/platform_school.dart';
 import '../domain/school_overview.dart';
 import '../domain/support_grant.dart';
 import 'firebase_platform_admin_repository.dart' show platformFailureFrom;
+import 'polling_stream.dart';
 
 /// [PlatformConsoleRepository] backed by Firestore (read paths the rules allow
 /// platform admins and school admins) and the platform callables.
@@ -101,58 +102,67 @@ class FirebasePlatformConsoleRepository implements PlatformConsoleRepository {
     });
   }
 
+  // Platform data has no client rules: it is read through callables that check
+  // the caller's role and second factor, and polled lightly.
   @override
-  Stream<List<SupportGrant>> watchMyGrants(String uid) => _db
-      .collection('supportGrants')
-      .where('adminUid', isEqualTo: uid)
-      .snapshots()
-      .map((s) => [for (final d in s.docs) SupportGrant.fromMap(d.data())]);
+  Stream<List<SupportGrant>> watchMyGrants(String uid) =>
+      pollingStream(() async {
+        final out = await _call('listMySupportGrants', const {});
+        return [
+          for (final g in (out['grants'] as List? ?? const []))
+            SupportGrant.fromCallable(Map<String, dynamic>.from(g as Map)),
+        ];
+      }, const Duration(seconds: 30));
+
+  Future<Map<String, dynamic>> _schoolAccess() =>
+      _call('listSchoolSupportAccess', const {});
 
   @override
-  Stream<List<SupportGrant>> watchSchoolGrants(String schoolId) => _db
-      .collection('supportGrants')
-      .where('schoolId', isEqualTo: schoolId)
-      .snapshots()
-      .map((s) => [for (final d in s.docs) SupportGrant.fromMap(d.data())]);
+  Stream<List<SupportGrant>> watchSchoolGrants(String schoolId) =>
+      pollingStream(() async {
+        final out = await _schoolAccess();
+        return [
+          for (final g in (out['grants'] as List? ?? const []))
+            SupportGrant.fromCallable(Map<String, dynamic>.from(g as Map)),
+        ];
+      }, const Duration(seconds: 60));
 
   @override
   Stream<List<SupportAccessLogEntry>> watchSupportAccessLog(String schoolId) =>
-      _db
-          .collection('schools')
-          .doc(schoolId)
-          .collection('supportAccessLog')
-          .orderBy('createdAt', descending: true)
-          .limit(100)
-          .snapshots()
-          .map(
-            (s) => [
-              for (final d in s.docs) SupportAccessLogEntry.fromMap(d.data()),
-            ],
-          );
+      pollingStream(() async {
+        final out = await _schoolAccess();
+        return [
+          for (final e in (out['log'] as List? ?? const []))
+            SupportAccessLogEntry.fromCallable(
+              Map<String, dynamic>.from(e as Map),
+            ),
+        ];
+      }, const Duration(seconds: 60));
 
   @override
-  Future<List<AuditEntry>> recentAudit() => _read(() async {
-    final snap = await _db
-        .collection('platformAuditLog')
-        .orderBy('createdAt', descending: true)
-        .limit(200)
-        .get();
+  Future<List<AuditEntry>> recentAudit() async {
+    final out = await _call('listAuditLog', const {});
+    DateTime? at(Object? ms) =>
+        ms is num ? DateTime.fromMillisecondsSinceEpoch(ms.toInt()) : null;
     return [
-      for (final d in snap.docs)
-        AuditEntry(
-          id: d.id,
-          action: (d.data()['action'] as String?) ?? '',
-          actorEmail: (d.data()['actorEmail'] as String?) ?? '',
-          actorRole: (d.data()['actorPlatformRole'] as String?) ?? '',
-          targetEmail: (d.data()['targetEmail'] as String?) ?? '',
-          schoolId: (d.data()['schoolId'] as String?) ?? '',
-          reason: (d.data()['reason'] as String?) ?? '',
-          result: (d.data()['result'] as String?) ?? '',
-          source: (d.data()['source'] as String?) ?? '',
-          at: _ts(d.data()['createdAt']),
-        ),
+      for (final e in (out['entries'] as List? ?? const []))
+        () {
+          final m = Map<String, dynamic>.from(e as Map);
+          return AuditEntry(
+            id: (m['id'] as String?) ?? '',
+            action: (m['action'] as String?) ?? '',
+            actorEmail: (m['actorEmail'] as String?) ?? '',
+            actorRole: (m['actorPlatformRole'] as String?) ?? '',
+            targetEmail: (m['targetEmail'] as String?) ?? '',
+            schoolId: (m['schoolId'] as String?) ?? '',
+            reason: (m['reason'] as String?) ?? '',
+            result: (m['result'] as String?) ?? '',
+            source: (m['source'] as String?) ?? '',
+            at: at(m['atMs']),
+          );
+        }(),
     ];
-  });
+  }
 
   @override
   Future<List<DeletionReviewItem>> deletionRequests({

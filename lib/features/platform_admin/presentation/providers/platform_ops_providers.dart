@@ -221,7 +221,11 @@ class PlatformOpsActions extends AsyncNotifier<void> {
   }
 
   /// Recomputes the dashboard numbers; null on failure, false when throttled.
-  Future<bool?> refreshStats() => _run(() => _repo.refreshStats());
+  Future<bool?> refreshStats() async {
+    final fresh = await _run(() => _repo.refreshStats());
+    if (fresh != null) ref.invalidate(platformStatsProvider);
+    return fresh;
+  }
 
   Future<bool> publishNotice({
     required String title,

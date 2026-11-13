@@ -546,6 +546,21 @@ exports.schoolStatusChanged = onDocumentUpdated({ document: 'schools/{schoolId}'
   if (!r.done) throw new Error('not finished; retry');
 });
 
+// Platform data is read only through these (the Firestore rules give clients no access).
+const platformReads = require('./platform_reads');
+const schoolCall = (name, fn) =>
+  onCall(callOptions(), async (request) => {
+    const a = signedIn(request);
+    const out = await fn(adminCtx(), a.uid, a.token, request.data);
+    if (out.error) fail(out);
+    return out;
+  });
+exports.listMySupportGrants = platformCall('listMySupportGrants', platformReads.listMySupportGrants);
+exports.getPlatformStats = platformCall('getPlatformStats', platformReads.getPlatformStats);
+exports.listAuditLog = platformCall('listAuditLog', platformReads.listAuditLog);
+exports.listSchoolSupportAccess = schoolCall('listSchoolSupportAccess', platformReads.listSchoolSupportAccess);
+exports.listMyNotices = schoolCall('listMyNotices', platformReads.listMyNotices);
+
 exports.requestSupportAccess = platformCall('requestSupportAccess', supportAccess.requestSupportAccess, (o) => ({ school: o.schoolId }));
 exports.revokeSupportAccess = platformCall('revokeSupportAccess', supportAccess.revokeSupportAccess);
 exports.getSchoolOverview = platformCall('getSchoolOverview', supportAccess.getSchoolOverview);

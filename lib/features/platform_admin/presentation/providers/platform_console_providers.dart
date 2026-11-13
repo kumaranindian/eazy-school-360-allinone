@@ -99,6 +99,7 @@ class PlatformConsoleActions extends AsyncNotifier<void> {
           ),
     );
     if (expires == null) return false;
+    ref.invalidate(myGrantsProvider);
     ref
         .read(supportSessionProvider.notifier)
         .start(
@@ -139,6 +140,7 @@ class PlatformConsoleActions extends AsyncNotifier<void> {
     // The person leaves the school either way: a failed revoke still ends the
     // session here, and the grant expires on its own.
     ref.read(supportSessionProvider.notifier).end();
+    ref.invalidate(myGrantsProvider);
     return ok ?? false;
   }
 
@@ -146,14 +148,19 @@ class PlatformConsoleActions extends AsyncNotifier<void> {
   Future<bool> revokeGrant({
     required String schoolId,
     required String adminUid,
-  }) async =>
-      await _run(() async {
-        await ref
-            .read(platformConsoleRepositoryProvider)
-            .revokeSupportAccess(schoolId: schoolId, adminUid: adminUid);
-        return true;
-      }) ??
-      false;
+  }) async {
+    final ok = await _run(() async {
+      await ref
+          .read(platformConsoleRepositoryProvider)
+          .revokeSupportAccess(schoolId: schoolId, adminUid: adminUid);
+      return true;
+    });
+    // Show the change at once instead of at the next poll.
+    ref.invalidate(schoolGrantsProvider(schoolId));
+    ref.invalidate(supportAccessLogProvider(schoolId));
+    ref.invalidate(myGrantsProvider);
+    return ok ?? false;
+  }
 
   Future<bool> decideDeletion({
     required String reference,

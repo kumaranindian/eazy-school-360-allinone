@@ -60,7 +60,6 @@ test('without a second factor a platform admin can read only their own profile',
     await assertSucceeds(getDoc(doc(d, 'users', uid)));
     await assertFails(getDoc(doc(d, 'users', 'pfa-teacher')));
     await assertFails(getDoc(doc(d, 'schools', A)));
-    await assertFails(getDoc(doc(d, 'platformAuditLog', 'e1')));
   }
 });
 
@@ -73,15 +72,17 @@ test('with a second factor a platform admin reads their own profile and school m
   }
 });
 
-test('the audit log is read by owners and compliance (and legacy owners) with a second factor only', async () => {
-  for (const uid of ['pfa-owner', 'pfa-compliance', 'pfa-legacy']) {
-    await assertSucceeds(getDoc(doc(mfa(uid), 'platformAuditLog', 'e1')));
-    await assertFails(getDoc(doc(as(uid), 'platformAuditLog', 'e1')));
+test('platform data has no client access at all: audit log, grants, access log, for everyone', async () => {
+  await grant('pfa-support', A);
+  await env.withSecurityRulesDisabled(async (c) => setDoc(doc(c.firestore(), 'schools', A, 'supportAccessLog', 'e1'), { event: 'GRANTED', schoolId: A, createdAt: serverTimestamp() }));
+  const everyone = [...PLATFORM.map((u) => [u, mfa(u)]), ['pfa-admin', as('pfa-admin')], ['pfa-teacher', as('pfa-teacher')], ['anon', env.unauthenticatedContext().firestore()]];
+  for (const [who, d] of everyone) {
+    await assertFails(getDoc(doc(d, 'platformAuditLog', 'e1')), `${who} audit`);
+    await assertFails(getDocs(collection(d, 'platformAuditLog')), `${who} audit list`);
+    await assertFails(getDoc(doc(d, 'supportGrants', `pfa-support__${A}`)), `${who} grant`);
+    await assertFails(getDocs(query(collection(d, 'supportGrants'), where('schoolId', '==', A))), `${who} grants list`);
+    await assertFails(getDoc(doc(d, 'schools', A, 'supportAccessLog', 'e1')), `${who} log`);
   }
-  for (const uid of ['pfa-support', 'pfa-viewer', 'pfa-admin', 'pfa-teacher']) {
-    await assertFails(getDoc(doc(mfa(uid), 'platformAuditLog', 'e1')));
-  }
-  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'platformAuditLog', 'e1')));
 });
 
 test('nobody writes the audit log from a client, not even an owner with a second factor', async () => {
@@ -228,17 +229,6 @@ test('a disabled platform admin with a grant opens nothing', async () => {
   await assertFails(getDoc(student(mfa('pfa-support'), A)));
 });
 
-test('grants are readable by their holder and by the school admin of that school only', async () => {
-  await grant('pfa-support', A);
-  await assertSucceeds(getDoc(doc(mfa('pfa-support'), 'supportGrants', `pfa-support__${A}`)));
-  await assertSucceeds(getDocs(query(collection(mfa('pfa-support'), 'supportGrants'), where('adminUid', '==', 'pfa-support'))));
-  await assertSucceeds(getDoc(doc(as('pfa-admin'), 'supportGrants', `pfa-support__${A}`)));
-  await assertSucceeds(getDocs(query(collection(as('pfa-admin'), 'supportGrants'), where('schoolId', '==', A))));
-  for (const [who, d] of [['another platform admin', mfa('pfa-owner')], ['another school admin', as('pfa-admin-b')], ['a teacher', as('pfa-teacher')]]) {
-    await assertFails(getDoc(doc(d, 'supportGrants', `pfa-support__${A}`)), who);
-  }
-  await assertFails(getDoc(doc(as('pfa-support'), 'supportGrants', `pfa-support__${A}`)), 'holder without a second factor');
-});
 
 test('nobody writes a grant or the school-visible log from a client, not even the holder or an owner', async () => {
   await grant('pfa-support', A);
@@ -251,14 +241,6 @@ test('nobody writes a grant or the school-visible log from a client, not even th
   }
 });
 
-test('the support access log is read by the school admin of that school only', async () => {
-  await env.withSecurityRulesDisabled(async (c) => setDoc(doc(c.firestore(), 'schools', A, 'supportAccessLog', 'e1'), { event: 'GRANTED', schoolId: A, createdAt: serverTimestamp() }));
-  await assertSucceeds(getDoc(doc(as('pfa-admin'), 'schools', A, 'supportAccessLog', 'e1')));
-  await assertFails(getDoc(doc(as('pfa-admin-b'), 'schools', A, 'supportAccessLog', 'e1')));
-  await assertFails(getDoc(doc(as('pfa-teacher'), 'schools', A, 'supportAccessLog', 'e1')));
-  await grant('pfa-support', A);
-  await assertFails(getDoc(doc(mfa('pfa-support'), 'schools', A, 'supportAccessLog', 'e1')), 'a platform admin reads it through the callable/audit log, not here');
-});
 
 test('a platform admin with a school on their profile still needs the second factor in Storage, and never writes there', async () => {
   const path = `schools/${A}/logo.png`;

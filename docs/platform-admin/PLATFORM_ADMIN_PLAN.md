@@ -244,3 +244,11 @@ email or push notification to school admins when support looks in (the school se
 ### Still not built
 Usage cost metering (messages/OTP/WhatsApp by school), push or email for notices, automated offboarding export/purge, plan limits,
 write-scope support grants, an online billing gateway. Phase 5 (hardening and launch) remains.
+
+### Rules size (2026-11-13)
+The compiled Firestore rules are close to the 256,000-byte release limit (a release is refused above it; the message appears only with
+`firebase deploy --debug`). To make room, platform data now has **no client rules**: support grants and their log, the audit log, the
+dashboard numbers, usage and notices are read through callables (`platform_reads.js`: `listMySupportGrants`, `listSchoolSupportAccess`,
+`getPlatformStats`, `listAuditLog`, `listMyNotices`) that check the caller's role and second factor, and the app polls them lightly
+(grants 30-60 s, dashboard and notices every 5 minutes). Only `platformSettings/app` (public) remains as a client-readable platform
+collection. The rules still read `supportGrants` internally for `supportRead()`. Measure with a real release (dev) after any rules change.

@@ -8,6 +8,7 @@ import '../../../core/errors/error_mapper.dart';
 import '../domain/platform_ops_models.dart';
 import '../domain/platform_ops_repository.dart';
 import 'firebase_platform_admin_repository.dart' show platformFailureFrom;
+import 'polling_stream.dart';
 
 /// [PlatformOpsRepository] backed by the platform callables and the Firestore
 /// documents the rules open to platform admins, school admins and the public.
@@ -163,11 +164,13 @@ class FirebasePlatformOpsRepository implements PlatformOpsRepository {
   }
 
   @override
-  Stream<PlatformStats?> watchStats() => _db
-      .collection('platformStats')
-      .doc('current')
-      .snapshots()
-      .map((s) => s.exists ? PlatformStats.fromMap(s.data()!) : null);
+  Stream<PlatformStats?> watchStats() => pollingStream(() async {
+    final out = await _call('getPlatformStats', const {});
+    final stats = out['stats'];
+    return stats is Map
+        ? PlatformStats.fromMap(Map<String, dynamic>.from(stats))
+        : null;
+  }, const Duration(minutes: 5));
 
   @override
   Future<bool> refreshStats() async {
@@ -212,38 +215,28 @@ class FirebasePlatformOpsRepository implements PlatformOpsRepository {
 
   DateTime? _ts(Object? v) => v is Timestamp ? v.toDate() : null;
 
-  SchoolNotice _notice(QueryDocumentSnapshot<Map<String, dynamic>> d) {
-    final m = d.data();
-    return SchoolNotice(
-      id: d.id,
-      title: (m['title'] as String?) ?? '',
-      body: (m['body'] as String?) ?? '',
-      severity: NoticeSeverity.parse(m['severity']),
-      startsAt: _ts(m['startsAt']),
-      endsAt: _ts(m['endsAt']),
-      withdrawn: m['status'] == 'WITHDRAWN',
-    );
-  }
-
   @override
-  Stream<List<SchoolNotice>> watchSchoolNotices(String schoolId) {
-    // Two constrained queries (the rules need each to be provable): notices for
-    // everyone, and notices naming this school. Merged and de-duplicated.
-    final all = _db
-        .collection('platformNotices')
-        .where('audienceAll', isEqualTo: true)
-        .snapshots();
-    final mine = _db
-        .collection('platformNotices')
-        .where('schoolIds', arrayContains: schoolId)
-        .snapshots();
-    return combineLatest2(all, mine, (a, b) {
-      final byId = <String, SchoolNotice>{
-        for (final d in [...a.docs, ...b.docs]) d.id: _notice(d),
-      };
-      return byId.values.toList();
-    });
-  }
+  Stream<List<SchoolNotice>> watchSchoolNotices(String schoolId) =>
+      pollingStream(() async {
+        final out = await _call('listMyNotices', const {});
+        DateTime? at(Object? ms) =>
+            ms is num ? DateTime.fromMillisecondsSinceEpoch(ms.toInt()) : null;
+        return [
+          for (final n in (out['notices'] as List? ?? const []))
+            () {
+              final m = Map<String, dynamic>.from(n as Map);
+              return SchoolNotice(
+                id: m['id'] as String,
+                title: (m['title'] as String?) ?? '',
+                body: (m['body'] as String?) ?? '',
+                severity: NoticeSeverity.parse(m['severity']),
+                startsAt: at(m['startsAtMs']),
+                endsAt: at(m['endsAtMs']),
+                withdrawn: m['withdrawn'] == true,
+              );
+            }(),
+        ];
+      }, const Duration(minutes: 5));
 
   @override
   Stream<AppRequirements> watchAppRequirements() =>
