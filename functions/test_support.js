@@ -192,6 +192,7 @@ function fakeAuth(existing = {}) {
     },
     revokeRefreshTokens: async (uid) => void revoked.push(uid),
     createCustomToken: async (uid, claims) => `token:${uid}:${claims.via}`,
+    generatePasswordResetLink: async (email) => `https://reset.example/${email}`,
   };
 }
 

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/constants/firestore_fields.dart';
 import '../../../core/permissions/user_role.dart';
 import '../../authentication/domain/login_method.dart';
+import '../../platform_admin/domain/platform_role.dart';
 import 'user_status.dart';
 
 /// The `/users/{uid}` document. `schoolId`/`branchId` are nullable because
@@ -69,6 +70,11 @@ class UserProfile {
   final UserRole role;
   final UserStatus status;
 
+  /// Only for [UserRole.platformAdmin]: what this Avail404 administrator may do
+  /// (server-written). A legacy profile without the field is an [owner]; an
+  /// unknown value is null and grants nothing.
+  final PlatformRole? platformRole;
+
   /// For [UserRole.parent] only: the linked `/schools/{s}/branches/{b}/
   /// parents/{parentId}` record's id, set once portal access is granted —
   /// see `docs/milestone-3-student-parent-management.md` → "Parent portal
@@ -104,6 +110,7 @@ class UserProfile {
     this.photoUrl,
     required this.role,
     required this.status,
+    this.platformRole,
     this.linkedParentId,
     this.login,
     this.branchRoles = const {},
@@ -160,6 +167,7 @@ class UserProfile {
       photoUrl: photoUrl,
       role: next,
       status: status,
+      platformRole: platformRole,
       linkedParentId: linkedParentId,
       login: login,
       branchRoles: branchRoles,
@@ -175,6 +183,12 @@ class UserProfile {
   bool get isActive => status == UserStatus.active;
 
   factory UserProfile.fromFirestore(String userId, Map<String, dynamic> data) {
+    final role = _parse(
+      data[FirestoreFields.role],
+      FirestoreFields.role,
+      UserRole.fromWireValue,
+    );
+    final rawPlatformRole = data['platformRole'];
     return UserProfile(
       userId: userId,
       schoolId: data[FirestoreFields.schoolId] as String?,
@@ -183,11 +197,12 @@ class UserProfile {
       email: data['email'] as String? ?? '',
       phone: data['phone'] as String?,
       photoUrl: data['photoUrl'] as String?,
-      role: _parse(
-        data[FirestoreFields.role],
-        FirestoreFields.role,
-        UserRole.fromWireValue,
-      ),
+      role: role,
+      platformRole: role != UserRole.platformAdmin
+          ? null
+          : (rawPlatformRole == null
+                ? PlatformRole.owner
+                : PlatformRole.tryParse(rawPlatformRole)),
       status: _parse(
         data[FirestoreFields.status],
         FirestoreFields.status,

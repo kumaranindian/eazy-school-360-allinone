@@ -17,7 +17,9 @@ const seed = (extra = {}) => ({
   ...extra,
 });
 const ctx = (db) => ({ db, now });
-const save = (db, uid, data) => b.updateSchoolBranding(ctx(db), uid, undefined, data);
+// Platform admins always sign in with a second factor.
+const tokenFor = (uid) => (uid === 'plat' ? { firebase: { sign_in_provider: 'password', sign_in_second_factor: 'totp' } } : undefined);
+const save = (db, uid, data) => b.updateSchoolBranding(ctx(db), uid, tokenFor(uid), data);
 const doc = (db, s = 'sA') => db.store.get(`schools/${s}/branding/config`);
 
 test('every built-in preset passes the readability rules', () => {
@@ -85,6 +87,13 @@ test('a suspended or login-blocked admin is refused', async () => {
   assert.strictEqual((await save(db, 'adminA', { schoolId: 'sA', branding: {} })).error, 'PERMISSION_DENIED');
 });
 
+test('a platform admin without a second factor is refused', async () => {
+  const db = fakeDb(seed());
+  const noMfa = { firebase: { sign_in_provider: 'password' } };
+  assert.strictEqual((await b.updateSchoolBranding(ctx(db), 'plat', noMfa, { schoolId: 'sA', branding: { preset: 'plum' } })).error, 'PERMISSION_DENIED');
+  assert.strictEqual((await b.updatePlatformBranding(ctx(db), 'plat', noMfa, { branding: { defaultPreset: 'indigo' } })).error, 'PERMISSION_DENIED');
+});
+
 test('an unknown school is not found', async () => {
   const db = fakeDb(seed());
   assert.strictEqual((await save(db, 'plat', { schoolId: 'ghost', branding: {} })).error, 'NOT_FOUND');
@@ -122,7 +131,7 @@ test('schools are independent', async () => {
 // ---- platform defaults ------------------------------------------------------
 
 const custom = { teal2: { label: 'Teal', colors: { primary: '#0F6B6B', secondary: '#4F6F6F', accent: '#C98A1B', surface: '#FFFFFF', background: '#F4F8F8', text: '#142222', selectedNav: '#0F6B6B' } } };
-const plat = (db, uid, branding) => b.updatePlatformBranding(ctx(db), uid, undefined, { branding });
+const plat = (db, uid, branding) => b.updatePlatformBranding(ctx(db), uid, tokenFor(uid), { branding });
 
 test('only a platform admin sets the default and custom presets', async () => {
   const db = fakeDb(seed());

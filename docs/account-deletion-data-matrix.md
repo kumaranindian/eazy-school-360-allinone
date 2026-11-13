@@ -71,6 +71,7 @@ A user belongs to **one school** (`/users/{uid}.schoolId`); several branches pos
 | D11 | Admission conversions | `schools/*/branches/*/admissionConversions` (`convertedBy` uid; links to the created student and parents, fee carry-over summary) | `convertedBy` replaced with the same token; the record is kept (it documents how a student was admitted; students are never deleted) | PENDING |
 | D12 | Public enquiry page bookkeeping | `admissionPortalSlugs/*` (page address → school/branch; no personal data), `schools/*/publicLimits/*` (rate-limit counters keyed by a salted hash of an address or mobile; expire via `expireAt`). Public enquiries themselves are ordinary `admissionEnquiries` (D8) carrying `consent.ipHash` | no uid fields; counters expire on a TTL policy on `publicLimits.expireAt` (to be enabled at deploy); the enquiry's `ipHash` is a salted hash | PENDING |
 | D4 | School theme | `schools/*/branding` (`updatedBy` uid; no personal data); `platformBranding` is platform-wide and exempt | same token replacement of `updatedBy` | PENDING |
+| D4a | Platform audit log | `platformAuditLog` (actor/target are platform admins; reasons and metadata hold no school or student personal data) | exempt: platform admins cannot be deleted by self-service; retained for security audit | N/A |
 
 ### E. Outside our database
 

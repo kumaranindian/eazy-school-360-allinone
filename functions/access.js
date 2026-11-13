@@ -70,11 +70,27 @@ function signInMethod(token) {
   return 'OTHER';
 }
 
-function loginAllowed(profile, token) {
+// True when the sign-in used a second factor (Firebase sets
+// `firebase.sign_in_second_factor` on the ID token only for MFA sign-ins).
+function hasSecondFactor(token) {
+  return !!(token && token.firebase && token.firebase.sign_in_second_factor);
+}
+
+// The profile's own sign-in policy (status + permitted methods), without the
+// second-factor requirement.
+function methodAllowed(profile, token) {
   if (!profile || profile.status !== 'ACTIVE') return false;
   const l = profile.login;
   if (l == null) return true;
   return l.enabled === true && Array.isArray(l.effective) && l.effective.includes(signInMethod(token));
+}
+
+// Platform admins must ALWAYS have signed in with a second factor
+// (mirrors activeAndAllowed() in firestore.rules and loginAllowed() in
+// storage.rules).
+function loginAllowed(profile, token) {
+  if (!methodAllowed(profile, token)) return false;
+  return profile.role !== 'PLATFORM_ADMIN' || hasSecondFactor(token);
 }
 
 async function schoolMethods(db, schoolId) {
@@ -528,6 +544,8 @@ module.exports = {
   normalizeEmail,
   signInMethod,
   loginAllowed,
+  methodAllowed,
+  hasSecondFactor,
   schoolMethods,
   assertAdmin,
   intersect,

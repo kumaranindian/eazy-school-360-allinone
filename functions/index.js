@@ -273,6 +273,8 @@ const STATUS = {
   DELIVERY_FAILED: 'unavailable',
   OTP_UNAVAILABLE: 'failed-precondition',
   VERIFICATION_FAILED: 'permission-denied',
+  MFA_REQUIRED: 'permission-denied',
+  FAILED_PRECONDITION: 'failed-precondition',
 };
 // Turns a core { error, ... } into an HttpsError whose details.reason the app
 // maps to a message. No identifiers or secrets are included.
@@ -471,6 +473,23 @@ exports.updatePlatformBranding = onCall(callOptions(), async (request) => {
   logger.info('updatePlatformBranding', { by: a.uid, version: out.result.version });
   return out.result;
 });
+
+// ---- Platform administrators (Avail404) ------------------------------------
+// Owner-only, second factor required, every change audited. The new person's
+// password is never known to anyone: the app sends them a reset email.
+const platformAdmin = require('./platform_admin');
+const platformCall = (name, fn, logOf) =>
+  onCall(callOptions(), async (request) => {
+    const a = signedIn(request);
+    const out = await fn(adminCtx(), a.uid, a.token, request.data, process.env);
+    if (out.error) fail(out);
+    logger.info(name, { by: a.uid, ...(logOf ? logOf(out) : {}) });
+    return out;
+  });
+exports.createPlatformAdmin = platformCall('createPlatformAdmin', platformAdmin.createPlatformAdmin, (o) => ({ target: o.uid, platformRole: o.platformRole }));
+exports.listPlatformAdmins = platformCall('listPlatformAdmins', platformAdmin.listPlatformAdmins);
+exports.setPlatformRole = platformCall('setPlatformRole', platformAdmin.setPlatformRole, (o) => ({ platformRole: o.platformRole }));
+exports.setPlatformAdminStatus = platformCall('setPlatformAdminStatus', platformAdmin.setPlatformAdminStatus, (o) => ({ status: o.status }));
 
 exports.getSchoolAuthSettings = onCall(callOptions({ secrets: [META_WA_ACCESS_TOKEN, OTP_PEPPER] }), async (request) => {
   const a = signedIn(request);
@@ -784,6 +803,8 @@ exports.confirmAccountDeletionRequest = onCall(callOptions(), async (request) =>
 // Avail404 only (an ACTIVE PLATFORM_ADMIN profile, checked on the server).
 exports.reviewAccountDeletion = onCall(callOptions(), async (request) => {
   const a = signedIn(request);
+  // Platform admins must have signed in with a second factor.
+  if (!access.hasSecondFactor(a.token)) throw new HttpsError('permission-denied', 'Not allowed.');
   const out = await accountDeletion.review(deletionCtx(), a.uid, request.data);
   if (out.error) fail(out);
   deletionLog('account deletion reviewed', out);
@@ -833,7 +854,7 @@ exports.processAccountDeletion = onCall(
   callOptions({ secrets: [OTP_PEPPER], timeoutSeconds: 540, memory: '512MiB' }),
   async (request) => {
     const a = signedIn(request);
-    if (!(await accountDeletion.platformReviewer(deletionCtx(), a.uid))) {
+    if (!access.hasSecondFactor(a.token) || !(await accountDeletion.platformReviewer(deletionCtx(), a.uid))) {
       throw new HttpsError('permission-denied', 'Not allowed.');
     }
     const reference = request.data && request.data.reference;

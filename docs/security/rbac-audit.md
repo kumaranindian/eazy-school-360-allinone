@@ -173,3 +173,9 @@ Not executed (needs credentials / external systems): live-rules diff, live data 
 3. H1, M8, M9 are design changes awaiting a decision (see §6).
 4. Meta/WhatsApp setup for phone sign-in is a separate manual task (`docs/authentication-access-management.md`).
 5. Not testable here: Firebase Storage (bucket not enabled on dev/prod), real FCM delivery, App Check.
+
+## Update 2026-11-13 (platform admin, Phase 0-1)
+H1 is **partly** reduced, not closed: a platform admin now needs a second factor on every rule and callable, and the
+client-writable `/users` platform-admin clause (which let any platform admin write any profile, including roles) was
+removed. The blanket school-data access (`isSchoolAdminOrAbove`) is unchanged until Phase 2 (support-access grants).
+See `docs/platform-admin/PLATFORM_ADMIN_PLAN.md`.

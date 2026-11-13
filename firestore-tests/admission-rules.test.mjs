@@ -22,7 +22,8 @@ after(async () => env.cleanup());
 const A = 'adm-a';
 const B = 'adm-b';
 const base = { createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: 'seed', updatedBy: 'seed' };
-const as = (uid) => env.authenticatedContext(uid, { firebase: { sign_in_provider: 'password' } }).firestore();
+// Platform admins always sign in with a second factor (rules require it).
+const as = (uid) => env.authenticatedContext(uid, { firebase: { sign_in_provider: 'password', ...(uid.includes('platform') ? { sign_in_second_factor: 'totp' } : {}) } }).firestore();
 const enq = (d, s = A, b = 'north', id = 'e1') => doc(d, 'schools', s, 'branches', b, 'admissionEnquiries', id);
 const hist = (d, s = A, b = 'north', id = 'e1__1') => doc(d, 'schools', s, 'branches', b, 'admissionStatusHistory', id);
 const act = (d, s = A, b = 'north', id = 'a1') => doc(d, 'schools', s, 'branches', b, 'admissionActivities', id);

@@ -7,7 +7,9 @@ import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/validators/validators.dart';
+import '../../domain/mfa.dart';
 import '../providers/auth_providers.dart';
+import 'mfa_code_dialog.dart';
 import 'phone_otp_form.dart';
 
 class LoginForm extends ConsumerStatefulWidget {
@@ -43,6 +45,13 @@ class _LoginFormState extends ConsumerState<LoginForm> {
 
     final state = ref.read(signInControllerProvider);
     if (!mounted) return;
+    final error = state.error;
+    if (error is MfaRequiredException) {
+      // A correct password on an account with two-step verification: ask for
+      // the code instead of showing an error.
+      await MfaCodeDialog.show(context, error.pending);
+      return;
+    }
     if (state.hasError) {
       context.showSnackBar(userMessageFor(state.error!), isError: true);
     }

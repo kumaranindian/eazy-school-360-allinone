@@ -200,7 +200,11 @@ service cloud.firestore {
       let l = p.get('login', null);
       let t = request.auth.token;
       let g = t.firebase.sign_in_provider;
-      return p.status == 'ACTIVE' && (l == null || (l.enabled == true
+      return p.status == 'ACTIVE'
+        // Platform admins must have signed in with a second factor (Firebase
+        // sets sign_in_second_factor on the token only for MFA sign-ins).
+        && (p.role != 'PLATFORM_ADMIN' || t.firebase.get('sign_in_second_factor', null) != null)
+        && (l == null || (l.enabled == true
         && (g == 'password' ? 'PASSWORD' in l.effective
           // A Google sign-in is only accepted for the Google account whose
           // verified email is the one registered on the profile.
@@ -1747,8 +1751,10 @@ service cloud.firestore {
           && nd().role in branchAdminManagedRoles()
           && nd().status in ['ACTIVE', 'INVITED', 'DISABLED']
           && changedOnly(['role', 'status', 'name', 'phone', 'photoUrl', 'linkedParentId', 'updatedAt', 'updatedBy']))
-        ||
-        isPlatformAdmin()
+        // No blanket platform-admin clause: a platform admin (counted as a
+        // school admin above) never writes role, platformRole or login from a
+        // client. Platform administrators are managed only by the owner-only
+        // callables (createPlatformAdmin, setPlatformRole, ...).
       );
 
       // No hard deletes — deactivate via status instead.
@@ -4159,6 +4165,14 @@ service cloud.firestore {
     // updatePlatformBranding callable writes.
     match /platformBranding/{docId} {
       allow read: if isSignedIn();
+    }
+
+    // Platform actions (admin created, role changed, ...): create-only audit
+    // trail written by Cloud Functions. Readable by platform owners and
+    // compliance reviewers (second factor required); never writable by clients.
+    match /platformAuditLog/{eventId} {
+      allow read: if isPlatformAdmin()
+        && callerProfile().get('platformRole', 'OWNER') in ['OWNER', 'COMPLIANCE'];
     }
 
     // Default-deny everything else.

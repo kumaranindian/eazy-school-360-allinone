@@ -34,7 +34,10 @@ service firebase.storage {
 
     function loginAllowed() {
       let l = callerProfile().get('login', null);
-      return l == null || (
+      // Platform admins must have signed in with a second factor.
+      return (callerProfile().role != 'PLATFORM_ADMIN'
+          || request.auth.token.firebase.get('sign_in_second_factor', null) != null)
+        && (l == null || (
         l.enabled == true
         && signInMethod() in l.effective
         // A Google sign-in is only accepted for the Google account whose
@@ -42,7 +45,7 @@ service firebase.storage {
         && (signInMethod() != 'GOOGLE'
           || (request.auth.token.get('email_verified', false) == true
             && request.auth.token.get('email', '').lower() == callerProfile().get('email', '')))
-      );
+      ));
     }
 
     // Per-branch roles (multi-branch staff): mirrors firestore.rules'

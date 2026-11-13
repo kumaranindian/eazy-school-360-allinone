@@ -22,6 +22,14 @@ abstract final class AppRoutes {
 
   /// Asks Avail404 to delete the signed-in person's own account.
   static const String deleteAccount = '/delete-account';
+
+  /// Avail404 platform administrators: no school, outside the school shell.
+  static const String platformHome = '/platform';
+  static const String platformAdmins = '/platform/admins';
+  static const String platformBranding = '/platform/branding';
+
+  /// Two-step verification setup / sign-in-again for platform admins.
+  static const String platformMfa = '/platform/mfa';
   static const String dashboard = '/dashboard';
 
   /// The phone's "More" tab: every module, grouped (a sub-page of the
@@ -216,6 +224,9 @@ abstract final class AppRoutes {
     settingsFeeReminders: Permission.manageSchool,
     settingsBranding: Permission.manageSchool,
     settingsPlatformBranding: Permission.managePlatform,
+    platformHome: Permission.managePlatform,
+    platformAdmins: Permission.managePlatform,
+    platformBranding: Permission.managePlatform,
     students: Permission.viewStudentData,
     newStudent: Permission.manageStudentData,
     studentProfile: Permission.viewStudentData,

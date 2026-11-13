@@ -10,9 +10,15 @@ import '../domain/app_user.dart';
 import '../domain/auth_repository.dart';
 import '../domain/google_sign_in_cancelled.dart';
 import '../domain/login_method.dart';
+import '../domain/mfa.dart';
 import '../domain/phone_otp.dart';
 import '../domain/access_messages.dart';
 import '../../../core/errors/app_failure.dart';
+
+class _FirebaseMfaPending extends MfaPending {
+  final fb.MultiFactorResolver resolver;
+  const _FirebaseMfaPending(this.resolver);
+}
 
 AppUser _toAppUser(fb.User user) =>
     AppUser(uid: user.uid, email: user.email, displayName: user.displayName);
@@ -70,6 +76,11 @@ class FirebaseAuthRepository implements AuthRepository {
       AppLogger.trace('password sign-in OK uid=${user.uid}', tag: 'Auth');
       return _toAppUser(user);
     } catch (error, stackTrace) {
+      // Not a failure: the account has a second factor, the screen asks for it.
+      if (error is fb.FirebaseAuthMultiFactorException) {
+        AppLogger.debug('Sign-in: second factor required', tag: 'Auth');
+        throw MfaRequiredException(_FirebaseMfaPending(error.resolver));
+      }
       if (error is fb.FirebaseAuthException) {
         AppLogger.trace(
           'password sign-in FAILED code=${error.code} '
@@ -83,6 +94,95 @@ class FirebaseAuthRepository implements AuthRepository {
           tag: 'Auth',
         );
       }
+      throw mapExceptionToFailure(error, stackTrace);
+    }
+  }
+
+  @override
+  Future<AppUser> completeMfaSignIn(MfaPending pending, String code) async {
+    try {
+      final resolver = (pending as _FirebaseMfaPending).resolver;
+      // The authenticator-app factor (never the SMS one).
+      final hint = resolver.hints.firstWhere(
+        (h) => h is! fb.PhoneMultiFactorInfo,
+        orElse: () => resolver.hints.first,
+      );
+      final assertion = await fb.TotpMultiFactorGenerator.getAssertionForSignIn(
+        hint.uid,
+        code.replaceAll(' ', ''),
+      );
+      final credential = await resolver.resolveSignIn(assertion);
+      final user = credential.user;
+      if (user == null) {
+        throw fb.FirebaseAuthException(code: 'user-not-found');
+      }
+      AppLogger.debug(
+        'Sign-in OK (second factor) uid=${user.uid}',
+        tag: 'Auth',
+      );
+      return _toAppUser(user);
+    } catch (error, stackTrace) {
+      throw mapExceptionToFailure(error, stackTrace);
+    }
+  }
+
+  @override
+  Future<SessionSecurity> sessionSecurity() async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) return SessionSecurity.none;
+    final token = await user.getIdTokenResult();
+    final firebase = token.claims?['firebase'];
+    final second = firebase is Map && firebase['sign_in_second_factor'] != null;
+    final factors = await user.multiFactor.getEnrolledFactors();
+    return SessionSecurity(
+      secondFactorSignedIn: second,
+      enrolledFactors: factors.length,
+    );
+  }
+
+  @override
+  Future<TotpEnrollment> startTotpEnrollment() async {
+    try {
+      final user = _firebaseAuth.currentUser;
+      if (user == null) {
+        throw fb.FirebaseAuthException(code: 'user-not-found');
+      }
+      final session = await user.multiFactor.getSession();
+      final secret = await fb.TotpMultiFactorGenerator.generateSecret(session);
+      final url = await secret.generateQrCodeUrl(
+        accountName: user.email,
+        issuer: 'EazySchool 360',
+      );
+      return TotpEnrollment(
+        secretKey: secret.secretKey,
+        otpAuthUrl: url,
+        handle: secret,
+      );
+    } catch (error, stackTrace) {
+      throw mapExceptionToFailure(error, stackTrace);
+    }
+  }
+
+  @override
+  Future<void> finishTotpEnrollment(
+    TotpEnrollment enrollment,
+    String code,
+  ) async {
+    try {
+      final user = _firebaseAuth.currentUser;
+      if (user == null) {
+        throw fb.FirebaseAuthException(code: 'user-not-found');
+      }
+      final assertion =
+          await fb.TotpMultiFactorGenerator.getAssertionForEnrollment(
+            enrollment.handle as fb.TotpSecret,
+            code.replaceAll(' ', ''),
+          );
+      await user.multiFactor.enroll(
+        assertion,
+        displayName: 'Authenticator app',
+      );
+    } catch (error, stackTrace) {
       throw mapExceptionToFailure(error, stackTrace);
     }
   }
