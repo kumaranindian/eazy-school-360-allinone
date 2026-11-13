@@ -80,6 +80,8 @@ function hasSecondFactor(token) {
 // second-factor requirement.
 function methodAllowed(profile, token) {
   if (!profile || profile.status !== 'ACTIVE') return false;
+  // The school is suspended by the platform (mirrored onto every profile).
+  if (profile.schoolAccess === 'SUSPENDED') return false;
   const l = profile.login;
   if (l == null) return true;
   return l.enabled === true && Array.isArray(l.effective) && l.effective.includes(signInMethod(token));

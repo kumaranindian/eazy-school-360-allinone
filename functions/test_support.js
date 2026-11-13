@@ -67,7 +67,8 @@ function fakeDb(seed = {}) {
     update: async (d) => {
       if (!store.has(path)) throw new Error(`no doc ${path}`);
       const cur = structuredClone(store.get(path));
-      for (const [k, v] of Object.entries(d)) setPath(cur, k, v);
+      // DELETE_FIELD stands for FieldValue.delete().
+      for (const [k, v] of Object.entries(d)) (v === DELETE_FIELD ? delete cur[k] : setPath(cur, k, v));
       store.set(path, cur);
     },
     collection: (c) => coll(`${path}/${c}`),
@@ -97,6 +98,13 @@ function fakeDb(seed = {}) {
         rows = rows.slice(0, lim);
         return { docs: rows.map(snap) };
       },
+      count: () => ({
+        get: async () => ({
+          data: () => ({
+            count: [...store.keys()].filter((k) => k.startsWith(`${path}/`) && k.split('/').length === path.split('/').length + 1 && conds.every((c) => matches(store.get(k), c))).length,
+          }),
+        }),
+      }),
     };
     return q;
   };
@@ -192,8 +200,16 @@ function fakeAuth(existing = {}) {
     },
     revokeRefreshTokens: async (uid) => void revoked.push(uid),
     createCustomToken: async (uid, claims) => `token:${uid}:${claims.via}`,
+    listUsers: async (max, pageToken) => {
+      const all = Object.values(users);
+      const from = pageToken ? Number(pageToken) : 0;
+      const page = all.slice(from, from + max);
+      return { users: page, pageToken: from + max < all.length ? String(from + max) : undefined };
+    },
     generatePasswordResetLink: async (email) => `https://reset.example/${email}`,
   };
 }
 
-module.exports = { fakeDb, fakeAuth };
+const DELETE_FIELD = '__DELETE_FIELD__';
+
+module.exports = { fakeDb, fakeAuth, DELETE_FIELD };

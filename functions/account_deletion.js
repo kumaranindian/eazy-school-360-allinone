@@ -366,6 +366,39 @@ async function platformReviewer({ db }, uid) {
   return u && u.role === 'PLATFORM_ADMIN' && u.status === 'ACTIVE';
 }
 
+/**
+ * The review queue for Avail404: open requests (default) or recently closed
+ * ones. Only what a reviewer needs: reference, state, reason, source, the
+ * requester's role and school NAME (never a name, email or phone), and the
+ * state history.
+ */
+async function listForReview(ctx, uid, data) {
+  const { db } = ctx;
+  if (!(await platformReviewer(ctx, uid))) return err('PERMISSION_DENIED');
+  const closed = !!data && data.scope === 'closed';
+  const statuses = closed ? TERMINAL : OPEN;
+  const q = await db.collection('accountDeletionRequests').where('status', 'in', statuses).limit(100).get();
+  const names = new Map();
+  const schoolName = async (id) => {
+    if (!id) return '';
+    if (!names.has(id)) names.set(id, ((await db.collection('schools').doc(id).get()).data() || {}).name || '');
+    return names.get(id);
+  };
+  const rows = [];
+  for (const d of q.docs) {
+    const r = d.data();
+    rows.push({
+      ...view(d.id, r),
+      source: r.source || null,
+      role: r.role || null,
+      schoolName: await schoolName(r.schoolId),
+      history: (r.history || []).map((h) => ({ status: h.status, at: ms(h.at) || null })),
+    });
+  }
+  rows.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  return { result: rows };
+}
+
 const DECISIONS = {
   APPROVE: STATUS.APPROVED,
   REJECT: STATUS.REJECTED,
@@ -453,5 +486,6 @@ module.exports = {
   confirmPublic,
   statusPublic,
   review,
+  listForReview,
   expireUnverified,
 };

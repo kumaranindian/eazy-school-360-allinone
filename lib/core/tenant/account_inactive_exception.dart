@@ -14,6 +14,9 @@ enum InactiveCause {
 
   /// The profile exists but its role/status is missing or unknown.
   invalidProfile,
+
+  /// The school itself is suspended by the platform (every user is paused).
+  schoolPaused,
 }
 
 /// Thrown by [TenantContextNotifier] when the signed-in user's profile

@@ -7,6 +7,8 @@ import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../domain/platform_role.dart';
+import '../providers/platform_console_providers.dart';
+import '../widgets/platform_dashboard_card.dart';
 import '../widgets/platform_scaffold.dart';
 
 /// Landing page of a platform administrator (Avail404). Shows the tools their
@@ -24,6 +26,54 @@ class PlatformHomePage extends ConsumerWidget {
         data: (tenant) {
           final role = tenant?.user.platformRole;
           final tiles = <_Tile>[
+            if (role != null)
+              _Tile(
+                key: const ValueKey('tile-platform-schools'),
+                icon: Icons.school_outlined,
+                title: 'Schools',
+                subtitle: 'Directory, school overview and support access',
+                route: AppRoutes.platformSchools,
+              ),
+            if (role == PlatformRole.owner || role == PlatformRole.compliance)
+              _Tile(
+                key: const ValueKey('tile-platform-deletions'),
+                icon: Icons.delete_sweep_outlined,
+                title: 'Deletion requests',
+                subtitle: 'Review account-deletion requests',
+                route: AppRoutes.platformDeletions,
+              ),
+            if (role == PlatformRole.owner || role == PlatformRole.compliance)
+              _Tile(
+                key: const ValueKey('tile-platform-audit'),
+                icon: Icons.history,
+                title: 'Audit log',
+                subtitle: 'What platform administrators did',
+                route: AppRoutes.platformAudit,
+              ),
+            if (role != null)
+              _Tile(
+                key: const ValueKey('tile-platform-notices'),
+                icon: Icons.campaign_outlined,
+                title: 'Notices to schools',
+                subtitle: 'Messages school administrators see in the app',
+                route: AppRoutes.platformNotices,
+              ),
+            if (role == PlatformRole.owner)
+              _Tile(
+                key: const ValueKey('tile-platform-billing'),
+                icon: Icons.receipt_long_outlined,
+                title: 'Billing',
+                subtitle: 'What schools owe Avail404',
+                route: AppRoutes.platformBilling,
+              ),
+            if (role == PlatformRole.owner)
+              _Tile(
+                key: const ValueKey('tile-platform-availability'),
+                icon: Icons.construction_outlined,
+                title: 'App availability',
+                subtitle: 'Maintenance mode and minimum app version',
+                route: AppRoutes.platformAvailability,
+              ),
             if (role == PlatformRole.owner)
               _Tile(
                 key: const ValueKey('tile-platform-admins'),
@@ -59,6 +109,11 @@ class PlatformHomePage extends ConsumerWidget {
                     ),
                   ),
                 const SizedBox(height: AppSpacing.md),
+                if (role != null) ...[
+                  PlatformDashboardCard(role: role),
+                  const SizedBox(height: AppSpacing.md),
+                ],
+                const _ActiveSessions(),
                 if (tiles.isEmpty)
                   const Card(
                     child: Padding(
@@ -134,6 +189,82 @@ class _Tile extends StatelessWidget {
                 ),
               ),
               const Icon(Icons.chevron_right),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Support sessions that are still open on the server (for example after a page
+/// reload): resume one or end it.
+class _ActiveSessions extends ConsumerWidget {
+  const _ActiveSessions();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final grants = ref.watch(myGrantsProvider).value ?? const [];
+    final now = DateTime.now();
+    final active = [
+      for (final g in grants)
+        if (g.isActiveAt(now)) g,
+    ];
+    if (active.isEmpty) return const SizedBox.shrink();
+    final names = {
+      for (final s in ref.watch(platformSchoolsProvider).value ?? const [])
+        s.id: s.name,
+    };
+    final text = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Card(
+        key: const ValueKey('active-sessions'),
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Support sessions in progress', style: text.titleMedium),
+              for (final g in active)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    (names[g.schoolId]?.isNotEmpty ?? false)
+                        ? names[g.schoolId]!
+                        : g.schoolId,
+                  ),
+                  subtitle: Text(
+                    'Until ${TimeOfDay.fromDateTime(g.expiresAt!).format(context)}',
+                  ),
+                  trailing: Wrap(
+                    spacing: AppSpacing.xs,
+                    children: [
+                      FilledButton(
+                        key: ValueKey('resume-${g.schoolId}'),
+                        onPressed: () {
+                          ref
+                              .read(platformConsoleActionsProvider.notifier)
+                              .resumeSupportSession(
+                                schoolId: g.schoolId,
+                                schoolName: names[g.schoolId] ?? g.schoolId,
+                                expiresAt: g.expiresAt!,
+                              );
+                          context.go(AppRoutes.dashboard);
+                        },
+                        child: const Text('Resume'),
+                      ),
+                      OutlinedButton(
+                        key: ValueKey('end-${g.schoolId}'),
+                        onPressed: () => ref
+                            .read(platformConsoleRepositoryProvider)
+                            .revokeSupportAccess(schoolId: g.schoolId),
+                        child: const Text('End'),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),

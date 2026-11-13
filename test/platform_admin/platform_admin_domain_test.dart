@@ -116,11 +116,14 @@ void main() {
       );
       expect(
         map('permission-denied', {'reason': 'PERMISSION_DENIED'}).message,
-        contains('owner'),
+        contains('platform role'),
       );
       expect(map('not-found', {'reason': 'NOT_FOUND'}), isA<NotFoundFailure>());
       expect(
-        map('failed-precondition', {'reason': 'FAILED_PRECONDITION'}).message,
+        map('failed-precondition', {
+          'reason': 'FAILED_PRECONDITION',
+          'cause': 'SELF_CHANGE',
+        }).message,
         contains('your own'),
       );
       expect(

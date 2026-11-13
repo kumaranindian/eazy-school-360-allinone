@@ -201,3 +201,20 @@ test('settings: the page address is unique across schools, versions the consent,
   assert.ok(db.store.get('admissionPortalSlugs/rosewood-high'));
   assert.ok((await save('adminB', 'sB', { ...mine, branchId: 'bb' })).result, 'and can be taken by another school');
 });
+
+test('a suspended school, or one the platform switched the module off for, has no public page and takes no enquiries', async () => {
+  const variants = [
+    { 'schools/sA': { name: 'Rosewood High', timezone: 'Asia/Kolkata', status: 'SUSPENDED' } },
+    { 'schools/sA': { name: 'Rosewood High', timezone: 'Asia/Kolkata', features: { admission: false } } },
+    { 'schools/sA': { name: 'Rosewood High', timezone: 'Asia/Kolkata', features: { publicAdmission: false } } },
+  ];
+  for (const v of variants) {
+    const db = fakeDb({ ...seed(), ...v });
+    assert.equal((await pub.getPublicPortal(ctx(db), null, null, { slug: 'rosewood' })).error, 'NOT_FOUND', JSON.stringify(v));
+    assert.equal((await pub.submitPublicEnquiry(ctx(db), null, null, form())).error, 'NOT_FOUND', JSON.stringify(v));
+    assert.equal(enquiries(db).length, 0);
+  }
+  // Untouched or explicitly on: works as before.
+  const on = fakeDb({ ...seed(), 'schools/sA': { name: 'Rosewood High', timezone: 'Asia/Kolkata', status: 'ACTIVE', features: { admission: true, publicAdmission: true } } });
+  assert.equal((await pub.getPublicPortal(ctx(on), null, null, { slug: 'rosewood' })).result.schoolName, 'Rosewood High');
+});

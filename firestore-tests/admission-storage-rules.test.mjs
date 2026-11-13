@@ -99,20 +99,14 @@ test('size and type are enforced even when the record agrees', async () => {
   await assertFails(put('adx-north', path(A, 'north', 'e1', 'd1', 'document.zip'), { contentType: 'application/zip' }));
 });
 
-test('reading: school admin, branch admin of that branch, platform admin; nobody else', async () => {
+test('reading: school admin and branch admin of that branch; nobody else, not even a platform admin', async () => {
   await seed();
   await assertSucceeds(put('adx-north'));
-  for (const uid of ['adx-admin', 'adx-north', 'adx-platform']) await assertSucceeds(getBytes(ref(store(uid), path())));
+  for (const uid of ['adx-admin', 'adx-north']) await assertSucceeds(getBytes(ref(store(uid), path())));
+  // Support access is Firestore-only: a platform admin never reads uploaded documents.
+  await assertFails(getBytes(ref(store('adx-platform'), path())));
   for (const uid of ['adx-teacher', 'adx-finance', 'adx-parent', 'adx-south', 'adx-admin-b']) await assertFails(getBytes(ref(store(uid), path())));
   await assertFails(getBytes(ref(env.unauthenticatedContext().storage(), path())));
-});
-
-test('a platform admin without a second factor cannot read an uploaded document', async () => {
-  await seed();
-  await assertSucceeds(put('adx-north'));
-  const noMfa = env.authenticatedContext('adx-platform', { firebase: { sign_in_provider: 'password' } }).storage();
-  await assertFails(getBytes(ref(noMfa, path())));
-  await assertSucceeds(getBytes(ref(store('adx-platform'), path())));
 });
 
 test('a stored document is never deleted from a client', async () => {

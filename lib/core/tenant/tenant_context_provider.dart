@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../logging/app_logger.dart';
 import '../../features/authentication/presentation/providers/auth_providers.dart';
+import '../../features/platform_admin/presentation/providers/support_session_providers.dart';
+import '../permissions/user_role.dart';
 import '../../features/school_setup/domain/branch_status.dart';
 import '../../features/school_setup/presentation/providers/school_providers.dart';
 import '../../features/users/domain/user_profile.dart';
@@ -75,6 +77,15 @@ class TenantContextNotifier extends AsyncNotifier<TenantContext?> {
       throw AccountInactiveException(profile.status);
     }
 
+    // The whole school is suspended by the platform: nothing to load.
+    if (profile.schoolPaused) {
+      AppLogger.trace('blocked: the school is suspended', tag: 'Tenant');
+      throw AccountInactiveException(
+        profile.status,
+        cause: InactiveCause.schoolPaused,
+      );
+    }
+
     // Login access is switched off by an administrator, or this session
     // used a method the account is not permitted. Legacy profiles (no
     // `login` map) are unaffected. firestore.rules enforces the same.
@@ -111,36 +122,51 @@ class TenantContextNotifier extends AsyncNotifier<TenantContext?> {
       }
     }
 
+    // A platform admin with an active support session acts inside that school
+    // (read-only). Watching the session rebuilds this when it starts or ends.
+    final support = profile.role == UserRole.platformAdmin
+        ? ref.watch(supportSessionProvider)
+        : null;
+    final inSupport = support != null && support.isActiveAt(DateTime.now());
+    final effective = inSupport ? profile.inSchool(support.schoolId) : profile;
+
     final schoolRepository = ref.watch(schoolRepositoryProvider);
-    final school = profile.schoolId == null
+    final school = effective.schoolId == null
         ? null
-        : await schoolRepository.getSchool(profile.schoolId!);
-    var acting = profile;
-    var branch = (profile.schoolId == null || profile.branchId == null)
+        : await schoolRepository.getSchool(effective.schoolId!);
+    var acting = effective;
+    var branch = (effective.schoolId == null || effective.branchId == null)
         ? null
         : await schoolRepository.getBranch(
-            profile.schoolId!,
-            profile.branchId!,
+            effective.schoolId!,
+            effective.branchId!,
           );
     // A school admin with no home branch still needs a branch to work in:
     // start in the first one (they can switch from the header).
-    if (branch == null && profile.actsInAnyBranch) {
-      final all = await schoolRepository.watchBranches(profile.schoolId!).first;
+    if (branch == null && effective.actsInAnyBranch) {
+      final all = await schoolRepository
+          .watchBranches(effective.schoolId!)
+          .first;
       if (all.isNotEmpty) {
         branch = all.firstWhere(
           (b) => b.status == BranchStatus.active,
           orElse: () => all.first,
         );
-        acting = profile.activeIn(branch.branchId);
+        acting = effective.activeIn(branch.branchId);
       }
     }
 
     AppLogger.debug(
       'Tenant resolved: role/status=${profile.status.name} '
-      'school=${profile.schoolId} branch=${profile.branchId}',
+      'school=${effective.schoolId} branch=${effective.branchId}',
       tag: 'Tenant',
     );
-    return TenantContext(user: acting, school: school, branch: branch);
+    return TenantContext(
+      user: acting,
+      school: school,
+      branch: branch,
+      supportSession: inSupport,
+    );
   }
 
   /// Acts in [branchId] (one of the user's `workingBranchIds`, or any branch of

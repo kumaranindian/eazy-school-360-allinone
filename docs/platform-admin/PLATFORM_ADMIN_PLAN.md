@@ -2,7 +2,11 @@
 
 Status: **Phase 0 and Phase 1 are implemented** (see `PLATFORM_ADMIN_RUNBOOK.md`): creation script, platform roles,
 mandatory second factor (rules, storage, callables, app), platform home and administrators screen, audit-log
-collection and writer, removal of the client-writable `/users` platform-admin clause. Phases 2-5 are still plan.
+collection and writer, removal of the client-writable `/users` platform-admin clause.
+**Phase 2 is implemented** (see section 11): schools directory and overview, support access grants (read-only, time-boxed,
+visible to and revocable by the school), removal of the blanket school-data access (finding H1), deletion-review queue,
+audit-log viewer.
+**Phases 3 and 4 are implemented** (section 12). Phase 5 (hardening and launch) is still plan.
 
 Decisions (2026-11-13): first account `admin@avail404.com`; password plus two-step verification; schools get **on/off
 status only** (no plans or limits, so 4.3 shrinks to a status flag and manual billing records); **manual billing**;
@@ -175,3 +179,68 @@ Deploy order for each phase, matching `docs/production-audit/DEPLOYMENT_CHECKLIS
 3. Do schools get a plan and limits now, or only a status (on/off)?
 4. Is billing record-keeping enough for now, or do you want an online payment gateway for school subscriptions?
 5. Should schools be told when support accesses their data (recommended: yes)?
+
+## 11. Phase 2 as built (2026-11-13)
+
+**Blanket access is gone.** `firestore.rules`: a platform admin reads a school's data only while `supportRead(schoolId)` holds:
+an unrevoked `supportGrants/{adminUid}__{schoolId}` with `expiresAt > request.time`, and only for `get`/`list`
+(`request.method`). It replaced the unconditional platform-admin branch in `schoolAdminOrAboveP`, `staffScopeOf`,
+`profileManages`, `profileMayAddress` and the `/users` read. Removed outright: platform-admin writes to `/schools/{id}`
+and `/users/{uid}`, and the platform-admin read of admission documents in Storage (support access never includes uploaded files).
+School metadata (`/schools/{id}`, branches, branding) stays readable: it is the directory.
+
+**Support access.** `requestSupportAccess` (OWNER/SUPPORT, reason of 15-500 characters, 15/30/60/120/240 minutes, optional ticket)
+writes the grant, a `schools/{s}/supportAccessLog` entry the school's admins read, and a `platformAuditLog` record.
+`revokeSupportAccess` may be called by the holder, an OWNER, or the SCHOOL ADMIN of that school. WRITE-scope grants are
+deliberately not built.
+
+**In the app.** Platform home -> Schools -> a school -> Start support session. The tenant context then puts the platform admin
+inside that school with `TenantContext.supportSession = true`: only `view*` permissions apply (nothing that writes, no
+"my" screens, no notifications), a banner shows the school, "read-only" and the end time, and the session ends by itself on expiry
+or when the grant is seen revoked. The session lives in memory; after a reload the platform home offers **Resume** for
+grants still open on the server. School admins see all of it under Settings -> Support access and can end any grant at once.
+
+**Console.** `getSchoolOverview` (any platform role) returns metadata, head counts per branch, school admins, active grants and the
+platform's recent actions for that school: never student, staff, parent or finance records. The deletion queue
+(`listAccountDeletionRequests`, `reviewAccountDeletion`; OWNER/COMPLIANCE) shows reference, state, reason, requester role and
+school name (never a name, email or phone) and offers only legal next steps. The audit log page reads `platformAuditLog`
+(OWNER/COMPLIANCE), with search, an action filter and Copy CSV (formula-safe).
+
+**Not in Phase 2:** suspending or reactivating a school, creating a school, plans, usage metering, alerts, platform notices,
+email or push notification to school admins when support looks in (the school sees it in Settings -> Support access).
+
+## 12. Phases 3 and 4 as built (2026-11-13)
+
+### Phase 3: lifecycle and billing records
+- **Suspend / reactivate is enforced.** `setSchoolStatus` (OWNER, reason of 10+ characters to suspend) writes the school status and
+  `applySchoolAccess` mirrors it onto every user profile as `schoolAccess: 'SUSPENDED'` (absent when active). The Firestore
+  `activeAndAllowed()`, the Storage `loginAllowed()` and the callables (`access.methodAllowed`) all read that field from the profile
+  they already load: no extra lookup. Users get a "your school's access is paused" screen; their own profile stays readable so the
+  app can say why. Platform admins are never paused. A trigger (`schoolStatusChanged`) re-applies it if the status changes any other
+  way, and `refreshSchoolAccess` repairs drift. New admins of a suspended school start paused; the public admission page of a
+  suspended school disappears.
+- **Create school with its first admin** (`createSchoolWithAdmin`, OWNER): school, Main Branch and admin profile in one batch, a random
+  password nobody knows, and the admin is emailed a reset link by the app. **Add administrator** (`addSchoolAdmin`, OWNER) and
+  **Reset access** (`resetSchoolAdminAccess`, OWNER/SUPPORT: signs them out everywhere, then the app emails a reset link).
+- **Modules per school** (`setSchoolFeatures`, OWNER): `admission` and `publicAdmission`, missing = on. Enforced by the admission
+  callables, the public admission page, and in the app (`TenantContext.can` drops the admission permissions).
+- **Manual billing** (`saveBillingRecord`, `setBillingStatus`, `listBillingRecords`; OWNER only; collection `platformBilling` has no
+  client rules). Integer minor units with their own currency; DUE -> PAID (a real past day) / WAIVED / VOID, all final; what is owed
+  and overdue per currency. No online payments, no plans or limits (decision: on/off status only).
+- **Offboarding workflow** (`requestSchoolOffboarding`, `approveSchoolOffboarding`, `cancelSchoolOffboarding`; OWNER): requesting
+  suspends the school and starts a 30-day grace period; a DIFFERENT owner must approve; cancelling restores the school if offboarding
+  had suspended it. **It deletes nothing and exports nothing.** Automated data export and the final purge are deliberately NOT built:
+  a destructive per-school purge needs its own design, dry-run and rehearsal (use the existing deletion tooling by hand until then).
+
+### Phase 4: operations
+- **Dashboard**: `computeStats` (nightly `platformStatsRollup` + on-demand `refreshPlatformStats`, throttled to 5 minutes) writes
+  `platformStats/current` and `schoolUsage/{school}`; the platform home shows it with a stale warning and a "needs attention" list.
+- **Notices to school administrators** (`publishPlatformNotice`, `withdrawPlatformNotice`, `listPlatformNotices`): everyone or up to
+  50 named schools, severity, up to 90 days; school and branch admins see live notices as a dismissible banner. In-app only (no push).
+- **App availability** (`setAppRequirements`, OWNER; `platformSettings/app`, public-read): maintenance mode (message, optional end,
+  never blocks platform admins, sign-in stays usable) and a minimum Android/iOS build (forces an update; the web app is never held back).
+- **Monitoring**: see `MONITORING.md`. Alert policies must be created in Google Cloud; they are documented, not applied.
+
+### Still not built
+Usage cost metering (messages/OTP/WhatsApp by school), push or email for notices, automated offboarding export/purge, plan limits,
+write-scope support grants, an online billing gateway. Phase 5 (hardening and launch) remains.

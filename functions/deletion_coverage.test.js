@@ -25,6 +25,12 @@ const EXEMPT = {
   otpRate: 'hashes only, expire on a TTL (matrix A5)',
   pushDeliveries: 'delivery bookkeeping keyed by event; carries no user id (matrix A6)',
   notifications: 'deleted by the NOTIFICATIONS step',
+  supportGrants: 'time-boxed support grants name a platform admin (never deletable by self-service) and a school; no student or parent personal data',
+  supportAccessLog: 'school-visible record of Avail404 support access (platform admin name/email, reason); contains no student or parent personal data',
+  platformStats: 'platform-wide counts computed nightly; no personal data',
+  schoolUsage: 'per-school head counts (students, staff, parents, users) computed nightly; no personal data',
+  platformNotices: 'notices from Avail404 to school administrators; createdByEmail is a platform admin (never deletable by self-service); no school or student personal data',
+  platformSettings: 'maintenance mode and minimum app build; updatedBy is a platform admin; no personal data',
   platformAuditLog: 'platform actions (actor and target are platform admins, who cannot be deleted by self-service); holds no school or student personal data and is retained for security audit',
   platformBranding: 'platform-wide default theme and presets; no personal data (updatedBy is a platform admin, who cannot be deleted)',
 };

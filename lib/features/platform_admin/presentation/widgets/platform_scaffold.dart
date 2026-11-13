@@ -17,11 +17,15 @@ class PlatformScaffold extends ConsumerWidget {
   /// Show a back arrow to the platform home.
   final bool showBack;
 
+  /// A primary action (e.g. "Create school").
+  final Widget? floatingActionButton;
+
   const PlatformScaffold({
     super.key,
     required this.title,
     required this.child,
     this.showBack = true,
+    this.floatingActionButton,
   });
 
   @override
@@ -61,6 +65,7 @@ class PlatformScaffold extends ConsumerWidget {
           ),
         ],
       ),
+      floatingActionButton: floatingActionButton,
       body: SafeArea(child: child),
     );
   }

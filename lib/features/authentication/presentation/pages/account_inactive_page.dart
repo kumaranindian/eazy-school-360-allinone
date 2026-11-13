@@ -27,7 +27,12 @@ class AccountInactivePage extends ConsumerWidget {
 
     final String title;
     final String message;
-    if (cause == InactiveCause.invalidProfile) {
+    if (cause == InactiveCause.schoolPaused) {
+      title = "Your school's access is paused";
+      message =
+          "Your school's access to EazySchool 360 is paused. Please contact "
+          'your school administrator or Avail404 support.';
+    } else if (cause == InactiveCause.invalidProfile) {
       title = "Your account isn't set up correctly";
       message =
           'Your profile is missing a valid role. Ask your school administrator '

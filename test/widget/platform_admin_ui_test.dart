@@ -276,8 +276,14 @@ void main() {
       },
     );
 
-    testWidgets('support sees branding but not administrators', (tester) async {
+    testWidgets('support sees schools and branding but not administrators', (
+      tester,
+    ) async {
       await _pump(tester, profile: _platform(PlatformRole.support));
+      expect(
+        find.byKey(const ValueKey('tile-platform-schools')),
+        findsOneWidget,
+      );
       expect(find.byKey(const ValueKey('tile-platform-admins')), findsNothing);
       expect(
         find.byKey(const ValueKey('tile-platform-branding')),
@@ -285,11 +291,35 @@ void main() {
       );
     });
 
-    for (final role in [PlatformRole.compliance, PlatformRole.viewer]) {
-      testWidgets('${role.displayName} gets an honest "no tools yet" message', (
-        tester,
-      ) async {
-        await _pump(tester, profile: _platform(role));
+    testWidgets('a viewer sees the schools directory and nothing that acts', (
+      tester,
+    ) async {
+      await _pump(tester, profile: _platform(PlatformRole.viewer));
+      expect(
+        find.byKey(const ValueKey('tile-platform-schools')),
+        findsOneWidget,
+      );
+      for (final k in ['admins', 'branding', 'deletions', 'audit']) {
+        expect(
+          find.byKey(ValueKey('tile-platform-$k')),
+          findsNothing,
+          reason: k,
+        );
+      }
+    });
+
+    testWidgets(
+      'compliance reviews deletions and reads the audit log, but cannot change branding or people',
+      (tester) async {
+        await _pump(tester, profile: _platform(PlatformRole.compliance));
+        expect(
+          find.byKey(const ValueKey('tile-platform-deletions')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('tile-platform-audit')),
+          findsOneWidget,
+        );
         expect(
           find.byKey(const ValueKey('tile-platform-admins')),
           findsNothing,
@@ -298,12 +328,8 @@ void main() {
           find.byKey(const ValueKey('tile-platform-branding')),
           findsNothing,
         );
-        expect(
-          find.textContaining('no tools for your role yet'),
-          findsOneWidget,
-        );
-      });
-    }
+      },
+    );
 
     testWidgets('a school admin cannot open the platform pages', (
       tester,

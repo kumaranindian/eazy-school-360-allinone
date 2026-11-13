@@ -34,6 +34,13 @@ import '../../features/students/presentation/students_routes.dart';
 import '../../features/users/presentation/pages/users_page.dart';
 import '../../features/branding/presentation/pages/platform_branding_page.dart';
 import '../../features/platform_admin/presentation/pages/platform_admins_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_audit_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_availability_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_billing_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_notices_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_deletions_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_school_detail_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_schools_page.dart';
 import '../../features/platform_admin/presentation/pages/platform_home_page.dart';
 import '../../features/platform_admin/presentation/pages/platform_mfa_page.dart';
 import '../../features/platform_admin/presentation/providers/platform_session_providers.dart';
@@ -250,6 +257,38 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 parentLabel: 'Platform',
               ),
             ),
+          ),
+          GoRoute(
+            path: 'schools',
+            builder: (context, state) => const PlatformSchoolsPage(),
+            routes: [
+              GoRoute(
+                path: ':schoolId',
+                builder: (context, state) => PlatformSchoolDetailPage(
+                  schoolId: state.pathParameters['schoolId']!,
+                ),
+              ),
+            ],
+          ),
+          GoRoute(
+            path: 'deletions',
+            builder: (context, state) => const PlatformDeletionsPage(),
+          ),
+          GoRoute(
+            path: 'audit',
+            builder: (context, state) => const PlatformAuditPage(),
+          ),
+          GoRoute(
+            path: 'billing',
+            builder: (context, state) => const PlatformBillingPage(),
+          ),
+          GoRoute(
+            path: 'notices',
+            builder: (context, state) => const PlatformNoticesPage(),
+          ),
+          GoRoute(
+            path: 'availability',
+            builder: (context, state) => const PlatformAvailabilityPage(),
           ),
           GoRoute(
             path: 'mfa',

@@ -18,9 +18,38 @@ class TenantContext {
   final School? school;
   final Branch? branch;
 
-  const TenantContext({required this.user, this.school, this.branch});
+  /// A platform admin looking into [school] through a support grant. Read-only:
+  /// only viewing permissions apply (firestore.rules refuse every write too).
+  final bool supportSession;
+
+  const TenantContext({
+    required this.user,
+    this.school,
+    this.branch,
+    this.supportSession = false,
+  });
 
   UserRole get role => user.role;
 
-  bool can(Permission permission) => RolePermissions.roleHas(role, permission);
+  static const _admissionOnly = {
+    Permission.manageAdmissions,
+    Permission.decideAdmissions,
+  };
+
+  bool can(Permission permission) {
+    if (!RolePermissions.roleHas(role, permission)) return false;
+    // The platform can switch the admission module off for a school.
+    if (_admissionOnly.contains(permission) &&
+        !(school?.moduleEnabled('admission') ?? true)) {
+      return false;
+    }
+    if (!supportSession) return true;
+    // Support access is look-only. The person's own things (notifications,
+    // "my" screens) do not exist inside someone else's school.
+    final name = permission.name;
+    return permission == Permission.managePlatform ||
+        (name.startsWith('view') &&
+            !name.startsWith('viewOwn') &&
+            permission != Permission.viewNotifications);
+  }
 }

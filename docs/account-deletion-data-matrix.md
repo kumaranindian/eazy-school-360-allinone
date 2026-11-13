@@ -72,6 +72,8 @@ A user belongs to **one school** (`/users/{uid}.schoolId`); several branches pos
 | D12 | Public enquiry page bookkeeping | `admissionPortalSlugs/*` (page address → school/branch; no personal data), `schools/*/publicLimits/*` (rate-limit counters keyed by a salted hash of an address or mobile; expire via `expireAt`). Public enquiries themselves are ordinary `admissionEnquiries` (D8) carrying `consent.ipHash` | no uid fields; counters expire on a TTL policy on `publicLimits.expireAt` (to be enabled at deploy); the enquiry's `ipHash` is a salted hash | PENDING |
 | D4 | School theme | `schools/*/branding` (`updatedBy` uid; no personal data); `platformBranding` is platform-wide and exempt | same token replacement of `updatedBy` | PENDING |
 | D4a | Platform audit log | `platformAuditLog` (actor/target are platform admins; reasons and metadata hold no school or student personal data) | exempt: platform admins cannot be deleted by self-service; retained for security audit | N/A |
+| D4b | Support access | `supportGrants`, `schools/*/supportAccessLog` (platform admin identity, reason, expiry; no student or parent data) | exempt: platform admins cannot be deleted by self-service; retained as the school's access record | N/A |
+| D4c | Platform operations | `platformStats`, `schoolUsage`, `platformNotices`, `platformSettings`, `platformBilling`, `platformOffboarding` (school-level and platform-admin data; `platformBilling` and `platformOffboarding` have no client rules at all) | exempt: no student, parent or staff personal data; platform admins cannot be deleted by self-service | N/A |
 
 ### E. Outside our database
 

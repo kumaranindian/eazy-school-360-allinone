@@ -166,6 +166,15 @@ class SettingsOverviewPage extends ConsumerWidget {
         permission: Permission.manageSchool,
         setupLabel: 'Authentication',
       ),
+      _Section(
+        label: 'Support access',
+        description:
+            'When Avail404 support can look at your school, and end it',
+        icon: Icons.support_agent_outlined,
+        route: AppRoutes.settingsSupportAccess,
+        permission: Permission.manageSchool,
+        setupLabel: 'Support access',
+      ),
     ]),
   ];
 

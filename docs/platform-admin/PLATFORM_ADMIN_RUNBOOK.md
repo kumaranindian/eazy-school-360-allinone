@@ -68,3 +68,65 @@ Roles: `OWNER`, `SUPPORT`, `COMPLIANCE`, `VIEWER` (see the plan). An owner canno
 `platformAuditLog` (create-only, written by Cloud Functions). Readable (second factor required) by `OWNER`
 and `COMPLIANCE` through the rules; a viewer screen arrives in Phase 2. Records hold actor, action, target, result,
 source (`CALLABLE` or `SCRIPT`) and never passwords, links or tokens.
+
+## Phase 2: support sessions, console and review queue
+
+**Looking into a school (support):** Platform home -> Schools -> the school -> *Start support session*. Give a real reason
+(shown to the school and kept in the audit log), optional ticket, and a duration. You then see that school's normal screens,
+read-only, under a banner; *End session* revokes the grant. Support access never includes uploaded files (admission documents,
+photos). After a page reload use *Resume* on the platform home. Roles: OWNER and SUPPORT may start sessions; VIEWER and COMPLIANCE
+can only read the directory and overview.
+
+**The school's view:** Settings -> Support access lists who has access now (with the reason and end time), the history, and an
+*End access* button. Tell school admins this page exists when you onboard them.
+
+**Deletion requests (Google Play):** Platform home -> Deletion requests (OWNER/COMPLIANCE). Approve only after checking the
+reason shown; approving cannot be undone once the processor runs. The processor itself stays OFF until
+`ACCOUNT_DELETION_PROCESSING_ENABLED=true` for the project.
+
+**Audit log:** Platform home -> Audit log (OWNER/COMPLIANCE): newest 200 actions, searchable, *Copy CSV*.
+
+**Deploy order for Phase 2** (the rules are stricter: do not deploy them before the app and functions):
+1. `firebase deploy --only functions --force --project <p>` (new callables: `requestSupportAccess`, `revokeSupportAccess`,
+   `getSchoolOverview`, `listAccountDeletionRequests`; review/process now need OWNER or COMPLIANCE).
+2. Hosting.
+3. Rules last: `tool/deploy_rules.sh <p> --dry-run`, then `tool/deploy_rules.sh <p>`.
+   After this a platform admin sees school data ONLY through a support session; the old blanket access ends.
+No new indexes are needed.
+
+## Phases 3 and 4: operating the platform
+
+**Suspending a school:** Schools -> the school -> *Access* -> *Suspend school* (owner). Give a real reason. Everyone at that school
+(staff and parents) is paused within seconds; their data stays. *Reactivate school* lifts it. If anything looks inconsistent use
+*Re-apply to all users* (owner or support); it is safe to repeat. A school being offboarded cannot be reactivated until the
+offboarding is cancelled.
+
+**Creating a school:** Schools -> *Create school* (owner). Country sets currency, time zone and date format. The first administrator
+is emailed a link to choose a password. If the email fails, open the school and use *Reset access*.
+
+**Modules:** Schools -> the school -> *Modules* (owner) switches admission management and the public admission page. Existing schools
+stay on until you switch them off.
+
+**Billing:** Schools -> the school -> *Billing* -> *Add billing record* (owner). Mark paid with the date it was paid, or waive/void.
+Platform home -> Billing shows everything owed per currency. Nothing is collected online.
+
+**Offboarding:** Start it with a reason (suspends the school); a *different* owner approves; *Cancel offboarding* undoes it. It
+deletes nothing: the data purge is a separate, manual, rehearsed procedure.
+
+**Notices:** Platform home -> Notices to schools. Everyone or named schools, severity, shown 1-30 days. School and branch admins see
+it as a banner and can dismiss it for the session. Withdraw ends it at once.
+
+**Maintenance and forced update:** Platform home -> App availability (owner). See `MONITORING.md` for the emergency way out.
+
+**Dashboard:** Platform home. Numbers refresh nightly; *Recompute now* works at most once every 5 minutes. A red "updated" line means
+the nightly job is not running.
+
+### Deploy order for Phases 3-4
+1. `firebase deploy --only functions --force --project <p>`: new callables, the nightly `platformStatsRollup` schedule and the
+   `schoolStatusChanged` trigger (the first deploy needs the Cloud Scheduler API; the CLI enables it). The deploy also changes the
+   admission callables and the public admission page.
+2. Hosting (screens, paused screen, maintenance gate, notice banner).
+3. Rules last (`tool/deploy_rules.sh <p> --dry-run`, then for real): they add the `schoolAccess` check, `platformStats`,
+   `schoolUsage`, `platformNotices` and `platformSettings`.
+4. Run *Recompute now* once so the dashboard has numbers, and create the Cloud Monitoring alerts (`MONITORING.md`).
+No new indexes are needed.

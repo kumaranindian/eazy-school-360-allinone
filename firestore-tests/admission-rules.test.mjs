@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { test, before, after, beforeEach } from 'node:test';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 let env;
 before(async () => {
@@ -73,6 +73,13 @@ beforeEach(async () => {
     for (const [uid, u] of Object.entries(users)) {
       await setDoc(doc(d, 'users', uid), { name: 'T', email: `${uid}@example.com`, status: 'ACTIVE', linkedParentId: null, ...u, ...base });
     }
+    // The platform admin reads this school only through an ACTIVE support grant
+    // (read-only; without one every platform-admin read below is refused: see
+    // platform-admin-rules.test.mjs).
+    await setDoc(doc(d, 'supportGrants', `adm-platform__${A}`), {
+      adminUid: 'adm-platform', schoolId: A, scope: 'READ', reason: 'test grant for admission rules',
+      expiresAt: Timestamp.fromMillis(Date.now() + 3600e3), revokedAt: null, grantedAt: serverTimestamp(),
+    });
   });
 });
 

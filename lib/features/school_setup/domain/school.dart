@@ -39,6 +39,10 @@ class School {
   /// Set by the server when the first fee structure, invoice or payment is
   /// created: from then on the currency can no longer be changed.
   final bool currencyLocked;
+
+  /// Modules the platform has switched on or off for this school (server-written;
+  /// a missing entry means on). See [moduleEnabled].
+  final Map<String, bool> features;
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final String? createdBy;
@@ -65,6 +69,7 @@ class School {
     this.regional = RegionalSettings.legacy,
     this.regionalConfigured = false,
     this.currencyLocked = false,
+    this.features = const {},
     this.createdAt,
     this.updatedAt,
     this.createdBy,
@@ -110,6 +115,7 @@ class School {
       regional: regional ?? this.regional,
       regionalConfigured: regional != null || regionalConfigured,
       currencyLocked: currencyLocked,
+      features: features,
       createdAt: createdAt,
       updatedAt: updatedAt,
       createdBy: createdBy,
@@ -141,12 +147,21 @@ class School {
       regional: RegionalSettings.fromSchoolMap(data),
       regionalConfigured: data['currency'] is String,
       currencyLocked: data['currencyLocked'] == true,
+      features: {
+        for (final e in Map<String, dynamic>.from(
+          (data['features'] as Map?) ?? const {},
+        ).entries)
+          if (e.value is bool) e.key: e.value as bool,
+      },
       createdAt: (data[FirestoreFields.createdAt] as Timestamp?)?.toDate(),
       updatedAt: (data[FirestoreFields.updatedAt] as Timestamp?)?.toDate(),
       createdBy: data[FirestoreFields.createdBy] as String?,
       updatedBy: data[FirestoreFields.updatedBy] as String?,
     );
   }
+
+  /// True unless the platform switched [feature] off for this school.
+  bool moduleEnabled(String feature) => features[feature] != false;
 
   Map<String, dynamic> toFirestoreCreate({required String createdBy}) {
     return {

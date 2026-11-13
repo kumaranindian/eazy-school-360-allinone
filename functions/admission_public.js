@@ -75,6 +75,9 @@ async function portalFor(db, slug) {
   const p = settings.publicPortal || {};
   if (!settings.enabled || p.enabled !== true || p.slug !== s || p.branchId !== branchId) return null;
   const school = await db.collection('schools').doc(schoolId).get();
+  // A suspended school, or one with the module switched off by the platform, has no public page.
+  const sd = school.data() || {};
+  if ((sd.status && sd.status !== 'ACTIVE') || (sd.features && (sd.features.admission === false || sd.features.publicAdmission === false))) return null;
   const branch = await a.branchRef(db, schoolId, branchId).get();
   if (!school.exists || !branch.exists) return null;
   return { schoolId, branchId, settings, portal: p, school: school.data(), branch: branch.data() };

@@ -204,6 +204,9 @@ service cloud.firestore {
         // Platform admins must have signed in with a second factor (Firebase
         // sets sign_in_second_factor on the token only for MFA sign-ins).
         && (p.role != 'PLATFORM_ADMIN' || t.firebase.get('sign_in_second_factor', null) != null)
+        // A school suspended by the platform: its users are paused (the field is
+        // mirrored onto every profile by the schoolStatusChanged trigger).
+        && p.get('schoolAccess', 'ACTIVE') == 'ACTIVE'
         && (l == null || (l.enabled == true
         && (g == 'password' ? 'PASSWORD' in l.effective
           // A Google sign-in is only accepted for the Google account whose
@@ -222,6 +225,17 @@ service cloud.firestore {
 
     function isPlatformAdminP(p) {
       return activeAndAllowed(p) && p.role == 'PLATFORM_ADMIN';
+    }
+
+    // A platform admin (Avail404 support) reaches a school's data ONLY while an
+    // active, unrevoked support grant for that school exists, and only to READ.
+    // Grants are written by the requestSupportAccess callable (reason, time box,
+    // visible to the school) and keyed `{adminUid}__{schoolId}`.
+    function supportRead(schoolId) {
+      return request.method in ['get', 'list']
+        && exists(/databases/$(database)/documents/supportGrants/$(request.auth.uid + '__' + schoolId))
+        && get(/databases/$(database)/documents/supportGrants/$(request.auth.uid + '__' + schoolId)).data.expiresAt > request.time
+        && get(/databases/$(database)/documents/supportGrants/$(request.auth.uid + '__' + schoolId)).data.get('revokedAt', null) == null;
     }
 
     function isSchoolAdminOf(schoolId) {
@@ -246,7 +260,7 @@ service cloud.firestore {
     }
 
     function schoolAdminOrAboveP(p, schoolId) {
-      return activeAndAllowed(p) && (p.role == 'PLATFORM_ADMIN'
+      return activeAndAllowed(p) && ((p.role == 'PLATFORM_ADMIN' && supportRead(schoolId))
         || (p.role == 'SCHOOL_ADMIN' && p.schoolId == schoolId));
     }
 
@@ -265,14 +279,14 @@ service cloud.firestore {
     // One ACTIVE-caller check for the whole "admin of this branch, or one of
     // [roles] in this branch" family (kept as one expression so the helpers
     // below do not each expand isActiveCaller() several times).
-    //   PLATFORM_ADMIN: always; SCHOOL_ADMIN: their school;
+    //   PLATFORM_ADMIN: read-only, during an active support grant; SCHOOL_ADMIN: their school;
     //   others: their own school + branch and a role listed in [roles].
     function staffScope(schoolId, branchId, roles) {
       return staffScopeOf(callerProfile(), schoolId, branchId, roles);
     }
 
     function staffScopeOf(p, schoolId, branchId, roles) {
-      return activeAndAllowed(p) && (p.role == 'PLATFORM_ADMIN'
+      return activeAndAllowed(p) && ((p.role == 'PLATFORM_ADMIN' && supportRead(schoolId))
         || (p.schoolId == schoolId && (p.role == 'SCHOOL_ADMIN'
           || branchRoleOf(p, branchId) in roles)));
     }
@@ -1165,7 +1179,7 @@ service cloud.firestore {
     // (`p`) so the announcement rules stay inside the evaluation budget.
     function profileManages(p, schoolId, branchId) {
       return p.status == 'ACTIVE'
-        && (p.role == 'PLATFORM_ADMIN'
+        && ((p.role == 'PLATFORM_ADMIN' && supportRead(schoolId))
             || (p.schoolId == schoolId
                 && (p.role == 'SCHOOL_ADMIN'
                     || branchRoleOf(p, branchId) == 'BRANCH_ADMIN')));
@@ -1184,7 +1198,7 @@ service cloud.firestore {
     function profileMayAddress(p, schoolId, branchId, data) {
       return (data.audienceKind == 'ALL'
           ? (p.status == 'ACTIVE'
-              && (p.role == 'PLATFORM_ADMIN' || (p.role == 'SCHOOL_ADMIN' && p.schoolId == schoolId)))
+              && ((p.role == 'PLATFORM_ADMIN' && supportRead(schoolId)) || (p.role == 'SCHOOL_ADMIN' && p.schoolId == schoolId)))
           : profileManages(p, schoolId, branchId))
         || (data.audienceKind == 'SECTION' && profileIsClassTeacher(p, schoolId, branchId, data));
     }
@@ -1695,7 +1709,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSignedIn() && (
         request.auth.uid == userId ||
-        isPlatformAdmin() ||
+        (isPlatformAdmin() && supportRead(resource.data.schoolId)) ||
         (isActiveCaller() && resource.data.schoolId == callerSchoolId() && (
           callerRole() == 'SCHOOL_ADMIN' ||
           (callerRole() == 'BRANCH_ADMIN' && resource.data.branchId == callerBranchId())
@@ -1782,8 +1796,8 @@ service cloud.firestore {
           ])
           && validRegional(nd())
           && currencyUnchangedOrOpen(resource.data, nd()))
-        ||
-        isPlatformAdmin()
+        // No platform-admin clause: school status and other platform-level
+        // changes go through audited callables, never a client write.
       );
 
 
@@ -1795,6 +1809,12 @@ service cloud.firestore {
       }
       match /authAudit/{eventId} {
         allow read: if isSchoolAdminOrAbove(schoolId);
+      }
+      // Every time Avail404 support is given or loses access to this school
+      // (who, why, until when). Written only by the support-access callables;
+      // school admins read it (Settings -> Support access).
+      match /supportAccessLog/{eventId} {
+        allow read: if isSchoolAdminOf(schoolId);
       }
       // The school's fee reminder policy (days before / after the due date,
       // delivery time, what the text shows). Validated and written ONLY by the
@@ -4165,6 +4185,40 @@ service cloud.firestore {
     // updatePlatformBranding callable writes.
     match /platformBranding/{docId} {
       allow read: if isSignedIn();
+    }
+
+    // Support access: a time-boxed, reasoned, READ-ONLY grant for one platform
+    // admin and one school, written only by requestSupportAccess /
+    // revokeSupportAccess. The grantee reads their own grants (to resume a
+    // session after a reload); the school's admin reads the grants on their
+    // school (and can revoke through the callable).
+    match /supportGrants/{grantId} {
+      allow read: if isPlatformAdmin() && resource.data.adminUid == request.auth.uid;
+      allow read: if isSchoolAdminOf(resource.data.schoolId);
+    }
+
+    // Dashboard numbers and per-school usage, written nightly (and on demand) by
+    // Cloud Functions; any platform admin with a second factor reads them.
+    match /platformStats/{docId} {
+      allow read: if isPlatformAdmin();
+    }
+    match /schoolUsage/{schoolId} {
+      allow read: if isPlatformAdmin();
+    }
+
+    // Notices from Avail404 to school administrators: written only by the
+    // publishPlatformNotice callable. A school's admins read the ones addressed
+    // to everyone or to their school; the app filters by start/end time.
+    match /platformNotices/{noticeId} {
+      allow read: if isPlatformAdmin()
+        || (isActiveCaller() && callerRole() in ['SCHOOL_ADMIN', 'BRANCH_ADMIN']
+            && (resource.data.audienceAll == true || callerSchoolId() in resource.data.schoolIds));
+    }
+
+    // Maintenance mode and the oldest app build still allowed. Public on purpose
+    // (a signed-out app must see it); written only by setAppRequirements.
+    match /platformSettings/{docId} {
+      allow read: if docId == 'app';
     }
 
     // Platform actions (admin created, role changed, ...): create-only audit

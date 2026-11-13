@@ -1,3 +1,4 @@
+import '../shared/availability/app_requirements_gate.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -63,17 +64,19 @@ class App extends ConsumerWidget {
       themeMode: brand.appearance.themeMode,
       routerConfig: router,
       builder: (context, child) => ForcedAppUpdate(
-        child: _AdaptiveText(
-          child: _BrandPrecache(
-            child: accountSwitching
-                ? const Scaffold(body: LoadingIndicator())
-                : KeyedSubtree(
-                    key: ValueKey(regionalKey),
-                    child: _RouteProgressBar(
-                      router: router,
-                      child: child ?? const SizedBox.shrink(),
+        child: AppRequirementsGate(
+          child: _AdaptiveText(
+            child: _BrandPrecache(
+              child: accountSwitching
+                  ? const Scaffold(body: LoadingIndicator())
+                  : KeyedSubtree(
+                      key: ValueKey(regionalKey),
+                      child: _RouteProgressBar(
+                        router: router,
+                        child: child ?? const SizedBox.shrink(),
+                      ),
                     ),
-                  ),
+            ),
           ),
         ),
       ),

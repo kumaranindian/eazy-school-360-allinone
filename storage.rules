@@ -37,6 +37,8 @@ service firebase.storage {
       // Platform admins must have signed in with a second factor.
       return (callerProfile().role != 'PLATFORM_ADMIN'
           || request.auth.token.firebase.get('sign_in_second_factor', null) != null)
+        // A school suspended by the platform pauses all of its users.
+        && callerProfile().get('schoolAccess', 'ACTIVE') == 'ACTIVE'
         && (l == null || (
         l.enabled == true
         && signInMethod() in l.effective
@@ -64,7 +66,7 @@ service firebase.storage {
     function canManageSchool(schoolId) {
       return isActiveCaller()
         && callerProfile().schoolId == schoolId
-        && (callerProfile().role == 'SCHOOL_ADMIN' || callerProfile().role == 'PLATFORM_ADMIN');
+        && callerProfile().role == 'SCHOOL_ADMIN';
     }
 
     // Same school+branch, read-only — mirrors firestore.rules'
@@ -79,7 +81,6 @@ service firebase.storage {
     function canManageStudentData(schoolId, branchId) {
       return isActiveCaller() && callerProfile().schoolId == schoolId
         && (
-          callerProfile().role == 'PLATFORM_ADMIN' ||
           callerProfile().role == 'SCHOOL_ADMIN' ||
           roleIn(branchId) == 'BRANCH_ADMIN'
         );
@@ -166,8 +167,9 @@ service firebase.storage {
     }
 
     match /schools/{schoolId}/branches/{branchId}/admissionDocs/{enquiryId}/{docId}/{fileName} {
-      allow read: if admissionStaff(schoolId, branchId)
-        || (isActiveCaller() && callerProfile().role == 'PLATFORM_ADMIN');
+      // Platform admins have no blanket read: support access is Firestore-only
+      // and never includes uploaded documents.
+      allow read: if admissionStaff(schoolId, branchId);
       allow create: if admissionStaff(schoolId, branchId)
         && firestore.exists(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/admissionDocuments/$(docId))
         && firestore.get(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/admissionDocuments/$(docId)).data.status == 'UPLOADING'

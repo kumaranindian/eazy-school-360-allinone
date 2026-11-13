@@ -80,22 +80,59 @@ AppFailure platformFailureFrom(FirebaseFunctionsException e, StackTrace st) {
     case 'NOT_FOUND':
       return const NotFoundFailure('That platform admin could not be found.');
     case 'FAILED_PRECONDITION':
-      return const ValidationFailure(
-        'You cannot change your own role or status. Ask another owner.',
-      );
+      return ValidationFailure(switch (cause) {
+        'SELF_CHANGE' =>
+          'You cannot change your own role or status. Ask another owner.',
+        'OFFBOARDING' =>
+          'This school is being offboarded. Cancel the offboarding first.',
+        'ALREADY_OPEN' => 'Offboarding is already in progress for this school.',
+        'SAME_PERSON' =>
+          'A different owner has to approve this: you started it.',
+        'NOT_REQUESTED' ||
+        'NOT_OPEN' => 'That has already moved on. Refresh and try again.',
+        'FINAL' => 'That record is closed and cannot be changed.',
+        _ => 'That cannot be done right now.',
+      });
     case 'INVALID_ARGUMENT':
       return ValidationFailure(switch (cause) {
         'emailDomain' =>
           'Only company email addresses can be platform administrators.',
         'email' => 'That email address looks invalid.',
         'name' => 'Enter the person\'s full name.',
+        'reason' => 'Give a little more detail about why you need access.',
+        'minutes' => 'Choose one of the listed durations.',
+        'schoolName' => 'Enter the school\'s name.',
+        'adminName' => 'Enter the administrator\'s full name.',
+        'adminEmail' || 'schoolEmail' => 'That email address looks invalid.',
+        'country' ||
+        'currency' ||
+        'timezone' ||
+        'dateFormat' => 'Choose the school\'s country, currency and time zone.',
+        'amount' => 'Enter an amount above zero.',
+        'dueDate' || 'paidDate' => 'Check the date.',
+        'period' => 'Say what the period is (for example Nov 2026).',
+        'title' || 'body' => 'Write a title and a message.',
+        'severity' => 'Choose how important the notice is.',
+        'dates' => 'The end must be in the future, within 90 days.',
+        'audience' => 'Choose everyone, or up to 50 schools.',
+        'minBuild' => 'Build numbers must be whole numbers.',
+        'message' => 'Write the message people will see.',
+        'until' => 'The end time must be in the future.',
         _ => 'Check the details and try again.',
       });
+    case 'INVALID_TRANSITION':
+      return const ValidationFailure(
+        'That request has moved on. Refresh and try again.',
+      );
+    case 'FEATURE_DISABLED':
+      return const PermissionFailure(
+        'This module is switched off for your school. Contact support.',
+      );
     case 'PERMISSION_DENIED':
-      return const PermissionFailure('Only a platform owner can do this.');
+      return const PermissionFailure('Your platform role does not allow this.');
   }
   if (e.code == 'permission-denied') {
-    return const PermissionFailure('Only a platform owner can do this.');
+    return const PermissionFailure('Your platform role does not allow this.');
   }
   return mapExceptionToFailure(e, st);
 }

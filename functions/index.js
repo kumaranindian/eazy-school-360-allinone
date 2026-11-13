@@ -294,6 +294,8 @@ const adminCtx = () => ({
   db,
   auth: getAuth(),
   now: FieldValue.serverTimestamp(),
+  nowDate: () => new Date(),
+  deleteField: FieldValue.delete(),
   ensureAuthUser,
   enablePortalLinks,
   configured: { phoneOtp: phoneOtpConfigured() },
@@ -349,6 +351,11 @@ exports.updateSchoolBranding = onCall(callOptions(), async (request) => {
 const admissionCall = (name, fn, pick) =>
   onCall(callOptions(), async (request) => {
     const a = signedIn(request);
+    // The platform can switch the admission module off for a school.
+    const sid = request.data && request.data.schoolId;
+    if (typeof sid === 'string' && sid && !(await require('./school_lifecycle').featureEnabled(db, sid, 'admission'))) {
+      throw new HttpsError('failed-precondition', 'FEATURE_DISABLED', { reason: 'FEATURE_DISABLED' });
+    }
     const out = await fn({ ...adminCtx(), wall: () => new Date(), storage: bucketStorage(getStorage().bucket()) }, a.uid, a.token, request.data);
     if (out.error) fail(out);
     logger.info(name, { by: a.uid, ...(pick ? pick(request.data, out.result) : {}) });
@@ -478,8 +485,9 @@ exports.updatePlatformBranding = onCall(callOptions(), async (request) => {
 // Owner-only, second factor required, every change audited. The new person's
 // password is never known to anyone: the app sends them a reset email.
 const platformAdmin = require('./platform_admin');
-const platformCall = (name, fn, logOf) =>
-  onCall(callOptions(), async (request) => {
+const supportAccess = require('./support_access');
+const platformCall = (name, fn, logOf, options = {}) =>
+  onCall(callOptions(options), async (request) => {
     const a = signedIn(request);
     const out = await fn(adminCtx(), a.uid, a.token, request.data, process.env);
     if (out.error) fail(out);
@@ -490,6 +498,57 @@ exports.createPlatformAdmin = platformCall('createPlatformAdmin', platformAdmin.
 exports.listPlatformAdmins = platformCall('listPlatformAdmins', platformAdmin.listPlatformAdmins);
 exports.setPlatformRole = platformCall('setPlatformRole', platformAdmin.setPlatformRole, (o) => ({ platformRole: o.platformRole }));
 exports.setPlatformAdminStatus = platformCall('setPlatformAdminStatus', platformAdmin.setPlatformAdminStatus, (o) => ({ status: o.status }));
+
+// ---- Platform lifecycle, billing and operations (Phase 3-4) -----------------------
+const schoolLifecycle = require('./school_lifecycle');
+const platformBilling = require('./platform_billing');
+const platformOps = require('./platform_ops');
+const LONG = { timeoutSeconds: 120 };
+exports.setSchoolStatus = platformCall('setSchoolStatus', schoolLifecycle.setSchoolStatus, (o) => ({ status: o.status, users: o.usersUpdated }), LONG);
+exports.refreshSchoolAccess = platformCall('refreshSchoolAccess', schoolLifecycle.refreshSchoolAccess, (o) => ({ users: o.usersUpdated }), LONG);
+exports.createSchoolWithAdmin = platformCall('createSchoolWithAdmin', schoolLifecycle.createSchoolWithAdmin, (o) => ({ school: o.schoolId }));
+exports.addSchoolAdmin = platformCall('addSchoolAdmin', schoolLifecycle.addSchoolAdmin);
+exports.resetSchoolAdminAccess = platformCall('resetSchoolAdminAccess', schoolLifecycle.resetSchoolAdminAccess);
+exports.setSchoolFeatures = platformCall('setSchoolFeatures', schoolLifecycle.setSchoolFeatures);
+exports.requestSchoolOffboarding = platformCall('requestSchoolOffboarding', schoolLifecycle.requestSchoolOffboarding, undefined, LONG);
+exports.approveSchoolOffboarding = platformCall('approveSchoolOffboarding', schoolLifecycle.approveSchoolOffboarding);
+exports.cancelSchoolOffboarding = platformCall('cancelSchoolOffboarding', schoolLifecycle.cancelSchoolOffboarding, undefined, LONG);
+exports.saveBillingRecord = platformCall('saveBillingRecord', platformBilling.saveBillingRecord);
+exports.setBillingStatus = platformCall('setBillingStatus', platformBilling.setBillingStatus, (o) => ({ status: o.status }));
+exports.listBillingRecords = platformCall('listBillingRecords', platformBilling.listBillingRecords);
+exports.refreshPlatformStats = platformCall('refreshPlatformStats', platformOps.refreshPlatformStats, undefined, { timeoutSeconds: 300, memory: '512MiB' });
+exports.publishPlatformNotice = platformCall('publishPlatformNotice', platformOps.publishPlatformNotice);
+exports.withdrawPlatformNotice = platformCall('withdrawPlatformNotice', platformOps.withdrawPlatformNotice);
+exports.listPlatformNotices = platformCall('listPlatformNotices', platformOps.listPlatformNotices);
+exports.setAppRequirements = platformCall('setAppRequirements', platformOps.setAppRequirements);
+
+// Nightly dashboard numbers and per-school usage (also on demand: refreshPlatformStats).
+exports.platformStatsRollup = onSchedule(
+  { schedule: 'every day 02:00', timeZone: 'Asia/Kolkata', timeoutSeconds: 540, memory: '512MiB' },
+  async () => {
+    try {
+      const r = await platformOps.computeStats(adminCtx());
+      logger.info('platform stats rolled up', r);
+    } catch (e) {
+      logger.error('platform stats rollup failed', { category: errorCategory(e) });
+    }
+  },
+);
+
+// A school's status changed (by setSchoolStatus, offboarding, or a console edit):
+// mirror it onto its users so the rules and callables enforce it. Idempotent.
+exports.schoolStatusChanged = onDocumentUpdated({ document: 'schools/{schoolId}', timeoutSeconds: 300, retry: true }, async (event) => {
+  const before = event.data && event.data.before.data();
+  const after = event.data && event.data.after.data();
+  if (!before || !after || before.status === after.status) return;
+  const r = await schoolLifecycle.applySchoolAccess(adminCtx(), event.params.schoolId, after.status || 'ACTIVE', Date.now() + 240000);
+  logger.info('school access applied', { school: event.params.schoolId, status: after.status, updated: r.updated, done: r.done });
+  if (!r.done) throw new Error('not finished; retry');
+});
+
+exports.requestSupportAccess = platformCall('requestSupportAccess', supportAccess.requestSupportAccess, (o) => ({ school: o.schoolId }));
+exports.revokeSupportAccess = platformCall('revokeSupportAccess', supportAccess.revokeSupportAccess);
+exports.getSchoolOverview = platformCall('getSchoolOverview', supportAccess.getSchoolOverview);
 
 exports.getSchoolAuthSettings = onCall(callOptions({ secrets: [META_WA_ACCESS_TOKEN, OTP_PEPPER] }), async (request) => {
   const a = signedIn(request);
@@ -800,11 +859,24 @@ exports.confirmAccountDeletionRequest = onCall(callOptions(), async (request) =>
   return { ...out.result, duplicate: out.duplicate === true };
 });
 
-// Avail404 only (an ACTIVE PLATFORM_ADMIN profile, checked on the server).
+// Avail404 only: an ACTIVE platform admin with a second factor and the OWNER or
+// COMPLIANCE platform role.
+async function requireDeletionReviewer(a) {
+  const c = await platformAdmin.platformCaller(db, a.uid, a.token, ['OWNER', 'COMPLIANCE']);
+  if (c.error) throw new HttpsError('permission-denied', 'Not allowed.');
+}
+
+exports.listAccountDeletionRequests = onCall(callOptions(), async (request) => {
+  const a = signedIn(request);
+  await requireDeletionReviewer(a);
+  const out = await accountDeletion.listForReview(deletionCtx(), a.uid, request.data);
+  if (out.error) fail(out);
+  return { requests: out.result };
+});
+
 exports.reviewAccountDeletion = onCall(callOptions(), async (request) => {
   const a = signedIn(request);
-  // Platform admins must have signed in with a second factor.
-  if (!access.hasSecondFactor(a.token)) throw new HttpsError('permission-denied', 'Not allowed.');
+  await requireDeletionReviewer(a);
   const out = await accountDeletion.review(deletionCtx(), a.uid, request.data);
   if (out.error) fail(out);
   deletionLog('account deletion reviewed', out);
@@ -854,9 +926,7 @@ exports.processAccountDeletion = onCall(
   callOptions({ secrets: [OTP_PEPPER], timeoutSeconds: 540, memory: '512MiB' }),
   async (request) => {
     const a = signedIn(request);
-    if (!access.hasSecondFactor(a.token) || !(await accountDeletion.platformReviewer(deletionCtx(), a.uid))) {
-      throw new HttpsError('permission-denied', 'Not allowed.');
-    }
+    await requireDeletionReviewer(a);
     const reference = request.data && request.data.reference;
     if (typeof reference !== 'string' || !/^DEL-[A-Z2-7]{16}$/.test(reference)) {
       throw new HttpsError('invalid-argument', 'INVALID_ARGUMENT', { reason: 'INVALID_ARGUMENT' });
