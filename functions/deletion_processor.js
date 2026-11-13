@@ -25,9 +25,9 @@ const DELETED_NAME = 'Deleted user';
 
 // Fields that hold a person's uid ("who did this"). Matched by equality.
 const UID_FIELDS = [
-  'actorId', 'applicantUserId', 'approvedBy', 'authorId', 'calculatedBy', 'changedBy',
-  'concessionApprovedBy', 'createdBy', 'decidedBy', 'finalizedBy', 'flaggedBy', 'gradedBy',
-  'linkedUserId', 'lockedBy', 'parentUserId', 'publishedBy', 'recipientUserId', 'reviewedBy',
+  'actorId', 'applicantUserId', 'approvedBy', 'assignedTo', 'authorId', 'calculatedBy', 'changedBy',
+  'completedBy', 'concessionApprovedBy', 'convertedBy', 'createdBy', 'decidedBy', 'finalizedBy', 'flaggedBy', 'gradedBy',
+  'linkedUserId', 'lockedBy', 'parentUserId', 'publishedBy', 'recipientUserId', 'recordedBy', 'reviewedBy',
   'reversedBy', 'senderUserId', 'submittedBy', 'supersededBy', 'teacherUserId', 'updatedBy',
   'uploadedBy', 'userId', 'voidedBy',
 ];
@@ -56,7 +56,7 @@ const NAME_FIELD = {
 
 // Collections under schools/{s}/branches/{b} that are scanned for the uid fields.
 const BRANCH_COLLECTIONS = [
-  'academicYears', 'admissionNumbers', 'announcementHistory', 'announcements', 'assignmentSlots',
+  'academicYears', 'admissionActivities', 'admissionActivityHistory', 'admissionApplicationHistory', 'admissionApplications', 'admissionConversions', 'admissionDocuments', 'admissionEnquiries', 'admissionFeePayments', 'admissionFees', 'admissionNumbers', 'admissionStatusHistory', 'announcementHistory', 'announcements', 'assignmentSlots',
   'attendanceSessions', 'broadcastNotices', 'classSubjects', 'classes', 'conversationEvents',
   'conversations', 'departments', 'designations', 'examHistory', 'examRemarks', 'examinationSubjects',
   'examinations', 'gradingSchemes', 'holidays', 'homework', 'homeworkHistory', 'homeworkRevisions',
@@ -70,7 +70,7 @@ const BRANCH_COLLECTIONS = [
 ];
 
 // Collections directly under schools/{s}.
-const SCHOOL_COLLECTIONS = ['academicYears', 'authAudit', 'authSettings', 'branchAccessAudit', 'branding', 'feeReminderSettings', 'studentTransfers'];
+const SCHOOL_COLLECTIONS = ['academicYears', 'admissionSettings', 'authAudit', 'authSettings', 'branchAccessAudit', 'branding', 'feeReminderSettings', 'studentTransfers'];
 
 // Nested collections, found with a collection-group query on a few fields each
 // (single-field indexes for these are declared in firestore.indexes.json).

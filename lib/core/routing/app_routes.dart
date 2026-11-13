@@ -8,6 +8,9 @@ abstract final class AppRoutes {
   static const String login = '/login';
   static const String register = '/register';
   static const String forgotPassword = '/forgot-password';
+
+  /// The public admission enquiry form (no sign-in): `/admission/{slug}`.
+  static const String publicAdmission = '/admission/:slug';
   static const String accountInactive = '/account-inactive';
   static const String changePassword = '/change-password';
   static const String createSchool = '/create-school';
@@ -55,6 +58,21 @@ abstract final class AppRoutes {
   static const String parents = '/parents';
   static const String parentProfile = '/parents/:parentId';
   static const String parentLoginAccess = '/parents/:parentId/login-access';
+
+  // Admission enquiries.
+  static const String admissions = '/admissions';
+  static const String admissionEnquiries = '/admissions/enquiries';
+  static const String admissionFollowUps = '/admissions/follow-ups';
+  static const String admissionApplications = '/admissions/applications';
+  static const String admissionReports = '/admissions/reports';
+  static const String admissionFees = '/admissions/fees';
+  static const String admissionEditApplication =
+      '/admissions/enquiries/:enquiryId/application/edit';
+  static const String admissionNewEnquiry = '/admissions/enquiries/new';
+  static const String admissionEnquiry = '/admissions/enquiries/:enquiryId';
+  static const String admissionEditEnquiry =
+      '/admissions/enquiries/:enquiryId/edit';
+  static const String admissionSettings = '/admissions/settings';
 
   /// Staff + Teacher management (Milestone 4). `/teachers` is a sibling view
   /// of `/staff` (same nav destination); `/my-profile` is the signed-in
@@ -205,6 +223,19 @@ abstract final class AppRoutes {
     parentProfile: Permission.viewParents,
     // Same permission that shows the key button on the parents list.
     parentLoginAccess: Permission.manageStudentData,
+    admissions: Permission.manageAdmissions,
+    admissionEnquiries: Permission.manageAdmissions,
+    admissionFollowUps: Permission.manageAdmissions,
+    admissionApplications: Permission.manageAdmissions,
+    admissionReports: Permission.manageAdmissions,
+    // Finance collects admission fees without any access to the enquiries.
+    admissionFees: Permission.collectPayments,
+    admissionEditApplication: Permission.manageAdmissions,
+    admissionNewEnquiry: Permission.manageAdmissions,
+    admissionEnquiry: Permission.manageAdmissions,
+    admissionEditEnquiry: Permission.manageAdmissions,
+    // Settings are school-wide and only school administrators may save them.
+    admissionSettings: Permission.manageSchool,
     staff: Permission.viewStaff,
     newStaff: Permission.manageStaff,
     staffDepartments: Permission.viewStaff,

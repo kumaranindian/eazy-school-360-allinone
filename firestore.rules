@@ -1802,6 +1802,11 @@ service cloud.firestore {
       match /branding/{docId} {
         allow read: if isSignedIn() && (isSameSchool(schoolId) || isPlatformAdmin());
       }
+      // Admission settings (module switch, number prefixes, sources). Read by
+      // administrators; written only by the saveAdmissionSettings callable.
+      match /admissionSettings/{docId} {
+        allow read: if isSchoolAdminOrAbove(schoolId) || (isSameSchool(schoolId) && callerRole() == 'BRANCH_ADMIN');
+      }
       // Grants/revocations of per-branch roles (setBranchAccess, staff
       // deactivation). Cloud Functions write; school admins read.
       match /branchAccessAudit/{eventId} {
@@ -3578,6 +3583,43 @@ service cloud.firestore {
                == nd().revision
             && getAfter(ttDoc(schoolId, branchId, 'homeworkSubmissions', nd().submissionId)).data.status
                == nd().status;
+        }
+
+        // ---- Admission enquiries (docs/admission-management/) -----------
+        // Read by the school admin (and platform admin) and the branch admin of
+        // THIS branch. Written only by the admission callables (admin SDK):
+        // no client write rule exists, so numbering, duplicate flags and the
+        // status state machine cannot be bypassed. The sequence collection
+        // has no rule on purpose (server-only).
+        match /admissionEnquiries/{enquiryId} {
+          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+        }
+        match /admissionStatusHistory/{entryId} {
+          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+        }
+        match /admissionActivities/{activityId} {
+          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+        }
+        match /admissionActivityHistory/{entryId} {
+          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+        }
+        match /admissionApplications/{applicationId} {
+          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+        }
+        match /admissionApplicationHistory/{entryId} {
+          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+        }
+        match /admissionDocuments/{documentId} {
+          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+        }
+        match /admissionFees/{feeId} {
+          allow read: if canFeeStaff(schoolId, branchId);
+        }
+        match /admissionFeePayments/{paymentId} {
+          allow read: if canFeeStaff(schoolId, branchId);
+        }
+        match /admissionConversions/{enquiryId} {
+          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
         }
 
         // ---- Announcements (Milestone 9) -------------------------------

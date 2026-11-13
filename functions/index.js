@@ -16,6 +16,9 @@ const devices = require('./devices');
 const notifyEvents = require('./notify_events');
 const feeReminders = require('./fee_reminders');
 const branding = require('./branding');
+const admission = require('./admission');
+const admissionActivities = require('./admission_activities');
+const admissionApplications = require('./admission_applications');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret, defineString } = require('firebase-functions/params');
 const { createSchoolAdmin, provisionLogins, changeInitialPassword, resetLoginPassword, ensureAuthUser, enablePortalLinks } = require('./provision');
@@ -265,6 +268,7 @@ const STATUS = {
   EMAIL_IN_USE: 'already-exists',
   UNAUTHENTICATED: 'unauthenticated',
   RATE_LIMITED: 'resource-exhausted',
+  RESOURCE_EXHAUSTED: 'resource-exhausted',
   RESEND_COOLDOWN: 'resource-exhausted',
   DELIVERY_FAILED: 'unavailable',
   OTP_UNAVAILABLE: 'failed-precondition',
@@ -336,6 +340,129 @@ exports.updateSchoolBranding = onCall(callOptions(), async (request) => {
   logger.info('updateSchoolBranding', { by: a.uid, version: out.result.version });
   return out.result;
 });
+
+// Admission enquiries (docs/admission-management/). Every write is a callable:
+// the rules give clients read access only, so numbering, duplicate flagging,
+// the status state machine and branch scoping cannot be bypassed from a client.
+const admissionCall = (name, fn, pick) =>
+  onCall(callOptions(), async (request) => {
+    const a = signedIn(request);
+    const out = await fn({ ...adminCtx(), wall: () => new Date(), storage: bucketStorage(getStorage().bucket()) }, a.uid, a.token, request.data);
+    if (out.error) fail(out);
+    logger.info(name, { by: a.uid, ...(pick ? pick(request.data, out.result) : {}) });
+    return out.result;
+  });
+exports.saveAdmissionSettings = admissionCall('saveAdmissionSettings', admission.saveAdmissionSettings);
+exports.createAdmissionEnquiry = admissionCall('createAdmissionEnquiry', admission.createEnquiry, (d, r) => ({ enquiry: r.id }));
+exports.updateAdmissionEnquiry = admissionCall('updateAdmissionEnquiry', admission.updateEnquiry, (d) => ({ enquiry: d.enquiryId }));
+exports.assignAdmissionEnquiry = admissionCall('assignAdmissionEnquiry', admission.assignEnquiry, (d) => ({ enquiry: d.enquiryId }));
+exports.scheduleAdmissionActivity = admissionCall('scheduleAdmissionActivity', admissionActivities.scheduleActivity, (d, r) => ({ enquiry: d.enquiryId, activity: r.id }));
+exports.createAdmissionApplication = admissionCall('createAdmissionApplication', admissionApplications.createApplication, (d, r) => ({ enquiry: d.enquiryId }));
+exports.updateAdmissionApplication = admissionCall('updateAdmissionApplication', admissionApplications.updateApplication, (d) => ({ enquiry: d.enquiryId }));
+exports.submitAdmissionApplication = admissionCall('submitAdmissionApplication', admissionApplications.submitApplication, (d) => ({ enquiry: d.enquiryId }));
+exports.reviewAdmissionApplication = admissionCall('reviewAdmissionApplication', admissionApplications.reviewApplication, (d) => ({ enquiry: d.enquiryId, action: d.action }));
+exports.decideAdmissionApplication = admissionCall('decideAdmissionApplication', admissionApplications.decideApplication, (d, r) => ({ enquiry: d.enquiryId, status: r.status }));
+exports.requestAdmissionDocumentUpload = admissionCall('requestAdmissionDocumentUpload', admissionApplications.requestDocumentUpload, (d, r) => ({ enquiry: d.enquiryId, document: r.id }));
+exports.confirmAdmissionDocumentUpload = admissionCall('confirmAdmissionDocumentUpload', admissionApplications.confirmDocumentUpload, (d) => ({ enquiry: d.enquiryId, document: d.documentId }));
+exports.verifyAdmissionDocument = admissionCall('verifyAdmissionDocument', admissionApplications.verifyDocument, (d) => ({ enquiry: d.enquiryId, document: d.documentId, decision: d.decision }));
+exports.removeAdmissionDocument = admissionCall('removeAdmissionDocument', admissionApplications.removeDocument, (d) => ({ enquiry: d.enquiryId, document: d.documentId }));
+
+// Uploads that were requested but never confirmed are cleaned up daily.
+exports.admissionDocumentCleanup = onSchedule(
+  { schedule: 'every 24 hours', timeZone: 'UTC' },
+  async () => {
+    try {
+      const r = await admissionApplications.cleanupAbandonedUploads({ db, storage: bucketStorage(getStorage().bucket()), now: () => new Date(), log: (event, f) => logger.info(event, f) });
+      logger.info('admission document cleanup', r);
+    } catch (e) {
+      logger.error('admission document cleanup failed', { category: errorCategory(e) });
+    }
+  },
+);
+
+exports.scheduleAdmissionVisit = admissionCall('scheduleAdmissionVisit', admissionActivities.scheduleVisit, (d, r) => ({ enquiry: d.enquiryId, visit: r.id }));
+exports.rescheduleAdmissionActivity = admissionCall('rescheduleAdmissionActivity', admissionActivities.rescheduleActivity, (d) => ({ enquiry: d.enquiryId, activity: d.activityId }));
+exports.reassignAdmissionActivity = admissionCall('reassignAdmissionActivity', admissionActivities.reassignActivity, (d) => ({ enquiry: d.enquiryId, activity: d.activityId }));
+exports.completeAdmissionActivity = admissionCall('completeAdmissionActivity', admissionActivities.completeActivity, (d) => ({ enquiry: d.enquiryId, activity: d.activityId }));
+exports.cancelAdmissionActivity = admissionCall('cancelAdmissionActivity', admissionActivities.cancelActivity, (d) => ({ enquiry: d.enquiryId, activity: d.activityId }));
+
+// Follow-up reminders: hourly, at each school's own local reminder time.
+// Idempotent (derived ids + create()), so a retry or re-run sends nothing new.
+exports.admissionFollowUpReminders = onSchedule(
+  { schedule: 'every 1 hours', timeZone: 'UTC' },
+  async () => {
+    try {
+      const r = await admissionActivities.runFollowUpReminders({ ...events(), log: (event, f) => logger.info(event, f) });
+      if (r.failed) logger.warn('admission follow-up reminders finished with problems', r);
+      else logger.info('admission follow-up reminders', r);
+    } catch (e) {
+      logger.error('admission follow-up reminders failed', { category: errorCategory(e) });
+    }
+  },
+);
+
+const admissionFees = require('./admission_fees');
+exports.setAdmissionFee = admissionCall('setAdmissionFee', admissionFees.setAdmissionFee, (d) => ({ enquiry: d.enquiryId, category: d.category }));
+exports.cancelAdmissionFee = admissionCall('cancelAdmissionFee', admissionFees.cancelAdmissionFee, (d) => ({ enquiry: d.enquiryId, category: d.category }));
+exports.waiveAdmissionFee = admissionCall('waiveAdmissionFee', admissionFees.waiveAdmissionFee, (d) => ({ enquiry: d.enquiryId, category: d.category }));
+exports.recordAdmissionFeePayment = admissionCall('recordAdmissionFeePayment', admissionFees.recordAdmissionFeePayment, (d, r) => ({ enquiry: d.enquiryId, category: d.category, receipt: r.receiptNumber }));
+exports.refundAdmissionFee = admissionCall('refundAdmissionFee', admissionFees.refundAdmissionFee, (d) => ({ enquiry: d.enquiryId, category: d.category }));
+const admissionConversion = require('./admission_conversion');
+exports.convertAdmissionToStudent = admissionCall('convertAdmissionToStudent', admissionConversion.convertToStudent, (d, r) => ({ enquiry: d.enquiryId, student: r.studentId }));
+
+// The public enquiry page: callable by anyone, so it never reads the caller's
+// identity; school and branch come from the registered page address only.
+const admissionPublic = require('./admission_public');
+const publicCall = (name, fn) =>
+  onCall(callOptions(), async (request) => {
+    const raw = request.rawRequest || {};
+    const out = await fn(
+      { ...adminCtx(), wall: () => new Date(), clientIp: raw.ip || null, turnstileSecret: process.env.TURNSTILE_SECRET_KEY || null },
+      null,
+      null,
+      request.data,
+    );
+    if (out.error) fail(out);
+    logger.info(name, { slug: request.data && request.data.slug });
+    return out.result;
+  });
+exports.getAdmissionPortal = publicCall('getAdmissionPortal', admissionPublic.getPublicPortal);
+exports.submitPublicAdmissionEnquiry = publicCall('submitPublicAdmissionEnquiry', admissionPublic.submitPublicEnquiry);
+
+// Admission notifications (admission_notify.js). One status-history entry or one assignee
+// change makes at most one notice per person; ids are derived and created with create(), so
+// `retry: true` is safe: a failed run is repeated and only the missing notices are written.
+const admissionNotify = require('./admission_notify');
+const notifyCtx = () => ({ db, now: () => new Date() });
+exports.notifyAdmissionStatus = onDocumentCreated(
+  { document: 'schools/{schoolId}/branches/{branchId}/admissionStatusHistory/{entryId}', retry: true },
+  async (event) => {
+    try {
+      await admissionNotify.onStatusHistory(notifyCtx(), event.params, event.data && event.data.data());
+    } catch (e) {
+      logger.error('admission status notice failed', { category: errorCategory(e) });
+      throw e;
+    }
+  },
+);
+exports.notifyAdmissionAssignment = onDocumentUpdated(
+  { document: 'schools/{schoolId}/branches/{branchId}/admissionEnquiries/{enquiryId}', retry: true },
+  async (event) => {
+    try {
+      await admissionNotify.onEnquiryUpdated(
+        notifyCtx(),
+        event.params,
+        event.data.before.exists ? event.data.before.data() : undefined,
+        event.data.after.exists ? event.data.after.data() : undefined,
+      );
+    } catch (e) {
+      logger.error('admission assignment notice failed', { category: errorCategory(e) });
+      throw e;
+    }
+  },
+);
+exports.getAdmissionReport = admissionCall('getAdmissionReport', require('./admission_reports').getAdmissionReport, (d) => ({ scope: d.branchId ? 'branch' : 'school' }));
+exports.changeAdmissionEnquiryStatus = admissionCall('changeAdmissionEnquiryStatus', admission.changeEnquiryStatus, (d, r) => ({ enquiry: d.enquiryId, status: r.status }));
 
 exports.updatePlatformBranding = onCall(callOptions(), async (request) => {
   const a = signedIn(request);

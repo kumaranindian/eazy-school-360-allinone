@@ -1,0 +1,1128 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../../core/errors/error_mapper.dart';
+import '../../../../core/extensions/context_extensions.dart';
+import '../../../../core/routing/app_routes.dart';
+import '../../../../core/tenant/tenant_context_provider.dart';
+import '../../../../core/theme/admin_dashboard_palette.dart';
+import '../../../../core/utils/responsive.dart';
+import '../../../../shared/error/empty_view.dart';
+import '../../../../shared/loading/async_value_widget.dart';
+import '../../../academic_setup/presentation/providers/academic_structure_providers.dart';
+import '../../../students/presentation/widgets/parents/parents_ui.dart';
+import '../../../../core/regional/school_time.dart';
+import '../../domain/admission_activity.dart';
+import '../../domain/admission_application.dart';
+import '../../domain/admission_enquiry.dart';
+import '../../domain/admission_timeline.dart';
+import '../../domain/admission_status.dart';
+import '../providers/admission_providers.dart';
+import '../../domain/admission_settings.dart';
+import '../widgets/activity_dialogs.dart';
+import '../widgets/application_widgets.dart';
+import '../widgets/enquiry_application_tabs.dart';
+import '../widgets/fees_tab.dart';
+import '../widgets/activity_widgets.dart';
+import '../widgets/admission_widgets.dart';
+
+enum _Tab {
+  overview,
+  activities,
+  visits,
+  application,
+  documents,
+  fees,
+  timeline,
+  notes,
+}
+
+/// One enquiry: overview, status history and internal notes, with the actions
+/// that are allowed from its current status (change status, assign, edit).
+class EnquiryDetailPage extends ConsumerStatefulWidget {
+  final String enquiryId;
+  const EnquiryDetailPage({super.key, required this.enquiryId});
+
+  @override
+  ConsumerState<EnquiryDetailPage> createState() => _EnquiryDetailPageState();
+}
+
+class _EnquiryDetailPageState extends ConsumerState<EnquiryDetailPage> {
+  _Tab _tab = _Tab.overview;
+
+  @override
+  Widget build(BuildContext context) {
+    return AsyncValueWidget(
+      value: ref.watch(tenantContextProvider),
+      data: (tenant) {
+        if (tenant?.school == null || tenant?.branch == null) {
+          return const EmptyView(
+            icon: Icons.contact_phone_outlined,
+            message: 'No branch found for your account.',
+          );
+        }
+        final schoolId = tenant!.school!.schoolId;
+        final branchId = tenant.branch!.branchId;
+        final key = (
+          schoolId: schoolId,
+          branchId: branchId,
+          enquiryId: widget.enquiryId,
+        );
+        return AsyncValueWidget(
+          value: ref.watch(enquiryProvider(key)),
+          data: (e) {
+            if (e == null) {
+              return const EmptyView(
+                icon: Icons.search_off,
+                message: 'This enquiry could not be found.',
+              );
+            }
+            return _content(context, e, key);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _content(BuildContext context, AdmissionEnquiry e, EnquiryKey key) {
+    // Keeps the write controller alive while a callable is in flight (the
+    // actions only `read` it).
+    ref.watch(admissionWriteControllerProvider);
+    final layout = screenSizeForWidth(MediaQuery.sizeOf(context).width);
+    final options = e.status.manualOptions();
+    return Scaffold(
+      body: Column(
+        children: [
+          ParentsPageBar(
+            title: e.enquiryNumber,
+            onBack: () => context.canPop()
+                ? context.pop()
+                : context.go(AppRoutes.admissionEnquiries),
+            trailing: e.status.isClosed
+                ? null
+                : IconButton(
+                    tooltip: 'Edit',
+                    icon: const Icon(Icons.edit_outlined),
+                    onPressed: () =>
+                        context.push('/admissions/enquiries/${e.id}/edit'),
+                  ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.all(layout.isMobile ? 16 : 24),
+              children: [
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 900),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _Header(enquiry: e, schoolBranch: key),
+                        if (e.duplicateOf.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          _DuplicateCard(ids: e.duplicateOf),
+                        ],
+                        const SizedBox(height: 12),
+                        _Actions(
+                          enquiry: e,
+                          canChange: options.isNotEmpty,
+                          onStatus: () => _changeStatus(context, e, key),
+                          onAssign: e.status.isClosed
+                              ? null
+                              : () => _assign(context, e, key),
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          children: [
+                            for (final t in _Tab.values)
+                              ChoiceChip(
+                                label: Text(switch (t) {
+                                  _Tab.overview => 'Overview',
+                                  _Tab.activities => 'Activities',
+                                  _Tab.visits => 'Visits',
+                                  _Tab.application => 'Application',
+                                  _Tab.documents => 'Documents',
+                                  _Tab.fees => 'Fees',
+                                  _Tab.timeline => 'Timeline',
+                                  _Tab.notes => 'Internal notes',
+                                }),
+                                selected: _tab == t,
+                                onSelected: (_) => setState(() => _tab = t),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        switch (_tab) {
+                          _Tab.overview => _Overview(
+                            enquiry: e,
+                            key: ValueKey(e.revision),
+                          ),
+                          _Tab.activities => _Activities(
+                            enquiry: e,
+                            keyData: key,
+                          ),
+                          _Tab.visits => _Activities(
+                            enquiry: e,
+                            keyData: key,
+                            visits: true,
+                          ),
+                          _Tab.application => ApplicationTab(
+                            enquiry: e,
+                            keyData: key,
+                            settings:
+                                ref
+                                    .watch(
+                                      admissionSettingsProvider(key.schoolId),
+                                    )
+                                    .value ??
+                                const AdmissionSettings(),
+                          ),
+                          _Tab.documents => DocumentsTab(
+                            keyData: key,
+                            settings:
+                                ref
+                                    .watch(
+                                      admissionSettingsProvider(key.schoolId),
+                                    )
+                                    .value ??
+                                const AdmissionSettings(),
+                          ),
+                          _Tab.fees => FeesTab(enquiry: e, keyData: key),
+                          _Tab.timeline => _Timeline(enquiry: e, keyData: key),
+                          _Tab.notes => _Notes(enquiry: e),
+                        },
+                        const SizedBox(height: 24),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _changeStatus(
+    BuildContext context,
+    AdmissionEnquiry e,
+    EnquiryKey key,
+  ) async {
+    final result = await showDialog<({String status, String? reason})>(
+      context: context,
+      builder: (_) => _StatusDialog(enquiry: e),
+    );
+    if (result == null || !mounted) return;
+    final ok = await ref
+        .read(admissionWriteControllerProvider.notifier)
+        .changeStatus(
+          schoolId: key.schoolId,
+          branchId: key.branchId,
+          enquiryId: key.enquiryId,
+          status: result.status,
+          reason: result.reason,
+          baseRevision: e.revision,
+        );
+    if (!mounted) return;
+    _report(ok, 'Status updated.');
+  }
+
+  Future<void> _assign(
+    BuildContext context,
+    AdmissionEnquiry e,
+    EnquiryKey key,
+  ) async {
+    final people = await ref.read(
+      assigneesProvider((
+        schoolId: key.schoolId,
+        branchId: key.branchId,
+      )).future,
+    );
+    if (!mounted) return;
+    final choice = await showDialog<({String? userId})>(
+      // The page is still mounted (checked above).
+      // ignore: use_build_context_synchronously
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('Assign to'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(dialogContext, (userId: null)),
+            child: const Text('Unassigned'),
+          ),
+          for (final p in people)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialogContext, (userId: p.userId)),
+              child: Text(
+                p.name,
+                style: e.assignedTo == p.userId
+                    ? const TextStyle(fontWeight: FontWeight.w800)
+                    : null,
+              ),
+            ),
+          if (people.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('No staff with a login were found in this branch.'),
+            ),
+        ],
+      ),
+    );
+    if (choice == null || !mounted) return;
+    final ok = await ref
+        .read(admissionWriteControllerProvider.notifier)
+        .assign(
+          schoolId: key.schoolId,
+          branchId: key.branchId,
+          enquiryId: key.enquiryId,
+          assignedTo: choice.userId,
+        );
+    if (!mounted) return;
+    _report(ok, 'Assignment updated.');
+  }
+
+  void _report(bool ok, String success) {
+    if (ok) {
+      context.showSnackBar(success);
+    } else {
+      final err = ref.read(admissionWriteControllerProvider).error;
+      context.showSnackBar(
+        err == null ? 'That did not work.' : userMessageFor(err),
+        isError: true,
+      );
+    }
+  }
+}
+
+class _Header extends ConsumerWidget {
+  final AdmissionEnquiry enquiry;
+  final EnquiryKey schoolBranch;
+  const _Header({required this.enquiry, required this.schoolBranch});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = AdminDashboardPalette.of(context);
+    final t = Theme.of(context).textTheme;
+    final years =
+        ref
+            .watch(
+              academicYearsProvider((
+                schoolId: schoolBranch.schoolId,
+                branchId: schoolBranch.branchId,
+              )),
+            )
+            .value ??
+        const [];
+    final classes =
+        ref
+            .watch(
+              classesProvider((
+                schoolId: schoolBranch.schoolId,
+                branchId: schoolBranch.branchId,
+                academicYearId: enquiry.academicYearId,
+              )),
+            )
+            .value ??
+        const [];
+    final year = years
+        .where((y) => y.academicYearId == enquiry.academicYearId)
+        .map((y) => y.name)
+        .firstOrNull;
+    final cls = classes
+        .where((c) => c.classId == enquiry.interestedClassId)
+        .map((c) => c.name)
+        .firstOrNull;
+    return ParentsCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ParentsAvatar(name: enquiry.studentName, size: 56),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      enquiry.studentName,
+                      style: t.titleLarge?.copyWith(
+                        color: p.textPrimary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    AdmissionStatusBadge(enquiry.status),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  [
+                    if (cls != null) 'Class $cls',
+                    if (year != null) year,
+                    'Enquired ${shortDate(enquiry.enquiryDate)}',
+                  ].join(' · '),
+                  style: t.bodyMedium?.copyWith(color: p.textSecondary),
+                ),
+                if (enquiry.statusReason != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      'Reason: ${enquiry.statusReason}',
+                      style: t.bodyMedium,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DuplicateCard extends StatelessWidget {
+  final List<String> ids;
+  const _DuplicateCard({required this.ids});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AdminDashboardPalette.of(context);
+    return ParentsCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ParentsSectionTitle(
+            icon: Icons.warning_amber_outlined,
+            title: 'Possible duplicate',
+            color: p.warning,
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'An enquiry with the same mobile number, student name and date of '
+            'birth already exists for this academic year. Nothing was merged — '
+            'please check and close this one if it is a repeat.',
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final id in ids)
+                ActionChip(
+                  label: const Text('Open the earlier enquiry'),
+                  onPressed: () => context.push('/admissions/enquiries/$id'),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Actions extends StatelessWidget {
+  final AdmissionEnquiry enquiry;
+  final bool canChange;
+  final VoidCallback onStatus;
+  final VoidCallback? onAssign;
+  const _Actions({
+    required this.enquiry,
+    required this.canChange,
+    required this.onStatus,
+    required this.onAssign,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      children: [
+        FilledButton.icon(
+          onPressed: canChange ? onStatus : null,
+          icon: const Icon(Icons.swap_horiz),
+          label: const Text('Change status'),
+        ),
+        OutlinedButton.icon(
+          onPressed: onAssign,
+          icon: const Icon(Icons.person_add_alt_outlined),
+          label: const Text('Assign'),
+        ),
+      ],
+    );
+  }
+}
+
+class _Overview extends ConsumerWidget {
+  final AdmissionEnquiry enquiry;
+  const _Overview({super.key, required this.enquiry});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final e = enquiry;
+    final assignee = e.assignedTo == null
+        ? null
+        : (ref
+                      .watch(
+                        assigneesProvider((
+                          schoolId: e.schoolId,
+                          branchId: e.branchId,
+                        )),
+                      )
+                      .value ??
+                  const [])
+              .where((a) => a.userId == e.assignedTo)
+              .map((a) => a.name)
+              .firstOrNull;
+    Widget card(IconData icon, String title, List<Widget> rows) => ParentsCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ParentsSectionTitle(icon: icon, title: title),
+          const SizedBox(height: 8),
+          ...rows,
+        ],
+      ),
+    );
+    final left = [
+      card(Icons.child_care_outlined, 'Student', [
+        ParentsFactRow(
+          icon: Icons.badge_outlined,
+          label: 'Name',
+          text: e.studentName,
+        ),
+        if (e.dateOfBirth != null)
+          ParentsFactRow(
+            icon: Icons.cake_outlined,
+            label: 'Date of birth',
+            text: shortDate(e.dateOfBirth),
+          ),
+        if (e.gender != null)
+          ParentsFactRow(
+            icon: Icons.wc_outlined,
+            label: 'Gender',
+            text: _gender(e.gender!),
+          ),
+        if (e.previousSchool != null)
+          ParentsFactRow(
+            icon: Icons.school_outlined,
+            label: 'Previous school',
+            text: [
+              e.previousSchool,
+              e.previousClass,
+            ].whereType<String>().join(' · '),
+          ),
+        if (e.specialRequirements != null)
+          ParentsFactRow(
+            icon: Icons.accessibility_new_outlined,
+            label: 'Special requirements',
+            text: e.specialRequirements!,
+          ),
+      ]),
+      card(Icons.contact_phone_outlined, 'Enquiry', [
+        ParentsFactRow(
+          icon: Icons.tag,
+          label: 'Enquiry number',
+          text: e.enquiryNumber,
+        ),
+        ParentsFactRow(
+          icon: Icons.campaign_outlined,
+          label: 'Source',
+          text: e.source,
+        ),
+        ParentsFactRow(
+          icon: Icons.support_agent_outlined,
+          label: 'Assigned to',
+          text: e.assignedTo == null
+              ? 'Unassigned'
+              : (assignee ?? 'Staff member'),
+        ),
+        if (e.nextFollowUpDate != null)
+          ParentsFactRow(
+            icon: Icons.event_outlined,
+            label: 'Next follow-up',
+            text: shortDate(e.nextFollowUpDate),
+          ),
+      ]),
+    ];
+    final right = [
+      card(Icons.family_restroom_outlined, 'Parent / guardian', [
+        for (final g in e.guardians) ...[
+          ParentsFactRow(
+            icon: Icons.person_outline,
+            label: g.primary ? 'Primary contact' : 'Guardian',
+            text: [g.name, g.relationship].whereType<String>().join(' · '),
+          ),
+          ParentsFactRow(icon: Icons.phone_outlined, text: g.phone),
+          if (g.email != null)
+            ParentsFactRow(icon: Icons.mail_outline, text: g.email!),
+        ],
+        if ([e.addressLine1, e.city, e.state, e.country].any((s) => s != null))
+          ParentsFactRow(
+            icon: Icons.home_outlined,
+            label: 'Address',
+            text: [
+              e.addressLine1,
+              e.city,
+              e.state,
+              e.country,
+            ].whereType<String>().join(', '),
+          ),
+      ]),
+    ];
+    return LayoutBuilder(
+      builder: (context, box) {
+        if (box.maxWidth < 700) {
+          return Column(
+            children: [
+              for (final w in [...left, ...right]) ...[
+                w,
+                const SizedBox(height: 12),
+              ],
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                children: [
+                  for (final w in left) ...[w, const SizedBox(height: 12)],
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                children: [
+                  for (final w in right) ...[w, const SizedBox(height: 12)],
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  static String _gender(String g) => switch (g) {
+    'MALE' => 'Male',
+    'FEMALE' => 'Female',
+    _ => 'Other',
+  };
+}
+
+class _Timeline extends ConsumerWidget {
+  final AdmissionEnquiry enquiry;
+  final EnquiryKey keyData;
+  const _Timeline({required this.enquiry, required this.keyData});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = AdminDashboardPalette.of(context);
+    final status = ref.watch(
+      enquiryHistoryProvider((keyData, enquiry.revision)),
+    );
+    // Activity changes do not bump the enquiry's revision; the time of the last
+    // activity change does change, so it keys the second history.
+    final activity = ref.watch(
+      enquiryActivityHistoryProvider((
+        keyData,
+        enquiry.lastActivityAt?.millisecondsSinceEpoch ?? 0,
+      )),
+    );
+    final application = ref.watch(applicationProvider(keyData)).value;
+    final applicationEvents = application == null
+        ? null
+        : ref.watch(
+            applicationHistoryProvider((keyData, application.revision)),
+          );
+    final labels =
+        ref
+            .watch(admissionSettingsProvider(keyData.schoolId))
+            .value
+            ?.documentTypes ??
+        builtInDocumentTypes;
+    Widget body() {
+      if (status.isLoading ||
+          activity.isLoading ||
+          (applicationEvents?.isLoading ?? false)) {
+        return const Padding(
+          padding: EdgeInsets.all(16),
+          child: Center(child: CircularProgressIndicator()),
+        );
+      }
+      final err = status.error ?? activity.error ?? applicationEvents?.error;
+      if (err != null) return Text(userMessageFor(err));
+      final items = mergeTimeline(
+        status.value ?? const [],
+        activity.value ?? const [],
+        applicationEvents?.value ?? const [],
+      );
+      if (items.isEmpty) return const Text('No history yet.');
+      return Column(
+        children: [
+          for (final item in items)
+            switch (item) {
+              StatusTimelineItem(:final entry) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.circle, size: 12, color: p.primary),
+                title: Text(
+                  entry.from == null
+                      ? 'Enquiry created (${entry.to.label})'
+                      : entry.resumed
+                      ? 'Resumed: ${entry.from!.label} → ${entry.to.label}'
+                      : '${entry.from!.label} → ${entry.to.label}',
+                ),
+                subtitle: Text(
+                  [
+                    if (entry.at != null) _stamp(entry.at!),
+                    if (entry.reason != null) 'Reason: ${entry.reason}',
+                  ].join(' · '),
+                ),
+              ),
+              ApplicationTimelineItem(:final entry) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  Icons.description_outlined,
+                  size: 18,
+                  color: p.textSecondary,
+                ),
+                title: Text(describeApplicationEvent(entry, labels)),
+                subtitle: Text(
+                  [
+                    if (entry.at != null) _stamp(entry.at!),
+                    if (entry.comment != null) 'Note: ${entry.comment}',
+                  ].join(' · '),
+                ),
+              ),
+              ActivityTimelineItem(:final entry) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  activityIcon(entry.type),
+                  size: 18,
+                  color: p.textSecondary,
+                ),
+                title: Text(describeActivityEvent(entry)),
+                subtitle: Text(
+                  [
+                    if (entry.at != null) _stamp(entry.at!),
+                    if (entry.reason != null) 'Reason: ${entry.reason}',
+                  ].join(' · '),
+                ),
+              ),
+            },
+        ],
+      );
+    }
+
+    return ParentsCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const ParentsSectionTitle(
+            icon: Icons.timeline,
+            title: 'Status, follow-ups, visits and application',
+          ),
+          const SizedBox(height: 8),
+          body(),
+        ],
+      ),
+    );
+  }
+
+  static String _stamp(DateTime d) {
+    final l = d.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${shortDate('${l.year}-${two(l.month)}-${two(l.day)}')} '
+        '${two(l.hour)}:${two(l.minute)}';
+  }
+}
+
+class _Notes extends StatelessWidget {
+  final AdmissionEnquiry enquiry;
+  const _Notes({required this.enquiry});
+
+  @override
+  Widget build(BuildContext context) {
+    return ParentsCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const ParentsSectionTitle(
+            icon: Icons.sticky_note_2_outlined,
+            title: 'Internal notes',
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Only school staff see these. They are never shown to parents.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          Text(enquiry.remarks ?? 'No notes yet. Add them with Edit.'),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusDialog extends StatefulWidget {
+  final AdmissionEnquiry enquiry;
+  const _StatusDialog({required this.enquiry});
+
+  @override
+  State<_StatusDialog> createState() => _StatusDialogState();
+}
+
+class _StatusDialogState extends State<_StatusDialog> {
+  String? _choice;
+  final _reason = TextEditingController();
+
+  @override
+  void dispose() {
+    _reason.dispose();
+    super.dispose();
+  }
+
+  String _label(String wire) => wire == 'RESUME'
+      ? 'Resume (back to ${widget.enquiry.heldFrom?.label ?? 'previous status'})'
+      : AdmissionStatus.tryParse(wire)?.label ?? wire;
+
+  bool get _needsReason =>
+      _choice != null &&
+      (AdmissionStatus.tryParse(_choice)?.needsReason ?? false);
+
+  @override
+  Widget build(BuildContext context) {
+    final options = widget.enquiry.status.manualOptions();
+    final reasonOk = !_needsReason || _reason.text.trim().length >= 3;
+    return AlertDialog(
+      title: const Text('Change status'),
+      content: SizedBox(
+        width: 380,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Currently ${widget.enquiry.status.label}.'),
+              const SizedBox(height: 8),
+              for (final o in options)
+                RadioListTile<String>(
+                  contentPadding: EdgeInsets.zero,
+                  value: o,
+                  groupValue: _choice,
+                  onChanged: (v) => setState(() => _choice = v),
+                  title: Text(_label(o)),
+                ),
+              if (_choice != null && _choice != 'RESUME')
+                TextField(
+                  controller: _reason,
+                  onChanged: (_) => setState(() {}),
+                  maxLength: 200,
+                  decoration: InputDecoration(
+                    labelText: _needsReason ? 'Reason *' : 'Reason (optional)',
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _choice == null || !reasonOk
+              ? null
+              : () => Navigator.pop(context, (
+                  status: _choice!,
+                  reason: _reason.text.trim().isEmpty
+                      ? null
+                      : _reason.text.trim(),
+                )),
+          child: const Text('Update'),
+        ),
+      ],
+    );
+  }
+}
+
+/// The follow-ups of one enquiry: plan, complete, reschedule, reassign, cancel.
+/// Finished and cancelled ones stay listed — nothing is ever removed.
+class _Activities extends ConsumerStatefulWidget {
+  final AdmissionEnquiry enquiry;
+  final EnquiryKey keyData;
+
+  /// True for the Visits tab (only school visits); false lists every other
+  /// kind of follow-up.
+  final bool visits;
+  const _Activities({
+    required this.enquiry,
+    required this.keyData,
+    this.visits = false,
+  });
+
+  @override
+  ConsumerState<_Activities> createState() => _ActivitiesState();
+}
+
+class _ActivitiesState extends ConsumerState<_Activities> {
+  EnquiryKey get _k => widget.keyData;
+
+  Future<List<Assignee>> _people() => ref.read(
+    assigneesProvider((schoolId: _k.schoolId, branchId: _k.branchId)).future,
+  );
+
+  Future<void> _run(Future<bool> Function() action, String done) async {
+    final ok = await action();
+    if (!mounted) return;
+    if (ok) {
+      ref.invalidate(enquiryActivitiesProvider(_k));
+      ref.invalidate(enquiryActivityHistoryProvider);
+      ref.invalidate(followUpCountsProvider);
+      context.showSnackBar(done);
+    } else {
+      final err = ref.read(admissionWriteControllerProvider).error;
+      context.showSnackBar(
+        err == null ? 'That did not work.' : userMessageFor(err),
+        isError: true,
+      );
+    }
+  }
+
+  Future<void> _schedule() async {
+    final people = await _people();
+    if (!mounted) return;
+    final input = await showDialog<ActivityInput>(
+      // The page is still mounted (checked above).
+      // ignore: use_build_context_synchronously
+      context: context,
+      builder: (_) => ScheduleActivityDialog(
+        people: people,
+        defaultAssignee: widget.enquiry.assignedTo,
+        visit: widget.visits,
+        title: widget.visits ? 'Book a school visit' : 'Schedule follow-up',
+      ),
+    );
+    if (input == null || !mounted) return;
+    final controller = ref.read(admissionWriteControllerProvider.notifier);
+    await _run(
+      () => widget.visits
+          ? controller.scheduleVisit(
+              schoolId: _k.schoolId,
+              branchId: _k.branchId,
+              enquiryId: _k.enquiryId,
+              input: input,
+              requestId: AdmissionWriteController.newRequestId(),
+            )
+          : controller.scheduleActivity(
+              schoolId: _k.schoolId,
+              branchId: _k.branchId,
+              enquiryId: _k.enquiryId,
+              input: input,
+              requestId: AdmissionWriteController.newRequestId(),
+            ),
+      widget.visits ? 'Visit booked.' : 'Follow-up scheduled.',
+    );
+  }
+
+  Future<void> _complete(AdmissionActivity a) async {
+    final r = await showDialog<CompleteResult>(
+      context: context,
+      builder: (_) => CompleteActivityDialog(activity: a),
+    );
+    if (r == null || !mounted) return;
+    await _run(
+      () => ref
+          .read(admissionWriteControllerProvider.notifier)
+          .completeActivity(
+            schoolId: _k.schoolId,
+            branchId: _k.branchId,
+            enquiryId: _k.enquiryId,
+            activity: a,
+            completion: r.completion,
+            next: r.next,
+          ),
+      'Follow-up completed.',
+    );
+  }
+
+  Future<void> _reschedule(AdmissionActivity a) async {
+    final r = await showDialog<RescheduleResult>(
+      context: context,
+      builder: (_) => RescheduleActivityDialog(activity: a),
+    );
+    if (r == null || !mounted) return;
+    await _run(
+      () => ref
+          .read(admissionWriteControllerProvider.notifier)
+          .rescheduleActivity(
+            schoolId: _k.schoolId,
+            branchId: _k.branchId,
+            enquiryId: _k.enquiryId,
+            activity: a,
+            scheduledDate: r.date,
+            scheduledTime: r.time,
+            reason: r.reason,
+          ),
+      'Follow-up rescheduled.',
+    );
+  }
+
+  Future<void> _reassign(AdmissionActivity a) async {
+    final people = await _people();
+    if (!mounted) return;
+    final choice = await showDialog<({String? userId})>(
+      // The page is still mounted (checked above).
+      // ignore: use_build_context_synchronously
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('Assign follow-up to'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(dialogContext, (userId: null)),
+            child: const Text('Unassigned'),
+          ),
+          for (final p in people)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialogContext, (userId: p.userId)),
+              child: Text(p.name),
+            ),
+        ],
+      ),
+    );
+    if (choice == null || !mounted) return;
+    await _run(
+      () => ref
+          .read(admissionWriteControllerProvider.notifier)
+          .reassignActivity(
+            schoolId: _k.schoolId,
+            branchId: _k.branchId,
+            enquiryId: _k.enquiryId,
+            activity: a,
+            assignedTo: choice.userId,
+          ),
+      'Follow-up reassigned.',
+    );
+  }
+
+  Future<void> _cancel(AdmissionActivity a) async {
+    final reason = await askReason(
+      context,
+      title: 'Cancel this follow-up?',
+      action: 'Cancel follow-up',
+    );
+    if (reason == null || !mounted) return;
+    await _run(
+      () => ref
+          .read(admissionWriteControllerProvider.notifier)
+          .cancelActivity(
+            schoolId: _k.schoolId,
+            branchId: _k.branchId,
+            enquiryId: _k.enquiryId,
+            activity: a,
+            reason: reason,
+          ),
+      'Follow-up cancelled.',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final activities = ref.watch(enquiryActivitiesProvider(_k));
+    final names = {
+      for (final a
+          in ref
+                  .watch(
+                    assigneesProvider((
+                      schoolId: _k.schoolId,
+                      branchId: _k.branchId,
+                    )),
+                  )
+                  .value ??
+              const <Assignee>[])
+        a.userId: a.name,
+    };
+    final todayKey = SchoolTime.todayKey();
+    final closed = widget.enquiry.status.isClosed;
+    final busy = ref.watch(admissionWriteControllerProvider).isLoading;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            onPressed: closed || busy ? null : _schedule,
+            icon: const Icon(Icons.add_alert_outlined),
+            label: Text(widget.visits ? 'Book visit' : 'Schedule follow-up'),
+          ),
+        ),
+        const SizedBox(height: 12),
+        activities.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (e, _) => ParentsCard(child: Text(userMessageFor(e))),
+          data: (all) {
+            final list = [
+              for (final a in all)
+                if (a.isVisit == widget.visits) a,
+            ];
+            if (list.isEmpty) {
+              return ParentsCard(
+                child: Text(
+                  widget.visits
+                      ? 'No school visits yet. Book a campus tour or meeting '
+                            'so the family can see the school.'
+                      : 'No follow-ups yet. Schedule the first call or '
+                            'message so the family is not forgotten.',
+                ),
+              );
+            }
+            return Column(
+              children: [
+                for (final a in list) ...[
+                  ActivityCard(
+                    activity: a,
+                    todayKey: todayKey,
+                    assigneeName: names[a.assignedTo],
+                    actions: !a.isOpen || closed
+                        ? const []
+                        : [
+                            FilledButton.tonal(
+                              onPressed: busy ? null : () => _complete(a),
+                              child: const Text('Complete'),
+                            ),
+                            OutlinedButton(
+                              onPressed: busy ? null : () => _reschedule(a),
+                              child: const Text('Reschedule'),
+                            ),
+                            OutlinedButton(
+                              onPressed: busy ? null : () => _reassign(a),
+                              child: const Text('Reassign'),
+                            ),
+                            TextButton(
+                              onPressed: busy ? null : () => _cancel(a),
+                              child: const Text('Cancel'),
+                            ),
+                          ],
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}

@@ -155,6 +155,19 @@ abstract final class NotificationNavigator {
             : AppRoutes.myFeesInvoice.replaceFirst(':invoiceId', inv);
       case 'ATTENDANCE_ABSENT':
         return AppRoutes.myAttendance;
+      case 'ADMISSION_FOLLOWUP_DUE':
+      case 'ADMISSION_FOLLOWUP_OVERDUE':
+      case 'ADMISSION_ENQUIRY_NEW':
+      case 'ADMISSION_ASSIGNED':
+      case 'ADMISSION_APP_SUBMITTED':
+      case 'ADMISSION_APP_APPROVED':
+      case 'ADMISSION_APP_REJECTED':
+      case 'ADMISSION_CONFIRMED':
+        // Staff only; the router applies the same permission again.
+        if (!can(Permission.manageAdmissions)) return null;
+        return n.refId == null
+            ? AppRoutes.admissionFollowUps
+            : AppRoutes.admissionEnquiry.replaceFirst(':enquiryId', n.refId!);
       default:
         return null;
     }
