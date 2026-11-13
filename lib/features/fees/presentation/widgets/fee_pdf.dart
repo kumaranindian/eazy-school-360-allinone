@@ -17,6 +17,9 @@ import '../../domain/payment.dart';
 /// read from the stored snapshot (names, lines, amounts), never recomputed
 /// from live fee structures.
 abstract final class FeePdf {
+  /// The same text, for other printable documents (admission reports).
+  static String money(int minor, String currency) => _money(minor, currency);
+
   /// "INR 1,500.00", "JPY 1,500", "KWD 1,500.250": the currency's own number
   /// of decimals, thousands grouping (the built-in PDF fonts have no
   /// currency symbols, so the code is printed instead).

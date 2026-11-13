@@ -71,3 +71,10 @@ Threat model: anonymous internet traffic against a write path into a school's da
 - Recipients must be ACTIVE users of the same school; a notice for an enquiry of another branch's administrators is never created.
 - Parents are told only about confirmation, only via a parent record linked to an ACTIVE login, and the text contains no internal numbers.
 - Idempotent: derived ids + `create()`; a retried trigger writes only what is missing.
+
+## Reports (phase 11)
+- Aggregation is server-side; the reply holds counts, rates and money totals only. A test seeds names, a phone number and a remark and proves none of them
+  appears in the reply. Staff names appear only as assignee labels, and only for users of the same school.
+- Scope is enforced on the server (another branch, all-branches for a non-school-admin, teachers and other schools are refused), not by hiding a control.
+- Exports (CSV, PDF) are built on the device from those aggregates, so they cannot contain more than the screen shows. The CSV text cells use the formula-injection guard.
+- Lost-enquiry reasons are staff free text: the report shows the top 10 normalised (lower-cased, trimmed to 80 chars). Staff should not type personal details there.

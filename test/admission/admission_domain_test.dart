@@ -3,6 +3,8 @@ import 'package:eazy_school_360/features/admission/domain/admission_activity.dar
 import 'package:eazy_school_360/features/admission/domain/admission_application.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_enquiry.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_fee.dart';
+import 'package:eazy_school_360/features/admission/domain/admission_report.dart';
+import 'package:eazy_school_360/features/admission/presentation/widgets/report_pdf.dart';
 import 'package:eazy_school_360/features/admission/domain/public_portal.dart';
 import 'package:eazy_school_360/features/notifications/domain/feed_item.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_settings.dart';
@@ -971,5 +973,60 @@ void main() {
         expect(wire['assignment'], isTrue);
       },
     );
+  });
+
+  group('admission report', () {
+    final r = fakeReport(schoolWide: true);
+
+    test('parses the aggregates, with class names from the server', () {
+      expect(r.total, 10);
+      expect(r.confirmed, 2);
+      expect(r.conversionPercent, 20);
+      expect(r.byClass.single.label, 'Class 5');
+      expect(r.byAssignee.first.label, 'Unassigned');
+      expect(r.byStatus[AdmissionStatus.newEnquiry], 4);
+      expect(r.schoolWide, isTrue);
+      expect(r.lostByStatus['NOT_INTERESTED'], 3);
+      expect(r.feeBalanceMinor, 200000);
+    });
+
+    test('missing or malformed data becomes zeros, never a crash', () {
+      final e = AdmissionReport.fromMap({
+        'total': 'x',
+        'bySource': 'no',
+        'byStatus': {'BOGUS': 3},
+      });
+      expect(e.total, 0);
+      expect(e.bySource, isEmpty);
+      expect(e.byStatus, isEmpty);
+      expect(e.currency, 'INR');
+      expect(e.schoolWide, isFalse);
+    });
+
+    test('the CSV has a header, every section and the formula guard', () {
+      final csv = r.toCsv(money: (v) => 'INR ${v / 100}');
+      final lines = csv.split('\r\n');
+      expect(
+        lines.first,
+        'Section,Item,Count / amount,Confirmed / collected,Rate % / balance',
+      );
+      expect(csv, contains('Summary,Enquiries,10'));
+      expect(csv, contains('Source,Website,6,2,33.30'));
+      expect(csv, contains('Branch,North,4,1,25'));
+      expect(csv, contains('Fees,Collected (net of refunds),INR 3000.0'));
+      expect(csv, contains("Lost reason,'=cmd|evil,1"));
+      expect(csv.endsWith('\r\n'), isTrue);
+    });
+
+    test('the PDF is built from the figures', () async {
+      final bytes = await AdmissionReportPdf.build(
+        r,
+        schoolName: 'Rosewood High',
+        scopeLabel: 'All branches',
+        periodLabel: 'all dates',
+      );
+      expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
+      expect(bytes.length, greaterThan(1000));
+    });
   });
 }

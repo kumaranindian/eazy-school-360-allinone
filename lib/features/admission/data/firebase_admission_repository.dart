@@ -13,6 +13,7 @@ import '../domain/admission_activity.dart';
 import '../domain/admission_application.dart';
 import '../domain/admission_conversion.dart';
 import '../domain/admission_enquiry.dart';
+import '../domain/admission_report.dart';
 import '../domain/admission_fee.dart';
 import '../domain/admission_repository.dart';
 import '../domain/admission_settings.dart';
@@ -1120,6 +1121,25 @@ class FirebaseAdmissionRepository implements AdmissionRepository {
       admissionNumber: r['admissionNumber'] as String? ?? '',
       duplicate: r['duplicate'] == true,
     );
+  }
+  // ---- reports (phase 11) ----------------------------------------------
+
+  @override
+  Future<AdmissionReport> fetchReport({
+    required String schoolId,
+    String? branchId,
+    String? academicYearId,
+    String? from,
+    String? to,
+  }) async {
+    final r = await _call('getAdmissionReport', {
+      'schoolId': schoolId,
+      'branchId': branchId,
+      'academicYearId': ?academicYearId,
+      'from': ?from,
+      'to': ?to,
+    });
+    return AdmissionReport.fromMap(r);
   }
 }
 

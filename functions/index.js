@@ -461,6 +461,7 @@ exports.notifyAdmissionAssignment = onDocumentUpdated(
     }
   },
 );
+exports.getAdmissionReport = admissionCall('getAdmissionReport', require('./admission_reports').getAdmissionReport, (d) => ({ scope: d.branchId ? 'branch' : 'school' }));
 exports.changeAdmissionEnquiryStatus = admissionCall('changeAdmissionEnquiryStatus', admission.changeEnquiryStatus, (d, r) => ({ enquiry: d.enquiryId, status: r.status }));
 
 exports.updatePlatformBranding = onCall(callOptions(), async (request) => {

@@ -83,3 +83,10 @@ Errors: `invalid-argument` (validation, no consent, a year/class not offered), `
 ## Notifications (phase 10)
 No new callables. Two Firestore triggers (`functions/admission_notify.js`, `retry: true`): `notifyAdmissionStatus` on a new `admissionStatusHistory` entry
 and `notifyAdmissionAssignment` on an enquiry whose `assignedTo` changed. `saveAdmissionSettings` accepts `notifications` (only the six known switches, booleans).
+
+## Reports (phase 11)
+`getAdmissionReport` `{schoolId, branchId|null, academicYearId?, from?, to?}` → aggregates only: `total`, `byStatus`, `conversion {confirmed,total,ratePercent}`,
+`bySource`, `byClass` (+ `classNames`), `byMonth`, `byAssignee` (names resolved server-side), `byBranch`, `lost {total, NOT_INTERESTED, REJECTED, WITHDRAWN, reasons[top 10]}`,
+`followUps {total, completed, cancelled, open, overdueOpen, completionRatePercent}`, `fees {currency, amountMinor, netPaidMinor, balanceMinor, byCategory}`,
+`truncated`, `scope`, `generatedAt`. `branchId: null` (every branch) is for school administrators only; a branch administrator gets their own branch.
+Dates filter on the enquiry date. The scan reads at most 5,000 enquiries per branch and says so (`truncated`) when it stops.

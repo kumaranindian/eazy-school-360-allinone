@@ -2,6 +2,7 @@ import 'package:eazy_school_360/features/admission/domain/admission_activity.dar
 import 'package:eazy_school_360/features/admission/domain/admission_application.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_conversion.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_enquiry.dart';
+import 'package:eazy_school_360/features/admission/domain/admission_report.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_fee.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_repository.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_settings.dart';
@@ -180,6 +181,8 @@ class FakeAdmissionRepository implements AdmissionRepository {
   AdmissionApplication? application;
   List<AdmissionDocument> documents = [];
   AdmissionConversion? conversion;
+  AdmissionReport? report;
+  final List<Map<String, String?>> reportRequests = [];
   final List<ConversionInput> conversions = [];
   List<AdmissionFee> fees = [];
   List<AdmissionFeePayment> feePayments = [];
@@ -694,6 +697,24 @@ class FakeAdmissionRepository implements AdmissionRepository {
   }
 
   @override
+  Future<AdmissionReport> fetchReport({
+    required String schoolId,
+    String? branchId,
+    String? academicYearId,
+    String? from,
+    String? to,
+  }) async {
+    if (failWith != null) throw failWith!;
+    reportRequests.add({
+      'branchId': branchId,
+      'academicYearId': academicYearId,
+      'from': from,
+      'to': to,
+    });
+    return report ?? fakeReport();
+  }
+
+  @override
   Future<List<AdmissionDocument>> fetchDocuments(
     String schoolId,
     String branchId,
@@ -841,3 +862,88 @@ class FakeAdmissionRepository implements AdmissionRepository {
     removedDocuments.add((id: documentId, reason: reason));
   }
 }
+
+AdmissionReport fakeReport({bool schoolWide = false, bool truncated = false}) =>
+    AdmissionReport.fromMap({
+      'total': 10,
+      'scope': schoolWide ? 'SCHOOL' : 'BRANCH',
+      'truncated': truncated,
+      'byStatus': {'NEW': 4, 'ADMISSION_CONFIRMED': 2, 'NOT_INTERESTED': 4},
+      'conversion': {'confirmed': 2, 'total': 10, 'ratePercent': 20},
+      'bySource': [
+        {'source': 'Website', 'count': 6, 'confirmed': 2, 'ratePercent': 33.3},
+        {'source': 'Walk-in', 'count': 4, 'confirmed': 0, 'ratePercent': 0},
+      ],
+      'byClass': [
+        {'classId': 'c5', 'count': 10, 'confirmed': 2, 'ratePercent': 20},
+      ],
+      'byAssignee': [
+        {
+          'userId': null,
+          'name': 'Unassigned',
+          'count': 7,
+          'confirmed': 1,
+          'ratePercent': 14.3,
+        },
+        {
+          'userId': 'u1',
+          'name': 'Ravi Menon',
+          'count': 3,
+          'confirmed': 1,
+          'ratePercent': 33.3,
+        },
+      ],
+      'byBranch': [
+        {
+          'branchId': 'main',
+          'name': 'Main',
+          'count': 6,
+          'confirmed': 1,
+          'ratePercent': 16.7,
+        },
+        {
+          'branchId': 'north',
+          'name': 'North',
+          'count': 4,
+          'confirmed': 1,
+          'ratePercent': 25,
+        },
+      ],
+      'byMonth': [
+        {'month': '2026-10', 'count': 6, 'confirmed': 1},
+        {'month': '2026-11', 'count': 4, 'confirmed': 1},
+      ],
+      'lost': {
+        'total': 4,
+        'NOT_INTERESTED': 3,
+        'REJECTED': 1,
+        'WITHDRAWN': 0,
+        'reasons': [
+          {'reason': 'fees too high', 'count': 3},
+          {'reason': '=cmd|evil', 'count': 1},
+        ],
+      },
+      'followUps': {
+        'total': 8,
+        'completed': 4,
+        'cancelled': 1,
+        'open': 3,
+        'overdueOpen': 2,
+        'completionRatePercent': 50,
+      },
+      'fees': {
+        'currency': 'INR',
+        'amountMinor': 500000,
+        'netPaidMinor': 300000,
+        'balanceMinor': 200000,
+        'byCategory': [
+          {
+            'category': 'APPLICATION',
+            'amountMinor': 500000,
+            'netPaidMinor': 300000,
+            'balanceMinor': 200000,
+          },
+        ],
+      },
+      'classNames': {'c5': 'Class 5'},
+    });

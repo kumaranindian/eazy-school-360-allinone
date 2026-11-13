@@ -101,3 +101,7 @@ is part of phase 10.
 | Approved / not approved | the enquiry's owner (assignee, else branch administrators) | the decider; the reason is never included |
 | Admission confirmed | the owner; the parents **who already have a login** ("admission confirmed", name and number only) | the converter |
 Follow-up reminders (phase 4) are unchanged. Each row can be switched off in the settings.
+
+## Reports (phase 11)
+Admissions → Reports. Filters: branch (school administrators: one or all), academic year, enquiry date range. Shows conversion, pipeline, source, class, staff, branch, month,
+lost enquiries with reasons, follow-up completion and fee collection. *Copy CSV* and *Print / PDF* export exactly what is on screen.

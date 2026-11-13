@@ -120,6 +120,14 @@ function `admissionFollowUpReminders`, notification types `ADMISSION_FOLLOWUP_DU
 - Honest limits: the triggers and the push delivery were never run deployed; parents usually have no login at conversion, so the parent notice reaches only
   families who already have one; there is no email/WhatsApp message to parents or applicants (push/in-app only); no per-user preference screen.
 
+## Phase 11 — dashboard and reports (done)
+- `functions/admission_reports.js` (`getAdmissionReport`), a **Reports** page (route `/admissions/reports`, linked from the admission dashboard), CSV (copied) and PDF (print) export.
+- Tests: functions `admission_reports.test.js` (12), Dart domain (4) and widget (9) tests.
+- Honest limits: the report reads up to 5,000 enquiries per branch (and every activity and fee record of the branch) on each request: fine for a school, not for very large
+  data; a precomputed rollup would be the next step. Conversion is "confirmed ÷ enquiries in the filter" (no cohort tracking by date of conversion). No staff-performance
+  time metrics (e.g. days to first contact) yet. The export is a clipboard CSV and a print/PDF dialog (the app's existing pattern), not a file download. The report
+  query has not been run against the emulator or deployed. Admissions headline counts on the dashboard are unchanged (server `count()`).
+
 ## Known limitations (phase 6)
 - The Storage rules are untested in an emulator (see above); the real upload → confirm round trip and `FirebaseAdmissionDocumentStore` are untested.
 - (Phase 7 added fees.) No conversion to a student (phase 8): an APPROVED application is the end of the road for now.

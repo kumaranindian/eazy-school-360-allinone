@@ -19,6 +19,7 @@ import 'package:eazy_school_360/features/admission/domain/admission_application.
 import 'package:eazy_school_360/features/admission/presentation/providers/document_picker.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_conversion.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_enquiry.dart';
+import 'package:eazy_school_360/features/admission/domain/admission_report.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_fee.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_settings.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_status.dart';
@@ -34,6 +35,7 @@ import 'package:eazy_school_360/features/users/domain/user_profile.dart';
 import 'package:eazy_school_360/features/users/domain/user_status.dart';
 import 'package:eazy_school_360/features/users/presentation/providers/user_providers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -2923,6 +2925,158 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Converted to student'), findsNothing);
       expect(find.byType(SnackBar), findsOneWidget);
+    });
+  });
+
+  group('reports', () {
+    Future<FakeAdmissionRepository> open(
+      WidgetTester tester, {
+      UserRole role = UserRole.schoolAdmin,
+      AdmissionReport? report,
+      Size size = _tall,
+    }) => _pump(
+      tester,
+      role: role,
+      path: '/admissions/reports',
+      size: size,
+      repo: FakeAdmissionRepository()..report = report,
+    );
+
+    testWidgets('the headline figures and every breakdown are shown', (
+      tester,
+    ) async {
+      await open(tester);
+      expect(find.text('Conversion'), findsOneWidget);
+      expect(find.text('20.0%'), findsOneWidget);
+      for (final t in [
+        'Pipeline',
+        'By source',
+        'By class',
+        'By assigned staff',
+        'By month',
+        'Lost enquiries',
+        'Follow-ups',
+        'Admission fees',
+      ]) {
+        expect(find.text(t), findsOneWidget, reason: t);
+      }
+      expect(find.text('Website'), findsOneWidget);
+      expect(find.text('Class 5'), findsOneWidget);
+      expect(find.text('Ravi Menon'), findsOneWidget);
+      expect(find.text('fees too high'), findsOneWidget);
+      expect(find.textContaining('4 lost'), findsOneWidget);
+      expect(
+        find.text('By branch'),
+        findsNothing,
+        reason: 'only for all branches',
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'a school admin can ask for every branch; the report then shows branches',
+      (tester) async {
+        final repo = await open(tester, report: fakeReport(schoolWide: true));
+        expect(repo.reportRequests.last['branchId'], 'main');
+        await tester.tap(
+          find.widgetWithText(DropdownButtonFormField<String>, 'Branch'),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('All branches').last);
+        await tester.pumpAndSettle();
+        expect(repo.reportRequests.last['branchId'], isNull);
+        expect(find.text('By branch'), findsOneWidget);
+        expect(find.text('North'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'a branch administrator has no branch picker and asks for their branch',
+      (tester) async {
+        final repo = await open(tester, role: UserRole.branchAdmin);
+        expect(
+          find.widgetWithText(DropdownButtonFormField<String>, 'Branch'),
+          findsNothing,
+        );
+        expect(repo.reportRequests.single['branchId'], 'main');
+      },
+    );
+
+    testWidgets('a date filter is sent to the server', (tester) async {
+      final repo = await open(tester);
+      await tester.tap(find.text('From'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      expect(repo.reportRequests.last['from'], isNotNull);
+      expect(find.text('Clear dates'), findsOneWidget);
+      await tester.tap(find.text('Clear dates'));
+      await tester.pumpAndSettle();
+      expect(repo.reportRequests.last['from'], isNull);
+    });
+
+    testWidgets('a truncated report says so', (tester) async {
+      await open(tester, report: fakeReport(truncated: true));
+      expect(
+        find.textContaining('Only the most recent enquiries'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('no enquiries: a plain message, no empty charts', (
+      tester,
+    ) async {
+      await open(tester, report: AdmissionReport.fromMap({'total': 0}));
+      expect(
+        find.text('No enquiries match these filters yet.'),
+        findsOneWidget,
+      );
+      expect(find.text('Pipeline'), findsNothing);
+    });
+
+    testWidgets('a server error is shown, not a blank page', (tester) async {
+      final repo = FakeAdmissionRepository()
+        ..failWith = const ValidationFailure('x');
+      await _pump(tester, path: '/admissions/reports', size: _tall, repo: repo);
+      expect(find.text('Pipeline'), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('Copy CSV puts the figures on the clipboard', (tester) async {
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      await open(tester);
+      await tester.tap(find.text('Copy CSV'));
+      await tester.pumpAndSettle();
+      expect(copied, contains('Source,Website,6,2,33.3'));
+      expect(copied, contains("'=cmd|evil"), reason: 'formula guard');
+    });
+
+    testWidgets('lays out on a phone, a tablet and a desktop', (tester) async {
+      await open(tester, size: const Size(360, 800));
+      for (final size in const [
+        Size(360, 800),
+        Size(820, 1000),
+        Size(1440, 900),
+      ]) {
+        tester.view.physicalSize = size;
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: '$size');
+      }
     });
   });
 }

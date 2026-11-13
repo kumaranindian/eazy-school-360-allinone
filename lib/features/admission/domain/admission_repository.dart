@@ -3,6 +3,7 @@ import 'admission_activity.dart';
 import 'admission_application.dart';
 import 'admission_conversion.dart';
 import 'admission_enquiry.dart';
+import 'admission_report.dart';
 import 'admission_fee.dart';
 import 'admission_settings.dart';
 import 'admission_status.dart';
@@ -389,6 +390,18 @@ abstract class AdmissionRepository {
     required String branchId,
     required String enquiryId,
     required ConversionInput input,
+  });
+
+  // ---- reports (phase 11) ----------------------------------------------
+
+  /// Server-computed aggregates. [branchId] null = every branch (school
+  /// administrators only). Dates are yyyy-mm-dd enquiry dates.
+  Future<AdmissionReport> fetchReport({
+    required String schoolId,
+    String? branchId,
+    String? academicYearId,
+    String? from,
+    String? to,
   });
 }
 

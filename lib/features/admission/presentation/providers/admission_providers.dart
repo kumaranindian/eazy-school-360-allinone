@@ -14,6 +14,7 @@ import '../../domain/admission_activity.dart';
 import '../../domain/admission_application.dart';
 import '../../domain/admission_conversion.dart';
 import '../../domain/admission_enquiry.dart';
+import '../../domain/admission_report.dart';
 import '../../domain/admission_fee.dart';
 import '../../domain/admission_repository.dart';
 import '../../domain/admission_settings.dart';
@@ -134,6 +135,29 @@ final enquiryConversionProvider = FutureProvider.autoDispose
       (ref, key) => ref
           .watch(admissionRepositoryProvider)
           .fetchConversion(key.schoolId, key.branchId, key.enquiryId),
+    );
+
+/// What a report is about. [branchId] null = every branch (school admins).
+typedef ReportKey = ({
+  String schoolId,
+  String? branchId,
+  String? academicYearId,
+  String? from,
+  String? to,
+});
+
+/// The server-computed admission report for [ReportKey].
+final admissionReportProvider = FutureProvider.autoDispose
+    .family<AdmissionReport, ReportKey>(
+      (ref, key) => ref
+          .watch(admissionRepositoryProvider)
+          .fetchReport(
+            schoolId: key.schoolId,
+            branchId: key.branchId,
+            academicYearId: key.academicYearId,
+            from: key.from,
+            to: key.to,
+          ),
     );
 
 /// The application's history; every application event bumps its revision,
