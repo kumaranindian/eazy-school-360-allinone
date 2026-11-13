@@ -131,6 +131,7 @@ class _EnquiryListPageState extends ConsumerState<EnquiryListPage> {
     List<String> sources,
     List<({String id, String name})> years,
     List<({String id, String name})> classes,
+    List<({String id, String name})> staff,
   ) => [
     FilterField.dropdown<AdmissionStatus>(
       label: 'Status',
@@ -161,6 +162,12 @@ class _EnquiryListPageState extends ConsumerState<EnquiryListPage> {
       onChanged: _filters.academicYearId == null
           ? null
           : (v) => _setFilters(_filters.copyWith(classId: v)),
+    ),
+    FilterField.dropdown<String>(
+      label: 'Assigned to',
+      value: _filters.assignedTo,
+      options: [(null, 'Anyone'), for (final u in staff) (u.id, u.name)],
+      onChanged: (v) => _setFilters(_filters.copyWith(assignedTo: v)),
     ),
     FilterField.picker(
       label: 'From date',
@@ -257,6 +264,19 @@ class _EnquiryListPageState extends ConsumerState<EnquiryListPage> {
                                 [
                                   for (final c in classes)
                                     (id: c.classId, name: c.name),
+                                ],
+                                [
+                                  for (final u
+                                      in ref
+                                              .watch(
+                                                assigneesProvider((
+                                                  schoolId: schoolId,
+                                                  branchId: branchId,
+                                                )),
+                                              )
+                                              .value ??
+                                          const <Assignee>[])
+                                    (id: u.userId, name: u.name),
                                 ],
                               ),
                             ),

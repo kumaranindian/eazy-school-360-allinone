@@ -21,6 +21,7 @@ AdmissionEnquiry fakeEnquiry(
   String yearId = 'y1',
   String source = 'Walk-in',
   List<String> duplicateOf = const [],
+  String? channel,
   String? remarks,
   int revision = 1,
   String? nextFollowUp,
@@ -39,6 +40,7 @@ AdmissionEnquiry fakeEnquiry(
   'academicYearId': yearId,
   'interestedClassId': classId,
   'source': source,
+  'channel': channel,
   'guardians': [
     {'name': 'Meena Nair', 'phone': phone, 'primary': true},
   ],
@@ -602,7 +604,10 @@ class FakeAdmissionRepository implements AdmissionRepository {
     int? baseRevision,
   }) async {
     if (failWith != null) throw failWith!;
-    feeCalls.add('set ${category.wire} $amountMinor');
+    feeCalls.add(
+      'set ${category.wire} $amountMinor'
+      '${feeStructureId == null ? '' : ' via $feeStructureId'}',
+    );
   }
 
   @override

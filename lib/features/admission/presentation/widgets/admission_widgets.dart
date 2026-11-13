@@ -93,6 +93,8 @@ class EnquiryCard extends StatelessWidget {
                       ),
                     ),
                     AdmissionStatusBadge(enquiry.status),
+                    if (enquiry.isFromWebsite)
+                      const ParentsBadge('Website', tone: ParentsTone.neutral),
                   ],
                 ),
                 const SizedBox(height: 2),

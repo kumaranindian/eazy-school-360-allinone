@@ -6,7 +6,10 @@ import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/permissions/permission.dart';
 import '../../../../core/regional/regional_providers.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
+import '../../../fees/domain/fee_enums.dart' as fees;
+import '../../../fees/domain/fee_structure.dart';
 import '../../../fees/domain/money.dart';
+import '../../../fees/presentation/providers/fee_providers.dart';
 import '../../../students/presentation/widgets/parents/parents_ui.dart';
 import '../../domain/admission_enquiry.dart';
 import '../../domain/admission_fee.dart';
@@ -62,6 +65,7 @@ class FeesTab extends ConsumerWidget {
                 keyData: keyData,
                 locked: locked,
                 canDecide: canDecide,
+                enquiry: enquiry,
               ),
               const SizedBox(height: 12),
             ],
@@ -140,6 +144,7 @@ class _FeeCard extends ConsumerWidget {
   final EnquiryKey keyData;
   final bool locked;
   final bool canDecide;
+  final AdmissionEnquiry enquiry;
   const _FeeCard({
     required this.category,
     required this.fee,
@@ -147,6 +152,7 @@ class _FeeCard extends ConsumerWidget {
     required this.keyData,
     required this.locked,
     required this.canDecide,
+    required this.enquiry,
   });
 
   void _done(BuildContext context, WidgetRef ref, bool ok, String message) {
@@ -168,19 +174,23 @@ class _FeeCard extends ConsumerWidget {
       ref.read(admissionWriteControllerProvider.notifier);
 
   Future<void> _set(BuildContext context, WidgetRef ref) async {
-    final minor = await showDialog<int>(
+    final picked = await showDialog<({int minor, String? structureId})>(
       context: context,
       builder: (_) => _AmountDialog(
         title: '${category.label} amount',
         currency: currency,
         initial: fee?.amountMinor,
+        initialStructureId: fee?.feeStructureId,
+        keyData: keyData,
+        enquiry: enquiry,
       ),
     );
-    if (minor == null || !context.mounted) return;
+    if (picked == null || !context.mounted) return;
     final ok = await _c(ref).setFee(
       key: keyData,
       category: category,
-      amountMinor: minor,
+      amountMinor: picked.minor,
+      feeStructureId: picked.structureId,
       baseRevision: fee?.revision,
     );
     if (context.mounted) _done(context, ref, ok, 'Fee saved.');
@@ -373,21 +383,27 @@ class _PaymentInput {
   );
 }
 
-class _AmountDialog extends StatefulWidget {
+class _AmountDialog extends ConsumerStatefulWidget {
   final String title;
   final String currency;
   final int? initial;
+  final String? initialStructureId;
+  final EnquiryKey keyData;
+  final AdmissionEnquiry enquiry;
   const _AmountDialog({
     required this.title,
     required this.currency,
+    required this.keyData,
+    required this.enquiry,
     this.initial,
+    this.initialStructureId,
   });
 
   @override
-  State<_AmountDialog> createState() => _AmountDialogState();
+  ConsumerState<_AmountDialog> createState() => _AmountDialogState();
 }
 
-class _AmountDialogState extends State<_AmountDialog> {
+class _AmountDialogState extends ConsumerState<_AmountDialog> {
   late final _c = TextEditingController(
     text: widget.initial == null
         ? ''
@@ -396,12 +412,33 @@ class _AmountDialogState extends State<_AmountDialog> {
             currency: widget.currency,
           ).replaceAll(RegExp(r'[^0-9.]'), ''),
   );
+  String? _structureId;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _structureId = widget.initialStructureId;
+  }
 
   @override
   void dispose() {
     _c.dispose();
     super.dispose();
+  }
+
+  void _choose(String? id, List<FeeStructure> options) {
+    setState(() {
+      _structureId = id;
+      final s = options.where((x) => x.structureId == id).firstOrNull;
+      if (s != null) {
+        _c.text = Money.format(
+          s.amountMinor,
+          currency: widget.currency,
+        ).replaceAll(RegExp(r'[^0-9.]'), '');
+        _error = null;
+      }
+    });
   }
 
   void _submit() {
@@ -410,30 +447,89 @@ class _AmountDialogState extends State<_AmountDialog> {
       setState(() => _error = 'Enter an amount greater than zero.');
       return;
     }
-    Navigator.pop(context, minor);
+    Navigator.pop(context, (minor: minor, structureId: _structureId));
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.title),
-    content: TextField(
-      controller: _c,
-      autofocus: true,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      decoration: InputDecoration(
-        labelText: 'Amount (${widget.currency})',
-        errorText: _error,
+  Widget build(BuildContext context) {
+    // The branch's active ADMISSION fee structures for this applicant's year
+    // (all classes, or this class).
+    final options =
+        (ref
+                    .watch(
+                      feeStructuresProvider((
+                        schoolId: widget.keyData.schoolId,
+                        branchId: widget.keyData.branchId,
+                        academicYearId: widget.enquiry.academicYearId,
+                      )),
+                    )
+                    .value ??
+                const <FeeStructure>[])
+            .where(
+              (s) =>
+                  s.isActive &&
+                  s.category == fees.FeeCategory.admission &&
+                  (s.classId == null ||
+                      s.classId == widget.enquiry.interestedClassId),
+            )
+            .toList();
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (options.isNotEmpty) ...[
+              DropdownButtonFormField<String?>(
+                value: options.any((s) => s.structureId == _structureId)
+                    ? _structureId
+                    : null,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'From a fee structure',
+                ),
+                items: [
+                  const DropdownMenuItem(
+                    value: null,
+                    child: Text('None: type an amount'),
+                  ),
+                  for (final s in options)
+                    DropdownMenuItem(
+                      value: s.structureId,
+                      child: Text(
+                        '${s.name} · ${Money.format(s.amountMinor, currency: widget.currency)}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+                onChanged: (v) => _choose(v, options),
+              ),
+              const SizedBox(height: 12),
+            ],
+            TextField(
+              controller: _c,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                labelText: 'Amount (${widget.currency})',
+                errorText: _error,
+              ),
+              onSubmitted: (_) => _submit(),
+            ),
+          ],
+        ),
       ),
-      onSubmitted: (_) => _submit(),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(onPressed: _submit, child: const Text('Save')),
-    ],
-  );
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('Save')),
+      ],
+    );
+  }
 }
 
 class _PaymentDialog extends StatefulWidget {

@@ -136,6 +136,9 @@ class AdmissionEnquiry {
   final String? nextFollowUpDate;
   final List<String> duplicateOf;
 
+  /// `PUBLIC_PORTAL` for an enquiry sent through the public page.
+  final String? channel;
+
   /// Follow-up activities: all ever planned, and those still open. While
   /// [activityCount] > 0 the next follow-up date is derived from them.
   final int activityCount;
@@ -177,6 +180,7 @@ class AdmissionEnquiry {
     this.statusReason,
     this.nextFollowUpDate,
     this.duplicateOf = const [],
+    this.channel,
     this.activityCount = 0,
     this.openActivityCount = 0,
     this.lastActivityAt,
@@ -186,6 +190,9 @@ class AdmissionEnquiry {
 
   String get studentName =>
       [firstName, lastName].where((s) => s.isNotEmpty).join(' ');
+
+  /// Sent by a family through the public enquiry page.
+  bool get isFromWebsite => channel == 'PUBLIC_PORTAL';
 
   EnquiryGuardian? get primaryGuardian =>
       guardians.isEmpty ? null : guardians.first;
@@ -233,6 +240,7 @@ class AdmissionEnquiry {
       heldFrom: AdmissionStatus.tryParse(d['heldFrom'] as String?),
       statusReason: d['statusReason'] as String?,
       nextFollowUpDate: d['nextFollowUpDate'] as String?,
+      channel: d['channel'] as String?,
       duplicateOf: [
         for (final x in (d['duplicateOf'] as List? ?? const []))
           if (x is String) x,

@@ -9,6 +9,7 @@ import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/utils/responsive.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/loading/async_value_widget.dart';
+import '../../../academic_setup/presentation/providers/academic_structure_providers.dart';
 import '../../../school_setup/presentation/providers/school_providers.dart';
 import '../../../students/presentation/widgets/parents/parents_ui.dart';
 import '../../domain/admission_application.dart';
@@ -51,6 +52,8 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
   bool _reminders = true;
   bool _branchApprove = false;
   bool _portalOn = false;
+  Set<String> _openYears = {};
+  Set<String> _openClasses = {};
   Map<String, bool> _notify = {};
   String _portalBranch = '';
   final _slug = TextEditingController();
@@ -86,6 +89,8 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
     _reminders = s.remindersEnabled;
     _branchApprove = s.branchAdminsMayApprove;
     _portalOn = s.publicPortal.enabled;
+    _openYears = {...s.academicYearIds};
+    _openClasses = {...s.classIds};
     _notify = {
       for (final (key, _) in admissionNotificationSwitches)
         key: s.notifies(key),
@@ -113,6 +118,8 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
       reminderTime: _reminderTime,
       branchAdminsMayApprove: _branchApprove,
       notifications: _notify,
+      academicYearIds: _openYears.toList()..sort(),
+      classIds: _openClasses.toList()..sort(),
       publicPortal: PublicPortalSettings(
         enabled: _portalOn,
         slug: _slug.text.trim().toLowerCase(),
@@ -508,6 +515,18 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
                                     ),
                                   ),
                                   const SizedBox(height: 16),
+                                  _OpenForAdmission(
+                                    schoolId: schoolId,
+                                    branchId: tenant.branch!.branchId,
+                                    years: _openYears,
+                                    classes: _openClasses,
+                                    enabled: !saving,
+                                    onChanged: (y, c) => setState(() {
+                                      _openYears = y;
+                                      _openClasses = c;
+                                    }),
+                                  ),
+                                  const SizedBox(height: 16),
                                   ParentsCard(
                                     child: Column(
                                       crossAxisAlignment:
@@ -679,5 +698,164 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
       return 'The two prefixes must differ';
     }
     return null;
+  }
+}
+
+/// Which academic years and classes are open for admissions. Nothing chosen
+/// means every year and class is open (the default).
+class _OpenForAdmission extends ConsumerWidget {
+  final String schoolId;
+  final String branchId;
+  final Set<String> years;
+  final Set<String> classes;
+  final bool enabled;
+  final void Function(Set<String> years, Set<String> classes) onChanged;
+  const _OpenForAdmission({
+    required this.schoolId,
+    required this.branchId,
+    required this.years,
+    required this.classes,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final all =
+        ref
+            .watch(
+              academicYearsProvider((schoolId: schoolId, branchId: branchId)),
+            )
+            .value ??
+        const [];
+    return ParentsCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const ParentsSectionTitle(
+            icon: Icons.school_outlined,
+            title: 'Open for admissions',
+          ),
+          const SizedBox(height: 4),
+          Text(
+            years.isEmpty && classes.isEmpty
+                ? 'Every academic year and class is open. Choose years or classes to limit the enquiry form and the public page.'
+                : 'Only the chosen years and classes are offered.',
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              for (final y in all)
+                FilterChip(
+                  label: Text(y.name),
+                  selected: years.contains(y.academicYearId),
+                  onSelected: enabled
+                      ? (on) {
+                          final next = {...years};
+                          var nextClasses = classes;
+                          if (on) {
+                            next.add(y.academicYearId);
+                          } else {
+                            next.remove(y.academicYearId);
+                            // Classes of a year that is no longer chosen go too.
+                            final ids =
+                                (ref
+                                            .read(
+                                              classesProvider((
+                                                schoolId: schoolId,
+                                                branchId: branchId,
+                                                academicYearId:
+                                                    y.academicYearId,
+                                              )),
+                                            )
+                                            .value ??
+                                        const [])
+                                    .map((c) => c.classId)
+                                    .toSet();
+                            nextClasses = classes.difference(ids);
+                          }
+                          onChanged(next, nextClasses);
+                        }
+                      : null,
+                ),
+            ],
+          ),
+          for (final y in all.where((y) => years.contains(y.academicYearId)))
+            _YearClasses(
+              schoolId: schoolId,
+              branchId: branchId,
+              yearId: y.academicYearId,
+              yearName: y.name,
+              selected: classes,
+              enabled: enabled,
+              onChanged: (c) => onChanged(years, c),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _YearClasses extends ConsumerWidget {
+  final String schoolId;
+  final String branchId;
+  final String yearId;
+  final String yearName;
+  final Set<String> selected;
+  final bool enabled;
+  final void Function(Set<String>) onChanged;
+  const _YearClasses({
+    required this.schoolId,
+    required this.branchId,
+    required this.yearId,
+    required this.yearName,
+    required this.selected,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final list =
+        ref
+            .watch(
+              classesProvider((
+                schoolId: schoolId,
+                branchId: branchId,
+                academicYearId: yearId,
+              )),
+            )
+            .value ??
+        const [];
+    if (list.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Classes in $yearName (none chosen: all)'),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              for (final c in list)
+                FilterChip(
+                  label: Text(c.name),
+                  selected: selected.contains(c.classId),
+                  onSelected: enabled
+                      ? (on) {
+                          final next = {...selected};
+                          on ? next.add(c.classId) : next.remove(c.classId);
+                          onChanged(next);
+                        }
+                      : null,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }

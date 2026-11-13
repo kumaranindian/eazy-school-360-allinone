@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/extensions/context_extensions.dart';
@@ -90,6 +91,17 @@ class ConversionCard extends ConsumerWidget {
                   label: 'Parents linked',
                   text: '${c.parentIds.length}',
                 ),
+                if (c.studentId.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: () => context.push('/students/${c.studentId}'),
+                      icon: const Icon(Icons.open_in_new),
+                      label: const Text('Open student'),
+                    ),
+                  ),
+                ],
                 if (c.feeNetPaidMinor > 0 || c.feeBalanceMinor > 0)
                   ParentsFactRow(
                     icon: Icons.payments_outlined,

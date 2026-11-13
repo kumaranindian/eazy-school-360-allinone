@@ -26,6 +26,10 @@ import 'package:eazy_school_360/features/admission/domain/admission_status.dart'
 import 'package:eazy_school_360/features/admission/presentation/providers/admission_providers.dart';
 import 'package:eazy_school_360/features/authentication/domain/app_user.dart';
 import 'package:eazy_school_360/features/authentication/presentation/providers/auth_providers.dart';
+import 'package:eazy_school_360/features/fees/domain/fee_structure.dart';
+import 'package:eazy_school_360/features/fees/domain/fee_enums.dart'
+    as fee_enums;
+import 'package:eazy_school_360/features/fees/presentation/providers/fee_providers.dart';
 import 'package:eazy_school_360/features/school_setup/domain/branch.dart';
 import 'package:eazy_school_360/features/school_setup/domain/branch_status.dart';
 import 'package:eazy_school_360/features/school_setup/domain/school.dart';
@@ -40,6 +44,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/admission_fakes.dart';
+import '../support/fee_fakes.dart';
 import '../support/fakes.dart';
 import '../support/staff_fakes.dart';
 
@@ -77,6 +82,7 @@ Future<FakeAdmissionRepository> _pump(
   FakeAdmissionRepository? repo,
   FakeDocumentStore? store,
   DocumentPicker? picker,
+  List<FeeStructure> feeStructures = const [],
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -147,6 +153,9 @@ Future<FakeAdmissionRepository> _pump(
         ),
       ),
       admissionRepositoryProvider.overrideWithValue(fake),
+      feeConfigRepositoryProvider.overrideWithValue(
+        FakeFeeConfigRepository(structures: feeStructures),
+      ),
       admissionDocumentStoreProvider.overrideWithValue(
         store ?? FakeDocumentStore(),
       ),
@@ -388,6 +397,39 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Asha Nair'), findsNothing);
       expect(find.text('Ravi Menon'), findsOneWidget);
+    });
+
+    testWidgets('an enquiry from the public page carries a Website badge', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        path: '/admissions/enquiries',
+        repo: FakeAdmissionRepository(
+          enquiries: [
+            fakeEnquiry('1', channel: 'PUBLIC_PORTAL'),
+            fakeEnquiry('2', first: 'Ravi', last: 'Menon'),
+          ],
+        ),
+      );
+      expect(find.text('Website'), findsOneWidget);
+    });
+
+    testWidgets('the list can be filtered by assigned staff', (tester) async {
+      final repo = await _pump(
+        tester,
+        path: '/admissions/enquiries',
+        repo: FakeAdmissionRepository(enquiries: [fakeEnquiry('1')]),
+      );
+      await tester.tap(find.text('Filters'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(DropdownButtonFormField<String?>, 'Anyone'),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ravi Menon').last);
+      await tester.pumpAndSettle();
+      expect(repo.fetchedFilters.last.assignedTo, 'u-staff');
     });
   });
 
@@ -718,6 +760,63 @@ void main() {
       final n = repo.savedSettings.single;
       expect(n.notifies('decision'), isFalse);
       expect(n.notifies('newEnquiry'), isTrue);
+    });
+
+    testWidgets('the years and classes open for admissions can be limited', (
+      tester,
+    ) async {
+      final repo = await _pump(
+        tester,
+        role: UserRole.schoolAdmin,
+        path: '/admissions/settings',
+        size: _tall,
+        repo: FakeAdmissionRepository(
+          settings: const AdmissionSettings(enabled: true, version: 5),
+        ),
+      );
+      expect(
+        find.textContaining('Every academic year and class is open'),
+        findsOneWidget,
+      );
+      await tester.tap(find.widgetWithText(FilterChip, '2026-27'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Classes in 2026-27'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilterChip, 'Class 5'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Only the chosen years and classes'),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(find.text('Save settings'));
+      await tester.tap(find.text('Save settings'));
+      await tester.pumpAndSettle();
+      final saved = repo.savedSettings.single;
+      expect(saved.academicYearIds, ['y1']);
+      expect(saved.classIds, ['c5']);
+    });
+
+    testWidgets('un-choosing a year drops its classes too', (tester) async {
+      final repo = await _pump(
+        tester,
+        role: UserRole.schoolAdmin,
+        path: '/admissions/settings',
+        size: _tall,
+        repo: FakeAdmissionRepository(
+          settings: const AdmissionSettings(
+            enabled: true,
+            version: 5,
+            academicYearIds: ['y1'],
+            classIds: ['c5'],
+          ),
+        ),
+      );
+      await tester.tap(find.widgetWithText(FilterChip, '2026-27'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Save settings'));
+      await tester.tap(find.text('Save settings'));
+      await tester.pumpAndSettle();
+      expect(repo.savedSettings.single.academicYearIds, isEmpty);
+      expect(repo.savedSettings.single.classIds, isEmpty);
     });
 
     testWidgets('equal prefixes are refused before saving', (tester) async {
@@ -2553,9 +2652,11 @@ void main() {
       List<AdmissionFeePayment> payments = const [],
       UserRole role = UserRole.schoolAdmin,
       AdmissionStatus status = AdmissionStatus.interested,
+      List<FeeStructure> structures = const [],
     }) async {
       final repo = await _pump(
         tester,
+        feeStructures: structures,
         role: role,
         path: '/admissions/enquiries/1',
         size: _tall,
@@ -2593,6 +2694,97 @@ void main() {
       await tester.pumpAndSettle();
       expect(repo.feeCalls, ['set APPLICATION 50000']);
     });
+
+    FeeStructure structure(
+      String code,
+      String name,
+      int amount, {
+      fee_enums.FeeCategory category = fee_enums.FeeCategory.admission,
+      ActivationStatus status = ActivationStatus.active,
+      String? classId,
+    }) => FeeStructure(
+      structureId: FeeStructure.idFor('y1', code),
+      schoolId: 'school-1',
+      branchId: 'main',
+      academicYearId: 'y1',
+      code: code,
+      name: name,
+      category: category,
+      frequency: fee_enums.FeeFrequency.oneTime,
+      amountMinor: amount,
+      classId: classId,
+      status: status,
+    );
+
+    testWidgets(
+      'only active ADMISSION structures for this class are offered, and one fills the amount',
+      (tester) async {
+        final repo = await open(
+          tester,
+          structures: [
+            structure('ADM', 'Admission fee', 50000),
+            structure(
+              'TUI',
+              'Tuition',
+              90000,
+              category: fee_enums.FeeCategory.tuition,
+            ),
+            structure(
+              'OLD',
+              'Old admission',
+              10000,
+              status: ActivationStatus.inactive,
+            ),
+            structure('C9', 'Class 9 only', 70000, classId: 'c9'),
+            structure('C5', 'Class 5 only', 60000, classId: 'c5'),
+          ],
+        );
+        await tester.tap(_btn('Set amount').first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(DropdownButtonFormField<String?>));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('Admission fee ·'), findsOneWidget);
+        expect(find.textContaining('Class 5 only'), findsOneWidget);
+        expect(find.textContaining('Tuition'), findsNothing);
+        expect(find.textContaining('Old admission'), findsNothing);
+        expect(find.textContaining('Class 9 only'), findsNothing);
+        await tester.tap(find.textContaining('Admission fee ·').last);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        expect(repo.feeCalls, ['set APPLICATION 50000 via y1__adm']);
+      },
+    );
+
+    testWidgets(
+      'without structures there is no picker, and typing still works',
+      (tester) async {
+        await open(tester);
+        await tester.tap(_btn('Set amount').first);
+        await tester.pumpAndSettle();
+        expect(find.byType(DropdownButtonFormField<String?>), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'typing a different amount after picking keeps the structure link',
+      (tester) async {
+        final repo = await open(
+          tester,
+          structures: [structure('ADM', 'Admission fee', 50000)],
+        );
+        await tester.tap(_btn('Set amount').first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(DropdownButtonFormField<String?>));
+        await tester.pumpAndSettle();
+        await tester.tap(find.textContaining('Admission fee ·').last);
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField).last, '450');
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        expect(repo.feeCalls, ['set APPLICATION 45000 via y1__adm']);
+      },
+    );
 
     testWidgets('a bad amount is refused before anything is sent', (
       tester,
@@ -2897,6 +3089,17 @@ void main() {
       );
       expect(find.text('ADM-0042'), findsOneWidget);
       expect(_btn('Convert to student'), findsNothing);
+    });
+
+    testWidgets('a converted application links to the student', (tester) async {
+      await open(
+        tester,
+        conversion: const AdmissionConversion(
+          studentId: 's_1',
+          admissionNumber: 'ADM-0042',
+        ),
+      );
+      expect(_btn('Open student'), findsOneWidget);
     });
 
     testWidgets('a branch admin without approval rights cannot convert', (

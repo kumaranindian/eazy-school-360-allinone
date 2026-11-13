@@ -128,6 +128,17 @@ function `admissionFollowUpReminders`, notification types `ADMISSION_FOLLOWUP_DU
   time metrics (e.g. days to first contact) yet. The export is a clipboard CSV and a print/PDF dialog (the app's existing pattern), not a file download. The report
   query has not been run against the emulator or deployed. Admissions headline counts on the dashboard are unchanged (server `count()`).
 
+## Phase 12 — remaining UI (done)
+- Fees tab: *Set amount* offers the branch's active **ADMISSION fee structures** for the applicant's year (all classes, or their class); choosing one fills the amount and sends
+  `feeStructureId` (the server already validated it); the amount can still be edited.
+- Enquiry list: a **Website** badge for enquiries from the public page (`channel`), and an **Assigned to** filter (the query plan already supported it).
+- Converted applications show **Open student** (links to the student profile).
+- Admission settings: **Open for admissions** (academic years and, within chosen years, classes) replaces the old "cannot restrict from the UI" limitation; un-choosing a year drops its classes.
+  The server already refuses enquiries for years/classes that are not open (`validateEnquiry`).
+- No backend change in this phase. Tests: Dart widget tests for the structure picker (filtering by category, status and class; link kept after editing the amount), the badge, the assignee filter,
+  Open student and the year/class limits.
+- Not done: filter by channel (a new index would be needed), "unassigned" in the assignee filter, a student link for enquiries converted outside this flow, per-user dashboard widgets.
+
 ## Known limitations (phase 6)
 - The Storage rules are untested in an emulator (see above); the real upload → confirm round trip and `FirebaseAdmissionDocumentStore` are untested.
 - (Phase 7 added fees.) No conversion to a student (phase 8): an APPROVED application is the end of the road for now.
@@ -146,8 +157,7 @@ function `admissionFollowUpReminders`, notification types `ADMISSION_FOLLOWUP_DU
 - Reminders: a school with no branch admin and an unassigned activity notifies its school admins; email reminders are not built; the scheduled job is untested deployed.
 - The status follows visits only while the enquiry is at VISIT_SCHEDULED: after a manual move (e.g. to INTERESTED) a later visit completion does not set VISIT_COMPLETED (by design, see WORKFLOWS). Booking a visit on an ON_HOLD / NOT_INTERESTED enquiry is refused until it is resumed/reopened.
 - A visit's visitors (who is coming) and a parent-facing confirmation are not modelled; parent notifications are Phase 10.
-- The list shows newest first only; filter by assigned staff has no UI.
-- Admission settings cannot restrict academic years/classes from the UI.
+- The list shows newest first only.
 
 ## Deployment prerequisites
 DEPLOYMENT_GUIDE: indexes → functions → built rules → app, dev first, explicit approval for prod.
