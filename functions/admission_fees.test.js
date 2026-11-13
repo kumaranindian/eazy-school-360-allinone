@@ -145,3 +145,52 @@ test('another school or branch cannot touch the fee', async () => {
   const out = await f.setAdmissionFee(ctx(db), 'adminA', undefined, { schoolId: 'sB', branchId: 'b1', enquiryId: id, category: 'APPLICATION', amountMinor: 5 });
   assert.equal(out.error, 'PERMISSION_DENIED');
 });
+
+// ---- who may do what (phase 13) ----------------------------------------------
+const rbac = () => {
+  const s = seed();
+  s['users/fin1'] = { schoolId: 'sA', branchId: 'b1', status: 'ACTIVE', role: 'FINANCE' };
+  s['users/fin2'] = { schoolId: 'sA', branchId: 'b2', status: 'ACTIVE', role: 'FINANCE' };
+  s['users/finOff'] = { schoolId: 'sA', branchId: 'b1', status: 'INACTIVE', role: 'FINANCE' };
+  s['users/finMulti'] = { schoolId: 'sA', branchId: 'b2', branchRoles: { b1: 'FINANCE' }, status: 'ACTIVE', role: 'FINANCE' };
+  s['schools/sA/branches/b2'] = { name: 'Second' };
+  s['users/parentA'] = { schoolId: 'sA', status: 'ACTIVE', role: 'PARENT' };
+  return s;
+};
+
+test('Finance of the branch records payments but cannot set, waive, refund or cancel', async () => {
+  const db = fakeDb(rbac());
+  const { result } = await a.createEnquiry(ctx(db), 'adminA', undefined, { schoolId: 'sA', branchId: 'b1', enquiry: input });
+  const id = result.id;
+  await f.setAdmissionFee(ctx(db), 'adminA', undefined, base(id, { category: 'APPLICATION', amountMinor: 1000 }));
+  const pay = (uid, n = 1) => f.recordAdmissionFeePayment(ctx(db), uid, undefined, base(id, { category: 'APPLICATION', requestId: `req-fin-0000${n}`, amountMinor: 100, method: 'CASH' }));
+  assert.ok((await pay('fin1', 1)).result.receiptNumber);
+  assert.ok((await pay('finMulti', 2)).result.receiptNumber, 'a per-branch finance role works too');
+  for (const [name, fn, extra] of [
+    ['set', f.setAdmissionFee, { amountMinor: 5 }],
+    ['waive', f.waiveAdmissionFee, { reason: 'reason here' }],
+    ['refund', f.refundAdmissionFee, { requestId: 'ref-fin-00001', amountMinor: 50, method: 'CASH', reason: 'reason here' }],
+    ['cancel', f.cancelAdmissionFee, { reason: 'reason here' }],
+  ]) {
+    assert.equal((await fn(ctx(db), 'fin1', undefined, base(id, { category: 'APPLICATION', ...extra }))).error, 'PERMISSION_DENIED', name);
+  }
+});
+
+test('Finance of another branch, inactive finance, teachers and parents cannot record payments', async () => {
+  const db = fakeDb(rbac());
+  const { result } = await a.createEnquiry(ctx(db), 'adminA', undefined, { schoolId: 'sA', branchId: 'b1', enquiry: input });
+  await f.setAdmissionFee(ctx(db), 'adminA', undefined, base(result.id, { category: 'APPLICATION', amountMinor: 1000 }));
+  for (const uid of ['fin2', 'finOff', 'teacher1', 'parentA', 'nobody']) {
+    assert.equal((await f.recordAdmissionFeePayment(ctx(db), uid, undefined, base(result.id, { category: 'APPLICATION', requestId: 'req-deny-0001', amountMinor: 100, method: 'CASH' }))).error, 'PERMISSION_DENIED', uid);
+  }
+});
+
+test('the fee record carries the enquiry number and nothing else about the enquiry', async () => {
+  const db = fakeDb(rbac());
+  const { result } = await a.createEnquiry(ctx(db), 'adminA', undefined, { schoolId: 'sA', branchId: 'b1', enquiry: { ...input, remarks: 'PRIVATE REMARK' } });
+  await f.setAdmissionFee(ctx(db), 'adminA', undefined, base(result.id, { category: 'APPLICATION', amountMinor: 1000 }));
+  const rec = await fee(db, result.id);
+  assert.match(rec.enquiryNumber, /^ENQ-/);
+  const text = JSON.stringify(rec);
+  for (const secret of ['Asha', 'Nair', 'Meena', '9876543210', 'PRIVATE REMARK']) assert.equal(text.includes(secret), false, secret);
+});

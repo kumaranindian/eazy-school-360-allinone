@@ -62,6 +62,10 @@ enum AdmissionPaymentMethod {
 
 class AdmissionFee {
   final String id;
+  final String enquiryId;
+
+  /// The only enquiry detail Finance sees.
+  final String? enquiryNumber;
   final FeeCategory category;
   final String currency;
   final int amountMinor;
@@ -77,6 +81,8 @@ class AdmissionFee {
 
   const AdmissionFee({
     required this.id,
+    this.enquiryId = '',
+    this.enquiryNumber,
     required this.category,
     required this.currency,
     required this.amountMinor,
@@ -105,6 +111,8 @@ class AdmissionFee {
   factory AdmissionFee.fromMap(String id, Map<String, dynamic> d) =>
       AdmissionFee(
         id: id,
+        enquiryId: d['enquiryId'] as String? ?? '',
+        enquiryNumber: d['enquiryNumber'] as String?,
         category:
             FeeCategory.tryParse(d['category'] as String?) ??
             FeeCategory.application,

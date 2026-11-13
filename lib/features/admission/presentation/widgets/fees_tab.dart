@@ -198,9 +198,9 @@ class _FeeCard extends ConsumerWidget {
 
   Future<void> _pay(BuildContext context, WidgetRef ref) async {
     final f = fee!;
-    final r = await showDialog<_PaymentInput>(
+    final r = await showDialog<AdmissionPaymentInput>(
       context: context,
-      builder: (_) => _PaymentDialog(fee: f),
+      builder: (_) => AdmissionPaymentDialog(fee: f),
     );
     if (r == null || !context.mounted) return;
     final receipt = await _c(ref).recordPayment(
@@ -224,9 +224,9 @@ class _FeeCard extends ConsumerWidget {
 
   Future<void> _refund(BuildContext context, WidgetRef ref) async {
     final f = fee!;
-    final r = await showDialog<_PaymentInput>(
+    final r = await showDialog<AdmissionPaymentInput>(
       context: context,
-      builder: (_) => _PaymentDialog(fee: f, refund: true),
+      builder: (_) => AdmissionPaymentDialog(fee: f, refund: true),
     );
     if (r == null || !context.mounted) return;
     final ok = await _c(ref).refund(
@@ -368,13 +368,13 @@ class _FeeCard extends ConsumerWidget {
   }
 }
 
-class _PaymentInput {
+class AdmissionPaymentInput {
   final String requestId;
   final int amountMinor;
   final AdmissionPaymentMethod method;
   final String? referenceNo;
   final String? notes;
-  const _PaymentInput(
+  const AdmissionPaymentInput(
     this.requestId,
     this.amountMinor,
     this.method,
@@ -532,16 +532,20 @@ class _AmountDialogState extends ConsumerState<_AmountDialog> {
   }
 }
 
-class _PaymentDialog extends StatefulWidget {
+class AdmissionPaymentDialog extends StatefulWidget {
   final AdmissionFee fee;
   final bool refund;
-  const _PaymentDialog({required this.fee, this.refund = false});
+  const AdmissionPaymentDialog({
+    super.key,
+    required this.fee,
+    this.refund = false,
+  });
 
   @override
-  State<_PaymentDialog> createState() => _PaymentDialogState();
+  State<AdmissionPaymentDialog> createState() => _AdmissionPaymentDialogState();
 }
 
-class _PaymentDialogState extends State<_PaymentDialog> {
+class _AdmissionPaymentDialogState extends State<AdmissionPaymentDialog> {
   // One id per dialog: a double tap or a retry records the payment once.
   final _requestId = AdmissionWriteController.newRequestId();
   final _amount = TextEditingController();
@@ -584,7 +588,7 @@ class _PaymentDialogState extends State<_PaymentDialog> {
     }
     Navigator.pop(
       context,
-      _PaymentInput(
+      AdmissionPaymentInput(
         _requestId,
         minor,
         _method,

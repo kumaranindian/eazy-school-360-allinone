@@ -139,6 +139,14 @@ function `admissionFollowUpReminders`, notification types `ADMISSION_FOLLOWUP_DU
   Open student and the year/class limits.
 - Not done: filter by channel (a new index would be needed), "unassigned" in the assignee filter, a student link for enquiries converted outside this flow, per-user dashboard widgets.
 
+## Phase 13 — access control (done)
+- Decision: **no Admission Staff role.** The existing roles are reviewed and proven instead (`RBAC_MATRIX.md` rewritten).
+- Finance gets what the brief asked for: read of admission fee records and payments (rules), `recordAdmissionFeePayment` (also by the branch's active Finance staff, never set/waive/refund/cancel),
+  and an **Admission fees** list (Fees hub → `/admissions/fees`) showing enquiry number, fee and money only. Fee records now carry `enquiryNumber` (new records; older ones show "Enquiry").
+- Proofs: `functions/admission_rbac.test.js` (32 tests: 27 callables × 9 callers, signed-out, malformed ids, the approval setting, all-branches report, coverage guard), Finance cases in `admission_fees.test.js` (+3),
+  rules (+1: Finance reads fees/payments but nothing else; 15 passing), Dart role-matrix and route tests (4) and Finance widget tests (6).
+- Not done: Finance cannot see fee info of a *converted* student inside the normal student fee screens (no ledger posting, see phase 8); the Admission fees list shows up to 200 open fees.
+
 ## Known limitations (phase 6)
 - The Storage rules are untested in an emulator (see above); the real upload → confirm round trip and `FirebaseAdmissionDocumentStore` are untested.
 - (Phase 7 added fees.) No conversion to a student (phase 8): an APPROVED application is the end of the road for now.

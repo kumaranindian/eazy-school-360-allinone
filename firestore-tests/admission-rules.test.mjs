@@ -170,11 +170,12 @@ test('nobody writes applications, history or document records from a client', as
   }
 });
 
-test('admission fees and fee payments follow the same read scope, and nobody writes them from a client', async () => {
+test('admission fees and fee payments: administrators and the branch\'s Finance read; nobody else; nobody writes from a client', async () => {
   for (const read of [fee, feepay]) {
-    for (const uid of ['adm-admin', 'adm-platform', 'adm-north']) await assertSucceeds(getDoc(read(as(uid))));
-    for (const uid of ['adm-south', 'adm-teacher', 'adm-finance', 'adm-parent', 'adm-admin-b']) await assertFails(getDoc(read(as(uid))));
+    for (const uid of ['adm-admin', 'adm-platform', 'adm-north', 'adm-finance']) await assertSucceeds(getDoc(read(as(uid))));
+    for (const uid of ['adm-south', 'adm-teacher', 'adm-parent', 'adm-admin-b']) await assertFails(getDoc(read(as(uid))));
     await assertFails(getDoc(read(env.unauthenticatedContext().firestore())));
+    await assertFails(getDoc(read(as('adm-finance'), A, 'south')));
   }
   for (const uid of ['adm-admin', 'adm-north', 'adm-platform', 'adm-finance']) {
     const d = as(uid);
@@ -185,6 +186,11 @@ test('admission fees and fee payments follow the same read scope, and nobody wri
     await assertFails(updateDoc(feepay(d), { amountMinor: 1 }));
     await assertFails(deleteDoc(feepay(d)));
   }
+});
+
+test('Finance still cannot read enquiries, applications, documents, activities, settings or conversions', async () => {
+  const d = as('adm-finance');
+  for (const ref of [enq(d), hist(d), act(d), ahist(d), app(d), apphist(d), adoc(d), conv(d), settings(d)]) await assertFails(getDoc(ref));
 });
 
 test('conversion records follow the same read scope and are never written from a client', async () => {

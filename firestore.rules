@@ -3613,10 +3613,10 @@ service cloud.firestore {
           allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
         }
         match /admissionFees/{feeId} {
-          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+          allow read: if canFeeStaff(schoolId, branchId);
         }
         match /admissionFeePayments/{paymentId} {
-          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+          allow read: if canFeeStaff(schoolId, branchId);
         }
         match /admissionConversions/{enquiryId} {
           allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);

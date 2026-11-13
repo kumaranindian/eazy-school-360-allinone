@@ -3282,4 +3282,96 @@ void main() {
       }
     });
   });
+
+  group('Finance and admission fees', () {
+    AdmissionFee open(String id, String no, {int paid = 0}) => AdmissionFee(
+      id: '${id}__APPLICATION',
+      enquiryId: id,
+      enquiryNumber: no,
+      category: FeeCategory.application,
+      currency: 'INR',
+      amountMinor: 100000,
+      paidMinor: paid,
+      status: paid > 0 ? AdmissionFeeStatus.partial : AdmissionFeeStatus.due,
+    );
+
+    Future<FakeAdmissionRepository> page(
+      WidgetTester tester, {
+      UserRole role = UserRole.finance,
+      List<AdmissionFee> fees = const [],
+      String path = '/admissions/fees',
+    }) => _pump(
+      tester,
+      role: role,
+      path: path,
+      size: _tall,
+      repo: FakeAdmissionRepository(enquiries: [fakeEnquiry('1')])
+        ..fees = [...fees],
+    );
+
+    testWidgets(
+      'Finance sees enquiry numbers and money only, never a name or phone',
+      (tester) async {
+        await page(
+          tester,
+          fees: [
+            open('1', 'ENQ-2026-00001'),
+            open('2', 'ENQ-2026-00002', paid: 40000),
+          ],
+        );
+        expect(find.textContaining('ENQ-2026-00001'), findsOneWidget);
+        expect(find.textContaining('ENQ-2026-00002'), findsOneWidget);
+        expect(find.text('Record payment'), findsNWidgets(2));
+        expect(find.textContaining('Asha'), findsNothing);
+        expect(find.textContaining('9876543210'), findsNothing);
+      },
+    );
+
+    testWidgets('Finance records a payment and gets a receipt number', (
+      tester,
+    ) async {
+      final repo = await page(tester, fees: [open('1', 'ENQ-2026-00001')]);
+      await tester.tap(find.text('Record payment'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, '400');
+      await tester.tap(find.text('Record').last);
+      await tester.pumpAndSettle();
+      expect(repo.recordedPayments.single['amountMinor'], 40000);
+      expect(find.textContaining('RCT-2026-000001'), findsOneWidget);
+    });
+
+    testWidgets('nothing waiting: a plain message', (tester) async {
+      await page(tester);
+      expect(
+        find.textContaining('No admission fees are waiting'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+      'Finance cannot open the admissions home (enquiries, follow-ups, reports)',
+      (tester) async {
+        await page(tester, path: '/admissions');
+        expect(find.text('All enquiries'), findsNothing);
+        expect(find.text('Applications'), findsNothing);
+        expect(find.text('New enquiry'), findsNothing);
+      },
+    );
+
+    testWidgets('Finance cannot open an enquiry', (tester) async {
+      await page(tester, path: '/admissions/enquiries/1');
+      expect(find.text('Overview'), findsNothing);
+      expect(find.text('Internal notes'), findsNothing);
+      expect(find.textContaining('Asha'), findsNothing);
+    });
+
+    testWidgets('a teacher is sent away from the fee list', (tester) async {
+      await page(
+        tester,
+        role: UserRole.teacher,
+        fees: [open('1', 'ENQ-2026-00001')],
+      );
+      expect(find.textContaining('ENQ-2026-00001'), findsNothing);
+    });
+  });
 }

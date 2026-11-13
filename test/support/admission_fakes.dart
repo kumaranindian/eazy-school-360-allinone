@@ -592,6 +592,17 @@ class FakeAdmissionRepository implements AdmissionRepository {
   ) async => feePayments;
 
   @override
+  Future<List<AdmissionFee>> fetchOpenFees(
+    String schoolId,
+    String branchId,
+  ) async => [
+    for (final f in fees)
+      if (f.status == AdmissionFeeStatus.due ||
+          f.status == AdmissionFeeStatus.partial)
+        f,
+  ];
+
+  @override
   Future<void> setFee({
     required String schoolId,
     required String branchId,

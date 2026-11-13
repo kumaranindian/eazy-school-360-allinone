@@ -1,4 +1,7 @@
+import 'package:eazy_school_360/core/permissions/permission.dart';
+import 'package:eazy_school_360/core/permissions/role_permissions.dart';
 import 'package:eazy_school_360/core/permissions/user_role.dart';
+import 'package:eazy_school_360/core/routing/app_routes.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_activity.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_application.dart';
 import 'package:eazy_school_360/features/admission/domain/admission_enquiry.dart';
@@ -1028,5 +1031,72 @@ void main() {
       expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
       expect(bytes.length, greaterThan(1000));
     });
+  });
+
+  group('who may use admissions (role matrix)', () {
+    bool can(UserRole r, Permission p) => RolePermissions.roleHas(r, p);
+
+    test(
+      'managing admissions: platform, school and branch administrators only',
+      () {
+        for (final r in UserRole.values) {
+          expect(
+            can(r, Permission.manageAdmissions),
+            {
+              UserRole.platformAdmin,
+              UserRole.schoolAdmin,
+              UserRole.branchAdmin,
+            }.contains(r),
+            reason: r.name,
+          );
+        }
+      },
+    );
+
+    test(
+      'deciding admissions: platform and school administrators only (branch admins via the school setting, enforced on the server)',
+      () {
+        for (final r in UserRole.values) {
+          expect(
+            can(r, Permission.decideAdmissions),
+            {UserRole.platformAdmin, UserRole.schoolAdmin}.contains(r),
+            reason: r.name,
+          );
+        }
+      },
+    );
+
+    test(
+      'Finance collects payments but has no admissions access; teachers and parents have neither',
+      () {
+        expect(can(UserRole.finance, Permission.collectPayments), isTrue);
+        expect(can(UserRole.finance, Permission.manageAdmissions), isFalse);
+        expect(can(UserRole.finance, Permission.decideAdmissions), isFalse);
+        for (final r in [UserRole.teacher, UserRole.parent]) {
+          expect(can(r, Permission.manageAdmissions), isFalse, reason: r.name);
+          expect(can(r, Permission.collectPayments), isFalse, reason: r.name);
+        }
+      },
+    );
+
+    test(
+      'every admissions route needs manageAdmissions, except the Finance fee list which needs collectPayments',
+      () {
+        final routes = AppRoutes.requiredPermissions;
+        expect(routes[AppRoutes.admissionFees], Permission.collectPayments);
+        for (final path in [
+          AppRoutes.admissions,
+          AppRoutes.admissionEnquiries,
+          AppRoutes.admissionFollowUps,
+          AppRoutes.admissionApplications,
+          AppRoutes.admissionReports,
+          AppRoutes.admissionNewEnquiry,
+          AppRoutes.admissionEnquiry,
+          AppRoutes.admissionEditApplication,
+        ]) {
+          expect(routes[path], Permission.manageAdmissions, reason: path);
+        }
+      },
+    );
   });
 }

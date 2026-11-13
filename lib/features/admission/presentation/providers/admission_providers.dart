@@ -122,6 +122,14 @@ final enquiryFeesProvider = FutureProvider.autoDispose
           .fetchFees(key.schoolId, key.branchId, key.enquiryId),
     );
 
+/// Open admission fees of a branch (Finance's collection list).
+final openAdmissionFeesProvider = FutureProvider.autoDispose
+    .family<List<AdmissionFee>, BranchKey>(
+      (ref, key) => ref
+          .watch(admissionRepositoryProvider)
+          .fetchOpenFees(key.schoolId, key.branchId),
+    );
+
 final enquiryFeePaymentsProvider = FutureProvider.autoDispose
     .family<List<AdmissionFeePayment>, EnquiryKey>(
       (ref, key) => ref

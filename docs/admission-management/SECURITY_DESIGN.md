@@ -44,7 +44,7 @@ school-wide settings document (rules check the home role there). No documents/St
   cannot exceed the balance; refunds cannot exceed the money held; waivers and refunds are school-admin only.
 - Receipt numbers cannot repeat: the counter and the number reservation are written in the same transaction as the
   payment (tested with concurrent payments).
-- Finance staff do not yet see these records (they would need the confidential enquiry too); a Finance view is part of phase 13.
+- Finance staff of the branch can read these records (rules) and record payments (callable), and nothing else; the fee record carries only the enquiry number (phase 13, `RBAC_MATRIX.md`).
 
 ## Conversion (phase 8)
 - `admissionConversions` is read-only for clients like the other admission collections (rules test added). The conversion
@@ -78,3 +78,8 @@ Threat model: anonymous internet traffic against a write path into a school's da
 - Scope is enforced on the server (another branch, all-branches for a non-school-admin, teachers and other schools are refused), not by hiding a control.
 - Exports (CSV, PDF) are built on the device from those aggregates, so they cannot contain more than the screen shows. The CSV text cells use the formula-injection guard.
 - Lost-enquiry reasons are staff free text: the report shows the top 10 normalised (lower-cased, trimmed to 80 chars). Staff should not type personal details there.
+
+## Access control review (phase 13)
+- Decision: no "Admission Staff" role; administrators run admissions, Finance only collects admission fees.
+- Every admission callable is covered by one access table test (9 callers each) with a coverage guard; see `RBAC_MATRIX.md`.
+- Finance: read of `admissionFees` / `admissionFeePayments` and `recordAdmissionFeePayment` only; an inactive Finance user, another branch's Finance, teachers and parents are refused.

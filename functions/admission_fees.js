@@ -18,6 +18,7 @@
 // carried into the new student's fee records.
 
 const a = require('./admission');
+const { loginAllowed } = require('./access');
 
 const CATEGORIES = ['APPLICATION', 'REGISTRATION', 'ADMISSION', 'CONFIRMATION'];
 const METHODS = ['CASH', 'CHEQUE', 'BANK_TRANSFER', 'UPI', 'CARD', 'OTHER'];
@@ -80,10 +81,24 @@ function validatePayment(input, { today, balance }) {
 
 // ---- plumbing --------------------------------------------------------------
 
-async function context(ctx, uid, token, data) {
+/**
+ * Administrators of the school/branch, and (only when [financeOk]) the branch's
+ * active FINANCE staff, who may record payments but nothing else here.
+ */
+async function authorizeFees(db, uid, token, schoolId, branchId, financeOk) {
+  const admin = await a.authorize(db, uid, token, schoolId, branchId || null);
+  if (admin) return admin;
+  if (!financeOk || !branchId || !a.isStr(schoolId) || !a.ID.test(schoolId) || !a.ID.test(branchId)) return null;
+  const u = (await db.collection('users').doc(uid).get()).data();
+  if (!u || u.schoolId !== schoolId || u.status !== 'ACTIVE' || !loginAllowed(u, token)) return null;
+  const here = u.branchId === branchId ? u.role : (u.branchRoles || {})[branchId];
+  return here === 'FINANCE' ? { ...u, role: 'FINANCE' } : null;
+}
+
+async function context(ctx, uid, token, data, { financeOk = false } = {}) {
   const { db } = ctx;
   const { schoolId, branchId, enquiryId } = data || {};
-  const caller = await a.authorize(db, uid, token, schoolId, branchId || null);
+  const caller = await authorizeFees(db, uid, token, schoolId, branchId, financeOk);
   if (!caller || !branchId) return { error: 'PERMISSION_DENIED' };
   const settings = await a.loadSettings(db, schoolId);
   if (!settings.enabled) return { error: 'FAILED_PRECONDITION', reason: 'admissions are not enabled for this school' };
@@ -143,6 +158,8 @@ async function setAdmissionFee(ctx, uid, token, data) {
         schoolId: c.schoolId,
         branchId: c.branchId,
         enquiryId: c.enquiryId,
+        // The only enquiry detail Finance sees: its number.
+        enquiryNumber: enquiry.data.enquiryNumber || null,
         category,
         currency: c.currency,
         amountMinor,
@@ -236,7 +253,7 @@ async function receiptYear(tx, c, academicYearId, today) {
  * amount may not exceed the balance. No money is "received" any other way.
  */
 async function recordAdmissionFeePayment(ctx, uid, token, data) {
-  const c = await context(ctx, uid, token, data);
+  const c = await context(ctx, uid, token, data, { financeOk: true });
   if (c.error) return c;
   const category = categoryOf(data);
   if (!category) return { error: 'INVALID_ARGUMENT', reason: 'category is not valid' };
@@ -340,6 +357,7 @@ async function refundAdmissionFee(ctx, uid, token, data) {
 }
 
 module.exports = {
+  authorizeFees,
   CATEGORIES,
   METHODS,
   statusOf,

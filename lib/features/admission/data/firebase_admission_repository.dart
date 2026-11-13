@@ -980,6 +980,29 @@ class FirebaseAdmissionRepository implements AdmissionRepository {
   }
 
   @override
+  Future<List<AdmissionFee>> fetchOpenFees(
+    String schoolId,
+    String branchId,
+  ) async {
+    try {
+      final snap = await _col(
+        schoolId,
+        branchId,
+        _fees,
+      ).where('status', whereIn: ['DUE', 'PARTIAL']).limit(200).get();
+      final fees = [
+        for (final d in snap.docs) AdmissionFee.fromMap(d.id, d.data()),
+      ];
+      fees.sort(
+        (a, b) => a.enquiryNumber?.compareTo(b.enquiryNumber ?? '') ?? 0,
+      );
+      return fees;
+    } catch (e, st) {
+      throw mapExceptionToFailure(e, st);
+    }
+  }
+
+  @override
   Future<void> setFee({
     required String schoolId,
     required String branchId,

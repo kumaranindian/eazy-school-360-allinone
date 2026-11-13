@@ -65,6 +65,7 @@ abstract final class AppRoutes {
   static const String admissionFollowUps = '/admissions/follow-ups';
   static const String admissionApplications = '/admissions/applications';
   static const String admissionReports = '/admissions/reports';
+  static const String admissionFees = '/admissions/fees';
   static const String admissionEditApplication =
       '/admissions/enquiries/:enquiryId/application/edit';
   static const String admissionNewEnquiry = '/admissions/enquiries/new';
@@ -227,6 +228,8 @@ abstract final class AppRoutes {
     admissionFollowUps: Permission.manageAdmissions,
     admissionApplications: Permission.manageAdmissions,
     admissionReports: Permission.manageAdmissions,
+    // Finance collects admission fees without any access to the enquiries.
+    admissionFees: Permission.collectPayments,
     admissionEditApplication: Permission.manageAdmissions,
     admissionNewEnquiry: Permission.manageAdmissions,
     admissionEnquiry: Permission.manageAdmissions,

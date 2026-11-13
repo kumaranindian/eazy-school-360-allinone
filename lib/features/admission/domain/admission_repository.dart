@@ -319,6 +319,10 @@ abstract class AdmissionRepository {
     String enquiryId,
   );
 
+  /// Fee records of the branch that still have something to collect
+  /// (due or part paid). Readable by Finance staff.
+  Future<List<AdmissionFee>> fetchOpenFees(String schoolId, String branchId);
+
   Future<void> setFee({
     required String schoolId,
     required String branchId,
