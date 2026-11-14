@@ -3,6 +3,7 @@ import 'package:eazy_school_360/core/config/app_environment.dart';
 import 'package:eazy_school_360/core/config/env_config.dart';
 import 'package:eazy_school_360/core/config/env_config_provider.dart';
 import 'package:eazy_school_360/core/errors/app_failure.dart';
+import 'package:eazy_school_360/core/features/feature_catalogue.dart';
 import 'package:eazy_school_360/core/permissions/user_role.dart';
 import 'package:eazy_school_360/core/routing/app_router.dart';
 import 'package:eazy_school_360/core/routing/app_routes.dart';
@@ -81,7 +82,7 @@ Future<_W> _pump(
   PlatformRole role = PlatformRole.owner,
   FakePlatformConsoleRepository? console,
   FakePlatformOpsRepository? ops,
-  Size size = const Size(1000, 1400),
+  Size size = const Size(1000, 3200),
   double textScale = 1,
 }) async {
   tester.view.physicalSize = size;
@@ -190,7 +191,7 @@ void main() {
         expect(find.text('Reason: Unpaid for three months'), findsOneWidget);
         expect(find.byKey(const ValueKey('school-suspend')), findsNothing);
         await _tap(tester, 'school-reactivate');
-        await tester.tap(find.byKey(const ValueKey('confirm-yes')));
+        await tester.tap(find.byKey(const ValueKey('act-confirm')));
         await tester.pumpAndSettle();
         expect(w.ops.statusCalls.single.status, SchoolStatusChoice.active);
       },
@@ -229,10 +230,499 @@ void main() {
       );
       await _open(tester, w, _school1);
       await _tap(tester, 'school-reactivate');
-      await tester.tap(find.byKey(const ValueKey('confirm-yes')));
+      await tester.tap(find.byKey(const ValueKey('act-confirm')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.textContaining('being offboarded'), findsWidgets);
+    });
+  });
+
+  group('lifecycle states', () {
+    testWidgets(
+      'an INACTIVE school is shown as not yet activated, and an owner activates it',
+      (tester) async {
+        final w = await _pump(
+          tester,
+          console: FakePlatformConsoleRepository(
+            overview: overviewWith(status: 'INACTIVE'),
+          ),
+        );
+        await _open(tester, w, _school1);
+        expect(
+          find.textContaining('has not been activated yet'),
+          findsOneWidget,
+        );
+        expect(find.byKey(const ValueKey('school-suspend')), findsNothing);
+        await _tap(tester, 'school-activate');
+        expect(find.text('Activate Rosewood High?'), findsOneWidget);
+        expect(w.ops.statusCalls, isEmpty, reason: 'nothing before confirming');
+        await tester.enterText(
+          find.byKey(const ValueKey('act-remarks')),
+          'Paperwork verified',
+        );
+        await tester.enterText(
+          find.byKey(const ValueKey('act-notes')),
+          'Called the principal',
+        );
+        await tester.enterText(
+          find.byKey(const ValueKey('act-message')),
+          'Welcome aboard',
+        );
+        await tester.tap(find.byKey(const ValueKey('act-confirm')));
+        await tester.pumpAndSettle();
+        expect(w.ops.statusCalls.single.status, SchoolStatusChoice.active);
+        final sent = w.ops.activationInputs.single;
+        expect(
+          (sent.remarks, sent.internalNotes, sent.message),
+          ('Paperwork verified', 'Called the principal', 'Welcome aboard'),
+        );
+      },
+    );
+
+    testWidgets('an active school can be deactivated, with a real reason', (
+      tester,
+    ) async {
+      final w = await _pump(tester);
+      await _open(tester, w, _school1);
+      await _tap(tester, 'school-deactivate');
+      await tester.enterText(
+        find.byKey(const ValueKey('reason-field')),
+        'short',
+      );
+      await tester.tap(find.byKey(const ValueKey('reason-confirm')));
+      await tester.pumpAndSettle();
+      expect(w.ops.statusCalls, isEmpty);
+      await tester.enterText(
+        find.byKey(const ValueKey('reason-field')),
+        'Switching off until paperwork is done',
+      );
+      await tester.tap(find.byKey(const ValueKey('reason-confirm')));
+      await tester.pumpAndSettle();
+      expect(w.ops.statusCalls.single.status, SchoolStatusChoice.inactive);
+      expect(
+        w.ops.statusCalls.single.reason,
+        'Switching off until paperwork is done',
+      );
+    });
+
+    testWidgets('an expired school reads as expired and can be reactivated', (
+      tester,
+    ) async {
+      final w = await _pump(
+        tester,
+        console: FakePlatformConsoleRepository(
+          overview: overviewWith(status: 'EXPIRED'),
+        ),
+      );
+      await _open(tester, w, _school1);
+      expect(find.textContaining('subscription has expired'), findsOneWidget);
+      expect(find.byKey(const ValueKey('school-reactivate')), findsOneWidget);
+    });
+
+    testWidgets(
+      'a CLOSED school has no activation, only the recovery request',
+      (tester) async {
+        final w = await _pump(
+          tester,
+          console: FakePlatformConsoleRepository(
+            overview: overviewWith(status: 'CLOSED'),
+          ),
+        );
+        await _open(tester, w, _school1);
+        expect(find.textContaining('This school is closed'), findsOneWidget);
+        for (final k in [
+          'school-activate',
+          'school-reactivate',
+          'school-suspend',
+          'school-deactivate',
+          'school-reapply',
+        ]) {
+          expect(find.byKey(ValueKey(k)), findsNothing, reason: k);
+        }
+        await _tap(tester, 'recovery-request');
+        await tester.enterText(
+          find.byKey(const ValueKey('reason-field')),
+          'too short',
+        );
+        await tester.tap(find.byKey(const ValueKey('reason-confirm')));
+        await tester.pumpAndSettle();
+        expect(w.ops.recoveryCalls, isEmpty);
+        await tester.enterText(
+          find.byKey(const ValueKey('reason-field')),
+          'Closed by mistake, contract was renewed',
+        );
+        await tester.tap(find.byKey(const ValueKey('reason-confirm')));
+        await tester.pumpAndSettle();
+        expect(
+          w.ops.recoveryCalls.single,
+          startsWith('request:Closed by mistake'),
+        );
+      },
+    );
+
+    Map<String, dynamic> recovery(String by) => {
+      'state': 'REQUESTED',
+      'reason': 'Closed by mistake',
+      'requestedBy': by,
+      'requestedByEmail': 'ben@avail404.com',
+    };
+
+    testWidgets('a DIFFERENT owner approves a recovery', (tester) async {
+      final w = await _pump(
+        tester,
+        console: FakePlatformConsoleRepository(
+          overview: overviewWith(
+            status: 'CLOSED',
+            recovery: recovery('someone-else'),
+          ),
+        ),
+      );
+      await _open(tester, w, _school1);
+      expect(
+        find.textContaining('Recovery requested by ben@avail404.com'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('recovery-request')), findsNothing);
+      await _tap(tester, 'recovery-approve');
+      expect(w.ops.recoveryCalls, ['approve']);
+    });
+
+    testWidgets(
+      'the requester cannot approve their own recovery, but can cancel it',
+      (tester) async {
+        final w = await _pump(
+          tester,
+          console: FakePlatformConsoleRepository(
+            overview: overviewWith(status: 'CLOSED', recovery: recovery(_uid)),
+          ),
+        );
+        await _open(tester, w, _school1);
+        expect(find.byKey(const ValueKey('recovery-approve')), findsNothing);
+        expect(
+          find.text('Waiting for a different owner to approve.'),
+          findsOneWidget,
+        );
+        await _tap(tester, 'recovery-cancel');
+        expect(w.ops.recoveryCalls, ['cancel']);
+      },
+    );
+
+    testWidgets('only owners see recovery controls', (tester) async {
+      final w = await _pump(
+        tester,
+        role: PlatformRole.support,
+        console: FakePlatformConsoleRepository(
+          overview: overviewWith(status: 'CLOSED'),
+        ),
+      );
+      await _open(tester, w, _school1);
+      expect(find.byKey(const ValueKey('recovery-request')), findsNothing);
+    });
+
+    testWidgets('support and viewers cannot activate or deactivate', (
+      tester,
+    ) async {
+      final w = await _pump(
+        tester,
+        role: PlatformRole.support,
+        console: FakePlatformConsoleRepository(
+          overview: overviewWith(status: 'INACTIVE'),
+        ),
+      );
+      await _open(tester, w, _school1);
+      expect(find.byKey(const ValueKey('school-activate')), findsNothing);
+    });
+  });
+
+  group('subscription', () {
+    Map<String, dynamic> subOf(
+      String status, {
+      String cls = 'PAID',
+      int grace = 0,
+      String? cancelled,
+    }) => {
+      'planName': 'Annual',
+      'classification': cls,
+      'startDate': '2026-04-01',
+      'endDate': '2027-03-31',
+      'gracePeriodDays': grace,
+      'status': status,
+      'remarks': 'Signed on call',
+      'internalNotes': 'Pays late',
+      if (cancelled != null) 'cancellationReason': cancelled,
+    };
+    Future<_W> open(
+      WidgetTester tester, {
+      Map<String, dynamic>? subscription,
+      PlatformRole role = PlatformRole.owner,
+      FakePlatformOpsRepository? ops,
+    }) async {
+      final w = await _pump(
+        tester,
+        role: role,
+        ops: ops,
+        console: FakePlatformConsoleRepository(
+          overview: overviewWith(subscription: subscription),
+        ),
+      );
+      await _open(tester, w, _school1);
+      return w;
+    }
+
+    Future<void> type(WidgetTester t, String key, String v) async {
+      await t.enterText(find.byKey(ValueKey(key)), v);
+    }
+
+    testWidgets(
+      'a school with no subscription reads as legacy, and an owner can start one',
+      (tester) async {
+        await open(tester);
+        expect(find.byKey(const ValueKey('sub-none')), findsOneWidget);
+        expect(find.byKey(const ValueKey('sub-set')), findsOneWidget);
+        expect(find.byKey(const ValueKey('sub-trial')), findsOneWidget);
+        expect(find.byKey(const ValueKey('sub-renew')), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'the current subscription shows status, dates in the school zone, remarks and notes',
+      (tester) async {
+        await open(tester, subscription: subOf('ACTIVE', grace: 5));
+        expect(find.text('Active'), findsWidgets);
+        expect(find.textContaining('2026-04-01 to 2027-03-31'), findsOneWidget);
+        expect(find.textContaining('Grace period: 5 days'), findsOneWidget);
+        expect(find.textContaining('Signed on call'), findsOneWidget);
+        expect(find.textContaining('Pays late'), findsOneWidget);
+      },
+    );
+
+    testWidgets('blocking states say the school is paused and offer renewal', (
+      tester,
+    ) async {
+      await open(tester, subscription: subOf('EXPIRED'));
+      expect(find.textContaining('Renew to switch it back on'), findsOneWidget);
+      expect(find.byKey(const ValueKey('sub-renew')), findsOneWidget);
+      expect(find.byKey(const ValueKey('sub-trial')), findsOneWidget);
+    });
+
+    testWidgets('a not-started subscription says when it begins', (
+      tester,
+    ) async {
+      await open(tester, subscription: subOf('NOT_STARTED'));
+      expect(
+        find.textContaining('paused until the start date'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+      'a cancelled one hides extend and cancel but keeps renew and shows the reason',
+      (tester) async {
+        await open(
+          tester,
+          subscription: subOf('CANCELLED', cancelled: 'Left the platform'),
+        );
+        expect(find.byKey(const ValueKey('sub-extend')), findsNothing);
+        expect(find.byKey(const ValueKey('sub-cancel')), findsNothing);
+        expect(find.byKey(const ValueKey('sub-renew')), findsOneWidget);
+        expect(find.textContaining('Left the platform'), findsOneWidget);
+      },
+    );
+
+    for (final role in [
+      PlatformRole.support,
+      PlatformRole.viewer,
+      PlatformRole.compliance,
+    ]) {
+      testWidgets('${role.name} can read but not change the subscription', (
+        tester,
+      ) async {
+        await open(tester, subscription: subOf('ACTIVE'), role: role);
+        expect(find.byKey(const ValueKey('sub-status')), findsOneWidget);
+        for (final k in [
+          'sub-set',
+          'sub-change',
+          'sub-extend',
+          'sub-renew',
+          'sub-cancel',
+          'sub-trial',
+        ]) {
+          expect(find.byKey(ValueKey(k)), findsNothing, reason: k);
+        }
+      });
+    }
+
+    testWidgets(
+      'set: checks the plan and dates before calling, then sends exactly what was typed',
+      (tester) async {
+        final w = await open(tester);
+        await _tap(tester, 'sub-set');
+        await tester.tap(find.byKey(const ValueKey('sub-save')));
+        await tester.pumpAndSettle();
+        expect(find.text('Choose a plan.'), findsOneWidget);
+        await tester.tap(find.byKey(const ValueKey('sub-plan')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.textContaining('Annual · Annual').last);
+        await tester.pumpAndSettle();
+        await type(tester, 'sub-start', '2026-02-30');
+        await type(tester, 'sub-end', '2027-03-31');
+        await tester.tap(find.byKey(const ValueKey('sub-save')));
+        await tester.pumpAndSettle();
+        expect(
+          find.text('Enter a real start date (YYYY-MM-DD).'),
+          findsOneWidget,
+        );
+        await type(tester, 'sub-start', '2026-04-01');
+        await type(tester, 'sub-end', '2026-03-31');
+        await tester.tap(find.byKey(const ValueKey('sub-save')));
+        await tester.pumpAndSettle();
+        expect(
+          find.text('The end date cannot be before the start date.'),
+          findsOneWidget,
+        );
+        expect(w.ops.subCalls, isEmpty, reason: 'nothing sent while invalid');
+        await type(tester, 'sub-end', '2027-03-31');
+        await type(tester, 'sub-grace', '5');
+        await tester.tap(find.byKey(const ValueKey('sub-save')));
+        await tester.pumpAndSettle();
+        final c = w.ops.subCalls.single;
+        expect((c.op, c.schoolId), ('set', 'school-1'));
+        expect(c.args['planId'], 'annual');
+        expect(
+          (
+            c.args['classification'],
+            c.args['startDate'],
+            c.args['endDate'],
+            c.args['gracePeriodDays'],
+          ),
+          ('PAID', '2026-04-01', '2027-03-31', 5),
+        );
+      },
+    );
+
+    testWidgets('extend needs a real date and a reason', (tester) async {
+      final w = await open(tester, subscription: subOf('ACTIVE'));
+      await _tap(tester, 'sub-extend');
+      await type(tester, 'sub-end', '2027-06-30');
+      await tester.tap(find.byKey(const ValueKey('sub-save')));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Give a reason of at least 10 characters.'),
+        findsOneWidget,
+      );
+      await type(tester, 'sub-reason', 'Goodwill for the delay');
+      await tester.tap(find.byKey(const ValueKey('sub-save')));
+      await tester.pumpAndSettle();
+      final c = w.ops.subCalls.single;
+      expect(
+        (c.op, c.args['endDate'], c.args['reason']),
+        ('extend', '2027-06-30', 'Goodwill for the delay'),
+      );
+    });
+
+    testWidgets(
+      'renew sends only the end date when the start is left to the default',
+      (tester) async {
+        final w = await open(tester, subscription: subOf('EXPIRED'));
+        await _tap(tester, 'sub-renew');
+        await type(tester, 'sub-end', '2028-03-31');
+        await tester.tap(find.byKey(const ValueKey('sub-save')));
+        await tester.pumpAndSettle();
+        final c = w.ops.subCalls.single;
+        expect(
+          (c.op, c.args['startDate'], c.args['endDate']),
+          ('renew', null, '2028-03-31'),
+        );
+      },
+    );
+
+    testWidgets('cancel needs a reason and then pauses straight away', (
+      tester,
+    ) async {
+      final w = await open(tester, subscription: subOf('ACTIVE'));
+      await _tap(tester, 'sub-cancel');
+      expect(find.textContaining('paused straight away'), findsOneWidget);
+      await type(tester, 'sub-reason', 'short');
+      await tester.tap(find.byKey(const ValueKey('sub-save')));
+      await tester.pumpAndSettle();
+      expect(w.ops.subCalls, isEmpty);
+      await type(tester, 'sub-reason', 'Customer left the platform');
+      await tester.tap(find.byKey(const ValueKey('sub-save')));
+      await tester.pumpAndSettle();
+      expect(w.ops.subCalls.single.op, 'cancel');
+    });
+
+    testWidgets('trial: whole days from 1 to 90', (tester) async {
+      final w = await open(tester);
+      await _tap(tester, 'sub-trial');
+      await type(tester, 'sub-days', '91');
+      await tester.tap(find.byKey(const ValueKey('sub-save')));
+      await tester.pumpAndSettle();
+      expect(find.text('A trial lasts 1 to 90 whole days.'), findsOneWidget);
+      await type(tester, 'sub-days', '30');
+      await tester.tap(find.byKey(const ValueKey('sub-save')));
+      await tester.pumpAndSettle();
+      expect(
+        (w.ops.subCalls.single.op, w.ops.subCalls.single.args['days']),
+        ('trial', 30),
+      );
+    });
+
+    testWidgets(
+      'a server refusal stays in the dialog in plain words, and nothing closes',
+      (tester) async {
+        final ops = FakePlatformOpsRepository(stats: fakeStats());
+        await open(tester, subscription: subOf('ACTIVE'), ops: ops);
+        await _tap(tester, 'sub-cancel');
+        await type(tester, 'sub-reason', 'Customer left the platform');
+        ops.error = const ValidationFailure(
+          'The subscription is cancelled. Renew it first.',
+        );
+        await tester.tap(find.byKey(const ValueKey('sub-save')));
+        await tester.pumpAndSettle();
+        expect(
+          find.text('The subscription is cancelled. Renew it first.'),
+          findsOneWidget,
+        );
+        expect(find.byKey(const ValueKey('sub-save')), findsOneWidget);
+      },
+    );
+
+    testWidgets('history lists each change, with SYSTEM changes labelled', (
+      tester,
+    ) async {
+      final ops = FakePlatformOpsRepository(stats: fakeStats())
+        ..subHistory = [
+          SubscriptionHistoryEntry.fromMap({
+            'id': 'h1',
+            'event': 'SUBSCRIPTION_STATUS_CHANGED',
+            'atMs': 1700000000000,
+            'actorKind': 'SYSTEM',
+            'toStatus': 'EXPIRED',
+          }),
+          SubscriptionHistoryEntry.fromMap({
+            'id': 'h2',
+            'event': 'SUBSCRIPTION_SET',
+            'atMs': 1690000000000,
+            'actorEmail': 'o@avail404.com',
+            'toStatus': 'ACTIVE',
+          }),
+        ];
+      await open(tester, subscription: subOf('EXPIRED'), ops: ops);
+      expect(
+        find.byKey(const ValueKey('sub-history-h1')),
+        findsNothing,
+        reason: 'collapsed until asked',
+      );
+      await _tap(tester, 'sub-history-toggle');
+      expect(
+        find.textContaining('Status changed → Expired · System'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Subscription set → Active · o@avail404.com'),
+        findsOneWidget,
+      );
     });
   });
 
@@ -316,13 +806,100 @@ void main() {
   });
 
   group('module switches', () {
-    testWidgets('an owner turns the admission module off', (tester) async {
+    Future<void> reason(WidgetTester t, String v) async {
+      await t.enterText(find.byKey(const ValueKey('reason-field')), v);
+    }
+
+    Future<void> confirmReason(WidgetTester t) async {
+      await t.tap(find.byKey(const ValueKey('reason-confirm')));
+      await t.pumpAndSettle();
+    }
+
+    testWidgets('switching a module off needs a real reason, then sends it', (
+      tester,
+    ) async {
       final w = await _pump(tester);
       await _open(tester, w, _school1);
-      await _tap(tester, 'feature-admission');
+      await _tap(tester, 'feature-homework');
+      await reason(tester, 'short');
+      await confirmReason(tester);
+      expect(
+        w.ops.featureCalls,
+        isEmpty,
+        reason: 'nothing sent while the reason is too short',
+      );
+      await reason(tester, 'Not part of this plan');
+      await confirmReason(tester);
       expect(w.ops.featureCalls.single.schoolId, 'school-1');
-      expect(w.ops.featureCalls.single.features, {'admission': false});
+      expect(w.ops.featureCalls.single.features, {'homework': false});
+      expect(w.ops.featureArgs.single, (
+        reason: 'Not part of this plan',
+        confirm: false,
+      ));
     });
+
+    testWidgets(
+      'a module others depend on lists them and asks to switch them off too',
+      (tester) async {
+        final w = await _pump(tester);
+        await _open(tester, w, _school1);
+        await _tap(tester, 'feature-admission');
+        expect(
+          find.textContaining(
+            'also switches off: Public admission enquiry page',
+          ),
+          findsOneWidget,
+        );
+        await reason(tester, 'Not part of this plan');
+        await confirmReason(tester);
+        expect(w.ops.featureCalls.single.features, {'admission': false});
+        expect(w.ops.featureArgs.single.confirm, isTrue);
+      },
+    );
+
+    testWidgets('switching on needs no reason and is sent straight away', (
+      tester,
+    ) async {
+      final w = await _pump(
+        tester,
+        console: FakePlatformConsoleRepository(
+          overview: overviewWith(features: {'homework': false}),
+        ),
+      );
+      await _open(tester, w, _school1);
+      await _tap(tester, 'feature-homework');
+      expect(w.ops.featureCalls.single.features, {'homework': true});
+      expect(w.ops.featureArgs.single, (reason: null, confirm: false));
+    });
+
+    testWidgets(
+      'a module whose dependency is off is shown off, cannot be switched on, and says why',
+      (tester) async {
+        final w = await _pump(
+          tester,
+          console: FakePlatformConsoleRepository(
+            overview: overviewWith(features: {'fees': false}),
+          ),
+        );
+        await _open(tester, w, _school1);
+        final reminders = tester.widget<SwitchListTile>(
+          find.byKey(const ValueKey('feature-feeReminders')),
+        );
+        expect(reminders.value, isFalse);
+        expect(reminders.onChanged, isNull);
+        expect(
+          find.byKey(const ValueKey('feature-needs-feeReminders')),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(
+            'Needs Fees, invoices and payments switched on first.',
+          ),
+          findsOneWidget,
+        );
+        expect(w.ops.featureCalls, isEmpty);
+      },
+    );
 
     testWidgets('the current state is shown; a missing switch means on', (
       tester,
@@ -330,46 +907,168 @@ void main() {
       final w = await _pump(
         tester,
         console: FakePlatformConsoleRepository(
-          overview: overviewWith(features: {'publicAdmission': false}),
+          overview: overviewWith(features: {'homework': false}),
         ),
       );
       await _open(tester, w, _school1);
-      expect(
-        tester
-            .widget<SwitchListTile>(
-              find.byKey(const ValueKey('feature-admission')),
-            )
-            .value,
-        isTrue,
-      );
-      expect(
-        tester
-            .widget<SwitchListTile>(
-              find.byKey(const ValueKey('feature-publicAdmission')),
-            )
-            .value,
-        isFalse,
-      );
+      bool on(String k) => tester
+          .widget<SwitchListTile>(find.byKey(ValueKey('feature-$k')))
+          .value;
+      expect(on('admission'), isTrue);
+      expect(on('homework'), isFalse);
     });
 
-    testWidgets('anyone else sees the switches but cannot flip them', (
+    testWidgets('the whole catalogue is listed, and only real modules', (
       tester,
     ) async {
-      final w = await _pump(tester, role: PlatformRole.support);
+      final w = await _pump(tester, size: const Size(1000, 6000));
       await _open(tester, w, _school1);
-      expect(
-        tester
-            .widget<SwitchListTile>(
-              find.byKey(const ValueKey('feature-admission')),
-            )
-            .onChanged,
-        isNull,
+      for (final f in kFeatureCatalogue) {
+        expect(
+          find.byKey(ValueKey('feature-${f.key}')),
+          findsOneWidget,
+          reason: f.key,
+        );
+      }
+      for (final absent in ['transport', 'library', 'payments']) {
+        expect(
+          find.byKey(ValueKey('feature-$absent')),
+          findsNothing,
+          reason: absent,
+        );
+      }
+    });
+
+    for (final role in [
+      PlatformRole.support,
+      PlatformRole.viewer,
+      PlatformRole.compliance,
+    ]) {
+      testWidgets('${role.name} sees the switches but cannot flip them', (
+        tester,
+      ) async {
+        final w = await _pump(tester, role: role);
+        await _open(tester, w, _school1);
+        expect(
+          tester
+              .widget<SwitchListTile>(
+                find.byKey(const ValueKey('feature-admission')),
+              )
+              .onChanged,
+          isNull,
+        );
+        expect(
+          find.text('Only a platform owner can change modules.'),
+          findsOneWidget,
+        );
+      });
+    }
+
+    testWidgets('a server refusal is shown in plain words', (tester) async {
+      final ops = FakePlatformOpsRepository(stats: fakeStats());
+      final w = await _pump(tester, ops: ops);
+      await _open(tester, w, _school1);
+      ops.error = const ValidationFailure(
+        'Switch on the modules this one needs first.',
       );
+      await _tap(tester, 'feature-homework');
+      await reason(tester, 'Not part of this plan');
+      await confirmReason(tester);
       expect(
-        find.text('Only a platform owner can change modules.'),
+        find.text('Switch on the modules this one needs first.'),
         findsOneWidget,
       );
+      expect(w.ops.featureCalls, isEmpty);
     });
+
+    testWidgets(
+      'history lists each change with its reason and whether it followed a dependency',
+      (tester) async {
+        final ops = FakePlatformOpsRepository(stats: fakeStats())
+          ..featureHist = [
+            FeatureHistoryEntry.fromMap({
+              'id': 'f1',
+              'feature': 'feeReminders',
+              'from': true,
+              'to': false,
+              'cascade': true,
+              'actorEmail': 'o@avail404.com',
+              'atMs': 1700000000000,
+              'reason': 'Fees billed elsewhere',
+            }),
+            FeatureHistoryEntry.fromMap({
+              'id': 'f2',
+              'feature': 'fees',
+              'from': true,
+              'to': false,
+              'actorEmail': 'o@avail404.com',
+              'atMs': 1700000000000,
+              'reason': 'Fees billed elsewhere',
+            }),
+          ];
+        final w = await _pump(tester, ops: ops);
+        await _open(tester, w, _school1);
+        expect(
+          find.byKey(const ValueKey('feature-history-f1')),
+          findsNothing,
+          reason: 'collapsed until asked',
+        );
+        await _tap(tester, 'features-history-toggle');
+        expect(
+          find.textContaining(
+            'Fee reminders off (with a module it depends on)',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(
+            'Fees, invoices and payments off · o@avail404.com · Fees billed elsewhere',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+  });
+
+  group('default modules for new schools', () {
+    testWidgets(
+      'an owner edits them; switching a module off takes its dependants with it',
+      (tester) async {
+        final ops = FakePlatformOpsRepository(stats: fakeStats())
+          ..defaultsMap = {for (final f in kFeatureCatalogue) f.key: true};
+        final w = await _pump(tester, ops: ops);
+        await _open(tester, w, AppRoutes.platformSchools);
+        await tester.tap(find.byKey(const ValueKey('schools-defaults')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('default-fees')));
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<SwitchListTile>(
+                find.byKey(const ValueKey('default-feeReminders')),
+              )
+              .value,
+          isFalse,
+        );
+        await tester.tap(find.byKey(const ValueKey('defaults-save')));
+        await tester.pumpAndSettle();
+        final saved = w.ops.defaultsSaved.single;
+        expect(
+          (saved['fees'], saved['feeReminders'], saved['exams']),
+          (false, false, true),
+        );
+      },
+    );
+
+    for (final role in [PlatformRole.support, PlatformRole.viewer]) {
+      testWidgets('${role.name} does not see the defaults button', (
+        tester,
+      ) async {
+        final w = await _pump(tester, role: role);
+        await _open(tester, w, AppRoutes.platformSchools);
+        expect(find.byKey(const ValueKey('schools-defaults')), findsNothing);
+      });
+    }
   });
 
   group('billing', () {
@@ -1009,6 +1708,19 @@ void main() {
                   'requestedByEmail': 'ben@avail404.com',
                   'graceUntilMs': 1,
                 },
+                subscription: {
+                  'planName':
+                      'An extremely long plan name for the annual school subscription',
+                  'classification': 'PAID',
+                  'startDate': '2026-04-01',
+                  'endDate': '2027-03-31',
+                  'gracePeriodDays': 7,
+                  'status': 'GRACE_PERIOD',
+                  'remarks':
+                      'A long remark that should wrap across several lines on a phone',
+                  'internalNotes':
+                      'A long internal note that should also wrap on a phone screen',
+                },
               ),
               schools: [
                 fakeSchool(name: 'A School With A Very Long Name Academy'),
@@ -1018,6 +1730,27 @@ void main() {
             textScale: scale,
           );
           expect(tester.takeException(), isNull, reason: 'home');
+          await _open(tester, w, _school1);
+          await tester.scrollUntilVisible(
+            find.byKey(const ValueKey('sub-history-toggle')),
+            300,
+            scrollable: find.byType(Scrollable).first,
+          );
+          await tester.tap(find.byKey(const ValueKey('sub-history-toggle')));
+          await tester.pumpAndSettle();
+          await tester.scrollUntilVisible(
+            find.byKey(const ValueKey('sub-change')),
+            300,
+            scrollable: find.byType(Scrollable).first,
+          );
+          await tester.ensureVisible(find.byKey(const ValueKey('sub-change')));
+          await tester.pumpAndSettle();
+          await tester.tap(find.byKey(const ValueKey('sub-change')));
+          await tester.pumpAndSettle();
+          expect(find.byKey(const ValueKey('sub-save')), findsOneWidget);
+          expect(tester.takeException(), isNull, reason: 'subscription dialog');
+          await tester.tap(find.text('Close'));
+          await tester.pumpAndSettle();
           for (final p in [
             _school1,
             AppRoutes.platformSchools,

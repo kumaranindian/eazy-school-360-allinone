@@ -2,7 +2,12 @@ import 'package:eazy_school_360/features/platform_admin/domain/platform_ops_mode
 import 'package:eazy_school_360/features/platform_admin/domain/school_overview.dart';
 import 'package:eazy_school_360/features/school_setup/domain/school.dart';
 import 'package:eazy_school_360/features/school_setup/domain/school_status.dart';
+import 'package:eazy_school_360/features/users/domain/user_profile.dart';
+import 'package:eazy_school_360/features/platform_admin/presentation/widgets/subscription_panel.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'package:eazy_school_360/features/platform_admin/domain/platform_school.dart';
+import '../support/platform_fakes.dart';
 
 import '../support/platform_ops_fakes.dart';
 
@@ -300,7 +305,12 @@ void main() {
         expect(overviewWith().isSuspended, isFalse);
         final o = overviewWith(features: {'admission': false});
         expect(o.featureOn('admission'), isFalse);
-        expect(o.featureOn('publicAdmission'), isTrue);
+        expect(
+          o.featureOn('publicAdmission'),
+          isFalse,
+          reason: 'a dependant goes off with its dependency',
+        );
+        expect(o.featureOn('fees'), isTrue);
         expect(o.featureOn('anything-new'), isTrue);
       },
     );
@@ -348,9 +358,207 @@ void main() {
         );
         expect(
           school(const {'admission': false}).moduleEnabled('publicAdmission'),
+          isFalse,
+          reason: 'its dependency is off',
+        );
+        expect(
+          school(const {'admission': false}).moduleEnabled('fees'),
           isTrue,
         );
       },
     );
+  });
+
+  group('SchoolStatus', () {
+    test('every lifecycle state round-trips; only ACTIVE is not paused', () {
+      for (final st in SchoolStatus.values) {
+        expect(SchoolStatus.fromWireValue(st.wireValue), st);
+        expect(st.isPaused, st != SchoolStatus.active);
+      }
+      expect(SchoolStatus.values.map((e) => e.wireValue), [
+        'ACTIVE',
+        'INACTIVE',
+        'SUSPENDED',
+        'EXPIRED',
+        'CLOSED',
+      ]);
+    });
+
+    test(
+      'an unknown state from a newer server pauses (never guesses ACTIVE)',
+      () {
+        expect(SchoolStatus.fromWireValue('ARCHIVED'), SchoolStatus.inactive);
+        expect(SchoolStatus.fromWireValue(''), SchoolStatus.inactive);
+      },
+    );
+  });
+
+  group('UserProfile school access', () {
+    Map<String, dynamic> data(Object? access) => {
+      'role': 'TEACHER',
+      'status': 'ACTIVE',
+      'name': 'T',
+      'email': 't@x.com',
+      'schoolId': 's',
+      'branchId': 'b',
+      if (access != null) 'schoolAccess': access,
+    };
+
+    test('the mirrored state is read; absent means not paused', () {
+      final p = UserProfile.fromFirestore('u', data('EXPIRED'));
+      expect((p.schoolPaused, p.schoolAccessState), (true, 'EXPIRED'));
+      final q = UserProfile.fromFirestore('u', data(null));
+      expect((q.schoolPaused, q.schoolAccessState), (false, null));
+    });
+  });
+
+  group('PlatformSchool search and registration filter', () {
+    test('matches by contact email as well as name', () {
+      final s = fakeSchool(email: 'Owner@Rosewood.edu');
+      expect(s.matches('owner@rosewood'), isTrue);
+      expect(s.matches('nobody@x'), isFalse);
+    });
+
+    test('registeredWithin counts whole days; unknown date never matches', () {
+      final now = DateTime(2026, 11, 14);
+      expect(
+        fakeSchool(createdAt: DateTime(2026, 11, 10)).registeredWithin(7, now),
+        isTrue,
+      );
+      expect(
+        fakeSchool(createdAt: DateTime(2026, 11, 7)).registeredWithin(7, now),
+        isFalse,
+      );
+      expect(
+        fakeSchool(createdAt: DateTime(2026, 11, 8)).registeredWithin(7, now),
+        isTrue,
+      );
+      expect(
+        const PlatformSchool(
+          id: 'x',
+          name: 'n',
+          code: 'c',
+          status: 'ACTIVE',
+          city: '',
+          country: '',
+          createdAt: null,
+        ).registeredWithin(90, now),
+        isFalse,
+      );
+    });
+  });
+
+  group('PlatformNotification', () {
+    test('reads the callable row; missing fields are safe', () {
+      final n = PlatformNotification.fromMap({
+        'id': 'n1',
+        'type': 'SCHOOL_SUSPENDED',
+        'title': 'T',
+        'body': 'B',
+        'severity': 'CRITICAL',
+        'requiresAck': true,
+        'state': 'DELIVERED',
+        'createdAtMs': 1700000000000,
+      });
+      expect(
+        (n.id, n.severity, n.pendingAck, n.acknowledged),
+        ('n1', NoticeSeverity.critical, true, false),
+      );
+      expect(n.createdAt, DateTime.fromMillisecondsSinceEpoch(1700000000000));
+      final bare = PlatformNotification.fromMap(const {});
+      expect(
+        (bare.requiresAck, bare.state, bare.createdAt),
+        (true, 'CREATED', null),
+      );
+    });
+
+    test('only an unacknowledged, acknowledgement-required one is pending', () {
+      PlatformNotification n(String state, bool ack) =>
+          PlatformNotification.fromMap({'state': state, 'requiresAck': ack});
+      expect(n('CREATED', true).pendingAck, isTrue);
+      expect(n('DELIVERED', true).pendingAck, isTrue);
+      expect(n('ACKNOWLEDGED', true).pendingAck, isFalse);
+      expect(n('DISMISSED', true).pendingAck, isFalse);
+      expect(n('DELIVERED', false).pendingAck, isFalse);
+    });
+  });
+
+  group('subscription models', () {
+    test('OverviewSubscription reads the server view; blocking states', () {
+      final s = OverviewSubscription.fromMap({
+        'planName': 'Annual',
+        'classification': 'TRIAL',
+        'startDate': '2026-04-01',
+        'endDate': '2027-03-31',
+        'gracePeriodDays': 3,
+        'status': 'GRACE_PERIOD',
+      });
+      expect(
+        (s.planName, s.classification, s.gracePeriodDays, s.blocking),
+        ('Annual', 'TRIAL', 3, false),
+      );
+      for (final st in ['EXPIRED', 'CANCELLED']) {
+        expect(
+          OverviewSubscription.fromMap({'status': st}).blocking,
+          isTrue,
+          reason: st,
+        );
+      }
+      for (final st in ['NOT_STARTED', 'TRIAL', 'ACTIVE', 'GRACE_PERIOD']) {
+        expect(
+          OverviewSubscription.fromMap({'status': st}).blocking,
+          isFalse,
+          reason: st,
+        );
+      }
+      expect(
+        OverviewSubscription.fromMap(const {}).status,
+        'EXPIRED',
+        reason: 'unknown never reads as allowed',
+      );
+    });
+
+    test('labels are plain words', () {
+      expect(OverviewSubscription.statusLabel('GRACE_PERIOD'), 'Grace period');
+      expect(OverviewSubscription.statusLabel('NOT_STARTED'), 'Not started');
+      expect(PlatformPlan.periodLabel('HALF_YEARLY'), 'Half-yearly');
+      expect(PlatformPlan.periodLabel('WEIRD'), 'Custom');
+    });
+
+    test('validCalendarDate refuses impossible dates', () {
+      for (final ok in ['2026-02-28', '2028-02-29', ' 2026-04-01 ']) {
+        expect(validCalendarDate(ok), isTrue, reason: ok);
+      }
+      for (final bad in [
+        '2026-02-30',
+        '2027-02-29',
+        '2026-13-01',
+        '2026-4-1',
+        '',
+        'tomorrow',
+        '2026-04-31',
+      ]) {
+        expect(validCalendarDate(bad), isFalse, reason: bad);
+      }
+    });
+
+    test('history entries label system changes and read the actor', () {
+      final sys = SubscriptionHistoryEntry.fromMap({
+        'id': 'a',
+        'event': 'SUBSCRIPTION_STATUS_CHANGED',
+        'actorKind': 'SYSTEM',
+        'atMs': 1700000000000,
+      });
+      expect((sys.actor, sys.label), ('System', 'Status changed'));
+      final own = SubscriptionHistoryEntry.fromMap({
+        'id': 'b',
+        'event': 'SUBSCRIPTION_RENEWED',
+        'actorEmail': 'o@avail404.com',
+      });
+      expect(
+        (own.actor, own.label, own.at),
+        ('o@avail404.com', 'Renewed', null),
+      );
+    });
   });
 }

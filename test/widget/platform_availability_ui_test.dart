@@ -5,6 +5,7 @@ import 'package:eazy_school_360/core/config/env_config_provider.dart';
 import 'package:eazy_school_360/core/permissions/permission.dart';
 import 'package:eazy_school_360/core/permissions/user_role.dart';
 import 'package:eazy_school_360/core/routing/app_router.dart';
+import 'package:eazy_school_360/core/routing/app_routes.dart';
 import 'package:eazy_school_360/core/tenant/tenant_context_provider.dart';
 import 'package:eazy_school_360/features/authentication/domain/app_user.dart';
 import 'package:eazy_school_360/features/authentication/presentation/providers/auth_providers.dart';
@@ -91,6 +92,7 @@ Future<_W> _pump(
   UserProfile? profile,
   AppRequirements requirements = AppRequirements.none,
   List<SchoolNotice> notices = const [],
+  List<PlatformNotification> mine = const [],
   Map<String, bool> features = const {},
   Size size = const Size(1000, 900),
 }) async {
@@ -99,7 +101,8 @@ Future<_W> _pump(
   addTearDown(tester.view.reset);
   final ops = FakePlatformOpsRepository(stats: fakeStats())
     ..initialRequirements = requirements
-    ..initialNotices = notices;
+    ..initialNotices = notices
+    ..myNotifications = [...mine];
   final container = ProviderContainer(
     overrides: [
       envConfigProvider.overrideWithValue(
@@ -144,7 +147,181 @@ AppRequirements _maintenance({
   maintenanceUntil: until,
 );
 
+PlatformNotification _note(
+  String id, {
+  String title = 'Your school is now active',
+  String state = 'DELIVERED',
+  bool requiresAck = true,
+  int at = 1,
+}) => PlatformNotification(
+  id: id,
+  type: 'SCHOOL_ACTIVATED',
+  title: title,
+  body: 'Welcome aboard',
+  severity: NoticeSeverity.info,
+  requiresAck: requiresAck,
+  state: state,
+  createdAt: DateTime(2026, 11, at),
+);
+
 void main() {
+  group('platform notifications', () {
+    final popup = find.byKey(const ValueKey('platform-notification'));
+    final ack = find.byKey(const ValueKey('notification-ack'));
+
+    for (final role in [UserRole.schoolAdmin, UserRole.branchAdmin]) {
+      testWidgets(
+        '${role.name}: a pending notification pops up and is acknowledged',
+        (tester) async {
+          final w = await _pump(
+            tester,
+            profile: _user(role),
+            mine: [_note('n1')],
+          );
+          expect(popup, findsOneWidget);
+          expect(find.text('Your school is now active'), findsOneWidget);
+          expect(find.text('Welcome aboard'), findsOneWidget);
+          expect(
+            w.ops.acknowledged,
+            isEmpty,
+            reason: 'showing is not acknowledging',
+          );
+          await tester.tap(ack);
+          await tester.pumpAndSettle();
+          expect(w.ops.acknowledged, ['n1']);
+          expect(popup, findsNothing);
+        },
+      );
+    }
+
+    testWidgets(
+      'it cannot be waved away: back and a tap outside keep it open',
+      (tester) async {
+        await _pump(
+          tester,
+          profile: _user(UserRole.schoolAdmin),
+          mine: [_note('n1')],
+        );
+        await tester.tapAt(const Offset(5, 5));
+        await tester.pumpAndSettle();
+        expect(popup, findsOneWidget);
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(popup, findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'if saving fails it stays open with a message, and nothing is lost',
+      (tester) async {
+        final w = await _pump(
+          tester,
+          profile: _user(UserRole.schoolAdmin),
+          mine: [_note('n1')],
+        );
+        w.ops.error = Exception('offline');
+        await tester.tap(ack);
+        await tester.pumpAndSettle();
+        expect(popup, findsOneWidget);
+        expect(w.ops.acknowledged, isEmpty);
+        w.ops.error = null;
+        await tester.tap(ack);
+        await tester.pumpAndSettle();
+        expect(w.ops.acknowledged, ['n1']);
+        expect(popup, findsNothing);
+      },
+    );
+
+    testWidgets(
+      'several pending: oldest first, the next appears after acknowledging',
+      (tester) async {
+        final w = await _pump(
+          tester,
+          profile: _user(UserRole.schoolAdmin),
+          mine: [
+            _note('new', title: 'Second one', at: 9),
+            _note('old', title: 'First one', at: 2),
+          ],
+        );
+        expect(find.text('First one'), findsOneWidget);
+        await tester.tap(ack);
+        await tester.pumpAndSettle();
+        expect(find.text('Second one'), findsOneWidget);
+        await tester.tap(ack);
+        await tester.pumpAndSettle();
+        expect(w.ops.acknowledged, ['old', 'new']);
+        expect(popup, findsNothing);
+      },
+    );
+
+    testWidgets('an already acknowledged notification does not pop up again', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        profile: _user(UserRole.schoolAdmin),
+        mine: [_note('n1', state: 'ACKNOWLEDGED')],
+      );
+      expect(popup, findsNothing);
+    });
+
+    for (final r in [UserRole.teacher, UserRole.parent]) {
+      testWidgets('${r.name} never sees platform notifications', (
+        tester,
+      ) async {
+        await _pump(tester, profile: _user(r), mine: [_note('n1')]);
+        expect(popup, findsNothing);
+        expect(find.byKey(const ValueKey('platform-messages')), findsNothing);
+      });
+    }
+
+    testWidgets(
+      'the inbox keeps the history, with a count of what still needs acknowledging',
+      (tester) async {
+        await _pump(
+          tester,
+          profile: _user(UserRole.schoolAdmin),
+          mine: [
+            _note('done', title: 'Old news', state: 'ACKNOWLEDGED', at: 1),
+          ],
+        );
+        expect(popup, findsNothing);
+        await tester.tap(find.byKey(const ValueKey('platform-messages')));
+        await tester.pumpAndSettle();
+        expect(find.text('Messages from Avail404'), findsWidgets);
+        expect(find.text('Old news'), findsOneWidget);
+        expect(find.text('Acknowledged'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'a notification that needs no acknowledgement is dismissed, not acknowledged',
+      (tester) async {
+        final w = await _pump(
+          tester,
+          profile: _user(UserRole.schoolAdmin),
+          mine: [_note('fyi', requiresAck: false)],
+        );
+        expect(popup, findsNothing, reason: 'only acknowledgements interrupt');
+        expect(find.byKey(const ValueKey('platform-messages')), findsOneWidget);
+        expect(w.ops.acknowledged, isEmpty);
+      },
+    );
+
+    testWidgets('fits a phone at large text', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await _pump(
+        tester,
+        profile: _user(UserRole.schoolAdmin),
+        mine: [_note('n1')],
+        size: const Size(360, 640),
+      );
+      expect(popup, findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('maintenance mode', () {
     testWidgets(
       'school users see the message instead of the app, and can sign out',
@@ -372,13 +549,8 @@ void main() {
         tester,
         profile: _user(UserRole.teacher, paused: true),
       );
-      expect(find.text("Your school's access is paused"), findsOneWidget);
-      expect(
-        find.textContaining(
-          'contact your school administrator or Avail404 support',
-        ),
-        findsOneWidget,
-      );
+      expect(find.text('Account is inactive'), findsOneWidget);
+      expect(find.textContaining('admin@avail404.com'), findsWidgets);
       expect(find.text('Sign out'), findsOneWidget);
       expect(w.location, '/account-inactive');
     });
@@ -435,5 +607,77 @@ void main() {
         );
       });
     }
+  });
+
+  group('module switches reach routes and the shell', () {
+    String go(_W w, String path) {
+      w.container.read(appRouterProvider).go(path);
+      return path;
+    }
+
+    testWidgets('fees off: the fees route is refused for a school admin', (
+      tester,
+    ) async {
+      final w = await _pump(
+        tester,
+        profile: _user(UserRole.schoolAdmin),
+        features: {'fees': false},
+      );
+      go(w, AppRoutes.fees);
+      await tester.pumpAndSettle();
+      expect(w.location, isNot(AppRoutes.fees));
+    });
+
+    testWidgets('fees on: the same route opens', (tester) async {
+      final w = await _pump(tester, profile: _user(UserRole.schoolAdmin));
+      go(w, AppRoutes.fees);
+      await tester.pumpAndSettle();
+      expect(w.location, AppRoutes.fees);
+    });
+
+    testWidgets(
+      'students off takes attendance with it (a dependency), but not homework',
+      (tester) async {
+        final w = await _pump(
+          tester,
+          profile: _user(UserRole.schoolAdmin),
+          features: {'students': false},
+        );
+        go(w, AppRoutes.students);
+        await tester.pumpAndSettle();
+        expect(w.location, isNot(AppRoutes.students));
+        go(w, AppRoutes.attendance);
+        await tester.pumpAndSettle();
+        expect(w.location, isNot(AppRoutes.attendance));
+        go(w, AppRoutes.homework);
+        await tester.pumpAndSettle();
+        expect(w.location, AppRoutes.homework);
+      },
+    );
+
+    testWidgets('homework off: a teacher cannot open homework', (tester) async {
+      final w = await _pump(
+        tester,
+        profile: _user(UserRole.teacher),
+        features: {'homework': false},
+      );
+      go(w, AppRoutes.homework);
+      await tester.pumpAndSettle();
+      expect(w.location, isNot(AppRoutes.homework));
+    });
+
+    testWidgets('a platform admin is never limited by a school\'s switches', (
+      tester,
+    ) async {
+      final w = await _pump(
+        tester,
+        profile: _user(
+          UserRole.platformAdmin,
+          platformRole: PlatformRole.owner,
+        ),
+        features: {'fees': false, 'students': false},
+      );
+      expect(w.location, AppRoutes.platformHome);
+    });
   });
 }

@@ -75,6 +75,10 @@ class UserProfile {
   /// rules for everything but reading this profile.
   final bool schoolPaused;
 
+  /// Which state paused it (`INACTIVE`, `SUSPENDED`, `EXPIRED`, `CLOSED`), or
+  /// null when the school is not paused.
+  final String? schoolAccessState;
+
   /// Only for [UserRole.platformAdmin]: what this Avail404 administrator may do
   /// (server-written). A legacy profile without the field is an [owner]; an
   /// unknown value is null and grants nothing.
@@ -117,6 +121,7 @@ class UserProfile {
     required this.status,
     this.platformRole,
     this.schoolPaused = false,
+    this.schoolAccessState,
     this.linkedParentId,
     this.login,
     this.branchRoles = const {},
@@ -197,6 +202,7 @@ class UserProfile {
       status: status,
       platformRole: platformRole,
       schoolPaused: schoolPaused,
+      schoolAccessState: schoolAccessState,
       linkedParentId: linkedParentId,
       login: login,
       branchRoles: branchRoles,
@@ -232,7 +238,10 @@ class UserProfile {
           : (rawPlatformRole == null
                 ? PlatformRole.owner
                 : PlatformRole.tryParse(rawPlatformRole)),
-      schoolPaused: data['schoolAccess'] == 'SUSPENDED',
+      schoolPaused: data['schoolAccess'] is String,
+      schoolAccessState: data['schoolAccess'] is String
+          ? data['schoolAccess'] as String
+          : null,
       status: _parse(
         data[FirestoreFields.status],
         FirestoreFields.status,

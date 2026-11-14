@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:eazy_school_360/features/platform_admin/domain/audit_trail.dart';
 import 'package:eazy_school_360/features/platform_admin/domain/platform_ops_models.dart';
 import 'package:eazy_school_360/features/platform_admin/domain/platform_ops_repository.dart';
 import 'package:eazy_school_360/features/platform_admin/domain/school_overview.dart';
@@ -100,6 +101,8 @@ SchoolOverview overviewWith({
   String reason = '',
   Map<String, bool> features = const {},
   Map<String, dynamic>? offboarding,
+  Map<String, dynamic>? recovery,
+  Map<String, dynamic>? subscription,
 }) {
   final base = fakeOverview();
   return SchoolOverview.fromMap({
@@ -128,6 +131,8 @@ SchoolOverview overviewWith({
     'activeGrants': <Map<String, dynamic>>[],
     'recentActions': <Map<String, dynamic>>[],
     'offboarding': ?offboarding,
+    'recovery': ?recovery,
+    'subscription': ?subscription,
   });
 }
 
@@ -140,6 +145,8 @@ class FakePlatformOpsRepository implements PlatformOpsRepository {
   bool emailsFail = false;
 
   final calls = <String>[];
+  final activationInputs =
+      <({String? remarks, String? internalNotes, String? message})>[];
   final statusCalls =
       <({String schoolId, SchoolStatusChoice status, String? reason})>[];
   final created = <NewSchoolInput>[];
@@ -198,6 +205,51 @@ class FakePlatformOpsRepository implements PlatformOpsRepository {
   }
 
   @override
+  Future<void> transitionSchool({
+    required String schoolId,
+    required SchoolStatusChoice to,
+    String? reason,
+    String? remarks,
+    String? internalNotes,
+    String? message,
+  }) async {
+    _maybeFail();
+    activationInputs.add((
+      remarks: remarks,
+      internalNotes: internalNotes,
+      message: message,
+    ));
+    statusCalls.add((
+      schoolId: schoolId,
+      status: to,
+      reason: reason ?? remarks,
+    ));
+  }
+
+  final recoveryCalls = <String>[];
+
+  @override
+  Future<void> requestRecovery({
+    required String schoolId,
+    required String reason,
+  }) async {
+    _maybeFail();
+    recoveryCalls.add('request:$reason');
+  }
+
+  @override
+  Future<void> approveRecovery(String schoolId) async {
+    _maybeFail();
+    recoveryCalls.add('approve');
+  }
+
+  @override
+  Future<void> cancelRecovery(String schoolId) async {
+    _maybeFail();
+    recoveryCalls.add('cancel');
+  }
+
+  @override
   Future<void> refreshSchoolAccess(String schoolId) async {
     _maybeFail();
     calls.add('refresh:$schoolId');
@@ -240,9 +292,36 @@ class FakePlatformOpsRepository implements PlatformOpsRepository {
   Future<void> setFeatures({
     required String schoolId,
     required Map<String, bool> features,
+    String? reason,
+    bool confirmDependants = false,
   }) async {
     _maybeFail();
     featureCalls.add((schoolId: schoolId, features: features));
+    featureArgs.add((reason: reason, confirm: confirmDependants));
+  }
+
+  final featureArgs = <({String? reason, bool confirm})>[];
+  List<FeatureHistoryEntry> featureHist = [];
+  Map<String, bool> defaultsMap = {};
+  final defaultsSaved = <Map<String, bool>>[];
+
+  @override
+  Future<List<FeatureHistoryEntry>> featureHistory(String schoolId) async {
+    _maybeFail();
+    return featureHist;
+  }
+
+  @override
+  Future<Map<String, bool>> featureDefaults() async {
+    _maybeFail();
+    return defaultsMap;
+  }
+
+  @override
+  Future<void> setFeatureDefaults(Map<String, bool> features) async {
+    _maybeFail();
+    defaultsSaved.add(features);
+    defaultsMap = {...defaultsMap, ...features};
   }
 
   @override
@@ -349,6 +428,161 @@ class FakePlatformOpsRepository implements PlatformOpsRepository {
     yield initialNotices;
     yield* schoolNotices.stream;
   }
+
+  AuditPage auditPageOne = const AuditPage(events: []);
+  AuditPage? auditPageTwo;
+  AuditSummary auditSummaryValue = const AuditSummary(
+    hours: 24,
+    total: 0,
+    byCategory: {},
+    denied: 0,
+    failures: 0,
+    clientReported: 0,
+  );
+  final auditQueries = <({AuditFilter filter, Map<String, dynamic>? cursor})>[];
+  final auditExports = <AuditFilter>[];
+  String auditCsv = 'time_utc,event_type\n';
+
+  @override
+  Future<AuditPage> queryAudit(
+    AuditFilter filter, {
+    Map<String, dynamic>? cursor,
+  }) async {
+    _maybeFail();
+    auditQueries.add((filter: filter, cursor: cursor));
+    return cursor == null
+        ? auditPageOne
+        : (auditPageTwo ?? const AuditPage(events: []));
+  }
+
+  @override
+  Future<AuditSummary> auditSummary({int hours = 24}) async {
+    _maybeFail();
+    return auditSummaryValue;
+  }
+
+  @override
+  Future<({String csv, int rows, bool capped})> exportAudit(
+    AuditFilter filter,
+  ) async {
+    _maybeFail();
+    auditExports.add(filter);
+    return (
+      csv: auditCsv,
+      rows: auditCsv.split('\n').length - 2,
+      capped: false,
+    );
+  }
+
+  List<PlatformPlan> planList = const [
+    PlatformPlan(
+      id: 'annual',
+      name: 'Annual',
+      periodType: 'ANNUAL',
+      active: true,
+    ),
+  ];
+  List<SubscriptionHistoryEntry> subHistory = [];
+  final subCalls =
+      <({String op, String schoolId, Map<String, Object?> args})>[];
+  final savedPlans = <({String? id, String name, String period})>[];
+
+  @override
+  Future<List<PlatformPlan>> plans() async {
+    _maybeFail();
+    return planList;
+  }
+
+  @override
+  Future<void> savePlan({
+    String? planId,
+    required String name,
+    required String periodType,
+    bool active = true,
+  }) async {
+    _maybeFail();
+    savedPlans.add((id: planId, name: name, period: periodType));
+  }
+
+  @override
+  Future<List<SubscriptionHistoryEntry>> subscriptionHistory(
+    String schoolId,
+  ) async {
+    _maybeFail();
+    return subHistory;
+  }
+
+  @override
+  Future<void> subscriptionOp(
+    String op, {
+    required String schoolId,
+    String? planId,
+    String? classification,
+    String? startDate,
+    String? endDate,
+    int? gracePeriodDays,
+    int? days,
+    String? reason,
+    String? remarks,
+    String? internalNotes,
+  }) async {
+    _maybeFail();
+    subCalls.add((
+      op: op,
+      schoolId: schoolId,
+      args: {
+        'planId': planId,
+        'classification': classification,
+        'startDate': startDate,
+        'endDate': endDate,
+        'gracePeriodDays': gracePeriodDays,
+        'days': days,
+        'reason': reason,
+        'remarks': remarks,
+        'internalNotes': internalNotes,
+      },
+    ));
+  }
+
+  List<PlatformNotification> myNotifications = [];
+  final acknowledged = <String>[];
+  final dismissedIds = <String>[];
+
+  @override
+  Stream<List<PlatformNotification>> watchMyNotifications() async* {
+    yield [...myNotifications];
+  }
+
+  @override
+  Future<void> acknowledgeNotification(String id) async {
+    _maybeFail();
+    acknowledged.add(id);
+    myNotifications = [
+      for (final n in myNotifications)
+        if (n.id == id) _acked(n) else n,
+    ];
+  }
+
+  @override
+  Future<void> dismissNotification(String id) async {
+    _maybeFail();
+    dismissedIds.add(id);
+    myNotifications = [
+      for (final n in myNotifications)
+        if (n.id != id) n,
+    ];
+  }
+
+  PlatformNotification _acked(PlatformNotification n) => PlatformNotification(
+    id: n.id,
+    type: n.type,
+    title: n.title,
+    body: n.body,
+    severity: n.severity,
+    requiresAck: n.requiresAck,
+    state: 'ACKNOWLEDGED',
+    createdAt: n.createdAt,
+  );
 
   @override
   Stream<AppRequirements> watchAppRequirements() async* {

@@ -38,9 +38,14 @@ class AccountInactiveException extends Error {
   /// For [InactiveCause.methodNotPermitted]: what the account may use.
   final List<LoginMethod> permitted;
 
+  /// For [InactiveCause.schoolPaused]: the school's state (INACTIVE, SUSPENDED,
+  /// EXPIRED or CLOSED), so the screen can say which.
+  final String? schoolState;
+
   AccountInactiveException(
     this.status, {
     this.cause = InactiveCause.status,
     this.permitted = const [],
+    this.schoolState,
   });
 }

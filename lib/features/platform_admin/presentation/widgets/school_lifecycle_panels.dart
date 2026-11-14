@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/error_mapper.dart';
+import '../../../../core/features/feature_catalogue.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/date_formatting.dart';
@@ -56,16 +57,31 @@ void _report(BuildContext context, WidgetRef ref, bool ok, String done) {
   }
 }
 
-/// Suspend / reactivate, with the reason the school sees and the repair button.
+/// The school's lifecycle: activate, deactivate, suspend, reactivate, and (for a
+/// CLOSED school) the two-owner recovery. Owners only; everyone else reads.
 class SchoolStatusPanel extends ConsumerWidget {
   final SchoolOverview overview;
   final PlatformRole role;
+  final String myUid;
 
   const SchoolStatusPanel({
     super.key,
     required this.overview,
     required this.role,
+    this.myUid = '',
   });
+
+  static String describe(SchoolOverview o) => switch (o.status) {
+    'INACTIVE' =>
+      'This school is inactive: it has not been activated yet. All of its users are paused.',
+    'SUSPENDED' => 'This school is suspended. All of its users are paused.',
+    'EXPIRED' =>
+      'This school\'s subscription has expired. All of its users are paused.',
+    'CLOSED' =>
+      'This school is closed. All of its users are paused and its data is kept.',
+    'ACTIVE' => 'This school is active.',
+    _ => 'This school is ${o.status.toLowerCase()}.',
+  };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -75,13 +91,42 @@ class SchoolStatusPanel extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     final owner = role == PlatformRole.owner;
     final canRepair = owner || role == PlatformRole.support;
+    final ops = ref.read(platformOpsActionsProvider.notifier);
+
+    Future<void> go(
+      SchoolStatusChoice to,
+      String done, {
+      String? reason,
+      String? remarks,
+      String? internalNotes,
+      String? message,
+    }) async {
+      final ok = await ops.transition(
+        o.id,
+        to,
+        reason: reason,
+        remarks: remarks,
+        internalNotes: internalNotes,
+        message: message,
+      );
+      if (!context.mounted) return;
+      _report(context, ref, ok, done);
+    }
+
+    Future<void> recover(String step, String done, {String? reason}) async {
+      final ok = await ops.recovery(o.id, step, reason: reason);
+      if (!context.mounted) return;
+      _report(context, ref, ok, done);
+    }
+
+    final rec = o.recovery;
+    final recOpen = rec != null && rec.isOpen;
     return _Panel(
       title: 'Access',
       children: [
         Text(
-          o.isSuspended
-              ? 'This school is ${o.status.toLowerCase()}. All of its users are paused.'
-              : 'This school is active.',
+          describe(o),
+          key: const ValueKey('school-state'),
           style: text.bodyMedium?.copyWith(
             color: o.isSuspended ? scheme.error : null,
           ),
@@ -93,7 +138,7 @@ class SchoolStatusPanel extends ConsumerWidget {
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.xs,
           children: [
-            if (owner && !o.isSuspended)
+            if (owner && o.status == 'ACTIVE') ...[
               OutlinedButton.icon(
                 key: const ValueKey('school-suspend'),
                 icon: const Icon(Icons.pause_circle_outline),
@@ -111,48 +156,73 @@ class SchoolStatusPanel extends ConsumerWidget {
                           destructive: true,
                         );
                         if (reason == null || !context.mounted) return;
-                        final ok = await ref
-                            .read(platformOpsActionsProvider.notifier)
-                            .setStatus(
-                              o.id,
-                              SchoolStatusChoice.suspended,
-                              reason: reason,
-                            );
-                        if (!context.mounted) return;
-                        _report(context, ref, ok, 'School suspended.');
+                        await go(
+                          SchoolStatusChoice.suspended,
+                          'School suspended.',
+                          reason: reason,
+                        );
                       },
               ),
-            if (owner && o.isSuspended)
-              FilledButton.icon(
-                key: const ValueKey('school-reactivate'),
-                icon: const Icon(Icons.play_circle_outline),
-                label: const Text('Reactivate school'),
+              OutlinedButton.icon(
+                key: const ValueKey('school-deactivate'),
+                icon: const Icon(Icons.toggle_off_outlined),
+                label: const Text('Deactivate school'),
                 onPressed: busy
                     ? null
                     : () async {
-                        final yes = await confirm(
+                        final reason = await showReasonDialog(
                           context,
-                          title: 'Reactivate ${o.name}?',
-                          message: 'Its users can use the app again.',
-                          confirmLabel: 'Reactivate',
+                          title: 'Deactivate ${o.name}?',
+                          message:
+                              'The school goes back to inactive and everyone is paused until you activate it again.',
+                          confirmLabel: 'Deactivate',
+                          destructive: true,
                         );
-                        if (!yes || !context.mounted) return;
-                        final ok = await ref
-                            .read(platformOpsActionsProvider.notifier)
-                            .setStatus(o.id, SchoolStatusChoice.active);
-                        if (!context.mounted) return;
-                        _report(context, ref, ok, 'School reactivated.');
+                        if (reason == null || !context.mounted) return;
+                        await go(
+                          SchoolStatusChoice.inactive,
+                          'School deactivated.',
+                          reason: reason,
+                        );
                       },
               ),
-            if (canRepair)
+            ],
+            if (owner && o.isSuspended && !o.isClosed)
+              FilledButton.icon(
+                key: ValueKey(
+                  o.isInactive ? 'school-activate' : 'school-reactivate',
+                ),
+                icon: const Icon(Icons.play_circle_outline),
+                label: Text(
+                  o.isInactive ? 'Activate school' : 'Reactivate school',
+                ),
+                onPressed: busy
+                    ? null
+                    : () async {
+                        final input = await showActivationDialog(
+                          context,
+                          schoolName: o.name,
+                          reactivation: !o.isInactive,
+                        );
+                        if (input == null || !context.mounted) return;
+                        await go(
+                          SchoolStatusChoice.active,
+                          o.isInactive
+                              ? 'School activated.'
+                              : 'School reactivated.',
+                          remarks: input.remarks,
+                          internalNotes: input.internalNotes,
+                          message: input.message,
+                        );
+                      },
+              ),
+            if (canRepair && !o.isClosed)
               TextButton(
                 key: const ValueKey('school-reapply'),
                 onPressed: busy
                     ? null
                     : () async {
-                        final ok = await ref
-                            .read(platformOpsActionsProvider.notifier)
-                            .refreshAccess(o.id);
+                        final ok = await ops.refreshAccess(o.id);
                         if (!context.mounted) return;
                         _report(
                           context,
@@ -165,6 +235,67 @@ class SchoolStatusPanel extends ConsumerWidget {
               ),
           ],
         ),
+        if (o.isClosed && owner) ...[
+          const SizedBox(height: AppSpacing.sm),
+          if (recOpen)
+            Text(
+              'Recovery requested by ${rec.requestedByEmail}: ${rec.reason}',
+              key: const ValueKey('recovery-info'),
+              style: text.bodySmall,
+            ),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            children: [
+              if (!recOpen)
+                OutlinedButton(
+                  key: const ValueKey('recovery-request'),
+                  onPressed: busy
+                      ? null
+                      : () async {
+                          final reason = await showReasonDialog(
+                            context,
+                            title: 'Request recovery of ${o.name}?',
+                            message:
+                                'A different owner must approve. The school then returns to inactive '
+                                'and still has to be activated.',
+                            minLength: 15,
+                            confirmLabel: 'Request recovery',
+                          );
+                          if (reason == null || !context.mounted) return;
+                          await recover(
+                            'request',
+                            'Recovery requested.',
+                            reason: reason,
+                          );
+                        },
+                  child: const Text('Request recovery'),
+                ),
+              if (recOpen && rec.requestedBy != myUid)
+                FilledButton(
+                  key: const ValueKey('recovery-approve'),
+                  onPressed: busy
+                      ? null
+                      : () =>
+                            recover('approve', 'School recovered (inactive).'),
+                  child: const Text('Approve recovery'),
+                ),
+              if (recOpen && rec.requestedBy == myUid)
+                Text(
+                  'Waiting for a different owner to approve.',
+                  style: text.bodySmall,
+                ),
+              if (recOpen)
+                OutlinedButton(
+                  key: const ValueKey('recovery-cancel'),
+                  onPressed: busy
+                      ? null
+                      : () => recover('cancel', 'Recovery request cancelled.'),
+                  child: const Text('Cancel request'),
+                ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -274,7 +405,7 @@ class SchoolAdminsPanel extends ConsumerWidget {
 }
 
 /// Switches for the modules the platform controls (owner only).
-class SchoolFeaturesPanel extends ConsumerWidget {
+class SchoolFeaturesPanel extends ConsumerStatefulWidget {
   final SchoolOverview overview;
   final PlatformRole role;
 
@@ -285,40 +416,230 @@ class SchoolFeaturesPanel extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SchoolFeaturesPanel> createState() =>
+      _SchoolFeaturesPanelState();
+}
+
+class _SchoolFeaturesPanelState extends ConsumerState<SchoolFeaturesPanel> {
+  bool _history = false;
+
+  Future<void> _flip(FeatureDef f, bool on) async {
+    final o = widget.overview;
+    final ops = ref.read(platformOpsActionsProvider.notifier);
+    if (on) {
+      final ok = await ops.setFeatures(o.id, {f.key: true});
+      if (!mounted) return;
+      _report(context, ref, ok, '${f.label} on.');
+      return;
+    }
+    final dependants = [
+      for (final d in dependantsOf(f.key))
+        if (o.featureOn(d)) featureLabel(d),
+    ];
+    final reason = await showReasonDialog(
+      context,
+      title: 'Switch off ${f.label}?',
+      message: dependants.isEmpty
+          ? 'The school\'s users lose this module straight away. Nothing is deleted.'
+          : 'This also switches off: ${dependants.join(', ')}. '
+                'The school\'s users lose them straight away. Nothing is deleted.',
+      confirmLabel: dependants.isEmpty ? 'Switch off' : 'Switch all off',
+      destructive: true,
+    );
+    if (reason == null || !mounted) return;
+    final ok = await ops.setFeatures(
+      o.id,
+      {f.key: false},
+      reason: reason,
+      confirmDependants: dependants.isNotEmpty,
+    );
+    if (!mounted) return;
+    _report(context, ref, ok, '${f.label} off.');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final o = widget.overview;
     final busy = ref.watch(platformOpsActionsProvider).isLoading;
-    final owner = role == PlatformRole.owner;
+    final owner = widget.role == PlatformRole.owner;
+    final text = Theme.of(context).textTheme;
     return _Panel(
       title: 'Modules',
       children: [
-        for (final f in PlatformFeature.values)
-          SwitchListTile(
-            key: ValueKey('feature-${f.key}'),
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-            title: Text(f.label),
-            subtitle: Text(f.description),
-            value: overview.featureOn(f.key),
-            onChanged: !owner || busy
-                ? null
-                : (v) async {
-                    final ok = await ref
-                        .read(platformOpsActionsProvider.notifier)
-                        .setFeatures(overview.id, {f.key: v});
-                    if (!context.mounted) return;
-                    _report(
-                      context,
-                      ref,
-                      ok,
-                      '${f.label} ${v ? 'on' : 'off'}.',
-                    );
-                  },
+        for (final f in kFeatureCatalogue)
+          Builder(
+            builder: (_) {
+              final on = o.featureOn(f.key);
+              final missing = missingDependencies(o.features, f.key);
+              final blocked = !on && missing.isNotEmpty;
+              return SwitchListTile(
+                key: ValueKey('feature-${f.key}'),
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: Text(f.label),
+                subtitle: blocked
+                    ? Text(
+                        'Needs ${missing.map(featureLabel).join(', ')} switched on first.',
+                        key: ValueKey('feature-needs-${f.key}'),
+                      )
+                    : null,
+                value: on,
+                onChanged: !owner || busy || blocked
+                    ? null
+                    : (v) => _flip(f, v),
+              );
+            },
           ),
         if (!owner)
           Text(
             'Only a platform owner can change modules.',
-            style: Theme.of(context).textTheme.bodySmall,
+            style: text.bodySmall,
           ),
+        TextButton(
+          key: const ValueKey('features-history-toggle'),
+          onPressed: () => setState(() => _history = !_history),
+          child: Text(_history ? 'Hide history' : 'Show history'),
+        ),
+        if (_history) _FeatureHistory(schoolId: o.id),
+      ],
+    );
+  }
+}
+
+class _FeatureHistory extends ConsumerWidget {
+  final String schoolId;
+
+  const _FeatureHistory({required this.schoolId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final text = Theme.of(context).textTheme;
+    return ref
+        .watch(featureHistoryProvider(schoolId))
+        .when(
+          loading: () => const LinearProgressIndicator(),
+          error: (e, _) => Text(userMessageFor(e)),
+          data: (list) => list.isEmpty
+              ? const Text('No changes yet.')
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final e in list)
+                      Padding(
+                        padding: const EdgeInsets.only(top: AppSpacing.xs),
+                        child: Text(
+                          '${formatInstant(e.at)} · ${featureLabel(e.feature)} '
+                          '${e.to ? 'on' : 'off'}${e.cascade ? ' (with a module it depends on)' : ''}'
+                          ' · ${e.actor}${(e.reason ?? '').isEmpty ? '' : ' · ${e.reason}'}',
+                          key: ValueKey('feature-history-${e.id}'),
+                          style: text.bodySmall,
+                        ),
+                      ),
+                  ],
+                ),
+        );
+  }
+}
+
+/// The module switches NEW schools start with. Existing schools are never
+/// changed by this: each school keeps the copy it got when it was created.
+class DefaultModulesDialog extends ConsumerStatefulWidget {
+  const DefaultModulesDialog({super.key});
+
+  @override
+  ConsumerState<DefaultModulesDialog> createState() =>
+      _DefaultModulesDialogState();
+}
+
+class _DefaultModulesDialogState extends ConsumerState<DefaultModulesDialog> {
+  Map<String, bool>? _draft;
+  String? _error;
+
+  Future<void> _save() async {
+    final ok = await ref
+        .read(platformOpsActionsProvider.notifier)
+        .setFeatureDefaults(_draft!);
+    if (!mounted) return;
+    if (ok) {
+      Navigator.pop(context, true);
+    } else {
+      setState(
+        () => _error = userMessageFor(
+          ref.read(platformOpsActionsProvider).error!,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final busy = ref.watch(platformOpsActionsProvider).isLoading;
+    final loaded = ref.watch(featureDefaultsProvider);
+    final draft = _draft ?? loaded.value;
+    return AlertDialog(
+      title: const Text('Default modules for new schools'),
+      content: SizedBox(
+        width: 460,
+        child: draft == null
+            ? (loaded.hasError
+                  ? Text(userMessageFor(loaded.error!))
+                  : const LinearProgressIndicator())
+            : SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Applies to schools created from now on. Existing schools keep what they have.',
+                    ),
+                    for (final f in kFeatureCatalogue)
+                      Builder(
+                        builder: (_) {
+                          final on = featureUsable(draft, f.key);
+                          final blocked =
+                              !on &&
+                              missingDependencies(draft, f.key).isNotEmpty;
+                          return SwitchListTile(
+                            key: ValueKey('default-${f.key}'),
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            title: Text(f.label),
+                            value: on,
+                            onChanged: busy || blocked
+                                ? null
+                                : (v) => setState(() {
+                                    final next = {...draft, f.key: v};
+                                    if (!v) {
+                                      for (final d in dependantsOf(f.key)) {
+                                        next[d] = false;
+                                      }
+                                    }
+                                    _draft = next;
+                                  }),
+                          );
+                        },
+                      ),
+                    if (_error != null)
+                      Text(
+                        _error!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: busy ? null : () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+        FilledButton(
+          key: const ValueKey('defaults-save'),
+          onPressed: busy || draft == null ? null : _save,
+          child: const Text('Save defaults'),
+        ),
       ],
     );
   }

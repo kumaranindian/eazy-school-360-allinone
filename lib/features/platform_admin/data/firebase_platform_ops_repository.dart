@@ -5,6 +5,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../../core/config/functions_region.dart';
 import '../../../core/errors/error_mapper.dart';
+import '../domain/audit_trail.dart';
 import '../domain/platform_ops_models.dart';
 import '../domain/platform_ops_repository.dart';
 import 'firebase_platform_admin_repository.dart' show platformFailureFrom;
@@ -44,6 +45,52 @@ class FirebasePlatformOpsRepository implements PlatformOpsRepository {
       'status': status.wire,
       if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
     });
+  }
+
+  @override
+  Future<void> transitionSchool({
+    required String schoolId,
+    required SchoolStatusChoice to,
+    String? reason,
+    String? remarks,
+    String? internalNotes,
+    String? message,
+  }) async {
+    await _call('transitionSchool', {
+      'schoolId': schoolId,
+      'to': to.wire,
+      if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      if (remarks != null && remarks.trim().isNotEmpty)
+        'remarks': remarks.trim(),
+      if (internalNotes != null && internalNotes.trim().isNotEmpty)
+        'internalNotes': internalNotes.trim(),
+      if (message != null && message.trim().isNotEmpty)
+        'message': message.trim(),
+      // A retry of the same tap must not act twice.
+      'idempotencyKey':
+          '$schoolId-${to.wire}-${DateTime.now().millisecondsSinceEpoch ~/ 60000}',
+    });
+  }
+
+  @override
+  Future<void> requestRecovery({
+    required String schoolId,
+    required String reason,
+  }) async {
+    await _call('requestSchoolRecovery', {
+      'schoolId': schoolId,
+      'reason': reason.trim(),
+    });
+  }
+
+  @override
+  Future<void> approveRecovery(String schoolId) async {
+    await _call('approveSchoolRecovery', {'schoolId': schoolId});
+  }
+
+  @override
+  Future<void> cancelRecovery(String schoolId) async {
+    await _call('cancelSchoolRecovery', {'schoolId': schoolId});
   }
 
   @override
@@ -92,11 +139,36 @@ class FirebasePlatformOpsRepository implements PlatformOpsRepository {
   Future<void> setFeatures({
     required String schoolId,
     required Map<String, bool> features,
+    String? reason,
+    bool confirmDependants = false,
   }) async {
     await _call('setSchoolFeatures', {
       'schoolId': schoolId,
       'features': features,
+      if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      if (confirmDependants) 'confirmDependants': true,
     });
+  }
+
+  @override
+  Future<List<FeatureHistoryEntry>> featureHistory(String schoolId) async {
+    final out = await _call('getFeatureHistory', {'schoolId': schoolId});
+    return [
+      for (final e in (out['entries'] as List? ?? const []))
+        FeatureHistoryEntry.fromMap(Map<String, dynamic>.from(e as Map)),
+    ];
+  }
+
+  @override
+  Future<Map<String, bool>> featureDefaults() async {
+    final out = await _call('getFeatureConfig', const {});
+    final d = Map<String, dynamic>.from((out['defaults'] as Map?) ?? const {});
+    return {for (final e in d.entries) e.key: e.value != false};
+  }
+
+  @override
+  Future<void> setFeatureDefaults(Map<String, bool> features) async {
+    await _call('setFeatureDefaults', {'features': features});
   }
 
   @override
@@ -237,6 +309,132 @@ class FirebasePlatformOpsRepository implements PlatformOpsRepository {
             }(),
         ];
       }, const Duration(minutes: 5));
+
+  @override
+  Future<AuditPage> queryAudit(
+    AuditFilter filter, {
+    Map<String, dynamic>? cursor,
+  }) async {
+    final out = await _call('queryAuditEvents', {
+      ...filter.toRequest(DateTime.now()),
+      'cursor': ?cursor,
+    });
+    return AuditPage.fromMap(out);
+  }
+
+  @override
+  Future<AuditSummary> auditSummary({int hours = 24}) async =>
+      AuditSummary.fromMap(await _call('getAuditSummary', {'hours': hours}));
+
+  @override
+  Future<({String csv, int rows, bool capped})> exportAudit(
+    AuditFilter filter,
+  ) async {
+    final out = await _call(
+      'exportAuditEvents',
+      filter.toRequest(DateTime.now()),
+    );
+    return (
+      csv: (out['csv'] as String?) ?? '',
+      rows: (out['rows'] as num?)?.toInt() ?? 0,
+      capped: out['capped'] == true,
+    );
+  }
+
+  @override
+  Future<List<PlatformPlan>> plans() async {
+    final out = await _call('listPlans', const {});
+    return [
+      for (final p in (out['plans'] as List? ?? const []))
+        PlatformPlan.fromMap(Map<String, dynamic>.from(p as Map)),
+    ];
+  }
+
+  @override
+  Future<void> savePlan({
+    String? planId,
+    required String name,
+    required String periodType,
+    bool active = true,
+  }) async {
+    await _call('savePlan', {
+      if (planId != null) 'planId': planId,
+      'name': name.trim(),
+      'periodType': periodType,
+      'active': active,
+    });
+  }
+
+  @override
+  Future<List<SubscriptionHistoryEntry>> subscriptionHistory(
+    String schoolId,
+  ) async {
+    final out = await _call('getSubscriptionHistory', {'schoolId': schoolId});
+    return [
+      for (final e in (out['entries'] as List? ?? const []))
+        SubscriptionHistoryEntry.fromMap(Map<String, dynamic>.from(e as Map)),
+    ];
+  }
+
+  @override
+  Future<void> subscriptionOp(
+    String op, {
+    required String schoolId,
+    String? planId,
+    String? classification,
+    String? startDate,
+    String? endDate,
+    int? gracePeriodDays,
+    int? days,
+    String? reason,
+    String? remarks,
+    String? internalNotes,
+  }) async {
+    final name = switch (op) {
+      'set' => 'setSubscription',
+      'extend' => 'extendSubscription',
+      'renew' => 'renewSubscription',
+      'cancel' => 'cancelSubscription',
+      'trial' => 'grantTrial',
+      _ => throw ArgumentError('unknown subscription operation $op'),
+    };
+    String? t(String? v) => v == null || v.trim().isEmpty ? null : v.trim();
+    await _call(name, {
+      'schoolId': schoolId,
+      'planId': ?t(planId),
+      'classification': ?classification,
+      'startDate': ?t(startDate),
+      'endDate': ?t(endDate),
+      'gracePeriodDays': ?gracePeriodDays,
+      'days': ?days,
+      'reason': ?t(reason),
+      'remarks': ?t(remarks),
+      'internalNotes': ?t(internalNotes),
+      // A retry of the same tap must not act twice.
+      'idempotencyKey':
+          '$schoolId-$op-${DateTime.now().millisecondsSinceEpoch ~/ 60000}',
+    });
+  }
+
+  @override
+  Stream<List<PlatformNotification>> watchMyNotifications() =>
+      pollingStream(() async {
+        final out = await _call('listMyPlatformNotifications', const {});
+        return [
+          for (final n in (out['notifications'] as List? ?? const []))
+            PlatformNotification.fromMap(Map<String, dynamic>.from(n as Map)),
+        ];
+      }, const Duration(minutes: 2));
+
+  @override
+  Future<void> acknowledgeNotification(String id) async {
+    await _call('acknowledgeNotification', {'id': id});
+  }
+
+  @override
+  Future<void> dismissNotification(String id) async {
+    await _call('dismissNotification', {'id': id});
+  }
 
   @override
   Stream<AppRequirements> watchAppRequirements() =>

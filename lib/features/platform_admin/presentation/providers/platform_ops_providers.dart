@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../../users/presentation/providers/user_providers.dart';
 import '../../data/firebase_platform_ops_repository.dart';
+import '../../domain/audit_trail.dart';
 import '../../domain/platform_ops_models.dart';
 import '../../domain/platform_ops_repository.dart';
 import 'platform_console_providers.dart';
@@ -37,6 +38,42 @@ final schoolNoticesProvider = StreamProvider.autoDispose
     .family<List<SchoolNotice>, String>(
       (ref, schoolId) =>
           ref.watch(platformOpsRepositoryProvider).watchSchoolNotices(schoolId),
+      retry: (retryCount, error) => null,
+    );
+
+/// One school's module switch history, newest first.
+final featureHistoryProvider = FutureProvider.autoDispose
+    .family<List<FeatureHistoryEntry>, String>(
+      (ref, schoolId) =>
+          ref.watch(platformOpsRepositoryProvider).featureHistory(schoolId),
+      retry: (retryCount, error) => null,
+    );
+
+/// The module switches new schools start with.
+final featureDefaultsProvider = FutureProvider.autoDispose<Map<String, bool>>(
+  (ref) => ref.watch(platformOpsRepositoryProvider).featureDefaults(),
+  retry: (retryCount, error) => null,
+);
+
+/// Subscription plans.
+final platformPlansProvider = FutureProvider.autoDispose<List<PlatformPlan>>(
+  (ref) => ref.watch(platformOpsRepositoryProvider).plans(),
+  retry: (retryCount, error) => null,
+);
+
+/// One school's subscription history, newest first.
+final subscriptionHistoryProvider = FutureProvider.autoDispose
+    .family<List<SubscriptionHistoryEntry>, String>(
+      (ref, schoolId) => ref
+          .watch(platformOpsRepositoryProvider)
+          .subscriptionHistory(schoolId),
+      retry: (retryCount, error) => null,
+    );
+
+/// The administrator's own platform notifications.
+final myPlatformNotificationsProvider =
+    StreamProvider.autoDispose<List<PlatformNotification>>(
+      (ref) => ref.watch(platformOpsRepositoryProvider).watchMyNotifications(),
       retry: (retryCount, error) => null,
     );
 
@@ -98,6 +135,102 @@ class PlatformOpsActions extends AsyncNotifier<void> {
     return ok ?? false;
   }
 
+  /// Activate / deactivate / suspend / reactivate through the validated table.
+  Future<bool> transition(
+    String schoolId,
+    SchoolStatusChoice to, {
+    String? reason,
+    String? remarks,
+    String? internalNotes,
+    String? message,
+  }) async {
+    final ok = await _run(() async {
+      await _repo.transitionSchool(
+        schoolId: schoolId,
+        to: to,
+        reason: reason,
+        remarks: remarks,
+        internalNotes: internalNotes,
+        message: message,
+      );
+      return true;
+    });
+    if (ok == true) _refreshSchool(schoolId);
+    return ok ?? false;
+  }
+
+  Future<bool> recovery(String schoolId, String step, {String? reason}) async {
+    final ok = await _run(() async {
+      switch (step) {
+        case 'request':
+          await _repo.requestRecovery(schoolId: schoolId, reason: reason ?? '');
+        case 'approve':
+          await _repo.approveRecovery(schoolId);
+        case 'cancel':
+          await _repo.cancelRecovery(schoolId);
+      }
+      return true;
+    });
+    if (ok == true) _refreshSchool(schoolId);
+    return ok ?? false;
+  }
+
+  /// A subscription operation (see [PlatformOpsRepository.subscriptionOp]).
+  Future<bool> subscription(
+    String op,
+    String schoolId, {
+    String? planId,
+    String? classification,
+    String? startDate,
+    String? endDate,
+    int? gracePeriodDays,
+    int? days,
+    String? reason,
+    String? remarks,
+    String? internalNotes,
+  }) async {
+    final ok = await _run(() async {
+      await _repo.subscriptionOp(
+        op,
+        schoolId: schoolId,
+        planId: planId,
+        classification: classification,
+        startDate: startDate,
+        endDate: endDate,
+        gracePeriodDays: gracePeriodDays,
+        days: days,
+        reason: reason,
+        remarks: remarks,
+        internalNotes: internalNotes,
+      );
+      return true;
+    });
+    if (ok == true) {
+      _refreshSchool(schoolId);
+      ref.invalidate(subscriptionHistoryProvider(schoolId));
+    }
+    return ok ?? false;
+  }
+
+  Future<bool> savePlan({
+    String? planId,
+    required String name,
+    required String periodType,
+    bool active = true,
+  }) async {
+    final ok = await _run(() async {
+      await _repo.savePlan(
+        planId: planId,
+        name: name,
+        periodType: periodType,
+        active: active,
+      );
+      return true;
+    });
+    if (ok == true) ref.invalidate(platformPlansProvider);
+    return ok ?? false;
+  }
+
   Future<bool> refreshAccess(String schoolId) async =>
       await _run(() async {
         await _repo.refreshSchoolAccess(schoolId);
@@ -144,12 +277,34 @@ class PlatformOpsActions extends AsyncNotifier<void> {
         return _email(email);
       });
 
-  Future<bool> setFeatures(String schoolId, Map<String, bool> features) async {
+  Future<bool> setFeatures(
+    String schoolId,
+    Map<String, bool> features, {
+    String? reason,
+    bool confirmDependants = false,
+  }) async {
     final ok = await _run(() async {
-      await _repo.setFeatures(schoolId: schoolId, features: features);
+      await _repo.setFeatures(
+        schoolId: schoolId,
+        features: features,
+        reason: reason,
+        confirmDependants: confirmDependants,
+      );
       return true;
     });
-    if (ok == true) _refreshSchool(schoolId);
+    if (ok == true) {
+      _refreshSchool(schoolId);
+      ref.invalidate(featureHistoryProvider(schoolId));
+    }
+    return ok ?? false;
+  }
+
+  Future<bool> setFeatureDefaults(Map<String, bool> features) async {
+    final ok = await _run(() async {
+      await _repo.setFeatureDefaults(features);
+      return true;
+    });
+    if (ok == true) ref.invalidate(featureDefaultsProvider);
     return ok ?? false;
   }
 
@@ -283,3 +438,99 @@ class PlatformOpsActions extends AsyncNotifier<void> {
 
 final platformOpsActionsProvider =
     AsyncNotifierProvider<PlatformOpsActions, void>(PlatformOpsActions.new);
+
+/// The filter the audit trail page is showing.
+class AuditFilterNotifier extends Notifier<AuditFilter> {
+  @override
+  AuditFilter build() => const AuditFilter();
+
+  void set(AuditFilter f) => state = f;
+}
+
+final auditFilterProvider =
+    NotifierProvider.autoDispose<AuditFilterNotifier, AuditFilter>(
+      AuditFilterNotifier.new,
+    );
+
+/// Headline numbers for the last 24 hours.
+final auditSummaryProvider = FutureProvider.autoDispose<AuditSummary>(
+  (ref) => ref.watch(platformOpsRepositoryProvider).auditSummary(hours: 24),
+  retry: (retryCount, error) => null,
+);
+
+/// Everything loaded so far for the current filter, and where the next page starts.
+class AuditTrailState {
+  final List<AuditEventView> events;
+  final Map<String, dynamic>? nextCursor;
+  final bool truncated;
+  final bool loadingMore;
+  final Object? moreError;
+
+  const AuditTrailState({
+    required this.events,
+    this.nextCursor,
+    this.truncated = false,
+    this.loadingMore = false,
+    this.moreError,
+  });
+
+  AuditTrailState copyWith({
+    List<AuditEventView>? events,
+    Object? nextCursor = _keepCursor,
+    bool? truncated,
+    bool? loadingMore,
+    Object? moreError = _keepCursor,
+  }) => AuditTrailState(
+    events: events ?? this.events,
+    nextCursor: identical(nextCursor, _keepCursor)
+        ? this.nextCursor
+        : nextCursor as Map<String, dynamic>?,
+    truncated: truncated ?? this.truncated,
+    loadingMore: loadingMore ?? this.loadingMore,
+    moreError: identical(moreError, _keepCursor) ? this.moreError : moreError,
+  );
+}
+
+const Object _keepCursor = Object();
+
+class AuditTrailController extends AsyncNotifier<AuditTrailState> {
+  @override
+  Future<AuditTrailState> build() async {
+    final filter = ref.watch(auditFilterProvider);
+    final page = await ref
+        .watch(platformOpsRepositoryProvider)
+        .queryAudit(filter);
+    return AuditTrailState(
+      events: page.events,
+      nextCursor: page.nextCursor,
+      truncated: page.truncated,
+    );
+  }
+
+  Future<void> loadMore() async {
+    final cur = state.value;
+    if (cur == null || cur.nextCursor == null || cur.loadingMore) return;
+    state = AsyncData(cur.copyWith(loadingMore: true, moreError: null));
+    try {
+      final page = await ref
+          .read(platformOpsRepositoryProvider)
+          .queryAudit(ref.read(auditFilterProvider), cursor: cur.nextCursor);
+      state = AsyncData(
+        cur.copyWith(
+          events: [...cur.events, ...page.events],
+          nextCursor: page.nextCursor,
+          truncated: page.truncated,
+          loadingMore: false,
+        ),
+      );
+    } catch (e) {
+      state = AsyncData(cur.copyWith(loadingMore: false, moreError: e));
+    }
+  }
+}
+
+final auditTrailProvider =
+    AsyncNotifierProvider.autoDispose<AuditTrailController, AuditTrailState>(
+      AuditTrailController.new,
+      retry: (retryCount, error) => null,
+    );

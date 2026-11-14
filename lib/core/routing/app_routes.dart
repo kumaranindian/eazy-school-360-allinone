@@ -31,6 +31,7 @@ abstract final class AppRoutes {
   static const String platformSchoolDetail = '/platform/schools/:schoolId';
   static const String platformDeletions = '/platform/deletions';
   static const String platformAudit = '/platform/audit';
+  static const String platformAuditTrail = '/platform/audit-trail';
   static const String platformBilling = '/platform/billing';
   static const String platformNotices = '/platform/notices';
   static const String platformAvailability = '/platform/availability';
@@ -241,6 +242,7 @@ abstract final class AppRoutes {
     platformSchoolDetail: Permission.managePlatform,
     platformDeletions: Permission.managePlatform,
     platformAudit: Permission.managePlatform,
+    platformAuditTrail: Permission.managePlatform,
     platformBilling: Permission.managePlatform,
     platformNotices: Permission.managePlatform,
     platformAvailability: Permission.managePlatform,

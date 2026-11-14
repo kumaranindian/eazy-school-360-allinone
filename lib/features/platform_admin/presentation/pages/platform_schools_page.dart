@@ -14,6 +14,7 @@ import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../domain/platform_role.dart';
 import '../widgets/create_school_dialog.dart';
 import '../widgets/platform_scaffold.dart';
+import '../widgets/school_lifecycle_panels.dart' show DefaultModulesDialog;
 
 /// Every school on the platform (metadata only): search, filter by status, and
 /// open one for its overview or a support session.
@@ -28,6 +29,7 @@ class PlatformSchoolsPage extends ConsumerStatefulWidget {
 class _PlatformSchoolsPageState extends ConsumerState<PlatformSchoolsPage> {
   final _search = TextEditingController();
   String? _status; // null = all
+  int? _registeredDays; // null = any time
 
   @override
   void dispose() {
@@ -57,6 +59,23 @@ class _PlatformSchoolsPageState extends ConsumerState<PlatformSchoolsPage> {
         PlatformRole.owner;
     return PlatformScaffold(
       title: 'Schools',
+      actions: [
+        if (isOwner)
+          IconButton(
+            key: const ValueKey('schools-defaults'),
+            tooltip: 'Default modules for new schools',
+            icon: const Icon(Icons.tune),
+            onPressed: () async {
+              final saved = await showDialog<bool>(
+                context: context,
+                builder: (_) => const DefaultModulesDialog(),
+              );
+              if (saved == true && context.mounted) {
+                context.showSnackBar('Defaults saved for new schools.');
+              }
+            },
+          ),
+      ],
       floatingActionButton: isOwner
           ? FloatingActionButton.extended(
               key: const ValueKey('schools-create'),
@@ -73,7 +92,9 @@ class _PlatformSchoolsPageState extends ConsumerState<PlatformSchoolsPage> {
           final shown = [
             for (final s in schools)
               if ((_status == null || s.status == _status) &&
-                  s.matches(_search.text))
+                  s.matches(_search.text) &&
+                  (_registeredDays == null ||
+                      s.registeredWithin(_registeredDays!, DateTime.now())))
                 s,
           ];
           final counts = <String, int>{};
@@ -96,7 +117,7 @@ class _PlatformSchoolsPageState extends ConsumerState<PlatformSchoolsPage> {
                     onChanged: (_) => setState(() {}),
                     decoration: InputDecoration(
                       prefixIcon: const Icon(Icons.search),
-                      hintText: 'Search by name, code or city',
+                      hintText: 'Search by name, code, city or email',
                       suffixIcon: _search.text.isEmpty
                           ? null
                           : IconButton(
@@ -117,9 +138,11 @@ class _PlatformSchoolsPageState extends ConsumerState<PlatformSchoolsPage> {
                       for (final f in <(String?, String)>[
                         (null, 'All ${schools.length}'),
                         for (final st in const [
+                          'INACTIVE',
                           'ACTIVE',
                           'SUSPENDED',
-                          'INACTIVE',
+                          'EXPIRED',
+                          'CLOSED',
                         ])
                           if ((counts[st] ?? 0) > 0)
                             (st, '${_label(st)} ${counts[st]}'),
@@ -134,6 +157,41 @@ class _PlatformSchoolsPageState extends ConsumerState<PlatformSchoolsPage> {
                           ),
                         ),
                     ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    AppSpacing.xs,
+                    AppSpacing.md,
+                    0,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 320),
+                    child: DropdownButton<int?>(
+                      key: const ValueKey('schools-registered'),
+                      isExpanded: true,
+                      value: _registeredDays,
+                      items: const [
+                        DropdownMenuItem(
+                          value: null,
+                          child: Text('Registered: any time'),
+                        ),
+                        DropdownMenuItem(
+                          value: 7,
+                          child: Text('Registered: last 7 days'),
+                        ),
+                        DropdownMenuItem(
+                          value: 30,
+                          child: Text('Registered: last 30 days'),
+                        ),
+                        DropdownMenuItem(
+                          value: 90,
+                          child: Text('Registered: last 90 days'),
+                        ),
+                      ],
+                      onChanged: (v) => setState(() => _registeredDays = v),
+                    ),
                   ),
                 ),
                 Expanded(
@@ -163,6 +221,8 @@ String _label(String status) => switch (status) {
   'ACTIVE' => 'Active',
   'SUSPENDED' => 'Suspended',
   'INACTIVE' => 'Inactive',
+  'EXPIRED' => 'Expired',
+  'CLOSED' => 'Closed',
   _ => status,
 };
 

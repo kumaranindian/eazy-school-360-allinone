@@ -50,6 +50,14 @@ class PlatformHomePage extends ConsumerWidget {
                 subtitle: 'What platform administrators did',
                 route: AppRoutes.platformAudit,
               ),
+            if (role == PlatformRole.owner || role == PlatformRole.compliance)
+              _Tile(
+                key: const ValueKey('tile-platform-audit-trail'),
+                icon: Icons.fact_check_outlined,
+                title: 'Audit trail',
+                subtitle: 'Everything that changed, across all schools',
+                route: AppRoutes.platformAuditTrail,
+              ),
             if (role != null)
               _Tile(
                 key: const ValueKey('tile-platform-notices'),

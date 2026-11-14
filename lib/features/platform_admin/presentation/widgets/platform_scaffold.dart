@@ -20,12 +20,16 @@ class PlatformScaffold extends ConsumerWidget {
   /// A primary action (e.g. "Create school").
   final Widget? floatingActionButton;
 
+  /// Extra app-bar buttons, shown before the account and sign-out buttons.
+  final List<Widget> actions;
+
   const PlatformScaffold({
     super.key,
     required this.title,
     required this.child,
     this.showBack = true,
     this.floatingActionButton,
+    this.actions = const [],
   });
 
   @override
@@ -44,6 +48,7 @@ class PlatformScaffold extends ConsumerWidget {
               )
             : null,
         actions: [
+          ...actions,
           if (user != null)
             Flexible(
               child: Padding(

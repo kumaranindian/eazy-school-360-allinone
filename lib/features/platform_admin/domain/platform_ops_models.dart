@@ -7,29 +7,48 @@ DateTime? _ms(Object? v) =>
 /// every one of its users until reactivated.
 enum SchoolStatusChoice {
   active('ACTIVE'),
+  inactive('INACTIVE'),
   suspended('SUSPENDED');
 
   final String wire;
   const SchoolStatusChoice(this.wire);
 }
 
-/// The modules the platform can switch off per school (missing = on).
-enum PlatformFeature {
-  admission(
-    'admission',
-    'Admission management',
-    'Enquiries, applications and conversion',
-  ),
-  publicAdmission(
-    'publicAdmission',
-    'Public admission page',
-    'The website enquiry form parents use',
-  );
+/// One module switch change for a school (append-only history).
+class FeatureHistoryEntry {
+  final String id;
+  final String feature;
+  final bool from;
+  final bool to;
+  final bool cascade;
+  final String? reason;
+  final String actor;
+  final DateTime? at;
 
-  final String key;
-  final String label;
-  final String description;
-  const PlatformFeature(this.key, this.label, this.description);
+  const FeatureHistoryEntry({
+    required this.id,
+    required this.feature,
+    required this.from,
+    required this.to,
+    required this.cascade,
+    required this.actor,
+    this.reason,
+    this.at,
+  });
+
+  factory FeatureHistoryEntry.fromMap(Map<String, dynamic> m) =>
+      FeatureHistoryEntry(
+        id: (m['id'] as String?) ?? '',
+        feature: (m['feature'] as String?) ?? '',
+        from: m['from'] != false,
+        to: m['to'] != false,
+        cascade: m['cascade'] == true,
+        reason: m['reason'] as String?,
+        actor: (m['actorEmail'] as String?) ?? '',
+        at: m['atMs'] is num
+            ? DateTime.fromMillisecondsSinceEpoch((m['atMs'] as num).toInt())
+            : null,
+      );
 }
 
 /// What an owner enters to create a school and its first administrator.
@@ -367,4 +386,133 @@ class AppRequirements {
       maintenanceUntil: until is DateTime ? until : null,
     );
   }
+}
+
+/// A message from the platform to this school administrator that stays until
+/// it is acknowledged (or, when no acknowledgement is required, dismissed).
+class PlatformNotification {
+  final String id;
+  final String type;
+  final String title;
+  final String body;
+  final NoticeSeverity severity;
+  final bool requiresAck;
+  final String state;
+  final DateTime? createdAt;
+
+  const PlatformNotification({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.body,
+    required this.severity,
+    required this.requiresAck,
+    required this.state,
+    this.createdAt,
+  });
+
+  factory PlatformNotification.fromMap(Map<String, dynamic> m) =>
+      PlatformNotification(
+        id: (m['id'] as String?) ?? '',
+        type: (m['type'] as String?) ?? '',
+        title: (m['title'] as String?) ?? '',
+        body: (m['body'] as String?) ?? '',
+        severity: NoticeSeverity.parse(m['severity']),
+        requiresAck: m['requiresAck'] != false,
+        state: (m['state'] as String?) ?? 'CREATED',
+        createdAt: m['createdAtMs'] is num
+            ? DateTime.fromMillisecondsSinceEpoch(
+                (m['createdAtMs'] as num).toInt(),
+              )
+            : null,
+      );
+
+  bool get acknowledged => state == 'ACKNOWLEDGED';
+
+  /// Needs the administrator's explicit "I understand" before it goes away.
+  bool get pendingAck => requiresAck && !acknowledged && state != 'DISMISSED';
+}
+
+/// A subscription plan: a name and a period. Never a price (money lives in billing).
+class PlatformPlan {
+  final String id;
+  final String name;
+  final String periodType;
+  final bool active;
+
+  const PlatformPlan({
+    required this.id,
+    required this.name,
+    required this.periodType,
+    required this.active,
+  });
+
+  factory PlatformPlan.fromMap(Map<String, dynamic> m) => PlatformPlan(
+    id: (m['id'] as String?) ?? '',
+    name: (m['name'] as String?) ?? '',
+    periodType: (m['periodType'] as String?) ?? 'CUSTOM',
+    active: m['active'] != false,
+  );
+
+  static const periodTypes = [
+    'MONTHLY',
+    'QUARTERLY',
+    'HALF_YEARLY',
+    'ANNUAL',
+    'CUSTOM',
+  ];
+
+  static String periodLabel(String p) => switch (p) {
+    'MONTHLY' => 'Monthly',
+    'QUARTERLY' => 'Quarterly',
+    'HALF_YEARLY' => 'Half-yearly',
+    'ANNUAL' => 'Annual',
+    _ => 'Custom',
+  };
+}
+
+/// One append-only subscription history row.
+class SubscriptionHistoryEntry {
+  final String id;
+  final String event;
+  final DateTime? at;
+  final String actor; // email, or "System"
+  final String? reason;
+  final String? fromStatus;
+  final String? toStatus;
+
+  const SubscriptionHistoryEntry({
+    required this.id,
+    required this.event,
+    required this.at,
+    required this.actor,
+    this.reason,
+    this.fromStatus,
+    this.toStatus,
+  });
+
+  factory SubscriptionHistoryEntry.fromMap(Map<String, dynamic> m) =>
+      SubscriptionHistoryEntry(
+        id: (m['id'] as String?) ?? '',
+        event: (m['event'] as String?) ?? '',
+        at: m['atMs'] is num
+            ? DateTime.fromMillisecondsSinceEpoch((m['atMs'] as num).toInt())
+            : null,
+        actor: m['actorKind'] == 'SYSTEM'
+            ? 'System'
+            : ((m['actorEmail'] as String?) ?? ''),
+        reason: m['reason'] as String?,
+        fromStatus: m['fromStatus'] as String?,
+        toStatus: m['toStatus'] as String?,
+      );
+
+  String get label => switch (event) {
+    'SUBSCRIPTION_SET' => 'Subscription set',
+    'SUBSCRIPTION_EXTENDED' => 'Extended',
+    'SUBSCRIPTION_RENEWED' => 'Renewed',
+    'SUBSCRIPTION_CANCELLED' => 'Cancelled',
+    'SUBSCRIPTION_TRIAL_GRANTED' => 'Trial granted',
+    'SUBSCRIPTION_STATUS_CHANGED' => 'Status changed',
+    _ => event,
+  };
 }

@@ -63,6 +63,7 @@ class FirebasePlatformConsoleRepository implements PlatformConsoleRepository {
           city: (d.data()['city'] as String?) ?? '',
           country: (d.data()['country'] as String?) ?? '',
           createdAt: _ts(d.data()['createdAt']),
+          email: (d.data()['email'] as String?) ?? '',
         ),
     ];
   });

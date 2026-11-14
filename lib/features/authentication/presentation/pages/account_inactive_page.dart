@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../../../core/config/support_contact.dart';
 
 import '../../../../core/tenant/account_inactive_exception.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
@@ -28,10 +32,10 @@ class AccountInactivePage extends ConsumerWidget {
     final String title;
     final String message;
     if (cause == InactiveCause.schoolPaused) {
-      title = "Your school's access is paused";
-      message =
-          "Your school's access to EazySchool 360 is paused. Please contact "
-          'your school administrator or Avail404 support.';
+      final state = error is AccountInactiveException
+          ? error.schoolState
+          : null;
+      (title, message) = _schoolMessage(state);
     } else if (cause == InactiveCause.invalidProfile) {
       title = "Your account isn't set up correctly";
       message =
@@ -59,6 +63,7 @@ class AccountInactivePage extends ConsumerWidget {
           'Contact your school administrator if you believe this is a mistake.';
     }
 
+    final paused = cause == InactiveCause.schoolPaused;
     return AuthScaffold(
       title: title,
       subtitle: message,
@@ -74,12 +79,69 @@ class AccountInactivePage extends ConsumerWidget {
                 : Theme.of(context).colorScheme.error,
           ),
           const SizedBox(height: AppSpacing.lg),
-          FilledButton(
-            onPressed: () => signOutWithCleanup(ref),
-            child: const Text('Sign out'),
-          ),
+          if (paused) ...[
+            FilledButton.icon(
+              key: const ValueKey('contact-support'),
+              icon: const Icon(Icons.mail_outline),
+              label: const Text('Contact support'),
+              onPressed: () => _contactSupport(context),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            OutlinedButton(
+              onPressed: () => signOutWithCleanup(ref),
+              child: const Text('Sign out'),
+            ),
+          ] else
+            FilledButton(
+              onPressed: () => signOutWithCleanup(ref),
+              child: const Text('Sign out'),
+            ),
         ],
       ),
     );
+  }
+}
+
+/// The title and message for a school that cannot be used. The support address
+/// is a fixed constant ([platformSupportEmail]).
+(String, String) _schoolMessage(String? state) => switch (state) {
+  'SUSPENDED' => (
+    'School account suspended',
+    'Your school account has been suspended. Please contact '
+        '$platformSupportEmail for assistance.',
+  ),
+  'SUBSCRIPTION_NOT_STARTED' => (
+    'Subscription not started yet',
+    'Your school subscription has not started yet. Please contact '
+        '$platformSupportEmail.',
+  ),
+  'SUBSCRIPTION_EXPIRED' || 'EXPIRED' => (
+    'School subscription expired',
+    'Your school subscription has expired. Please contact '
+        '$platformSupportEmail.',
+  ),
+  'CLOSED' => (
+    'School account closed',
+    'Your school account has been closed. Please contact '
+        '$platformSupportEmail.',
+  ),
+  _ => (
+    'Account is inactive',
+    'Account is inactive. Please contact $platformSupportEmail.',
+  ),
+};
+
+/// Opens the mail app; if that is not possible, copies the address.
+Future<void> _contactSupport(BuildContext context) async {
+  final ok = await launchUrl(
+    Uri(scheme: 'mailto', path: platformSupportEmail),
+  ).catchError((_) => false);
+  if (!ok) {
+    await Clipboard.setData(const ClipboardData(text: platformSupportEmail));
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Support address copied.')));
+    }
   }
 }

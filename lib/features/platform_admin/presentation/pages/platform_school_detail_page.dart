@@ -15,6 +15,7 @@ import '../providers/platform_console_providers.dart';
 import '../providers/support_session_providers.dart';
 import '../widgets/platform_scaffold.dart';
 import '../widgets/request_support_access_dialog.dart';
+import '../widgets/subscription_panel.dart';
 import '../widgets/school_lifecycle_panels.dart';
 
 /// One school for Avail404: who runs it, how big it is, who currently has
@@ -146,6 +147,13 @@ class PlatformSchoolDetailPage extends ConsumerWidget {
                     ),
                   const SizedBox(height: AppSpacing.md),
                   SchoolStatusPanel(
+                    overview: o,
+                    role: role ?? PlatformRole.viewer,
+                    myUid:
+                        ref.watch(tenantContextProvider).value?.user.userId ??
+                        '',
+                  ),
+                  SchoolSubscriptionPanel(
                     overview: o,
                     role: role ?? PlatformRole.viewer,
                   ),

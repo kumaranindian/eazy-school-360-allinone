@@ -142,3 +142,113 @@ Future<bool> confirm(
       ),
     ) ??
     false;
+
+/// What an owner writes when activating a school.
+typedef ActivationInput = ({
+  String remarks,
+  String internalNotes,
+  String message,
+});
+
+/// Activation with optional remarks (kept with the school), internal notes
+/// (platform only) and a message for the school's administrators.
+Future<ActivationInput?> showActivationDialog(
+  BuildContext context, {
+  required String schoolName,
+  required bool reactivation,
+}) => showDialog<ActivationInput>(
+  context: context,
+  builder: (_) =>
+      _ActivationDialog(schoolName: schoolName, reactivation: reactivation),
+);
+
+class _ActivationDialog extends StatefulWidget {
+  final String schoolName;
+  final bool reactivation;
+  const _ActivationDialog({
+    required this.schoolName,
+    required this.reactivation,
+  });
+
+  @override
+  State<_ActivationDialog> createState() => _ActivationDialogState();
+}
+
+class _ActivationDialogState extends State<_ActivationDialog> {
+  final _remarks = TextEditingController();
+  final _notes = TextEditingController();
+  final _message = TextEditingController();
+
+  @override
+  void dispose() {
+    _remarks.dispose();
+    _notes.dispose();
+    _message.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final verb = widget.reactivation ? 'Reactivate' : 'Activate';
+    return AlertDialog(
+      title: Text('$verb ${widget.schoolName}?'),
+      content: SizedBox(
+        width: 480,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Its users can use the app again. All fields are optional.',
+              ),
+              TextField(
+                key: const ValueKey('act-remarks'),
+                controller: _remarks,
+                maxLength: 500,
+                decoration: const InputDecoration(
+                  labelText: 'Remarks (kept with the school)',
+                ),
+              ),
+              TextField(
+                key: const ValueKey('act-notes'),
+                controller: _notes,
+                maxLength: 1000,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Internal notes (platform team only)',
+                ),
+              ),
+              TextField(
+                key: const ValueKey('act-message'),
+                controller: _message,
+                maxLength: 500,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Message for the school administrators',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: const ValueKey('act-confirm'),
+          onPressed: () => Navigator.pop(context, (
+            remarks: _remarks.text.trim(),
+            internalNotes: _notes.text.trim(),
+            message: _message.text.trim(),
+          )),
+          child: Text(verb),
+        ),
+      ],
+    );
+  }
+}

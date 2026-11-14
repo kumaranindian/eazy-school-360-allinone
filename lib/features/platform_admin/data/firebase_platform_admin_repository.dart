@@ -91,6 +91,18 @@ AppFailure platformFailureFrom(FirebaseFunctionsException e, StackTrace st) {
         'NOT_REQUESTED' ||
         'NOT_OPEN' => 'That has already moved on. Refresh and try again.',
         'FINAL' => 'That record is closed and cannot be changed.',
+        'NOT_CLOSED' => 'Only a closed school can be recovered.',
+        'CLOSURE_NOT_APPROVED' =>
+          'Closing needs an approved offboarding first.',
+        'SUBSCRIPTION_EXPIRED' =>
+          'This school\'s subscription has ended. Renew it first.',
+        'DEPENDANTS' =>
+          'Other modules depend on this one. Confirm to switch them off too.',
+        'DEPENDENCY' => 'Switch on the modules this one needs first.',
+        'NO_SUBSCRIPTION' => 'This school has no subscription yet.',
+        'CANCELLED' => 'The subscription is cancelled. Renew it first.',
+        'HAS_SUBSCRIPTION' => 'This school already has a live subscription.',
+        'PLAN_INACTIVE' => 'That plan is switched off. Choose another.',
         _ => 'That cannot be done right now.',
       });
     case 'INVALID_ARGUMENT':
@@ -118,11 +130,20 @@ AppFailure platformFailureFrom(FirebaseFunctionsException e, StackTrace st) {
         'minBuild' => 'Build numbers must be whole numbers.',
         'message' => 'Write the message people will see.',
         'until' => 'The end time must be in the future.',
+        'startDate' => 'Enter a real start date (YYYY-MM-DD).',
+        'endDate' => 'Enter a real end date (YYYY-MM-DD).',
+        'endBeforeStart' => 'The end date cannot be before the start date.',
+        'notForward' => 'The new end date must be later than the current one.',
+        'gracePeriodDays' => 'Grace period must be 0 to 90 whole days.',
+        'days' => 'A trial lasts 1 to 90 whole days.',
+        'planId' => 'Choose a plan.',
+        'classification' => 'Choose trial or paid.',
         _ => 'Check the details and try again.',
       });
     case 'INVALID_TRANSITION':
       return const ValidationFailure(
-        'That request has moved on. Refresh and try again.',
+        'That change is not allowed from the school\'s current state. '
+        'Refresh and try again.',
       );
     case 'FEATURE_DISABLED':
       return const PermissionFailure(

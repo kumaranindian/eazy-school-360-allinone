@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/platform_admin/presentation/widgets/platform_notice_banner.dart';
+import '../../features/platform_admin/presentation/widgets/platform_notification_gate.dart';
 import '../../features/platform_admin/presentation/widgets/support_session_banner.dart';
 import '../../features/authentication/presentation/sign_out.dart';
 import '../../features/help/presentation/widgets/contextual_help_button.dart';
@@ -439,14 +440,17 @@ class AppShell extends ConsumerWidget {
         selectedIndex: selectedVisibleIndex < 0 ? 0 : selectedVisibleIndex,
         onDestinationSelected: (visibleIndex) =>
             _goBranch(visibleBranchIndexes[visibleIndex]),
-        body: PlatformNoticeBanner(
-          child: SupportSessionBanner(
-            child: (tenant?.can(Permission.viewNotifications) ?? false)
-                ? NotificationAlerts(child: navigationShell)
-                : navigationShell,
+        body: PlatformNotificationGate(
+          child: PlatformNoticeBanner(
+            child: SupportSessionBanner(
+              child: (tenant?.can(Permission.viewNotifications) ?? false)
+                  ? NotificationAlerts(child: navigationShell)
+                  : navigationShell,
+            ),
           ),
         ),
         actions: [
+          const PlatformMessagesButton(),
           if (tenant?.can(Permission.viewNotifications) ?? false)
             const NotificationBell(),
           ContextualHelpButton(path: path),

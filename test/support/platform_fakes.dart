@@ -130,6 +130,8 @@ PlatformSchool fakeSchool({
   String name = 'Rosewood High',
   String status = 'ACTIVE',
   String city = 'Chennai',
+  String email = '',
+  DateTime? createdAt,
 }) => PlatformSchool(
   id: id,
   name: name,
@@ -137,7 +139,8 @@ PlatformSchool fakeSchool({
   status: status,
   city: city,
   country: 'IN',
-  createdAt: DateTime(2026, 1, 5),
+  createdAt: createdAt ?? DateTime(2026, 1, 5),
+  email: email,
 );
 
 DeletionReviewItem fakeDeletion({

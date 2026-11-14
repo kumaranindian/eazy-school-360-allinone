@@ -284,6 +284,66 @@ void main() {
       expect(find.text('No schools match.'), findsOneWidget);
     });
 
+    testWidgets('a new school waits under Inactive; search finds it by email', (
+      tester,
+    ) async {
+      final w = await _pump(
+        tester,
+        repo: FakePlatformConsoleRepository(
+          schools: [
+            fakeSchool(),
+            fakeSchool(
+              id: 'school-9',
+              name: 'Newly Registered',
+              status: 'INACTIVE',
+              email: 'head@newly.edu',
+              createdAt: DateTime.now(),
+            ),
+          ],
+        ),
+      );
+      await _open(tester, w, AppRoutes.platformSchools);
+      expect(find.text('Inactive 1'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('schools-filter-INACTIVE')));
+      await tester.pumpAndSettle();
+      expect(find.text('Newly Registered'), findsOneWidget);
+      expect(find.text('Rosewood High'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('schools-filter-all')));
+      await tester.enterText(
+        find.byKey(const ValueKey('schools-search')),
+        'head@newly',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Newly Registered'), findsOneWidget);
+      expect(find.text('Rosewood High'), findsNothing);
+    });
+
+    testWidgets('the registration filter keeps only recent schools', (
+      tester,
+    ) async {
+      final w = await _pump(
+        tester,
+        repo: FakePlatformConsoleRepository(
+          schools: [
+            fakeSchool(),
+            fakeSchool(
+              id: 'school-9',
+              name: 'Newly Registered',
+              status: 'INACTIVE',
+              createdAt: DateTime.now(),
+            ),
+          ],
+        ),
+      );
+      await _open(tester, w, AppRoutes.platformSchools);
+      await tester.tap(find.byKey(const ValueKey('schools-registered')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Registered: last 7 days').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Newly Registered'), findsOneWidget);
+      expect(find.text('Rosewood High'), findsNothing);
+    });
+
     testWidgets('a school opens its overview', (tester) async {
       final w = await _pump(tester, repo: repo());
       await _open(tester, w, AppRoutes.platformSchools);

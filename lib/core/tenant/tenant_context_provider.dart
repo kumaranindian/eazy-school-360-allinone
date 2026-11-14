@@ -83,6 +83,7 @@ class TenantContextNotifier extends AsyncNotifier<TenantContext?> {
       throw AccountInactiveException(
         profile.status,
         cause: InactiveCause.schoolPaused,
+        schoolState: profile.schoolAccessState,
       );
     }
 
@@ -134,6 +135,19 @@ class TenantContextNotifier extends AsyncNotifier<TenantContext?> {
     final school = effective.schoolId == null
         ? null
         : await schoolRepository.getSchool(effective.schoolId!);
+    // The school itself is not active (for example a school that has just
+    // registered and is waiting to be activated): its users are paused. The
+    // server mirrors this onto every profile within seconds; this check closes
+    // the gap and never trusts a profile alone.
+    if (school != null &&
+        school.status.isPaused &&
+        profile.role != UserRole.platformAdmin) {
+      throw AccountInactiveException(
+        profile.status,
+        cause: InactiveCause.schoolPaused,
+        schoolState: school.status.wireValue,
+      );
+    }
     var acting = effective;
     var branch = (effective.schoolId == null || effective.branchId == null)
         ? null

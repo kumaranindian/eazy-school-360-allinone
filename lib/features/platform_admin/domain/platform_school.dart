@@ -7,6 +7,7 @@ class PlatformSchool {
   final String city;
   final String country;
   final DateTime? createdAt;
+  final String email;
 
   const PlatformSchool({
     required this.id,
@@ -16,9 +17,14 @@ class PlatformSchool {
     required this.city,
     required this.country,
     required this.createdAt,
+    this.email = '',
   });
 
   bool get isActive => status == 'ACTIVE';
+
+  /// Registered in the last [days] days (an unknown date never matches).
+  bool registeredWithin(int days, DateTime now) =>
+      createdAt != null && now.difference(createdAt!).inDays < days;
 
   bool matches(String query) {
     final q = query.trim().toLowerCase();
@@ -26,6 +32,7 @@ class PlatformSchool {
     return name.toLowerCase().contains(q) ||
         code.toLowerCase().contains(q) ||
         city.toLowerCase().contains(q) ||
+        email.toLowerCase().contains(q) ||
         id.toLowerCase() == q;
   }
 }

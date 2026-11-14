@@ -35,6 +35,7 @@ import '../../features/users/presentation/pages/users_page.dart';
 import '../../features/branding/presentation/pages/platform_branding_page.dart';
 import '../../features/platform_admin/presentation/pages/platform_admins_page.dart';
 import '../../features/platform_admin/presentation/pages/platform_audit_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_audit_trail_page.dart';
 import '../../features/platform_admin/presentation/pages/platform_availability_page.dart';
 import '../../features/platform_admin/presentation/pages/platform_billing_page.dart';
 import '../../features/platform_admin/presentation/pages/platform_notices_page.dart';
@@ -277,6 +278,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'audit',
             builder: (context, state) => const PlatformAuditPage(),
+          ),
+          GoRoute(
+            path: 'audit-trail',
+            builder: (context, state) => const PlatformAuditTrailPage(),
           ),
           GoRoute(
             path: 'billing',

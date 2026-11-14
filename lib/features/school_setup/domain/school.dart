@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/constants/firestore_fields.dart';
+import '../../../core/features/feature_catalogue.dart';
 import '../../../core/regional/regional_settings.dart';
 import 'school_status.dart';
 
@@ -161,7 +162,7 @@ class School {
   }
 
   /// True unless the platform switched [feature] off for this school.
-  bool moduleEnabled(String feature) => features[feature] != false;
+  bool moduleEnabled(String feature) => featureUsable(features, feature);
 
   Map<String, dynamic> toFirestoreCreate({required String createdBy}) {
     return {
