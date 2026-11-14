@@ -82,3 +82,8 @@ ui-debug.log
 **/service-account*.json
 **/*-adminsdk-*.json
 **/.runtimeconfig.json
+
+# Service-account keys and other secrets: never commit
+prod-admin.json
+*-firebase-adminsdk-*.json
+secrets/
