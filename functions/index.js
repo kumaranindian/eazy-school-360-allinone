@@ -283,6 +283,7 @@ function fail(out) {
     reason: out.error,
     ...(out.retryAfterSec ? { retryAfterSec: out.retryAfterSec } : {}),
     ...(out.reason ? { cause: out.reason } : {}),
+    ...(out.keys ? { keys: out.keys } : {}),
     ...(out.attemptsLeft !== undefined ? { attemptsLeft: out.attemptsLeft } : {}),
   });
 }
@@ -299,6 +300,74 @@ const adminCtx = () => ({
   ensureAuthUser,
   enablePortalLinks,
   configured: { phoneOtp: phoneOtpConfigured() },
+});
+
+const schoolNotifications = require('./school_notifications');
+const subscriptions = require('./subscriptions');
+const subscriptionEnforcement = require('./subscription_enforcement');
+const features = require('./features');
+const featureGuard = require('./feature_guard');
+
+const audit = require('./audit');
+
+// Audit writes from triggers are idempotent, so a failure is retried; an event that can never be valid is
+// logged and dropped (retrying it would loop forever).
+const auditFromTrigger = async (build) => {
+  let input;
+  try {
+    input = build();
+    if (!input) return;
+    await audit.record(adminCtx(), input);
+  } catch (e) {
+    if (e && e.code === 'invalid-audit-event') {
+      logger.warn('audit event dropped', { error: String(e.message).slice(0, 200) });
+      return;
+    }
+    throw e;
+  }
+};
+
+// Every write to a client-written module: (1) a create in a module the school switched off is recorded as
+// FEATURE_ACCESS_DENIED (not reverted: see feature_guard.js), (2) the change is recorded in the central
+// audit trail with the actor the rules guarantee (createdBy/updatedBy) and only allow-listed values.
+const WATCHED = [...new Set([...Object.keys(featureGuard.MODULE_COLLECTIONS), ...Object.keys(audit.MODULES)])];
+for (const collection of WATCHED) {
+  exports[`moduleWatch_${collection}`] = onDocumentWritten(
+    { document: `schools/{schoolId}/branches/{branchId}/${collection}/{docId}`, timeoutSeconds: 60, retry: true },
+    async (event) => {
+      const { schoolId, branchId, docId } = event.params;
+      const before = event.data && event.data.before.exists ? event.data.before.data() : null;
+      const after = event.data && event.data.after.exists ? event.data.after.data() : null;
+      if (!before && after && featureGuard.MODULE_COLLECTIONS[collection]) {
+        const r = await featureGuard.checkCreate(adminCtx(), { schoolId, branchId, collection, docId, data: after });
+        if (r.flagged) logger.warn('write to a disabled module', { school: schoolId, collection, feature: r.feature });
+      }
+      await auditFromTrigger(() => audit.fromModuleWrite({ eventId: event.id, schoolId, branchId, collection, docId, before, after }));
+    },
+  );
+}
+
+// The platform audit log and the sign-in trail feed the same central trail.
+exports.auditMirrorPlatform = onDocumentCreated({ document: 'platformAuditLog/{id}', timeoutSeconds: 60, retry: true }, (event) =>
+  auditFromTrigger(() => audit.fromPlatformAudit(event.params.id, event.data && event.data.data())),
+);
+exports.auditMirrorAuth = onDocumentCreated({ document: 'schools/{schoolId}/authAudit/{id}', timeoutSeconds: 60, retry: true }, (event) =>
+  auditFromTrigger(() => audit.fromAuthAudit(event.params.schoolId, event.params.id, event.data && event.data.data())),
+);
+
+// Daily: months older than the retention window are exported to Cloud Storage. Nothing is deleted unless
+// AUDIT_RETENTION_DELETE=true (default: keep everything online).
+exports.auditRetention = onSchedule({ schedule: 'every day 03:30', timeZone: 'UTC', timeoutSeconds: 540 }, async () => {
+  try {
+    const r = await audit.runAuditRetention(adminCtx(), bucketStorage(getStorage().bucket()), {
+      retentionDays: Number(process.env.AUDIT_RETENTION_DAYS) || 400,
+      deleteAfterArchive: process.env.AUDIT_RETENTION_DELETE === 'true',
+      log: (e, f) => logger.warn(e, f),
+    });
+    logger.info('audit retention', r);
+  } catch (e) {
+    logger.error('audit retention failed', { category: errorCategory(e) });
+  }
 });
 
 exports.getLoginAccess = onCall(callOptions(), async (request) => {
@@ -499,17 +568,36 @@ exports.listPlatformAdmins = platformCall('listPlatformAdmins', platformAdmin.li
 exports.setPlatformRole = platformCall('setPlatformRole', platformAdmin.setPlatformRole, (o) => ({ platformRole: o.platformRole }));
 exports.setPlatformAdminStatus = platformCall('setPlatformAdminStatus', platformAdmin.setPlatformAdminStatus, (o) => ({ status: o.status }));
 
+// Reading the trail is limited to platform owners and compliance (every use is itself audited).
+exports.queryAuditEvents = platformCall('queryAuditEvents', audit.queryAuditEvents);
+exports.exportAuditEvents = platformCall('exportAuditEvents', audit.exportAuditEvents, (o) => ({ rows: o.rows }));
+exports.getAuditSummary = platformCall('getAuditSummary', audit.getAuditSummary);
+// What only the app can see (sign-out, expired session, a screen refused). Untrusted, allow-listed, rate limited.
+exports.reportClientEvent = onCall(callOptions(), async (request) => {
+  const a = signedIn(request);
+  const out = await audit.reportClientEvent(adminCtx(), a.uid, a.token, request.data);
+  if (out.error) fail(out);
+  return out;
+});
+
 // ---- Platform lifecycle, billing and operations (Phase 3-4) -----------------------
 const schoolLifecycle = require('./school_lifecycle');
 const platformBilling = require('./platform_billing');
 const platformOps = require('./platform_ops');
 const LONG = { timeoutSeconds: 120 };
 exports.setSchoolStatus = platformCall('setSchoolStatus', schoolLifecycle.setSchoolStatus, (o) => ({ status: o.status, users: o.usersUpdated }), LONG);
+exports.transitionSchool = platformCall('transitionSchool', schoolLifecycle.transitionSchool, (o) => ({ from: o.from, to: o.to, users: o.usersUpdated }), LONG);
+exports.requestSchoolRecovery = platformCall('requestSchoolRecovery', schoolLifecycle.requestSchoolRecovery);
+exports.approveSchoolRecovery = platformCall('approveSchoolRecovery', schoolLifecycle.approveSchoolRecovery, undefined, LONG);
+exports.cancelSchoolRecovery = platformCall('cancelSchoolRecovery', schoolLifecycle.cancelSchoolRecovery);
 exports.refreshSchoolAccess = platformCall('refreshSchoolAccess', schoolLifecycle.refreshSchoolAccess, (o) => ({ users: o.usersUpdated }), LONG);
 exports.createSchoolWithAdmin = platformCall('createSchoolWithAdmin', schoolLifecycle.createSchoolWithAdmin, (o) => ({ school: o.schoolId }));
 exports.addSchoolAdmin = platformCall('addSchoolAdmin', schoolLifecycle.addSchoolAdmin);
 exports.resetSchoolAdminAccess = platformCall('resetSchoolAdminAccess', schoolLifecycle.resetSchoolAdminAccess);
-exports.setSchoolFeatures = platformCall('setSchoolFeatures', schoolLifecycle.setSchoolFeatures);
+exports.setSchoolFeatures = platformCall('setSchoolFeatures', features.setSchoolFeatures);
+exports.getFeatureConfig = platformCall('getFeatureConfig', features.getFeatureConfig);
+exports.setFeatureDefaults = platformCall('setFeatureDefaults', features.setFeatureDefaults);
+exports.getFeatureHistory = platformCall('getFeatureHistory', features.getFeatureHistory);
 exports.requestSchoolOffboarding = platformCall('requestSchoolOffboarding', schoolLifecycle.requestSchoolOffboarding, undefined, LONG);
 exports.approveSchoolOffboarding = platformCall('approveSchoolOffboarding', schoolLifecycle.approveSchoolOffboarding);
 exports.cancelSchoolOffboarding = platformCall('cancelSchoolOffboarding', schoolLifecycle.cancelSchoolOffboarding, undefined, LONG);
@@ -540,14 +628,38 @@ exports.platformStatsRollup = onSchedule(
 exports.schoolStatusChanged = onDocumentUpdated({ document: 'schools/{schoolId}', timeoutSeconds: 300, retry: true }, async (event) => {
   const before = event.data && event.data.before.data();
   const after = event.data && event.data.after.data();
-  if (!before || !after || before.status === after.status) return;
-  const r = await schoolLifecycle.applySchoolAccess(adminCtx(), event.params.schoolId, after.status || 'ACTIVE', Date.now() + 240000);
+  if (!before || !after || (before.status === after.status && before.subscriptionStatus === after.subscriptionStatus)) return;
+  const want = subscriptions.mirrorFor(after);
+  if (after.accessMirror === want) return; // already mirrored by the callable that made the change
+  const r = await schoolLifecycle.applySchoolAccess(adminCtx(), event.params.schoolId, want, Date.now() + 240000);
+  if (r.done) await event.data.after.ref.update({ accessMirror: want });
   logger.info('school access applied', { school: event.params.schoolId, status: after.status, updated: r.updated, done: r.done });
   if (!r.done) throw new Error('not finished; retry');
 });
 
 // Platform data is read only through these (the Firestore rules give clients no access).
 const platformReads = require('./platform_reads');
+
+const sub = (fn) => subscriptionEnforcement.withReconcile(fn);
+exports.savePlan = platformCall('savePlan', subscriptions.savePlan, (o) => ({ plan: o.planId }));
+exports.listPlans = platformCall('listPlans', subscriptions.listPlans);
+exports.setSubscription = platformCall('setSubscription', sub(subscriptions.setSubscription), (o) => ({ status: o.status }));
+exports.extendSubscription = platformCall('extendSubscription', sub(subscriptions.extendSubscription), (o) => ({ status: o.status }));
+exports.renewSubscription = platformCall('renewSubscription', sub(subscriptions.renewSubscription), (o) => ({ status: o.status }));
+exports.cancelSubscription = platformCall('cancelSubscription', sub(subscriptions.cancelSubscription), (o) => ({ status: o.status }));
+exports.grantTrial = platformCall('grantTrial', sub(subscriptions.grantTrial), (o) => ({ status: o.status }));
+exports.getSubscriptionHistory = platformCall('getSubscriptionHistory', subscriptions.getSubscriptionHistory);
+
+// Every 15 minutes: time-based subscription changes (start, end, grace) reach the lifecycle and the access mirror.
+exports.subscriptionMonitor = onSchedule({ schedule: 'every 15 minutes', timeZone: 'UTC', timeoutSeconds: 540 }, async () => {
+  try {
+    const r = await subscriptionEnforcement.runSubscriptionMonitor(adminCtx(), { log: (e, f) => logger.warn(e, f) });
+    if (r.failed) logger.warn('subscription monitor finished with problems', r);
+    else logger.info('subscription monitor', r);
+  } catch (e) {
+    logger.error('subscription monitor failed', { category: errorCategory(e) });
+  }
+});
 const schoolCall = (name, fn) =>
   onCall(callOptions(), async (request) => {
     const a = signedIn(request);
@@ -560,6 +672,29 @@ exports.getPlatformStats = platformCall('getPlatformStats', platformReads.getPla
 exports.listAuditLog = platformCall('listAuditLog', platformReads.listAuditLog);
 exports.listSchoolSupportAccess = schoolCall('listSchoolSupportAccess', platformReads.listSchoolSupportAccess);
 exports.listMyNotices = schoolCall('listMyNotices', platformReads.listMyNotices);
+exports.listMyPlatformNotifications = schoolCall('listMyPlatformNotifications', schoolNotifications.listMyPlatformNotifications);
+exports.acknowledgeNotification = schoolCall('acknowledgeNotification', schoolNotifications.acknowledgeNotification);
+exports.dismissNotification = schoolCall('dismissNotification', schoolNotifications.dismissNotification);
+
+// A school created while not ACTIVE (self-registration starts INACTIVE) pauses its users at once.
+exports.schoolCreated = onDocumentCreated({ document: 'schools/{schoolId}', timeoutSeconds: 120, retry: true }, async (event) => {
+  const after = event.data && event.data.data();
+  if (!after) return;
+  // A self-registered school is a CLIENT-written document: normalise what only the server may set (module
+  // switches from the platform defaults, lifecycle counters, subscription/mirror bookkeeping).
+  const fixes = schoolLifecycle.newSchoolFixes(after, await features.snapshotDefaults(adminCtx().db));
+  if (Object.keys(fixes.set).length || fixes.remove.length) {
+    const patch = { ...fixes.set };
+    for (const k of fixes.remove) patch[k] = FieldValue.delete();
+    await event.data.ref.update(patch);
+    logger.info('new school normalised', { school: event.params.schoolId, set: Object.keys(fixes.set), removed: fixes.remove });
+  }
+  const state = schoolLifecycle.statusOf(after);
+  if (state === 'ACTIVE') return;
+  const r = await schoolLifecycle.applySchoolAccess(adminCtx(), event.params.schoolId, state, Date.now() + 100000);
+  logger.info('new school paused', { school: event.params.schoolId, state, updated: r.updated });
+  if (!r.done) throw new Error('not finished; retry');
+});
 
 exports.requestSupportAccess = platformCall('requestSupportAccess', supportAccess.requestSupportAccess, (o) => ({ school: o.schoolId }));
 exports.revokeSupportAccess = platformCall('revokeSupportAccess', supportAccess.revokeSupportAccess);

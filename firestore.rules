@@ -1787,7 +1787,7 @@ service cloud.firestore {
       allow read: if isSignedIn() && (isSameSchool(schoolId) || isPlatformAdmin());
 
       allow create: if validCreateAudit()
-        && nd().status == 'ACTIVE'
+        && nd().status == 'INACTIVE'
         && validRegional(nd())
         && !('currencyLocked' in nd())
         && isSelfSignupBatchFor(schoolId);

@@ -262,6 +262,7 @@ async function updateFeeReminderSettings(ctx, callerUid, token, data) {
   if (typeof schoolId !== 'string' || !schoolId) return { error: 'INVALID_ARGUMENT' };
   const caller = await require('./access').assertAdmin(db, callerUid, schoolId, null, token);
   if (!caller || caller.role !== 'SCHOOL_ADMIN') return { error: 'PERMISSION_DENIED' };
+  if (!(await require('./access').schoolGate(db, schoolId, 'feeReminders')).allowed) return { error: 'FAILED_PRECONDITION', reason: 'FEATURE_DISABLED' };
   const parsed = validateSettings(data.settings);
   if (parsed.errors) return { error: 'INVALID_ARGUMENT', reason: Object.entries(parsed.errors).map(([k, v]) => `${k}: ${v}`).join('; ') };
   await settingsDoc(db, schoolId).set({ schoolId, ...parsed.value, updatedAt: now, updatedBy: callerUid });

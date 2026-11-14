@@ -28,6 +28,7 @@ function grantView(g) {
 async function schoolAdminCaller(db, uid, token, roles) {
   const u = (await db.collection('users').doc(uid).get()).data();
   if (!u || !roles.includes(u.role) || !u.schoolId || !loginAllowed(u, token)) return null;
+  if (!(await require('./access').schoolGate(db, u.schoolId)).allowed) return null;
   return u;
 }
 

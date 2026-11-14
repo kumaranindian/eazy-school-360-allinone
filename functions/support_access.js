@@ -8,6 +8,7 @@
 // schools/{schoolId}/supportAccessLog/* what the school's admins see
 // platformAuditLog/*                    what Avail404 sees
 
+const { idOf, own } = require('./ids');
 const { platformCaller, auditRecord } = require('./platform_admin');
 const { assertAdmin } = require('./access');
 
@@ -45,7 +46,7 @@ function logEntry(ctx, schoolId, e) {
 async function requestSupportAccess(ctx, callerUid, token, data) {
   const caller = await platformCaller(ctx.db, callerUid, token, ['OWNER', 'SUPPORT']);
   if (caller.error) return { error: caller.error };
-  const schoolId = text(data && data.schoolId, 128);
+  const schoolId = idOf(data && data.schoolId);
   const reason = text(data && data.reason, REASON_MAX);
   const ticket = text(data && data.ticket, TICKET_MAX);
   const minutes = data && data.minutes === undefined ? 60 : data && data.minutes;
@@ -92,7 +93,7 @@ async function requestSupportAccess(ctx, callerUid, token, data) {
  * OWNER, and the SCHOOL ADMIN of the school (their data, their call).
  */
 async function revokeSupportAccess(ctx, callerUid, token, data) {
-  const schoolId = text(data && data.schoolId, 128);
+  const schoolId = idOf(data && data.schoolId);
   if (!schoolId) return { error: 'INVALID_ARGUMENT', reason: 'schoolId' };
   const wantedAdmin = text(data && data.adminUid, 128);
 
@@ -155,7 +156,7 @@ async function countOf(query) {
 async function getSchoolOverview(ctx, callerUid, token, data) {
   const caller = await platformCaller(ctx.db, callerUid, token, ['OWNER', 'SUPPORT', 'COMPLIANCE', 'VIEWER']);
   if (caller.error) return { error: caller.error };
-  const schoolId = text(data && data.schoolId, 128);
+  const schoolId = idOf(data && data.schoolId);
   if (!schoolId) return { error: 'INVALID_ARGUMENT', reason: 'schoolId' };
   const schoolRef = ctx.db.collection('schools').doc(schoolId);
   const s = (await schoolRef.get()).data();
@@ -199,8 +200,17 @@ async function getSchoolOverview(ctx, callerUid, token, data) {
       }
     : null;
 
+  const rec = (await ctx.db.collection('schoolRecovery').doc(schoolId).get()).data();
+  const recovery = rec
+    ? { state: rec.state, reason: rec.reason || '', requestedBy: rec.requestedBy || '', requestedByEmail: rec.requestedByEmail || '' }
+    : null;
+
+  const subDoc = (await ctx.db.collection('schoolSubscriptions').doc(schoolId).get()).data() || null;
+
   return {
     offboarding,
+    recovery,
+    subscription: require('./subscriptions').subscriptionView(subDoc, s, ctx.nowDate()),
     school: {
       id: schoolId,
       statusReason: s.statusReason || '',

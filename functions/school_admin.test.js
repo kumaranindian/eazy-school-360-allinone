@@ -57,6 +57,9 @@ function fakeAuth(existing = {}) {
 }
 
 const base = () => ({
+  // Protected callables require the caller's school to exist and be usable.
+  'schools/s1': { name: 'S1', status: 'ACTIVE' },
+  'schools/s2': { name: 'S2', status: 'ACTIVE' },
   'users/boss': { status: 'ACTIVE', schoolId: 's1', branchId: 'main', role: 'SCHOOL_ADMIN' },
   'users/branch': { status: 'ACTIVE', schoolId: 's1', branchId: 'main', role: 'BRANCH_ADMIN' },
   'users/teacher': { status: 'ACTIVE', schoolId: 's1', branchId: 'main', role: 'TEACHER' },

@@ -433,9 +433,11 @@ async function runFollowUpReminders({ db, now, log = () => {} }, { today = new D
   let scanned = 0;
   let failed = 0;
   const schools = await db.collection('schools').get();
+  const engine = require('./access_engine');
   for (const sd of schools.docs) {
     const schoolId = sd.id;
     try {
+      if (engine.lifecycleOf(sd.data()) !== 'ACTIVE' || (engine.featureOff(sd.data(), 'admission'))) continue;
       const settings = await a.loadSettings(db, schoolId);
       if (!settings.enabled || settings.remindersEnabled === false) continue;
       const zone = typeof sd.data().timezone === 'string' && feeReminders.validZone(sd.data().timezone) ? sd.data().timezone : 'UTC';

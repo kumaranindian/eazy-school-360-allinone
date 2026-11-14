@@ -168,10 +168,13 @@ test('a disabled account is denied, even for its own school\'s data', async () =
 // School creation (brief §12) — the two-phase self-signup write
 // ---------------------------------------------------------------------
 
+// Every new school starts INACTIVE; only a platform owner activates it (server side).
+const newSchoolDoc = (id, by, status = 'INACTIVE') => ({ ...schoolDoc(id, by), status });
+
 test('a brand-new account can self-signup: school + admin profile + default branch in ONE batch', async () => {
   const newAdmin = asUser('new-admin');
   const batch = writeBatch(newAdmin);
-  batch.set(doc(newAdmin, 'schools', 'school-new'), schoolDoc('school-new', 'new-admin'));
+  batch.set(doc(newAdmin, 'schools', 'school-new'), newSchoolDoc('school-new', 'new-admin'));
   batch.set(
     doc(newAdmin, 'users', 'new-admin'),
     userDoc({ schoolId: 'school-new', branchId: MAIN, role: 'SCHOOL_ADMIN', createdBy: 'new-admin' }),
@@ -180,9 +183,22 @@ test('a brand-new account can self-signup: school + admin profile + default bran
   await assertSucceeds(batch.commit());
 });
 
+test('a self-registered school can only be created INACTIVE: ACTIVE, SUSPENDED, EXPIRED, CLOSED are all refused', async () => {
+  for (const status of ['ACTIVE', 'SUSPENDED', 'EXPIRED', 'CLOSED', undefined]) {
+    const who = asUser(`pretender-${status}`);
+    const batch = writeBatch(who);
+    const sd = newSchoolDoc('school-pretend', `pretender-${status}`, status);
+    if (status === undefined) delete sd.status;
+    batch.set(doc(who, 'schools', 'school-pretend'), sd);
+    batch.set(doc(who, 'users', `pretender-${status}`), userDoc({ schoolId: 'school-pretend', branchId: MAIN, role: 'SCHOOL_ADMIN', createdBy: `pretender-${status}` }));
+    batch.set(doc(who, 'schools', 'school-pretend', 'branches', MAIN), branchDoc('school-pretend', `pretender-${status}`));
+    await assertFails(batch.commit());
+  }
+});
+
 test('self-signup writes made separately (not as one batch) are rejected', async () => {
   const loner = asUser('loner');
-  await assertFails(setDoc(doc(loner, 'schools', 'school-loner'), schoolDoc('school-loner', 'loner')));
+  await assertFails(setDoc(doc(loner, 'schools', 'school-loner'), newSchoolDoc('school-loner', 'loner')));
 });
 
 test('an account that already has a profile cannot self-signup a second school', async () => {
@@ -194,7 +210,7 @@ test('an account that already has a profile cannot self-signup a second school',
   });
 
   const existingAdmin = asUser('existing-admin');
-  await assertFails(setDoc(doc(existingAdmin, 'schools', 'school-second'), schoolDoc('school-second', 'existing-admin')));
+  await assertFails(setDoc(doc(existingAdmin, 'schools', 'school-second'), newSchoolDoc('school-second', 'existing-admin')));
 });
 
 test('a school admin can add a branch to their own school, not to another school', async () => {

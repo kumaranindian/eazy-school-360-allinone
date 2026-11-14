@@ -46,6 +46,14 @@ class VersionedStore extends Map {
 function fakeDb(seed = {}) {
   const store = new VersionedStore();
   for (const [k, v] of Object.entries(seed)) store.set(k, structuredClone(v));
+  // Every protected callable now checks the school is usable, so a user's school must
+  // exist. Fixtures that name a school only through a user get an ACTIVE one, unless the
+  // test seeded that school itself (lifecycle tests always do).
+  for (const [k, v] of Object.entries(seed)) {
+    if (k.startsWith('users/') && v && typeof v.schoolId === 'string' && v.schoolId && !store.has(`schools/${v.schoolId}`)) {
+      store.set(`schools/${v.schoolId}`, { name: v.schoolId, status: 'ACTIVE', autoSeeded: true });
+    }
+  }
   let auto = 0;
   const snap = (path) => ({
     exists: store.has(path),
@@ -73,28 +81,51 @@ function fakeDb(seed = {}) {
     },
     collection: (c) => coll(`${path}/${c}`),
   });
+  // Orders [keys] by [orders] ({field, dir}); the document name is always the tiebreaker (like Firestore).
+  const sortKeys = (keys, orders) =>
+    keys.sort((a, b) => {
+      for (const { field, dir } of orders) {
+        if (field === '__name__') continue;
+        const x = num(getPath(store.get(a), field));
+        const y = num(getPath(store.get(b), field));
+        if (x < y) return dir === 'desc' ? 1 : -1;
+        if (x > y) return dir === 'desc' ? -1 : 1;
+      }
+      const desc = orders.length > 0 && orders[orders.length - 1].dir === 'desc';
+      return desc ? (a < b ? 1 : a > b ? -1 : 0) : a < b ? -1 : a > b ? 1 : 0;
+    });
   const coll = (path) => {
     const conds = [];
+    const orders = [];
     let lim = Infinity;
     let after = null;
     const q = {
-      doc: (id) => ref(`${path}/${id || `auto${++auto}`}`),
+      doc: (id) => {
+        // Like Firestore: an id with a slash is not a document path of this collection (it throws).
+        if (typeof id === 'string' && (id === '.' || id === '..' || /^__.*__$/.test(id))) throw new Error(`Invalid document id "${id}"`);
+        if (typeof id === 'string' && id.includes('/')) throw new Error(`Value for argument "documentPath" must point to a document, but was "${id}"`);
+        if (id !== undefined && id !== null && id !== '' && typeof id !== 'string') throw new Error('Value for argument "documentPath" is not a valid resource path');
+        return ref(`${path}/${id || `auto${++auto}`}`);
+      },
       where: (f, op, v) => (conds.push([f, op, v]), q),
       add: async (d) => {
         const r = ref(`${path}/auto${++auto}`);
         await r.set(d);
         return r;
       },
-      orderBy: () => q,
+      orderBy: (field, dir = 'asc') => (orders.push({ field, dir }), q),
       limit: (n) => ((lim = n), q),
       startAfter: (d) => ((after = d.ref.path), q),
       get: async () => {
         const depth = path.split('/').length + 1;
-        let rows = [...store.keys()]
-          .filter((k) => k.startsWith(`${path}/`) && k.split('/').length === depth)
-          .sort()
-          .filter((k) => !after || k > after)
-          .filter((k) => conds.every((c) => matches(store.get(k), c)));
+        let rows = sortKeys(
+          [...store.keys()].filter((k) => k.startsWith(`${path}/`) && k.split('/').length === depth).filter((k) => conds.every((c) => matches(store.get(k), c))),
+          orders,
+        );
+        if (after) {
+          const at = rows.indexOf(after);
+          rows = at >= 0 ? rows.slice(at + 1) : orders.length ? rows : rows.filter((k) => k > after);
+        }
         rows = rows.slice(0, lim);
         return { docs: rows.map(snap) };
       },

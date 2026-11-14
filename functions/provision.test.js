@@ -81,6 +81,9 @@ function fakeAuth(existing = {}) {
 }
 const B = 'schools/s1/branches/b1';
 const base = () => ({
+  // Protected callables require the caller's school to exist and be usable.
+  'schools/s1': { name: 'S1', status: 'ACTIVE' },
+  'schools/s2': { name: 'S2', status: 'ACTIVE' },
   'users/admin': { status: 'ACTIVE', schoolId: 's1', role: 'SCHOOL_ADMIN' },
   [`${B}/staff/t1`]: { firstName: 'Asha', lastName: 'K', email: 'Asha@x.com', status: 'ACTIVE', isTeacher: true },
   [`${B}/staff/t2`]: { firstName: 'No', lastName: 'Mail', status: 'ACTIVE', isTeacher: true },

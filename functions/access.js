@@ -107,14 +107,27 @@ async function assertAdmin(db, uid, schoolId, branchId, token) {
   const snap = await db.collection('users').doc(uid).get();
   const u = snap.data();
   if (!u || u.schoolId !== schoolId || !loginAllowed(u, token)) return null;
-  if (u.role === 'SCHOOL_ADMIN') return u;
-  if (branchId) {
+  let caller = null;
+  if (u.role === 'SCHOOL_ADMIN') caller = u;
+  else if (branchId) {
     // A branch admin of this branch: by home role, or by a per-branch role
     // (users.branchRoles). The returned caller carries the role held HERE.
-    if (u.role === 'BRANCH_ADMIN' && u.branchId === branchId) return u;
-    if (u.branchId !== branchId && (u.branchRoles || {})[branchId] === 'BRANCH_ADMIN') return { ...u, role: 'BRANCH_ADMIN' };
+    if (u.role === 'BRANCH_ADMIN' && u.branchId === branchId) caller = u;
+    else if (u.branchId !== branchId && (u.branchRoles || {})[branchId] === 'BRANCH_ADMIN') caller = { ...u, role: 'BRANCH_ADMIN' };
   }
-  return null;
+  // The school itself must be usable RIGHT NOW (authoritative read, never the mirror alone).
+  if (caller && !(await schoolGate(db, schoolId)).allowed) return null;
+  return caller;
+}
+
+/**
+ * The school-level half of the central access engine (lifecycle, subscription when
+ * enforced, optional feature) for any gateway that authenticated the caller itself.
+ * Returns `{ allowed, code }`.
+ */
+async function schoolGate(db, schoolId, feature) {
+  const engine = require('./access_engine');
+  return engine.schoolUsable(db, schoolId, feature, { enforceSubscription: engine.subscriptionsEnforced() });
 }
 
 function audit(ctx, schoolId, event) {
@@ -550,6 +563,7 @@ module.exports = {
   hasSecondFactor,
   schoolMethods,
   assertAdmin,
+  schoolGate,
   intersect,
   getLoginAccess,
   setLoginAccess,
