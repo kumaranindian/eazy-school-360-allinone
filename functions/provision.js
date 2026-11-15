@@ -59,18 +59,9 @@ const branchRef = (db, s, b) => db.collection('schools').doc(s).collection('bran
 // Who may provision: an ACTIVE school admin of the school, or branch admin of
 // the branch. Mirrors canManageStaff in firestore.rules.
 async function assertAdmin(db, uid, schoolId, branchId, token) {
-  const snap = await db.collection('users').doc(uid).get();
-  const u = snap.data();
-  // Same gate as the rules: a disabled login or method cannot administer.
-  if (!u || u.schoolId !== schoolId || !loginAllowed(u, token)) return null;
-  if (u.role === 'SCHOOL_ADMIN') return u;
-  if (branchId) {
-    // A branch admin of this branch: by home role, or by a per-branch role
-    // (users.branchRoles). The returned caller carries the role held HERE.
-    if (u.role === 'BRANCH_ADMIN' && u.branchId === branchId) return u;
-    if (u.branchId !== branchId && (u.branchRoles || {})[branchId] === 'BRANCH_ADMIN') return { ...u, role: 'BRANCH_ADMIN' };
-  }
-  return null;
+  // One gateway for every admin callable: identity, role, branch AND the school's
+  // current lifecycle (see access.assertAdmin / access_engine.js).
+  return require('./access').assertAdmin(db, uid, schoolId, branchId, token);
 }
 
 // Finds or creates the Authentication account for [email]. Returns

@@ -1,13 +1,19 @@
+import 'package:eazy_school_360/core/errors/app_failure.dart';
 import 'package:eazy_school_360/core/regional/regional_settings.dart';
 import 'package:eazy_school_360/features/authentication/domain/app_user.dart';
 import 'package:eazy_school_360/features/authentication/domain/auth_repository.dart';
 import 'package:eazy_school_360/features/authentication/domain/login_method.dart';
+import 'package:eazy_school_360/features/authentication/domain/mfa.dart';
 import 'package:eazy_school_360/features/authentication/domain/phone_otp.dart';
 import 'package:eazy_school_360/features/school_setup/domain/branch.dart';
 import 'package:eazy_school_360/features/school_setup/domain/school.dart';
 import 'package:eazy_school_360/features/school_setup/domain/school_repository.dart';
 import 'package:eazy_school_360/features/users/domain/user_profile.dart';
 import 'package:eazy_school_360/features/users/domain/user_repository.dart';
+
+class _FakeMfaPending extends MfaPending {
+  const _FakeMfaPending();
+}
 
 /// In-memory [AuthRepository] fake. These tests never touch real
 /// Firebase — the whole point of the repository interfaces.
@@ -21,6 +27,21 @@ class FakeAuthRepository implements AuthRepository {
   Object? otpError;
   final List<String> requestedPhones = [];
   final List<String> verifiedCodes = [];
+
+  /// Two-step verification: password sign-in throws [MfaRequiredException]
+  /// when [requireMfa]; [validMfaCode] completes it (anything else is refused).
+  bool requireMfa = false;
+  String validMfaCode = '123456';
+  final List<String> mfaCodesTried = [];
+
+  /// What [sessionSecurity] reports; by default a session that used a second
+  /// factor, so existing platform-admin tests are unaffected.
+  SessionSecurity security = const SessionSecurity(
+    secondFactorSignedIn: true,
+    enrolledFactors: 1,
+  );
+  Object? enrollmentError;
+  final List<String> enrollmentCodes = [];
 
   FakeAuthRepository({
     AppUser? signedInAs,
@@ -38,8 +59,39 @@ class FakeAuthRepository implements AuthRepository {
     required String email,
     required String password,
   }) async {
+    if (requireMfa) throw const MfaRequiredException(_FakeMfaPending());
     _current = AppUser(uid: 'fake-uid', email: email);
     return _current!;
+  }
+
+  @override
+  Future<AppUser> completeMfaSignIn(MfaPending pending, String code) async {
+    mfaCodesTried.add(code);
+    if (code != validMfaCode) {
+      throw const AuthFailure('That code is not correct.');
+    }
+    _current = const AppUser(uid: 'fake-uid', email: 'mfa@example.com');
+    return _current!;
+  }
+
+  @override
+  Future<SessionSecurity> sessionSecurity() async => security;
+
+  @override
+  Future<TotpEnrollment> startTotpEnrollment() async => const TotpEnrollment(
+    secretKey: 'ABCD EFGH IJKL MNOP',
+    otpAuthUrl: 'otpauth://totp/EazySchool%20360:me?secret=ABCDEFGHIJKLMNOP',
+    handle: Object(),
+  );
+
+  @override
+  Future<void> finishTotpEnrollment(
+    TotpEnrollment enrollment,
+    String code,
+  ) async {
+    enrollmentCodes.add(code);
+    final e = enrollmentError;
+    if (e != null) throw e;
   }
 
   @override

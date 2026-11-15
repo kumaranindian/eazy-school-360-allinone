@@ -1,3 +1,4 @@
+import '../../platform_admin/presentation/pages/school_support_access_page.dart';
 import '../../branding/presentation/pages/platform_branding_page.dart';
 import '../../branding/presentation/pages/school_branding_page.dart';
 import 'package:go_router/go_router.dart';
@@ -80,6 +81,10 @@ List<RouteBase> academicSetupRoutes() => [
       GoRoute(
         path: 'authentication',
         builder: (context, state) => const AuthSettingsPage(),
+      ),
+      GoRoute(
+        path: 'support-access',
+        builder: (context, state) => const SchoolSupportAccessPage(),
       ),
     ],
   ),

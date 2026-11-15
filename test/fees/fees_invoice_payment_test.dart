@@ -1,12 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eazy_school_360/features/fees/domain/fee_enums.dart';
+import 'package:eazy_school_360/features/fees/domain/fee_letterhead.dart';
 import 'package:eazy_school_360/features/fees/domain/fee_planners.dart';
 import 'package:eazy_school_360/features/fees/domain/fee_summary.dart';
 import 'package:eazy_school_360/features/fees/domain/invoice.dart';
 import 'package:eazy_school_360/features/fees/domain/payment.dart';
 import 'package:eazy_school_360/features/fees/domain/payment_rules.dart';
 import 'package:eazy_school_360/features/fees/presentation/widgets/fee_pdf.dart';
+import 'package:eazy_school_360/features/school_setup/domain/school.dart';
+import 'package:eazy_school_360/features/school_setup/domain/school_status.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pdf/pdf.dart';
 
 InvoiceLine _line(int amount, {int discount = 0}) => InvoiceLine(
   assignmentId: 'a',
@@ -616,6 +620,90 @@ void main() {
       });
     },
   );
+
+  group('A5 two-copy documents', () {
+    int pageCount(List<int> bytes) => RegExp(
+      r'/Type\s*/Page\b',
+    ).allMatches(String.fromCharCodes(bytes)).length;
+
+    test('every page is A5 landscape', () async {
+      final bytes = await FeePdf.invoice(_invoice());
+      final text = String.fromCharCodes(bytes);
+      expect(
+        RegExp(r'MediaBox\s*\[0 0 595\.\d+ 419\.\d+\]').hasMatch(text),
+        isTrue,
+      );
+      expect(FeePdf.pageFormat.width, greaterThan(FeePdf.pageFormat.height));
+      expect(FeePdf.pageFormat.width, closeTo(PdfPageFormat.a5.height, 0.01));
+      expect(pageCount(bytes), 1);
+    });
+
+    test(
+      'a long invoice continues on more sheets, never overflowing',
+      () async {
+        final bytes = await FeePdf.invoice(
+          _invoice(lines: [for (var n = 0; n < 20; n++) _line(1000)]),
+        );
+        expect(pageCount(bytes), 3);
+      },
+    );
+
+    test('a full sheet with every total line and a long address fits', () async {
+      final bytes = await FeePdf.invoice(
+        _invoice(
+          lines: [for (var n = 0; n < 7; n++) _line(150000, discount: 1000)],
+          waived: 5000,
+          paid: 10000,
+        ),
+        letterhead: const FeeLetterhead(
+          schoolName: 'The Rosewood International Montessori School',
+          branchName: 'Anna Nagar Branch',
+          addressLines: [
+            '12, Long Street, Opposite Town Hall',
+            'Chennai, Tamil Nadu - 600040',
+          ],
+          contactLine:
+              'Ph: 044 1234 5678  |  office@rosewood.example  |  rosewood.example',
+        ),
+      );
+      expect(pageCount(bytes), 1);
+    });
+
+    test('an invoice with no lines still prints one sheet', () async {
+      final bytes = await FeePdf.invoice(_invoice(lines: const []));
+      expect(pageCount(bytes), 1);
+    });
+
+    test('the letterhead takes the branch address, then the school', () {
+      final school = School(
+        schoolId: 's',
+        name: 'Rosewood High',
+        email: 'office@rose.test',
+        phone: '111',
+        addressLine1: 'School Road',
+        city: 'Chennai',
+        postalCode: '600001',
+        website: 'rose.test',
+        status: SchoolStatus.active,
+      );
+      final l = FeeLetterhead.from(school: school, branch: null);
+      expect(l.schoolName, 'Rosewood High');
+      expect(l.addressLines, ['School Road', 'Chennai - 600001']);
+      expect(l.contactLine, 'Ph: 111  |  office@rose.test  |  rose.test');
+    });
+
+    test('missing school details fall back to the stored names', () {
+      final l = FeeLetterhead.from(
+        school: null,
+        branch: null,
+        fallbackSchoolName: 'Snapshot School',
+        fallbackBranchName: 'Main',
+      );
+      expect(l.schoolName, 'Snapshot School');
+      expect(l.branchName, 'Main');
+      expect(l.addressLines, isEmpty);
+    });
+  });
 
   group('printable documents', () {
     test(

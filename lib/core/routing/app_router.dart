@@ -32,6 +32,21 @@ import '../../features/admission/presentation/admission_routes.dart';
 import '../../features/students/presentation/parents_routes.dart';
 import '../../features/students/presentation/students_routes.dart';
 import '../../features/users/presentation/pages/users_page.dart';
+import '../../features/branding/presentation/pages/platform_branding_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_admins_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_audit_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_audit_trail_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_availability_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_billing_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_notices_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_deletions_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_school_detail_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_schools_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_home_page.dart';
+import '../../features/platform_admin/presentation/pages/platform_mfa_page.dart';
+import '../../features/platform_admin/presentation/providers/platform_session_providers.dart';
+import '../../features/platform_admin/presentation/widgets/platform_scaffold.dart';
+import '../permissions/user_role.dart';
 import '../tenant/account_inactive_exception.dart';
 import '../tenant/tenant_context_provider.dart';
 import 'app_routes.dart';
@@ -46,6 +61,7 @@ class _RouterRefreshListenable extends ChangeNotifier {
   _RouterRefreshListenable(Ref ref) {
     ref.listen(authStateChangesProvider, (_, __) => notifyListeners());
     ref.listen(tenantContextProvider, (_, __) => notifyListeners());
+    ref.listen(sessionSecurityProvider, (_, __) => notifyListeners());
   }
 }
 
@@ -130,6 +146,31 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             : ReturnTo.redirect(AppRoutes.createSchool, state.uri);
       }
 
+      // Platform administrators (Avail404): the second factor comes first (the
+      // rules and server refuse them without it), then they stay on the
+      // platform pages unless their profile carries a school.
+      if (tenant.role == UserRole.platformAdmin) {
+        final security = ref.read(sessionSecurityProvider);
+        if (security.isLoading) {
+          return path == '/' ? null : ReturnTo.redirect('/', state.uri);
+        }
+        final secured = security.value?.secondFactorSignedIn ?? false;
+        if (!secured) {
+          return path == AppRoutes.platformMfa ? null : AppRoutes.platformMfa;
+        }
+        if (path == AppRoutes.platformMfa) return AppRoutes.platformHome;
+        final onPlatformPage =
+            path == AppRoutes.platformHome ||
+            path.startsWith('${AppRoutes.platformHome}/');
+        if (tenant.school == null && !onPlatformPage) {
+          return AppRoutes.platformHome;
+        }
+      } else if (path == AppRoutes.platformMfa ||
+          path == AppRoutes.platformHome ||
+          path.startsWith('${AppRoutes.platformHome}/')) {
+        return AppRoutes.dashboard;
+      }
+
       const signedOutOrOnboardingPaths = {
         '/',
         AppRoutes.login,
@@ -199,6 +240,66 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.deleteAccount,
         builder: (context, state) => const AccountDeletionPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.platformHome,
+        builder: (context, state) => const PlatformHomePage(),
+        routes: [
+          GoRoute(
+            path: 'admins',
+            builder: (context, state) => const PlatformAdminsPage(),
+          ),
+          GoRoute(
+            path: 'branding',
+            builder: (context, state) => const PlatformScaffold(
+              title: 'Platform branding',
+              child: PlatformBrandingPage(
+                parentRoute: AppRoutes.platformHome,
+                parentLabel: 'Platform',
+              ),
+            ),
+          ),
+          GoRoute(
+            path: 'schools',
+            builder: (context, state) => const PlatformSchoolsPage(),
+            routes: [
+              GoRoute(
+                path: ':schoolId',
+                builder: (context, state) => PlatformSchoolDetailPage(
+                  schoolId: state.pathParameters['schoolId']!,
+                ),
+              ),
+            ],
+          ),
+          GoRoute(
+            path: 'deletions',
+            builder: (context, state) => const PlatformDeletionsPage(),
+          ),
+          GoRoute(
+            path: 'audit',
+            builder: (context, state) => const PlatformAuditPage(),
+          ),
+          GoRoute(
+            path: 'audit-trail',
+            builder: (context, state) => const PlatformAuditTrailPage(),
+          ),
+          GoRoute(
+            path: 'billing',
+            builder: (context, state) => const PlatformBillingPage(),
+          ),
+          GoRoute(
+            path: 'notices',
+            builder: (context, state) => const PlatformNoticesPage(),
+          ),
+          GoRoute(
+            path: 'availability',
+            builder: (context, state) => const PlatformAvailabilityPage(),
+          ),
+          GoRoute(
+            path: 'mfa',
+            builder: (context, state) => const PlatformMfaPage(),
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.createSchool,

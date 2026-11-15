@@ -94,7 +94,7 @@ test('self sign-up may carry regional settings, never a pre-set lock', async () 
     const db = as(uid);
     const { writeBatch } = await import('firebase/firestore');
     const b = writeBatch(db);
-    b.set(doc(db, 'schools', s), { name: 'N', email: 'n@example.com', status: 'ACTIVE', ...regional(), ...extra, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: uid, updatedBy: uid });
+    b.set(doc(db, 'schools', s), { name: 'N', email: 'n@example.com', status: 'INACTIVE', ...regional(), ...extra, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: uid, updatedBy: uid });
     b.set(doc(db, 'users', uid), { name: 'N', email: 'n@example.com', schoolId: s, branchId: null, role: 'SCHOOL_ADMIN', status: 'ACTIVE', linkedParentId: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: uid, updatedBy: uid });
     return b.commit();
   };

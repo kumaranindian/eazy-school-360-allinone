@@ -92,7 +92,9 @@ async function authorizeFees(db, uid, token, schoolId, branchId, financeOk) {
   const u = (await db.collection('users').doc(uid).get()).data();
   if (!u || u.schoolId !== schoolId || u.status !== 'ACTIVE' || !loginAllowed(u, token)) return null;
   const here = u.branchId === branchId ? u.role : (u.branchRoles || {})[branchId];
-  return here === 'FINANCE' ? { ...u, role: 'FINANCE' } : null;
+  if (here !== 'FINANCE') return null;
+  if (!(await require('./access').schoolGate(db, schoolId, 'admission')).allowed) return null;
+  return { ...u, role: 'FINANCE' };
 }
 
 async function context(ctx, uid, token, data, { financeOk = false } = {}) {

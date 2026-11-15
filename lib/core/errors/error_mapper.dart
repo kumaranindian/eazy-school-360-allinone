@@ -85,6 +85,22 @@ AppFailure _mapFirebaseAuthException(fb.FirebaseAuthException error) {
       return const AuthFailure(
         'Too many attempts. Please wait a moment and try again.',
       );
+    case 'invalid-verification-code':
+      return const AuthFailure(
+        'That code is not correct. Check your authenticator app and try again.',
+      );
+    case 'requires-recent-login':
+      return const AuthFailure(
+        'For your security, sign out, sign in again and retry.',
+      );
+    case 'unverified-email':
+      return const AuthFailure(
+        'Your email address is not verified, so two-step verification cannot be set up. Contact Avail404.',
+      );
+    case 'second-factor-already-in-use':
+      return const AuthFailure(
+        'That authenticator app is already set up on this account.',
+      );
     case 'network-request-failed':
       return const NetworkFailure();
     case 'account-exists-with-different-credential':

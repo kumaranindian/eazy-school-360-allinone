@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/firebase_auth_repository.dart';
 import '../../domain/app_user.dart';
 import '../../domain/auth_repository.dart';
+import '../../domain/mfa.dart';
 import '../../../../core/errors/app_failure.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../domain/google_sign_in_cancelled.dart';
@@ -42,6 +43,27 @@ class SignInController extends AsyncNotifier<void> {
 final signInControllerProvider = AsyncNotifierProvider<SignInController, void>(
   SignInController.new,
 );
+
+/// Finishes a password sign-in that needs a second factor (the code from the
+/// person's authenticator app). Success changes the auth state, which the router
+/// reacts to; a wrong code stays as an error for the dialog to show.
+class MfaSignInController extends AsyncNotifier<void> {
+  @override
+  Future<void> build() async {}
+
+  Future<bool> complete(MfaPending pending, String code) async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(
+      () => ref.read(authRepositoryProvider).completeMfaSignIn(pending, code),
+    );
+    return !state.hasError;
+  }
+}
+
+final mfaSignInControllerProvider =
+    AsyncNotifierProvider.autoDispose<MfaSignInController, void>(
+      MfaSignInController.new,
+    );
 
 /// Drives the "Sign in with Google" button. A cancelled picker/popup
 /// ([GoogleSignInCancelled]) resets straight back to idle — it's not an

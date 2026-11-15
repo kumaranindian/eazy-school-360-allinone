@@ -147,8 +147,16 @@ function `admissionFollowUpReminders`, notification types `ADMISSION_FOLLOWUP_DU
   rules (+1: Finance reads fees/payments but nothing else; 15 passing), Dart role-matrix and route tests (4) and Finance widget tests (6).
 - Not done: Finance cannot see fee info of a *converted* student inside the normal student fee screens (no ledger posting, see phase 8); the Admission fees list shows up to 200 open fees.
 
+## Storage rules: found and fixed by CI (after phase 13)
+The first CI run with a working Storage emulator ran the admission Storage rule tests (they cannot run in the build sandbox). Five of six passed; the sixth showed that a **second upload to
+the same path was accepted** (the rule's `allow create` did not exclude an existing object, unlike every other create-only rule in `storage.rules`). Fixed by adding `resource == null`
+to the create rule, so a stored document can no longer be overwritten from a client. The test file also now deletes stored objects before each test (CI's `clearStorage()` left the first test's object behind, which the create-only rule correctly refuses to overwrite).
+Verified locally against the real Storage emulator: 6 of 6 pass with the fix, and the overwrite test fails against the previous rule.
+**Running the Storage emulator in the build sandbox:** start it with the proxy variables unset (`env -u JAVA_TOOL_OPTIONS -u HTTPS_PROXY -u https_proxy -u HTTP_PROXY -u http_proxy firebase emulators:exec --only firestore,storage …`);
+with them set the emulator's Firestore lookups fail with "Unexpected rules runtime error", which is what made the allow-cases look untestable earlier.
+
 ## Known limitations (phase 6)
-- The Storage rules are untested in an emulator (see above); the real upload → confirm round trip and `FirebaseAdmissionDocumentStore` are untested.
+- The Storage rules are now tested against the emulator (see the section above); the real upload → confirm round trip and `FirebaseAdmissionDocumentStore` are still untested.
 - (Phase 7 added fees.) No conversion to a student (phase 8): an APPROVED application is the end of the road for now.
 - The application edit form covers the essential fields (not every enquiry field, e.g. no source or internal remarks); a reviewer cannot send a draft back for changes (they reject documents instead).
 - Approving needs the school's required documents verified; there is no per-document expiry or duplicate-file detection.

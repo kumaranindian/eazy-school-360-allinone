@@ -19,7 +19,16 @@ import '../widgets/brand_preview.dart';
 /// schools that have not set their own, and the custom presets every school
 /// can pick. A school's own theme always wins over the default.
 class PlatformBrandingPage extends ConsumerStatefulWidget {
-  const PlatformBrandingPage({super.key});
+  /// Where the back link goes. Inside the school app that is Settings; on the
+  /// platform home (a platform admin has no school) it is the platform home.
+  final String parentRoute;
+  final String parentLabel;
+
+  const PlatformBrandingPage({
+    super.key,
+    this.parentRoute = AppRoutes.settings,
+    this.parentLabel = 'Settings',
+  });
 
   @override
   ConsumerState<PlatformBrandingPage> createState() =>
@@ -156,8 +165,8 @@ class _PlatformBrandingPageState extends ConsumerState<PlatformBrandingPage> {
               description:
                   'The default theme for schools that have not set their own, '
                   'and the presets every school can choose from.',
-              parentRoute: AppRoutes.settings,
-              parentLabel: 'Settings',
+              parentRoute: widget.parentRoute,
+              parentLabel: widget.parentLabel,
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(AppSpacing.md),
                 child: Column(

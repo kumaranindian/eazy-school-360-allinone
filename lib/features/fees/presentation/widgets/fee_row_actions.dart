@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:printing/printing.dart';
 
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/extensions/context_extensions.dart';
@@ -13,7 +12,7 @@ import '../../domain/invoice.dart';
 import '../../domain/payment.dart';
 import '../providers/fee_providers.dart';
 import 'fee_action_dialogs.dart';
-import 'fee_pdf.dart';
+import 'fee_print.dart';
 
 /// Whether [tenant] may take a payment against [invoice] right now: they hold
 /// the permission, and the invoice is open with something still owing.
@@ -64,10 +63,7 @@ Future<void> printReceiptFor(
       }
       return;
     }
-    await Printing.layoutPdf(
-      onLayout: (_) => FeePdf.receipt(receipt),
-      name: receipt.receiptNumber,
-    );
+    await FeePrint.printReceipt(ref, receipt);
   } catch (error) {
     if (context.mounted) {
       context.showSnackBar(userMessageFor(error), isError: true);

@@ -22,6 +22,7 @@ const branchRef = (db, s, b) => schoolRef(db, s).collection('branches').doc(b);
 async function assertSchoolAdmin(db, uid, schoolId, token) {
   const u = (await userRef(db, uid).get()).data();
   if (!u || u.schoolId !== schoolId || u.role !== 'SCHOOL_ADMIN' || !loginAllowed(u, token)) return null;
+  if (!(await require('./access').schoolGate(db, schoolId)).allowed) return null;
   return u;
 }
 

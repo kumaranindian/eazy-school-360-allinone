@@ -20,7 +20,8 @@ after(async () => env.cleanup());
 const A = 'brd-a';
 const B = 'brd-b';
 const base = { createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: 'seed', updatedBy: 'seed' };
-const as = (uid) => env.authenticatedContext(uid, { firebase: { sign_in_provider: 'password' } }).firestore();
+// Platform admins always sign in with a second factor (rules require it).
+const as = (uid) => env.authenticatedContext(uid, { firebase: { sign_in_provider: 'password', ...(uid.includes('platform') ? { sign_in_second_factor: 'totp' } : {}) } }).firestore();
 const cfg = (d, s = A) => doc(d, 'schools', s, 'branding', 'config');
 const plat = (d) => doc(d, 'platformBranding', 'default');
 const theme = { version: 1, preset: 'indigo', appearance: 'system' };

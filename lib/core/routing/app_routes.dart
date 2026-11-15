@@ -22,6 +22,25 @@ abstract final class AppRoutes {
 
   /// Asks Avail404 to delete the signed-in person's own account.
   static const String deleteAccount = '/delete-account';
+
+  /// Avail404 platform administrators: no school, outside the school shell.
+  static const String platformHome = '/platform';
+  static const String platformAdmins = '/platform/admins';
+  static const String platformBranding = '/platform/branding';
+  static const String platformSchools = '/platform/schools';
+  static const String platformSchoolDetail = '/platform/schools/:schoolId';
+  static const String platformDeletions = '/platform/deletions';
+  static const String platformAudit = '/platform/audit';
+  static const String platformAuditTrail = '/platform/audit-trail';
+  static const String platformBilling = '/platform/billing';
+  static const String platformNotices = '/platform/notices';
+  static const String platformAvailability = '/platform/availability';
+
+  /// School side: who from Avail404 can see this school's data (read-only).
+  static const String settingsSupportAccess = '/settings/support-access';
+
+  /// Two-step verification setup / sign-in-again for platform admins.
+  static const String platformMfa = '/platform/mfa';
   static const String dashboard = '/dashboard';
 
   /// The phone's "More" tab: every module, grouped (a sub-page of the
@@ -216,6 +235,18 @@ abstract final class AppRoutes {
     settingsFeeReminders: Permission.manageSchool,
     settingsBranding: Permission.manageSchool,
     settingsPlatformBranding: Permission.managePlatform,
+    platformHome: Permission.managePlatform,
+    platformAdmins: Permission.managePlatform,
+    platformBranding: Permission.managePlatform,
+    platformSchools: Permission.managePlatform,
+    platformSchoolDetail: Permission.managePlatform,
+    platformDeletions: Permission.managePlatform,
+    platformAudit: Permission.managePlatform,
+    platformAuditTrail: Permission.managePlatform,
+    platformBilling: Permission.managePlatform,
+    platformNotices: Permission.managePlatform,
+    platformAvailability: Permission.managePlatform,
+    settingsSupportAccess: Permission.manageSchool,
     students: Permission.viewStudentData,
     newStudent: Permission.manageStudentData,
     studentProfile: Permission.viewStudentData,

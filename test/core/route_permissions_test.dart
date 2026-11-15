@@ -25,6 +25,10 @@ void main() {
       'helpGuide',
       'dashboard',
       'dashboardMore',
+      // Two-step setup for platform admins: reachable before a second factor
+      // exists, so it cannot require a permission. The router sends everyone
+      // else away from it (see app_router_test / platform_admin_ui_test).
+      'platformMfa',
     };
     final src = File('lib/core/routing/app_routes.dart').readAsStringSync();
     final paths = {

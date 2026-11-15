@@ -32,7 +32,8 @@ before(async () => {
 });
 after(async () => env.cleanup());
 
-const as = (uid) => env.authenticatedContext(uid, { firebase: { sign_in_provider: 'password' }, email: 'x@x.com', email_verified: true }).firestore();
+// Platform admins always sign in with a second factor (rules require it).
+const as = (uid) => env.authenticatedContext(uid, { firebase: { sign_in_provider: 'password', ...(uid.includes('platform') ? { sign_in_second_factor: 'totp' } : {}) }, email: 'x@x.com', email_verified: true }).firestore();
 const anon = () => env.unauthenticatedContext().firestore();
 const REQ = ['accountDeletionRequests', 'DEL-AAAAAAAAAAAAAAAA'];
 

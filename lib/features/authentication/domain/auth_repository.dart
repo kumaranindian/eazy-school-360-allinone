@@ -1,5 +1,6 @@
 import 'app_user.dart';
 import 'login_method.dart';
+import 'mfa.dart';
 import 'phone_otp.dart';
 
 /// Boundary between the authentication feature and whatever actually
@@ -13,7 +14,8 @@ abstract class AuthRepository {
 
   AppUser? get currentUser;
 
-  /// Throws an [AppFailure] (via error_mapper) on failure.
+  /// Throws an [AppFailure] (via error_mapper) on failure, or an
+  /// [MfaRequiredException] when the account needs a second factor.
   Future<AppUser> signInWithEmailAndPassword({
     required String email,
     required String password,
@@ -48,6 +50,22 @@ abstract class AuthRepository {
     required String challengeId,
     required String code,
   });
+
+  /// Finishes a sign-in that threw [MfaRequiredException] with the code from
+  /// the person's authenticator app. Throws an [AppFailure] when the code is
+  /// wrong.
+  Future<AppUser> completeMfaSignIn(MfaPending pending, String code);
+
+  /// Whether the current session used a second factor, and how many are
+  /// enrolled. [SessionSecurity.none] when signed out.
+  Future<SessionSecurity> sessionSecurity();
+
+  /// Starts adding an authenticator app to the signed-in account.
+  Future<TotpEnrollment> startTotpEnrollment();
+
+  /// Finishes it with the first code the app shows. Throws an [AppFailure]
+  /// when the code is wrong.
+  Future<void> finishTotpEnrollment(TotpEnrollment enrollment, String code);
 
   /// How the current session was established, or null when signed out /
   /// unknown. Used to check it against the user's permitted methods.

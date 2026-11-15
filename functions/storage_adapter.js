@@ -16,6 +16,8 @@ function bucketStorage(bucket) {
       return files.length;
     },
     list: names,
+    // Writes a small text object (used for audit archives).
+    put: async (path, body, contentType) => void (await bucket.file(path).save(body, { contentType, resumable: false })),
     deleteFile: async (path) => void (await bucket.file(path).delete({ ignoreNotFound: true })),
     // The first [n] bytes of an object (to check its real format).
     head: async (path, n) => {

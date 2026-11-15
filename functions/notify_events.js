@@ -269,9 +269,12 @@ async function runFeeDueReminders({ db, now, log = () => {} }, { today = new Dat
   // due key -> the reminder steps (per school) that look for it
   const wanted = new Map();
   const policy = new Map(); // schoolId -> effective settings of the schools being served now
+  const engine = require('./access_engine');
   for (const sd of schools.docs) {
     const schoolId = sd.id;
+    // Scheduled work never reaches a school that is not usable now (central access engine).
     try {
+      if (engine.lifecycleOf(sd.data()) !== 'ACTIVE' || (engine.featureOff(sd.data(), 'fees') || engine.featureOff(sd.data(), 'feeReminders'))) continue;
       const zone = zoneOfSchool(sd.data());
       const stored = await feeReminders.settingsDoc(db, schoolId).get();
       const settings = feeReminders.effectiveSettings(stored.exists ? stored.data() : null);

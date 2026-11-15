@@ -261,7 +261,8 @@ class FirebaseSchoolRepository implements SchoolRepository {
         phone: schoolPhone,
         country: Countries.byCode(regional.countryCode)?.name,
         regional: regional,
-        status: SchoolStatus.active,
+        // Every new school starts INACTIVE; only the platform activates it.
+        status: SchoolStatus.inactive,
       );
       final adminProfile = UserProfile(
         userId: userId,

@@ -641,10 +641,15 @@ void main() {
       (tester) async {
         final w = await _pump(tester, role: UserRole.branchAdmin);
         await w.go(tester, '/fees');
-        expect(find.text('₹12,000.00'), findsOneWidget); // invoiced
-        expect(find.text('₹7,000.00'), findsOneWidget); // collected
-        expect(find.text('₹4,500.00'), findsOneWidget); // outstanding
+        // Each headline figure is on a tile and again in the breakdown.
+        expect(find.text('₹12,000.00'), findsWidgets); // billed
+        expect(find.text('₹7,000.00'), findsWidgets); // collected
+        expect(find.text('₹500.00'), findsWidgets); // waived
+        expect(find.text('₹4,500.00'), findsWidgets); // balance due
         expect(find.text('₹1,500.00'), findsOneWidget); // overdue
+        expect(find.text('₹3,000.00'), findsOneWidget); // not yet due
+        expect(find.text('Waived'), findsOneWidget);
+        expect(find.text('How the numbers add up'), findsOneWidget);
         expect(
           find.textContaining(
             'Void invoices and reversed payments are excluded',
@@ -699,7 +704,7 @@ void main() {
         repo.error = null;
         await tester.tap(find.text('Retry'));
         await tester.pumpAndSettle();
-        expect(find.text('₹12,000.00'), findsOneWidget);
+        expect(find.text('₹12,000.00'), findsWidgets);
       },
     );
 

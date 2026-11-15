@@ -70,11 +70,29 @@ function signInMethod(token) {
   return 'OTHER';
 }
 
-function loginAllowed(profile, token) {
+// True when the sign-in used a second factor (Firebase sets
+// `firebase.sign_in_second_factor` on the ID token only for MFA sign-ins).
+function hasSecondFactor(token) {
+  return !!(token && token.firebase && token.firebase.sign_in_second_factor);
+}
+
+// The profile's own sign-in policy (status + permitted methods), without the
+// second-factor requirement.
+function methodAllowed(profile, token) {
   if (!profile || profile.status !== 'ACTIVE') return false;
+  // The school is suspended by the platform (mirrored onto every profile).
+  if (profile.schoolAccess === 'SUSPENDED') return false;
   const l = profile.login;
   if (l == null) return true;
   return l.enabled === true && Array.isArray(l.effective) && l.effective.includes(signInMethod(token));
+}
+
+// Platform admins must ALWAYS have signed in with a second factor
+// (mirrors activeAndAllowed() in firestore.rules and loginAllowed() in
+// storage.rules).
+function loginAllowed(profile, token) {
+  if (!methodAllowed(profile, token)) return false;
+  return profile.role !== 'PLATFORM_ADMIN' || hasSecondFactor(token);
 }
 
 async function schoolMethods(db, schoolId) {
@@ -89,14 +107,27 @@ async function assertAdmin(db, uid, schoolId, branchId, token) {
   const snap = await db.collection('users').doc(uid).get();
   const u = snap.data();
   if (!u || u.schoolId !== schoolId || !loginAllowed(u, token)) return null;
-  if (u.role === 'SCHOOL_ADMIN') return u;
-  if (branchId) {
+  let caller = null;
+  if (u.role === 'SCHOOL_ADMIN') caller = u;
+  else if (branchId) {
     // A branch admin of this branch: by home role, or by a per-branch role
     // (users.branchRoles). The returned caller carries the role held HERE.
-    if (u.role === 'BRANCH_ADMIN' && u.branchId === branchId) return u;
-    if (u.branchId !== branchId && (u.branchRoles || {})[branchId] === 'BRANCH_ADMIN') return { ...u, role: 'BRANCH_ADMIN' };
+    if (u.role === 'BRANCH_ADMIN' && u.branchId === branchId) caller = u;
+    else if (u.branchId !== branchId && (u.branchRoles || {})[branchId] === 'BRANCH_ADMIN') caller = { ...u, role: 'BRANCH_ADMIN' };
   }
-  return null;
+  // The school itself must be usable RIGHT NOW (authoritative read, never the mirror alone).
+  if (caller && !(await schoolGate(db, schoolId)).allowed) return null;
+  return caller;
+}
+
+/**
+ * The school-level half of the central access engine (lifecycle, subscription when
+ * enforced, optional feature) for any gateway that authenticated the caller itself.
+ * Returns `{ allowed, code }`.
+ */
+async function schoolGate(db, schoolId, feature) {
+  const engine = require('./access_engine');
+  return engine.schoolUsable(db, schoolId, feature, { enforceSubscription: engine.subscriptionsEnforced() });
 }
 
 function audit(ctx, schoolId, event) {
@@ -528,8 +559,11 @@ module.exports = {
   normalizeEmail,
   signInMethod,
   loginAllowed,
+  methodAllowed,
+  hasSecondFactor,
   schoolMethods,
   assertAdmin,
+  schoolGate,
   intersect,
   getLoginAccess,
   setLoginAccess,

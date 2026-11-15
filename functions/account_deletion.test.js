@@ -428,3 +428,28 @@ test('references are unguessable and well-formed', () => {
   assert.strictEqual(seen.size, 500);
   for (const r of seen) assert.match(r, /^DEL-[A-Z2-7]{16}$/);
 });
+
+// ---- the review queue ------------------------------------------------------
+
+test('listForReview: only a platform admin; open by default, closed on request; no names or contacts', async () => {
+  const { db, ctx } = mk({ ...users(), 'schools/s1': { name: 'Rosewood High' } });
+  const a = await ad.requestOwn(ctx, 'parent', fresh(), { confirm: true });
+  const b = await ad.requestOwn(ctx, 'other', fresh(), { confirm: true });
+  await ad.review(ctx, 'reviewer', { reference: b.result.reference, decision: 'REJECT', reasonCode: 'DECLINED' });
+
+  for (const who of ['parent', 'adminA', 'nobody']) {
+    assert.strictEqual((await ad.listForReview(ctx, who, {})).error, 'PERMISSION_DENIED', who);
+  }
+  const open = (await ad.listForReview(ctx, 'reviewer', {})).result;
+  assert.deepStrictEqual(open.map((r) => r.reference), [a.result.reference]);
+  assert.strictEqual(open[0].role, 'PARENT');
+  assert.strictEqual(open[0].schoolName, 'Rosewood High');
+  assert.strictEqual(open[0].status, 'UNDER_REVIEW');
+  assert.ok(Array.isArray(open[0].history) && open[0].history.length >= 1);
+  assert.deepStrictEqual(Object.keys(open[0]).filter((k) => /email|phone|name$|uid/i.test(k) && k !== 'schoolName'), []);
+
+  const closed = (await ad.listForReview(ctx, 'reviewer', { scope: 'closed' })).result;
+  assert.deepStrictEqual(closed.map((r) => r.reference), [b.result.reference]);
+  assert.strictEqual(closed[0].status, 'REJECTED');
+  void db;
+});

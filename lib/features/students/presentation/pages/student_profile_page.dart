@@ -11,6 +11,7 @@ import '../../../../core/utils/date_formatting.dart';
 import '../../../../shared/dialogs/app_dialog.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/loading/async_value_widget.dart';
+import '../../../fees/presentation/widgets/student_fees_tab.dart';
 import '../../domain/academic_record_status.dart';
 import '../../domain/parent_student_link.dart';
 import '../../domain/student.dart';
@@ -49,6 +50,7 @@ class StudentProfilePage extends ConsumerWidget {
         final schoolId = tenant!.school!.schoolId;
         final branchId = tenant.branch!.branchId;
         final canManage = tenant.can(Permission.manageStudentData);
+        final canSeeFees = tenant.can(Permission.viewFees);
         final key = (
           schoolId: schoolId,
           branchId: branchId,
@@ -67,16 +69,19 @@ class StudentProfilePage extends ConsumerWidget {
             }
 
             return DefaultTabController(
-              length: 4,
+              length: canSeeFees ? 5 : 4,
               child: Scaffold(
                 appBar: AppBar(
                   title: Text(student.displayName),
-                  bottom: const TabBar(
+                  bottom: TabBar(
+                    isScrollable: true,
+                    tabAlignment: TabAlignment.start,
                     tabs: [
-                      Tab(text: 'Overview'),
-                      Tab(text: 'Parent / Guardian'),
-                      Tab(text: 'Academic'),
-                      Tab(text: 'Documents'),
+                      const Tab(text: 'Overview'),
+                      const Tab(text: 'Parent / Guardian'),
+                      const Tab(text: 'Academic'),
+                      if (canSeeFees) const Tab(text: 'Fees'),
+                      const Tab(text: 'Documents'),
                     ],
                   ),
                   actions: canManage
@@ -234,6 +239,14 @@ class StudentProfilePage extends ConsumerWidget {
                       canManage: canManage,
                       currentUserId: tenant.user.userId,
                     ),
+                    if (canSeeFees)
+                      StudentFeesTab(
+                        studentKey: (
+                          schoolId: schoolId,
+                          branchId: branchId,
+                          studentId: student.studentId,
+                        ),
+                      ),
                     const Padding(
                       padding: EdgeInsets.all(AppSpacing.md),
                       child: EmptyView(

@@ -14,6 +14,9 @@ enum InactiveCause {
 
   /// The profile exists but its role/status is missing or unknown.
   invalidProfile,
+
+  /// The school itself is suspended by the platform (every user is paused).
+  schoolPaused,
 }
 
 /// Thrown by [TenantContextNotifier] when the signed-in user's profile
@@ -35,9 +38,14 @@ class AccountInactiveException extends Error {
   /// For [InactiveCause.methodNotPermitted]: what the account may use.
   final List<LoginMethod> permitted;
 
+  /// For [InactiveCause.schoolPaused]: the school's state (INACTIVE, SUSPENDED,
+  /// EXPIRED or CLOSED), so the screen can say which.
+  final String? schoolState;
+
   AccountInactiveException(
     this.status, {
     this.cause = InactiveCause.status,
     this.permitted = const [],
+    this.schoolState,
   });
 }

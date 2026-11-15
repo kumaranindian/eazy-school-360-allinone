@@ -37,6 +37,11 @@ service cloud.firestore {
       return request.resource.data;
     }
 
+    // The write bumps the revision by exactly one.
+    function revisionNext() {
+      return nd().revision == resource.data.revision + 1;
+    }
+
     function isSignedIn() {
       return request.auth != null;
     }
@@ -200,7 +205,14 @@ service cloud.firestore {
       let l = p.get('login', null);
       let t = request.auth.token;
       let g = t.firebase.sign_in_provider;
-      return p.status == 'ACTIVE' && (l == null || (l.enabled == true
+      return p.status == 'ACTIVE'
+        // Platform admins must have signed in with a second factor (Firebase
+        // sets sign_in_second_factor on the token only for MFA sign-ins).
+        && (p.role != 'PLATFORM_ADMIN' || 'sign_in_second_factor' in t.firebase)
+        // A school suspended by the platform: its users are paused (mirrored onto
+        // every profile by the schoolStatusChanged trigger).
+        && !('schoolAccess' in p)
+        && (l == null || (l.enabled == true
         && (g == 'password' ? 'PASSWORD' in l.effective
           // A Google sign-in is only accepted for the Google account whose
           // verified email is the one registered on the profile.
@@ -218,6 +230,15 @@ service cloud.firestore {
 
     function isPlatformAdminP(p) {
       return activeAndAllowed(p) && p.role == 'PLATFORM_ADMIN';
+    }
+
+    // A platform admin (Avail404 support) reaches a school's data ONLY while an
+    // active, unrevoked support grant for that school exists, and only to READ.
+    // Grants are written by the requestSupportAccess callable (reason, time box,
+    // visible to the school) and keyed `{adminUid}__{schoolId}`.
+    function supportRead(schoolId) {
+      let d = get(/databases/$(database)/documents/supportGrants/$(request.auth.uid + '__' + schoolId)).data;
+      return request.method in ['get', 'list'] && d.expiresAt > request.time && d.revokedAt == null;
     }
 
     function isSchoolAdminOf(schoolId) {
@@ -242,8 +263,13 @@ service cloud.firestore {
     }
 
     function schoolAdminOrAboveP(p, schoolId) {
-      return activeAndAllowed(p) && (p.role == 'PLATFORM_ADMIN'
+      return activeAndAllowed(p) && ((p.role == 'PLATFORM_ADMIN' && supportRead(schoolId))
         || (p.role == 'SCHOOL_ADMIN' && p.schoolId == schoolId));
+    }
+
+    // A school admin (or support reading) or an admin of this branch.
+    function adminOfBranch(schoolId, branchId) {
+      return isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
     }
 
     function isSameSchool(schoolId) {
@@ -261,14 +287,14 @@ service cloud.firestore {
     // One ACTIVE-caller check for the whole "admin of this branch, or one of
     // [roles] in this branch" family (kept as one expression so the helpers
     // below do not each expand isActiveCaller() several times).
-    //   PLATFORM_ADMIN: always; SCHOOL_ADMIN: their school;
+    //   PLATFORM_ADMIN: read-only, during an active support grant; SCHOOL_ADMIN: their school;
     //   others: their own school + branch and a role listed in [roles].
     function staffScope(schoolId, branchId, roles) {
       return staffScopeOf(callerProfile(), schoolId, branchId, roles);
     }
 
     function staffScopeOf(p, schoolId, branchId, roles) {
-      return activeAndAllowed(p) && (p.role == 'PLATFORM_ADMIN'
+      return activeAndAllowed(p) && ((p.role == 'PLATFORM_ADMIN' && supportRead(schoolId))
         || (p.schoolId == schoolId && (p.role == 'SCHOOL_ADMIN'
           || branchRoleOf(p, branchId) in roles)));
     }
@@ -1161,7 +1187,7 @@ service cloud.firestore {
     // (`p`) so the announcement rules stay inside the evaluation budget.
     function profileManages(p, schoolId, branchId) {
       return p.status == 'ACTIVE'
-        && (p.role == 'PLATFORM_ADMIN'
+        && ((p.role == 'PLATFORM_ADMIN' && supportRead(schoolId))
             || (p.schoolId == schoolId
                 && (p.role == 'SCHOOL_ADMIN'
                     || branchRoleOf(p, branchId) == 'BRANCH_ADMIN')));
@@ -1180,7 +1206,7 @@ service cloud.firestore {
     function profileMayAddress(p, schoolId, branchId, data) {
       return (data.audienceKind == 'ALL'
           ? (p.status == 'ACTIVE'
-              && (p.role == 'PLATFORM_ADMIN' || (p.role == 'SCHOOL_ADMIN' && p.schoolId == schoolId)))
+              && ((p.role == 'PLATFORM_ADMIN' && supportRead(schoolId)) || (p.role == 'SCHOOL_ADMIN' && p.schoolId == schoolId)))
           : profileManages(p, schoolId, branchId))
         || (data.audienceKind == 'SECTION' && profileIsClassTeacher(p, schoolId, branchId, data));
     }
@@ -1691,7 +1717,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isSignedIn() && (
         request.auth.uid == userId ||
-        isPlatformAdmin() ||
+        (isPlatformAdmin() && supportRead(resource.data.schoolId)) ||
         (isActiveCaller() && resource.data.schoolId == callerSchoolId() && (
           callerRole() == 'SCHOOL_ADMIN' ||
           (callerRole() == 'BRANCH_ADMIN' && resource.data.branchId == callerBranchId())
@@ -1747,8 +1773,10 @@ service cloud.firestore {
           && nd().role in branchAdminManagedRoles()
           && nd().status in ['ACTIVE', 'INVITED', 'DISABLED']
           && changedOnly(['role', 'status', 'name', 'phone', 'photoUrl', 'linkedParentId', 'updatedAt', 'updatedBy']))
-        ||
-        isPlatformAdmin()
+        // No blanket platform-admin clause: a platform admin (counted as a
+        // school admin above) never writes role, platformRole or login from a
+        // client. Platform administrators are managed only by the owner-only
+        // callables (createPlatformAdmin, setPlatformRole, ...).
       );
 
       // No hard deletes — deactivate via status instead.
@@ -1759,7 +1787,7 @@ service cloud.firestore {
       allow read: if isSignedIn() && (isSameSchool(schoolId) || isPlatformAdmin());
 
       allow create: if validCreateAudit()
-        && nd().status == 'ACTIVE'
+        && nd().status == 'INACTIVE'
         && validRegional(nd())
         && !('currencyLocked' in nd())
         && isSelfSignupBatchFor(schoolId);
@@ -1776,8 +1804,8 @@ service cloud.firestore {
           ])
           && validRegional(nd())
           && currencyUnchangedOrOpen(resource.data, nd()))
-        ||
-        isPlatformAdmin()
+        // No platform-admin clause: school status and other platform-level
+        // changes go through audited callables, never a client write.
       );
 
 
@@ -2331,7 +2359,7 @@ service cloud.firestore {
               'dayKind', 'overrideReason', 'revision', 'finalizedAt', 'finalizedBy', 'updatedAt', 'updatedBy',
             ])
             && nd().status in ['DRAFT', 'FINALIZED']
-            && nd().revision == resource.data.revision + 1
+            && revisionNext()
             && validDayCounts(nd())
             && validDayFinalization(nd())
             && canMarkStudentAttendance(schoolId, branchId, resource.data)
@@ -2371,7 +2399,7 @@ service cloud.firestore {
           allow update: if validUpdateAudit()
             && changedOnly(['status', 'remarks', 'revision', 'lastChangeReason', 'updatedAt', 'updatedBy'])
             && validAttendanceStatus(nd().status)
-            && nd().revision == resource.data.revision + 1
+            && revisionNext()
             && validRemarks(nd())
             && canMarkStudentAttendance(schoolId, branchId, resource.data)
             && (!isFinalizedDay(attendanceSessionPath(schoolId, branchId, attendanceSessionKey(resource.data)))
@@ -2410,7 +2438,7 @@ service cloud.firestore {
               'dayKind', 'overrideReason', 'revision', 'finalizedAt', 'finalizedBy', 'updatedAt', 'updatedBy',
             ])
             && nd().status in ['DRAFT', 'FINALIZED']
-            && nd().revision == resource.data.revision + 1
+            && revisionNext()
             && validDayCounts(nd())
             && validDayFinalization(nd());
         }
@@ -2435,7 +2463,7 @@ service cloud.firestore {
           allow update: if canManageAttendance(schoolId, branchId) && validUpdateAudit()
             && changedOnly(['status', 'remarks', 'revision', 'lastChangeReason', 'updatedAt', 'updatedBy'])
             && validAttendanceStatus(nd().status)
-            && nd().revision == resource.data.revision + 1
+            && revisionNext()
             && validRemarks(nd())
             && (!isFinalizedDay(staffAttendanceDayPath(schoolId, branchId, resource.data.dateKey))
               || validChangeReason(nd()));
@@ -2826,7 +2854,7 @@ service cloud.firestore {
             && nd().createdBy == resource.data.createdBy
             && nd().updatedAt == request.time
             && nd().updatedBy == request.auth.uid
-            && nd().revision == resource.data.revision + 1
+            && revisionNext()
             && leaveHistoryMatches(schoolId, branchId, applicationId, nd().revision,
                  resource.data.status, nd().status, nd().lastEvent)
             && (
@@ -3221,7 +3249,7 @@ service cloud.firestore {
             && nd().classId == resource.data.classId
             && nd().sectionId == resource.data.sectionId
             && nd().version == resource.data.version
-            && nd().revision == resource.data.revision + 1
+            && revisionNext()
             && timetableHistoryOk(schoolId, branchId, timetableId, nd())
             && (
               // edit a draft
@@ -3395,7 +3423,7 @@ service cloud.firestore {
             && nd().timetableId == resource.data.timetableId
             && nd().slotId == resource.data.slotId
             && nd().originalTeacherId == resource.data.originalTeacherId
-            && nd().revision == resource.data.revision + 1
+            && revisionNext()
             && substitutionDayBumped(schoolId, branchId, resource.data.dateKey)
             && substitutionHistoryOk(schoolId, branchId, substitutionId, nd())
             && (
@@ -3466,7 +3494,7 @@ service cloud.firestore {
                  'status', 'publishedBy', 'publishedAt', 'revision', 'lastEvent', 'updatedAt', 'updatedBy'])
             && nd().updatedAt == request.time
             && nd().updatedBy == request.auth.uid
-            && nd().revision == resource.data.revision + 1
+            && revisionNext()
             && homeworkHistoryOk(schoolId, branchId, homeworkId, nd())
             && (
               // edit a draft
@@ -3561,7 +3589,7 @@ service cloud.firestore {
             && nd().createdBy == resource.data.createdBy
             && nd().updatedAt == request.time
             && nd().updatedBy == request.auth.uid
-            && nd().revision == resource.data.revision + 1
+            && revisionNext()
             && submissionRevisionOk(schoolId, branchId, submissionId, nd())
             && (familyChangeOk(schoolId, branchId, resource.data, nd())
                 || reviewerChangeOk(schoolId, branchId, resource.data, nd()));
@@ -3592,25 +3620,25 @@ service cloud.firestore {
         // status state machine cannot be bypassed. The sequence collection
         // has no rule on purpose (server-only).
         match /admissionEnquiries/{enquiryId} {
-          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+          allow read: if adminOfBranch(schoolId, branchId);
         }
         match /admissionStatusHistory/{entryId} {
-          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+          allow read: if adminOfBranch(schoolId, branchId);
         }
         match /admissionActivities/{activityId} {
-          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+          allow read: if adminOfBranch(schoolId, branchId);
         }
         match /admissionActivityHistory/{entryId} {
-          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+          allow read: if adminOfBranch(schoolId, branchId);
         }
         match /admissionApplications/{applicationId} {
-          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+          allow read: if adminOfBranch(schoolId, branchId);
         }
         match /admissionApplicationHistory/{entryId} {
-          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+          allow read: if adminOfBranch(schoolId, branchId);
         }
         match /admissionDocuments/{documentId} {
-          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+          allow read: if adminOfBranch(schoolId, branchId);
         }
         match /admissionFees/{feeId} {
           allow read: if canFeeStaff(schoolId, branchId);
@@ -3619,7 +3647,7 @@ service cloud.firestore {
           allow read: if canFeeStaff(schoolId, branchId);
         }
         match /admissionConversions/{enquiryId} {
-          allow read: if isSchoolAdminOrAbove(schoolId) || isBranchAdminOf(schoolId, branchId);
+          allow read: if adminOfBranch(schoolId, branchId);
         }
 
         // ---- Announcements (Milestone 9) -------------------------------
@@ -3752,7 +3780,7 @@ service cloud.firestore {
           allow update: if profileManages(callerProfile(), schoolId, branchId) && validUpdateAudit()
             && nd().schoolId == resource.data.schoolId
             && nd().branchId == resource.data.branchId
-            && nd().revision == resource.data.revision + 1
+            && revisionNext()
             && nd().bands is list && nd().bands.size() >= 1
             && nd().bands.size() <= 20
             && nd().decimals is int && nd().decimals >= 0
@@ -3838,7 +3866,7 @@ service cloud.firestore {
           allow update: if profileManages(callerProfile(), schoolId, branchId) && validUpdateAudit()
             && get(ttDoc(schoolId, branchId, 'examinations', resource.data.examId)).data.status
                in ['DRAFT', 'SCHEDULED']
-            && nd().revision == resource.data.revision + 1
+            && revisionNext()
             && changedOnly(['subjectName', 'maxMarks', 'passMarks', 'weightage', 'dateKey', 'startMin',
                             'endMin', 'theoryMax', 'practicalMax', 'revision', 'updatedAt', 'updatedBy'])
             && validSubjectConfig(nd());
@@ -3907,7 +3935,7 @@ service cloud.firestore {
           allow update: if isActiveCaller()
             && nd().updatedAt == request.time
             && nd().updatedBy == request.auth.uid
-            && nd().revision == resource.data.revision + 1
+            && revisionNext()
             && nd().diff(resource.data).affectedKeys().hasOnly(
                  ['status', 'marks', 'theory', 'practical', 'remark', 'revision', 'updatedAt', 'updatedBy'])
             && entryContextOk(schoolId, branchId, nd())
@@ -4159,6 +4187,18 @@ service cloud.firestore {
     // updatePlatformBranding callable writes.
     match /platformBranding/{docId} {
       allow read: if isSignedIn();
+    }
+
+    // Platform data (support grants and their log, audit log, dashboard numbers,
+    // notices, billing, offboarding) has NO client rules: default deny. The app reads
+    // it through callables that check the caller's platform role and second factor.
+    // (Rules still read supportGrants internally for supportRead(); that is not a
+    // client read.)
+
+    // Maintenance mode and the oldest app build still allowed. Public on purpose
+    // (a signed-out app must see it); written only by setAppRequirements.
+    match /platformSettings/{docId} {
+      allow read: if docId == 'app';
     }
 
     // Default-deny everything else.

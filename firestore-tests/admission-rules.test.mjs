@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { test, before, after, beforeEach } from 'node:test';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 let env;
 before(async () => {
@@ -22,7 +22,8 @@ after(async () => env.cleanup());
 const A = 'adm-a';
 const B = 'adm-b';
 const base = { createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: 'seed', updatedBy: 'seed' };
-const as = (uid) => env.authenticatedContext(uid, { firebase: { sign_in_provider: 'password' } }).firestore();
+// Platform admins always sign in with a second factor (rules require it).
+const as = (uid) => env.authenticatedContext(uid, { firebase: { sign_in_provider: 'password', ...(uid.includes('platform') ? { sign_in_second_factor: 'totp' } : {}) } }).firestore();
 const enq = (d, s = A, b = 'north', id = 'e1') => doc(d, 'schools', s, 'branches', b, 'admissionEnquiries', id);
 const hist = (d, s = A, b = 'north', id = 'e1__1') => doc(d, 'schools', s, 'branches', b, 'admissionStatusHistory', id);
 const act = (d, s = A, b = 'north', id = 'a1') => doc(d, 'schools', s, 'branches', b, 'admissionActivities', id);
@@ -72,6 +73,13 @@ beforeEach(async () => {
     for (const [uid, u] of Object.entries(users)) {
       await setDoc(doc(d, 'users', uid), { name: 'T', email: `${uid}@example.com`, status: 'ACTIVE', linkedParentId: null, ...u, ...base });
     }
+    // The platform admin reads this school only through an ACTIVE support grant
+    // (read-only; without one every platform-admin read below is refused: see
+    // platform-admin-rules.test.mjs).
+    await setDoc(doc(d, 'supportGrants', `adm-platform__${A}`), {
+      adminUid: 'adm-platform', schoolId: A, scope: 'READ', reason: 'test grant for admission rules',
+      expiresAt: Timestamp.fromMillis(Date.now() + 3600e3), revokedAt: null, grantedAt: serverTimestamp(),
+    });
   });
 });
 
