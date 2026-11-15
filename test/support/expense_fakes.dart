@@ -1,3 +1,4 @@
+import 'package:eazy_school_360/features/expenses/domain/expense.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense_category.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense_repository.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense_settings.dart';
@@ -88,5 +89,122 @@ class FakeExpenseRepository implements ExpenseRepository {
       system: c.system,
     );
     return categoryId;
+  }
+
+  // ---- expenses ----
+  final List<Expense> items = [];
+  final List<ExpenseInput> created = [];
+  final List<({String id, ExpenseInput input})> updated = [];
+  final List<String?> requestIds = [];
+  int pageSize = 25;
+  String currency = 'INR';
+  String uid = 'u1';
+
+  @override
+  Future<String> createExpense(
+    String schoolId,
+    String branchId,
+    ExpenseInput input, {
+    String? clientRequestId,
+  }) async {
+    _maybeFail();
+    created.add(input);
+    requestIds.add(clientRequestId);
+    final id = 'x${items.length + 1}';
+    items.insert(
+      0,
+      Expense(
+        id: id,
+        number: 'EXP-2026-${(items.length + 1).toString().padLeft(5, '0')}',
+        branchId: branchId,
+        categoryId: input.categoryId,
+        categoryName: stored
+            .firstWhere(
+              (c) => c.id == input.categoryId,
+              orElse: () => const ExpenseCategory(id: '', name: 'Other'),
+            )
+            .name,
+        amountMinor: input.amountMinor,
+        currency: currency,
+        expenseDate: input.expenseDate,
+        status: ExpenseStatus.draft,
+        payee: input.payee,
+        description: input.description,
+        paymentMode: input.paymentMode,
+        paymentReference: input.paymentReference,
+        createdBy: uid,
+      ),
+    );
+    return id;
+  }
+
+  @override
+  Future<int> updateExpense(
+    String schoolId,
+    String branchId,
+    String expenseId,
+    ExpenseInput input, {
+    int? baseVersion,
+  }) async {
+    _maybeFail();
+    updated.add((id: expenseId, input: input));
+    final i = items.indexWhere((e) => e.id == expenseId);
+    final e = items[i];
+    items[i] = Expense(
+      id: e.id,
+      number: e.number,
+      branchId: e.branchId,
+      categoryId: input.categoryId,
+      categoryName: e.categoryName,
+      amountMinor: input.amountMinor,
+      currency: e.currency,
+      expenseDate: input.expenseDate,
+      status: e.status,
+      payee: input.payee,
+      description: input.description,
+      paymentMode: input.paymentMode,
+      paymentReference: input.paymentReference,
+      version: e.version + 1,
+      createdBy: e.createdBy,
+    );
+    return e.version + 1;
+  }
+
+  @override
+  Future<Expense> expense(
+    String schoolId,
+    String branchId,
+    String expenseId,
+  ) async {
+    _maybeFail();
+    return items.firstWhere((e) => e.id == expenseId);
+  }
+
+  final List<({ExpenseStatus? status, String? categoryId})> listQueries = [];
+
+  @override
+  Future<ExpensePage> expenses(
+    String schoolId,
+    String branchId, {
+    ExpenseStatus? status,
+    String? categoryId,
+    String? fromDate,
+    String? toDate,
+    Map<String, dynamic>? cursor,
+  }) async {
+    _maybeFail();
+    listQueries.add((status: status, categoryId: categoryId));
+    final all = [
+      for (final e in items)
+        if ((status == null || e.status == status) &&
+            (categoryId == null || e.categoryId == categoryId))
+          e,
+    ];
+    final start = cursor == null ? 0 : (cursor['at'] as int);
+    final end = (start + pageSize).clamp(0, all.length);
+    return ExpensePage(
+      expenses: all.sublist(start, end),
+      nextCursor: end < all.length ? {'at': end} : null,
+    );
   }
 }

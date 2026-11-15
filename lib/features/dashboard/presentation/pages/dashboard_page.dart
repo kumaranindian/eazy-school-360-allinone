@@ -157,6 +157,15 @@ const _sections = [
       path: AppRoutes.myFees,
     ),
   ]),
+  _Section('Expenses', 'Record and review school spending', [
+    _Shortcut(
+      'Expenses',
+      'Record and review spending',
+      Icons.payments_outlined,
+      AppColors.orange,
+      path: AppRoutes.expenses,
+    ),
+  ]),
   _Section('Leave', 'Requests, balances and approvals', [
     _Shortcut(
       'Leave',

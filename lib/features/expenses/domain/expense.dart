@@ -1,0 +1,231 @@
+/// An expense record and what a person enters to create or edit one. The
+/// server owns the number, currency, status and who created it; the client
+/// only ever sends [ExpenseInput].
+library;
+
+import '../../fees/domain/money.dart';
+
+enum ExpenseStatus {
+  draft('DRAFT', 'Draft'),
+  submitted('SUBMITTED', 'Submitted'),
+  approved('APPROVED', 'Approved'),
+  rejected('REJECTED', 'Rejected'),
+  paid('PAID', 'Paid'),
+  cancelled('CANCELLED', 'Cancelled');
+
+  final String wire;
+  final String label;
+  const ExpenseStatus(this.wire, this.label);
+
+  static ExpenseStatus fromWire(String? v) => ExpenseStatus.values.firstWhere(
+    (s) => s.wire == v,
+    orElse: () => ExpenseStatus.draft,
+  );
+}
+
+enum PaymentMode {
+  cash('CASH', 'Cash'),
+  bankTransfer('BANK_TRANSFER', 'Bank transfer'),
+  upi('UPI', 'UPI'),
+  cheque('CHEQUE', 'Cheque'),
+  card('CARD', 'Card'),
+  other('OTHER', 'Other');
+
+  final String wire;
+  final String label;
+  const PaymentMode(this.wire, this.label);
+
+  static PaymentMode? fromWire(String? v) {
+    for (final m in PaymentMode.values) {
+      if (m.wire == v) return m;
+    }
+    return null;
+  }
+}
+
+class Expense {
+  final String id;
+  final String number;
+  final String branchId;
+  final String categoryId;
+  final String categoryName;
+  final int amountMinor;
+  final String currency;
+
+  /// `yyyy-MM-dd`, a school day (never an instant).
+  final String expenseDate;
+  final String payee;
+  final String description;
+  final PaymentMode? paymentMode;
+  final String paymentReference;
+  final ExpenseStatus status;
+  final int version;
+  final String? createdBy;
+  final String? createdByName;
+
+  const Expense({
+    required this.id,
+    required this.number,
+    required this.branchId,
+    required this.categoryId,
+    required this.categoryName,
+    required this.amountMinor,
+    required this.currency,
+    required this.expenseDate,
+    required this.status,
+    this.payee = '',
+    this.description = '',
+    this.paymentMode,
+    this.paymentReference = '',
+    this.version = 1,
+    this.createdBy,
+    this.createdByName,
+  });
+
+  factory Expense.fromMap(Map<String, dynamic> m) => Expense(
+    id: (m['id'] as String?) ?? '',
+    number: (m['number'] as String?) ?? '',
+    branchId: (m['branchId'] as String?) ?? '',
+    categoryId: (m['categoryId'] as String?) ?? '',
+    categoryName: (m['categoryName'] as String?) ?? '',
+    amountMinor: (m['amountMinor'] as num?)?.toInt() ?? 0,
+    currency: (m['currency'] as String?) ?? '',
+    expenseDate: (m['expenseDate'] as String?) ?? '',
+    payee: (m['payee'] as String?) ?? '',
+    description: (m['description'] as String?) ?? '',
+    paymentMode: PaymentMode.fromWire(m['paymentMode'] as String?),
+    paymentReference: (m['paymentReference'] as String?) ?? '',
+    status: ExpenseStatus.fromWire(m['status'] as String?),
+    version: (m['version'] as num?)?.toInt() ?? 1,
+    createdBy: m['createdBy'] as String?,
+    createdByName: m['createdByName'] as String?,
+  );
+
+  bool get isDraft => status == ExpenseStatus.draft;
+
+  /// Whether [uid] may edit this expense: only a draft, and only its creator
+  /// or an admin (`isAdmin`). The server enforces the same.
+  bool canEdit({required String uid, required bool isAdmin}) =>
+      isDraft && (createdBy == uid || isAdmin);
+
+  String get amountText => Money.format(amountMinor, currency: currency);
+
+  /// What the list shows as the title.
+  String get title => payee.isNotEmpty
+      ? payee
+      : (description.isNotEmpty ? description : categoryName);
+}
+
+/// What a person enters (the part of an expense they control).
+class ExpenseInput {
+  final String categoryId;
+  final int amountMinor;
+  final String expenseDate;
+  final String payee;
+  final String description;
+  final PaymentMode? paymentMode;
+  final String paymentReference;
+
+  const ExpenseInput({
+    required this.categoryId,
+    required this.amountMinor,
+    required this.expenseDate,
+    this.payee = '',
+    this.description = '',
+    this.paymentMode,
+    this.paymentReference = '',
+  });
+
+  Map<String, dynamic> toRequest() => {
+    'categoryId': categoryId,
+    'amountMinor': amountMinor,
+    'expenseDate': expenseDate,
+    'payee': payee,
+    'description': description,
+    'paymentMode': paymentMode?.wire,
+    'paymentReference': paymentReference,
+  };
+}
+
+/// Form validation (pure, so it is unit-tested without a widget). The server
+/// re-checks everything; this only spares a round trip and words the errors.
+abstract final class ExpenseFormRules {
+  static const maxPayee = 120;
+  static const maxDescription = 500;
+  static const maxReference = 60;
+
+  /// [todayKey] is the school's today (`SchoolTime.todayKey()`).
+  static ({ExpenseInput? input, Map<String, String> errors}) validate({
+    required String? categoryId,
+    required String amountText,
+    required String currency,
+    required String? dateKey,
+    required String todayKey,
+    String payee = '',
+    String description = '',
+    PaymentMode? paymentMode,
+    String paymentReference = '',
+  }) {
+    final errors = <String, String>{};
+    if (categoryId == null || categoryId.isEmpty) {
+      errors['category'] = 'Choose a category.';
+    }
+    final minor = Money.parseMinor(amountText, currency: currency);
+    if (minor == null) {
+      errors['amount'] = Money.invalidAmountMessage(currency);
+    } else if (minor < 1) {
+      errors['amount'] = 'The amount must be more than zero.';
+    }
+    if (dateKey == null || dateKey.isEmpty) {
+      errors['date'] = 'Choose the date of the expense.';
+    } else if (dateKey.compareTo(todayKey) > 0) {
+      errors['date'] = 'The date cannot be in the future.';
+    }
+    final p = payee.trim();
+    final d = description.trim();
+    final r = paymentReference.trim();
+    if (p.length > maxPayee) errors['payee'] = 'Up to $maxPayee characters.';
+    if (d.length > maxDescription) {
+      errors['description'] = 'Up to $maxDescription characters.';
+    }
+    if (r.length > maxReference) {
+      errors['reference'] = 'Up to $maxReference characters.';
+    }
+    if (errors.isNotEmpty) return (input: null, errors: errors);
+    return (
+      input: ExpenseInput(
+        categoryId: categoryId!,
+        amountMinor: minor!,
+        expenseDate: dateKey!,
+        payee: p,
+        description: d,
+        paymentMode: paymentMode,
+        paymentReference: r,
+      ),
+      errors: const {},
+    );
+  }
+
+  /// The amount as typed in an edit field.
+  static String amountField(int minor, String currency) =>
+      Money.plain(minor, currency: currency);
+}
+
+class ExpensePage {
+  final List<Expense> expenses;
+
+  /// Pass back to fetch the next page; null when there are no more.
+  final Map<String, dynamic>? nextCursor;
+
+  const ExpensePage({required this.expenses, this.nextCursor});
+
+  factory ExpensePage.fromMap(Map<String, dynamic> m) => ExpensePage(
+    expenses: [
+      for (final e in (m['expenses'] as List? ?? const []))
+        Expense.fromMap(Map<String, dynamic>.from(e as Map)),
+    ],
+    nextCursor: m['nextCursor'] is Map
+        ? Map<String, dynamic>.from(m['nextCursor'] as Map)
+        : null,
+  );
+}
