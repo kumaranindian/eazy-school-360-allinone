@@ -2,6 +2,7 @@ import 'package:eazy_school_360/core/features/feature_catalogue.dart';
 import 'package:eazy_school_360/core/permissions/permission.dart';
 import 'package:eazy_school_360/core/permissions/role_permissions.dart';
 import 'package:eazy_school_360/core/permissions/user_role.dart';
+import 'package:eazy_school_360/features/expenses/domain/expense.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense_category.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -137,4 +138,119 @@ void main() {
       expect(all.first.system, isTrue);
     },
   );
+
+  group('ExpenseFormRules', () {
+    ({ExpenseInput? input, Map<String, String> errors}) v({
+      String? category = 'cat_other',
+      String amount = '1250.50',
+      String currency = 'INR',
+      String? date = '2026-11-10',
+      String today = '2026-11-15',
+      String payee = '',
+      String description = '',
+      String reference = '',
+    }) => ExpenseFormRules.validate(
+      categoryId: category,
+      amountText: amount,
+      currency: currency,
+      dateKey: date,
+      todayKey: today,
+      payee: payee,
+      description: description,
+      paymentReference: reference,
+    );
+
+    test('a good form becomes minor units, trimmed', () {
+      final r = v(amount: '1,250.50', payee: '  Raj  ');
+      expect(r.errors, isEmpty);
+      expect(r.input!.amountMinor, 125050);
+      expect(r.input!.payee, 'Raj');
+    });
+
+    test('amounts follow the currency decimals, never rounding silently', () {
+      expect(v(amount: '12.345').errors.keys, contains('amount'));
+      expect(v(amount: '0').errors['amount'], contains('more than zero'));
+      expect(v(amount: '-5').errors.keys, contains('amount'));
+      expect(v(amount: 'abc').errors.keys, contains('amount'));
+      expect(v(amount: '1500', currency: 'JPY').input!.amountMinor, 1500);
+      expect(
+        v(amount: '15.5', currency: 'JPY').errors.keys,
+        contains('amount'),
+      );
+      expect(v(amount: '1.234', currency: 'KWD').input!.amountMinor, 1234);
+    });
+
+    test('category, date and lengths', () {
+      expect(v(category: null).errors.keys, contains('category'));
+      expect(v(category: '').errors.keys, contains('category'));
+      expect(v(date: null).errors.keys, contains('date'));
+      expect(v(date: '2026-11-16').errors['date'], contains('future'));
+      expect(v(date: '2026-11-15').errors, isEmpty, reason: 'today is allowed');
+      expect(v(payee: 'x' * 121).errors.keys, contains('payee'));
+      expect(v(description: 'x' * 501).errors.keys, contains('description'));
+      expect(v(reference: 'x' * 61).errors.keys, contains('reference'));
+    });
+
+    test('all errors are reported together, not one at a time', () {
+      expect(v(category: null, amount: '', date: null).errors.keys.toSet(), {
+        'category',
+        'amount',
+        'date',
+      });
+    });
+  });
+
+  group('Expense', () {
+    Expense e({ExpenseStatus s = ExpenseStatus.draft, String? by = 'u1'}) =>
+        Expense(
+          id: '1',
+          number: 'EXP-1',
+          branchId: 'b',
+          categoryId: 'c',
+          categoryName: 'Other',
+          amountMinor: 125000,
+          currency: 'INR',
+          expenseDate: '2026-11-10',
+          status: s,
+          createdBy: by,
+        );
+
+    test('only a draft is editable, by its creator or an admin', () {
+      expect(e().canEdit(uid: 'u1', isAdmin: false), isTrue);
+      expect(e().canEdit(uid: 'u2', isAdmin: false), isFalse);
+      expect(e().canEdit(uid: 'u2', isAdmin: true), isTrue);
+      for (final s in ExpenseStatus.values.where(
+        (s) => s != ExpenseStatus.draft,
+      )) {
+        expect(
+          e(s: s).canEdit(uid: 'u1', isAdmin: true),
+          isFalse,
+          reason: s.name,
+        );
+      }
+    });
+
+    test('statuses and payment modes round-trip their wire values', () {
+      for (final s in ExpenseStatus.values) {
+        expect(ExpenseStatus.fromWire(s.wire), s);
+      }
+      for (final m in PaymentMode.values) {
+        expect(PaymentMode.fromWire(m.wire), m);
+      }
+      expect(PaymentMode.fromWire('BITCOIN'), isNull);
+      expect(ExpenseStatus.fromWire('???'), ExpenseStatus.draft);
+    });
+
+    test('the page reads the server map', () {
+      final p = ExpensePage.fromMap({
+        'expenses': [
+          {'id': 'a', 'amountMinor': 500, 'currency': 'INR', 'status': 'PAID'},
+        ],
+        'nextCursor': {'id': 'a'},
+      });
+      expect(p.expenses.single.status, ExpenseStatus.paid);
+      expect(p.nextCursor, {'id': 'a'});
+      expect(ExpensePage.fromMap({}).nextCursor, isNull);
+    });
+  });
 }

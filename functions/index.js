@@ -563,6 +563,10 @@ exports.getExpenseSettings = expenseCall('getExpenseSettings', expenses.getExpen
 exports.saveExpenseSettings = expenseCall('saveExpenseSettings', expenses.saveExpenseSettings);
 exports.listExpenseCategories = expenseCall('listExpenseCategories', expenses.listExpenseCategories);
 exports.saveExpenseCategory = expenseCall('saveExpenseCategory', expenses.saveExpenseCategory);
+exports.createExpense = expenseCall('createExpense', expenses.createExpense);
+exports.updateExpense = expenseCall('updateExpense', expenses.updateExpense);
+exports.getExpense = expenseCall('getExpense', expenses.getExpense);
+exports.listExpenses = expenseCall('listExpenses', expenses.listExpenses);
 
 exports.updatePlatformBranding = onCall(callOptions(), async (request) => {
   const a = signedIn(request);

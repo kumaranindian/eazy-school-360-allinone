@@ -125,6 +125,13 @@ abstract final class AppRoutes {
   static const String myFeesInvoice = '/my-fees/invoices/:invoiceId';
   static const String myFeesReceipt = '/my-fees/receipts/:receiptId';
 
+  /// Expense management (docs/expense-management/).
+  static const String expenses = '/expenses';
+  static const String expenseNew = '/expenses/new';
+  static const String expenseSettings = '/expenses/settings';
+  static const String expenseDetail = '/expenses/:expenseId';
+  static const String expenseEdit = '/expenses/:expenseId/edit';
+
   /// Leave (Milestone 7). `/my-leave` is the self-service area: a staff
   /// member's own leave, or a parent's children's.
   static const String leave = '/leave';
@@ -291,6 +298,11 @@ abstract final class AppRoutes {
     myFees: Permission.viewOwnChildFees,
     myFeesInvoice: Permission.viewOwnChildFees,
     myFeesReceipt: Permission.viewOwnChildFees,
+    expenses: Permission.viewExpenses,
+    expenseNew: Permission.createExpenses,
+    expenseSettings: Permission.viewExpenses,
+    expenseDetail: Permission.viewExpenses,
+    expenseEdit: Permission.createExpenses,
     leave: Permission.viewLeave,
     leaveApplications: Permission.viewLeave,
     leaveApplicationDetail: Permission.viewLeave,

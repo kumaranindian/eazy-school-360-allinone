@@ -3,6 +3,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import '../../../core/config/functions_region.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/errors/error_mapper.dart';
+import '../domain/expense.dart';
 import '../domain/expense_category.dart';
 import '../domain/expense_repository.dart';
 import '../domain/expense_settings.dart';
@@ -116,4 +117,75 @@ class FirebaseExpenseRepository implements ExpenseRepository {
     });
     return (out['id'] as String?) ?? '';
   }
+
+  @override
+  Future<String> createExpense(
+    String schoolId,
+    String branchId,
+    ExpenseInput input, {
+    String? clientRequestId,
+  }) async {
+    final out = await _call('createExpense', {
+      'schoolId': schoolId,
+      'branchId': branchId,
+      'expense': input.toRequest(),
+      'clientRequestId': ?clientRequestId,
+    });
+    return (out['id'] as String?) ?? '';
+  }
+
+  @override
+  Future<int> updateExpense(
+    String schoolId,
+    String branchId,
+    String expenseId,
+    ExpenseInput input, {
+    int? baseVersion,
+  }) async {
+    final out = await _call('updateExpense', {
+      'schoolId': schoolId,
+      'branchId': branchId,
+      'expenseId': expenseId,
+      'expense': input.toRequest(),
+      'baseVersion': ?baseVersion,
+    });
+    return (out['version'] as num?)?.toInt() ?? 0;
+  }
+
+  @override
+  Future<Expense> expense(
+    String schoolId,
+    String branchId,
+    String expenseId,
+  ) async {
+    final out = await _call('getExpense', {
+      'schoolId': schoolId,
+      'branchId': branchId,
+      'expenseId': expenseId,
+    });
+    return Expense.fromMap(
+      Map<String, dynamic>.from((out['expense'] as Map?) ?? const {}),
+    );
+  }
+
+  @override
+  Future<ExpensePage> expenses(
+    String schoolId,
+    String branchId, {
+    ExpenseStatus? status,
+    String? categoryId,
+    String? fromDate,
+    String? toDate,
+    Map<String, dynamic>? cursor,
+  }) async => ExpensePage.fromMap(
+    await _call('listExpenses', {
+      'schoolId': schoolId,
+      'branchId': branchId,
+      'status': ?status?.wire,
+      'categoryId': ?categoryId,
+      'fromDate': ?fromDate,
+      'toDate': ?toDate,
+      'cursor': ?cursor,
+    }),
+  );
 }

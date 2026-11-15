@@ -10,7 +10,9 @@
 // client. Who may do what is ONE table (CAPS) used by every callable here and by the later phases.
 
 const { loginAllowed, schoolGate } = require('./access');
+const crypto = require('node:crypto');
 const { validId } = require('./ids');
+const { lockCurrency } = require('./currency_lock');
 
 const FEATURE = 'expenses';
 const SCHOOL_ADMIN = 'SCHOOL_ADMIN';
@@ -222,8 +224,236 @@ async function saveExpenseCategory(ctx, uid, token, data) {
   return { result: { id: data.categoryId } };
 }
 
+
+// ---- expenses (phase E2: create, edit a draft, list, read) ---------------------------------------
+//
+//   schools/{s}/branches/{b}/expenses/{id}
+//   schools/{s}/branches/{b}/expenseSequences/{EXP-yyyy}     { next }
+//
+// A new expense is a DRAFT. Submitting, approving and paying arrive in phase E4; nothing here can move
+// an expense past DRAFT, so no amount can be approved or paid by this phase.
+
+const STATUSES = Object.freeze(['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'PAID', 'CANCELLED']);
+const PAYMENT_MODES = Object.freeze(['CASH', 'BANK_TRANSFER', 'UPI', 'CHEQUE', 'CARD', 'OTHER']);
+const MAX_MINOR = 1e12;
+const PAGE_DEFAULT = 25;
+const PAGE_MAX = 50;
+const SCAN_CAP = 400;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const REQUEST_KEY = /^[A-Za-z0-9_-]{8,64}$/;
+
+function validDate(v) {
+  if (!isStr(v) || !DATE.test(v)) return false;
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+}
+
+function civilToday(now, timeZone) {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+  } catch (_) {
+    return now.toISOString().slice(0, 10);
+  }
+}
+const yearsBefore = (today, n) => `${String(Number(today.slice(0, 4)) - n).padStart(4, '0')}${today.slice(4)}`;
+
+const branchRef = (db, schoolId, branchId) => db.collection('schools').doc(schoolId).collection('branches').doc(branchId);
+const expenseCol = (db, schoolId, branchId) => branchRef(db, schoolId, branchId).collection('expenses');
+const sequenceDoc = (db, schoolId, branchId, key) => branchRef(db, schoolId, branchId).collection('expenseSequences').doc(key);
+const wall = (ctx) => (ctx.wall ? ctx.wall() : ctx.nowDate ? ctx.nowDate() : new Date());
+const toMs = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : t instanceof Date ? t.getTime() : typeof t === 'number' ? t : null);
+
+/**
+ * Validates the editable part of an expense; the school's "today" (its own zone) bounds the date.
+ * Returns { errors } or { value }. The category is checked against the school's list by the caller.
+ */
+function validateExpense(input, { today }) {
+  const errors = {};
+  const i = input && typeof input === 'object' ? input : {};
+  if (!validId(i.categoryId)) errors.categoryId = 'choose a category';
+  if (!Number.isSafeInteger(i.amountMinor) || i.amountMinor < 1 || i.amountMinor > MAX_MINOR) errors.amountMinor = 'a whole amount in minor units, above 0';
+  if (!validDate(i.expenseDate)) errors.expenseDate = 'a date (yyyy-mm-dd)';
+  else if (i.expenseDate > today) errors.expenseDate = 'cannot be in the future';
+  else if (i.expenseDate < yearsBefore(today, 5)) errors.expenseDate = 'cannot be more than 5 years ago';
+  const payee = i.payee === undefined || i.payee === null ? '' : trim(i.payee);
+  if (payee.length > 120) errors.payee = 'up to 120 characters';
+  const description = i.description === undefined || i.description === null ? '' : trim(i.description);
+  if (description.length > 500) errors.description = 'up to 500 characters';
+  let paymentMode = null;
+  if (i.paymentMode !== undefined && i.paymentMode !== null && i.paymentMode !== '') {
+    if (!PAYMENT_MODES.includes(i.paymentMode)) errors.paymentMode = `one of ${PAYMENT_MODES.join(', ')}`;
+    else paymentMode = i.paymentMode;
+  }
+  const paymentReference = i.paymentReference === undefined || i.paymentReference === null ? '' : trim(i.paymentReference);
+  if (paymentReference.length > 60) errors.paymentReference = 'up to 60 characters';
+  if (Object.keys(errors).length) return { errors };
+  return { value: { categoryId: i.categoryId, amountMinor: i.amountMinor, expenseDate: i.expenseDate, payee, description, paymentMode, paymentReference } };
+}
+
+const expenseView = (id, d) => ({
+  id,
+  number: d.number || '',
+  branchId: d.branchId || '',
+  categoryId: d.categoryId || '',
+  categoryName: d.categoryName || '',
+  amountMinor: d.amountMinor,
+  currency: d.currency || '',
+  expenseDate: d.expenseDate || '',
+  payee: d.payee || '',
+  description: d.description || '',
+  paymentMode: d.paymentMode || null,
+  paymentReference: d.paymentReference || '',
+  status: d.status,
+  version: Number.isInteger(d.version) ? d.version : 1,
+  createdBy: d.createdBy || null,
+  createdByName: d.createdByName || null,
+  createdAtMs: toMs(d.createdAt),
+  updatedAtMs: toMs(d.updatedAt),
+});
+
+async function schoolFacts(db, schoolId, now) {
+  const s = (await db.collection('schools').doc(schoolId).get()).data() || {};
+  const timeZone = s.timezone || 'UTC';
+  return { currency: s.currency || 'INR', timeZone, today: civilToday(now, timeZone) };
+}
+
+/** Records a new DRAFT expense (numbered, in the school's currency). A repeat of the same clientRequestId returns the first. */
+async function createExpense(ctx, uid, token, data) {
+  const { db, now } = ctx;
+  const schoolId = data && data.schoolId;
+  const branchId = data && data.branchId;
+  const caller = await authorize(db, uid, token, schoolId, validId(branchId) ? branchId : '', 'create');
+  if (!caller || !validId(branchId)) return { error: 'PERMISSION_DENIED' };
+  if (data.clientRequestId !== undefined && !REQUEST_KEY.test(data.clientRequestId || '')) return { error: 'INVALID_ARGUMENT', reason: 'clientRequestId' };
+  const facts = await schoolFacts(db, schoolId, wall(ctx));
+  const parsed = validateExpense(data.expense, { today: facts.today });
+  if (parsed.errors) return { error: 'INVALID_ARGUMENT', reason: reasonOf(parsed.errors) };
+  if (!(await branchRef(db, schoolId, branchId).get()).exists) return { error: 'NOT_FOUND', reason: 'that branch does not exist' };
+  const col = expenseCol(db, schoolId, branchId);
+  const id = data.clientRequestId ? `x_${crypto.createHash('sha256').update(`${uid}|${schoolId}|${branchId}|${data.clientRequestId}`).digest('hex').slice(0, 28)}` : null;
+  const ref = id ? col.doc(id) : col.doc();
+  const year = facts.today.slice(0, 4);
+  const out = await db.runTransaction(async (tx) => {
+    if (id && (await tx.get(ref)).exists) return { result: { id: ref.id, duplicate: true } };
+    const cat = (await tx.get(categories(db, schoolId).doc(parsed.value.categoryId))).data();
+    if (!cat || cat.active === false) return { error: 'INVALID_ARGUMENT', reason: 'categoryId: that category is not available' };
+    const seqRef = sequenceDoc(db, schoolId, branchId, `EXP-${year}`);
+    const cur = (await tx.get(seqRef)).data();
+    const n = (cur && Number.isInteger(cur.next) ? cur.next : 0) + 1;
+    tx.set(seqRef, { schoolId, branchId, year, next: n, updatedAt: now });
+    tx.set(ref, {
+      schoolId, branchId, number: `EXP-${year}-${String(n).padStart(5, '0')}`,
+      ...parsed.value, categoryName: cat.name, currency: facts.currency,
+      status: 'DRAFT', version: 1, source: 'MANUAL',
+      createdAt: now, createdBy: uid, createdByName: trim(caller.profile.displayName || caller.profile.name) || null,
+      updatedAt: now, updatedBy: uid,
+    });
+    return { result: { id: ref.id } };
+  });
+  if (out.result && !out.result.duplicate) await lockCurrency(db, schoolId, () => wall(ctx));
+  return out;
+}
+
+/** Edits a DRAFT: its creator, or a school/branch admin. Optimistic version; nothing past DRAFT is editable. */
+async function updateExpense(ctx, uid, token, data) {
+  const { db, now } = ctx;
+  const schoolId = data && data.schoolId;
+  const branchId = data && data.branchId;
+  if (!validId(branchId) || !validId(data.expenseId)) return { error: 'PERMISSION_DENIED' };
+  const caller = await authorize(db, uid, token, schoolId, branchId, 'create');
+  if (!caller) return { error: 'PERMISSION_DENIED' };
+  const facts = await schoolFacts(db, schoolId, wall(ctx));
+  const parsed = validateExpense(data.expense, { today: facts.today });
+  if (parsed.errors) return { error: 'INVALID_ARGUMENT', reason: reasonOf(parsed.errors) };
+  const ref = expenseCol(db, schoolId, branchId).doc(data.expenseId);
+  return db.runTransaction(async (tx) => {
+    const cur = (await tx.get(ref)).data();
+    if (!cur) return { error: 'NOT_FOUND', reason: 'that expense does not exist' };
+    if (cur.status !== 'DRAFT') return { error: 'FAILED_PRECONDITION', reason: 'only a draft can be edited' };
+    if (cur.createdBy !== uid && ![SCHOOL_ADMIN, BRANCH_ADMIN].includes(caller.role)) return { error: 'PERMISSION_DENIED' };
+    if (data.baseVersion !== undefined && data.baseVersion !== cur.version) return { error: 'ABORTED', reason: 'changed by someone else; reload' };
+    let categoryName = cur.categoryName;
+    if (parsed.value.categoryId !== cur.categoryId) {
+      const cat = (await tx.get(categories(db, schoolId).doc(parsed.value.categoryId))).data();
+      if (!cat || cat.active === false) return { error: 'INVALID_ARGUMENT', reason: 'categoryId: that category is not available' };
+      categoryName = cat.name;
+    }
+    tx.update(ref, { ...parsed.value, categoryName, version: cur.version + 1, updatedAt: now, updatedBy: uid });
+    return { result: { id: ref.id, version: cur.version + 1 } };
+  });
+}
+
+/** One expense of the branch. */
+async function getExpense(ctx, uid, token, data) {
+  const { db } = ctx;
+  const schoolId = data && data.schoolId;
+  const branchId = data && data.branchId;
+  if (!validId(branchId) || !validId(data.expenseId)) return { error: 'PERMISSION_DENIED' };
+  if (!(await authorize(db, uid, token, schoolId, branchId, 'view'))) return { error: 'PERMISSION_DENIED' };
+  const snap = await expenseCol(db, schoolId, branchId).doc(data.expenseId).get();
+  if (!snap.exists) return { error: 'NOT_FOUND', reason: 'that expense does not exist' };
+  return { result: { expense: expenseView(snap.id, snap.data()) } };
+}
+
+/**
+ * A page of the branch's expenses, newest date first. Filters: status, category, date range. One equality
+ * filter uses an index (status wins); the other is applied to fetched rows, bounded by SCAN_CAP.
+ */
+async function listExpenses(ctx, uid, token, data) {
+  const { db } = ctx;
+  const schoolId = data && data.schoolId;
+  const branchId = data && data.branchId;
+  if (!validId(branchId)) return { error: 'PERMISSION_DENIED' };
+  if (!(await authorize(db, uid, token, schoolId, branchId, 'view'))) return { error: 'PERMISSION_DENIED' };
+  const d = data || {};
+  if (d.status !== undefined && d.status !== null && !STATUSES.includes(d.status)) return { error: 'INVALID_ARGUMENT', reason: 'status' };
+  if (d.categoryId !== undefined && d.categoryId !== null && !validId(d.categoryId)) return { error: 'INVALID_ARGUMENT', reason: 'categoryId' };
+  for (const k of ['fromDate', 'toDate']) if (d[k] !== undefined && d[k] !== null && !validDate(d[k])) return { error: 'INVALID_ARGUMENT', reason: k };
+  const limit = Math.min(Math.max(Number.isInteger(d.limit) ? d.limit : PAGE_DEFAULT, 1), PAGE_MAX);
+  const col = expenseCol(db, schoolId, branchId);
+  let last = null;
+  if (d.cursor && typeof d.cursor === 'object') {
+    if (!validId(d.cursor.id)) return { error: 'INVALID_ARGUMENT', reason: 'cursor' };
+    const c = await col.doc(d.cursor.id).get();
+    if (!c.exists) return { error: 'INVALID_ARGUMENT', reason: 'cursor' };
+    last = c;
+  }
+  const out = [];
+  let scanned = 0;
+  let more = false;
+  for (;;) {
+    let q = col;
+    if (d.status) q = q.where('status', '==', d.status);
+    else if (d.categoryId) q = q.where('categoryId', '==', d.categoryId);
+    if (d.fromDate) q = q.where('expenseDate', '>=', d.fromDate);
+    if (d.toDate) q = q.where('expenseDate', '<=', d.toDate);
+    q = q.orderBy('expenseDate', 'desc');
+    if (last) q = q.startAfter(last);
+    const snap = await q.limit(100).get();
+    for (const s of snap.docs) {
+      scanned++;
+      last = s;
+      const e = s.data();
+      if (d.status && d.categoryId && e.categoryId !== d.categoryId) continue;
+      if (out.length === limit) {
+        more = true;
+        break;
+      }
+      out.push(expenseView(s.id, e));
+    }
+    if (more || snap.docs.length < 100 || scanned >= SCAN_CAP) {
+      if (!more && snap.docs.length >= 100 && scanned >= SCAN_CAP) more = true;
+      break;
+    }
+  }
+  const nextCursor = more && out.length ? { id: out[out.length - 1].id } : null;
+  return { result: { expenses: out, nextCursor } };
+}
+
 module.exports = {
   FEATURE, CAPS, DEFAULT_SETTINGS, DEFAULT_CATEGORIES, APPROVER_ROLES,
   authorize, roleIn, validateSettings, ensureDefaultCategories, categoryId,
   getExpenseSettings, saveExpenseSettings, listExpenseCategories, saveExpenseCategory,
+  STATUSES, PAYMENT_MODES, validateExpense, civilToday,
+  createExpense, updateExpense, getExpense, listExpenses,
 };

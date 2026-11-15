@@ -134,6 +134,14 @@ class AppShell extends ConsumerWidget {
     ),
     (
       NavDestination(
+        label: 'Expenses',
+        icon: Icons.payments_outlined,
+        selectedIcon: Icons.payments,
+      ),
+      AppRoutes.expenses,
+    ),
+    (
+      NavDestination(
         label: 'Timetable',
         icon: Icons.calendar_view_week_outlined,
         selectedIcon: Icons.calendar_view_week,
@@ -288,6 +296,11 @@ class AppShell extends ConsumerWidget {
       'Leave management',
       'Requests, balances and calendar',
       Icons.beach_access_outlined,
+    ),
+    AppRoutes.expenses: (
+      'Expenses',
+      'Record and review school spending',
+      Icons.payments_outlined,
     ),
     AppRoutes.myLeave: (
       'Your leave',

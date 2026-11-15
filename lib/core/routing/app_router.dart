@@ -17,6 +17,7 @@ import '../../features/academic_setup/presentation/academic_setup_routes.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/fees/presentation/fees_routes.dart';
 import '../../features/help/presentation/help_routes.dart';
+import '../../features/expenses/presentation/expenses_routes.dart';
 import '../../features/leave/presentation/leave_routes.dart';
 import '../../features/timetable/presentation/timetable_routes.dart';
 import '../../features/homework/presentation/homework_routes.dart';
@@ -341,6 +342,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(routes: myFeesRoutes()),
           StatefulShellBranch(routes: leaveRoutes()),
           StatefulShellBranch(routes: myLeaveRoutes()),
+          StatefulShellBranch(routes: expenseRoutes()),
           StatefulShellBranch(routes: timetableRoutes()),
           StatefulShellBranch(routes: myTimetableRoutes()),
           StatefulShellBranch(routes: homeworkRoutes()),

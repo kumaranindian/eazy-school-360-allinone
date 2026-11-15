@@ -1,3 +1,4 @@
+import 'expense.dart';
 import 'expense_category.dart';
 import 'expense_settings.dart';
 
@@ -27,5 +28,36 @@ abstract interface class ExpenseRepository {
     String? categoryId,
     required String name,
     bool? active,
+  });
+
+  /// Records a new draft; returns its id. [clientRequestId] makes a retry
+  /// return the first result instead of creating a second expense.
+  Future<String> createExpense(
+    String schoolId,
+    String branchId,
+    ExpenseInput input, {
+    String? clientRequestId,
+  });
+
+  /// Edits a draft; returns the new version.
+  Future<int> updateExpense(
+    String schoolId,
+    String branchId,
+    String expenseId,
+    ExpenseInput input, {
+    int? baseVersion,
+  });
+
+  Future<Expense> expense(String schoolId, String branchId, String expenseId);
+
+  /// A page of the branch's expenses, newest date first.
+  Future<ExpensePage> expenses(
+    String schoolId,
+    String branchId, {
+    ExpenseStatus? status,
+    String? categoryId,
+    String? fromDate,
+    String? toDate,
+    Map<String, dynamic>? cursor,
   });
 }
