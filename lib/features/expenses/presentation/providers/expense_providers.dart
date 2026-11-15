@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../users/presentation/providers/user_providers.dart'
+    show firebaseStorageProvider;
 import '../../data/firebase_expense_repository.dart';
 import '../../domain/expense.dart';
 import '../../domain/expense_category.dart';
@@ -57,4 +59,17 @@ final expenseAllCategoriesProvider = FutureProvider.autoDispose
       (ref, schoolId) => ref
           .watch(expenseRepositoryProvider)
           .categories(schoolId, includeInactive: true),
+    );
+
+/// The bytes of receipts (Storage). Overridden in tests.
+final expenseReceiptStoreProvider = Provider<ExpenseReceiptStore>(
+  (ref) =>
+      FirebaseExpenseReceiptStore(storage: ref.watch(firebaseStorageProvider)),
+);
+
+final expenseReceiptsProvider = FutureProvider.autoDispose
+    .family<List<ExpenseReceipt>, ExpenseKey>(
+      (ref, k) => ref
+          .watch(expenseRepositoryProvider)
+          .receipts(k.schoolId, k.branchId, k.expenseId),
     );

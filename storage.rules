@@ -185,6 +185,35 @@ service firebase.storage {
       allow update, delete: if false;
     }
 
+    // schools/{schoolId}/branches/{branchId}/expenseReceipts/{expenseId}/{receiptId}/{fileName}
+    // (expense management) - a bill or receipt attached to a DRAFT expense. Readable by the school
+    // admin and by the branch admin / finance user of THIS branch (not teachers, parents, other
+    // branches or schools; no platform support read). CREATE-ONLY and only against an upload the
+    // server approved: expenseReceipts/{receiptId} must exist in status UPLOADING, created by the
+    // uploader, for this expense, naming exactly this path, size and content type
+    // (requestExpenseReceiptUpload validated PDF/JPEG/PNG up to 5MB). Never replaced or deleted from a
+    // client; the server marks a receipt removed and sweeps uploads that were never confirmed.
+    function expenseViewer(schoolId, branchId) {
+      return isActiveCaller() && callerProfile().schoolId == schoolId
+        && (callerProfile().role == 'SCHOOL_ADMIN' || roleIn(branchId) in ['BRANCH_ADMIN', 'FINANCE']);
+    }
+
+    match /schools/{schoolId}/branches/{branchId}/expenseReceipts/{expenseId}/{receiptId}/{fileName} {
+      allow read: if expenseViewer(schoolId, branchId);
+      allow create: if resource == null && expenseViewer(schoolId, branchId)
+        && firestore.exists(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/expenseReceipts/$(receiptId))
+        && firestore.get(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/expenseReceipts/$(receiptId)).data.status == 'UPLOADING'
+        && firestore.get(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/expenseReceipts/$(receiptId)).data.createdBy == request.auth.uid
+        && firestore.get(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/expenseReceipts/$(receiptId)).data.expenseId == expenseId
+        && firestore.get(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/expenseReceipts/$(receiptId)).data.storagePath
+           == 'schools/' + schoolId + '/branches/' + branchId + '/expenseReceipts/' + expenseId + '/' + receiptId + '/' + fileName
+        && request.resource.size == firestore.get(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/expenseReceipts/$(receiptId)).data.sizeBytes
+        && request.resource.contentType == firestore.get(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/expenseReceipts/$(receiptId)).data.contentType
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/jpeg|image/png');
+      allow update, delete: if false;
+    }
+
     // schools/{schoolId}/branches/{branchId}/leaveDocs/{applicantUid}/
     // {applicationId}/{fileName} (Milestone 7) — supporting documents for a
     // leave application (often medical). The path carries the APPLICANT's uid:

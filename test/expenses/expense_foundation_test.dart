@@ -253,4 +253,42 @@ void main() {
       expect(ExpensePage.fromMap({}).nextCursor, isNull);
     });
   });
+
+  group('ReceiptRules', () {
+    test('only PDF, JPEG and PNG, by extension, case-insensitive', () {
+      expect(ReceiptRules.contentTypeFor('a.pdf'), 'application/pdf');
+      expect(ReceiptRules.contentTypeFor('A.JPG'), 'image/jpeg');
+      expect(ReceiptRules.contentTypeFor('a.jpeg'), 'image/jpeg');
+      expect(ReceiptRules.contentTypeFor('a.png'), 'image/png');
+      for (final bad in ['a.webp', 'a.html', 'a.exe', 'a', 'a.', '.pdf.zip']) {
+        expect(ReceiptRules.contentTypeFor(bad), isNull, reason: bad);
+      }
+    });
+
+    test('size and name limits, with a plain-words reason', () {
+      expect(ReceiptRules.problem('a.pdf', 100), isNull);
+      expect(ReceiptRules.problem('a.pdf', ReceiptRules.maxBytes), isNull);
+      expect(
+        ReceiptRules.problem('a.pdf', ReceiptRules.maxBytes + 1),
+        contains('5 MB'),
+      );
+      expect(ReceiptRules.problem('a.pdf', 0), contains('empty'));
+      expect(ReceiptRules.problem('a.zip', 5), contains('PDF'));
+      expect(ReceiptRules.problem('${'x' * 121}.pdf', 5), isNotNull);
+      expect(ReceiptRules.problem('a/b.pdf', 5), isNotNull);
+      expect(ReceiptRules.maxPerExpense, 3);
+    });
+
+    test('a receipt reads the server map and knows its kind', () {
+      final r = ExpenseReceipt.fromMap({
+        'id': 'r1',
+        'fileName': 'a.pdf',
+        'contentType': 'application/pdf',
+        'sizeBytes': 10,
+        'storagePath': 'p',
+      });
+      expect(r.isPdf, isTrue);
+      expect(r.isImage, isFalse);
+    });
+  });
 }

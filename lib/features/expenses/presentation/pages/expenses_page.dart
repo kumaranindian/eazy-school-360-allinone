@@ -243,7 +243,8 @@ class _ExpenseTile extends StatelessWidget {
         ),
         subtitle: Text(
           '${expense.number} · ${expense.categoryName} · '
-          '${SchoolTime.formatKey(expense.expenseDate)}',
+          '${SchoolTime.formatKey(expense.expenseDate)}'
+          '${expense.receiptCount > 0 ? ' · 📎 ${expense.receiptCount}' : ''}',
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,

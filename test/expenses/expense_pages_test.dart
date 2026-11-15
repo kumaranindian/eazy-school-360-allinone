@@ -7,6 +7,7 @@ import 'package:eazy_school_360/features/authentication/domain/app_user.dart';
 import 'package:eazy_school_360/features/authentication/presentation/providers/auth_providers.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense_settings.dart';
+import 'package:eazy_school_360/features/admission/presentation/providers/document_picker.dart';
 import 'package:eazy_school_360/features/expenses/presentation/expenses_routes.dart';
 import 'package:eazy_school_360/features/expenses/presentation/providers/expense_providers.dart';
 import 'package:eazy_school_360/features/school_setup/domain/branch.dart';
@@ -19,6 +20,7 @@ import 'package:eazy_school_360/features/users/domain/user_status.dart';
 import 'package:eazy_school_360/features/users/presentation/providers/user_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
@@ -55,6 +57,7 @@ Future<GoRouter> _pump(
   UserRole role = UserRole.finance,
   String start = '/expenses',
   Size size = const Size(900, 1600),
+  List<Override> extra = const [],
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -106,6 +109,7 @@ Future<GoRouter> _pump(
           ),
         ),
         expenseRepositoryProvider.overrideWithValue(repo),
+        ...extra,
       ],
       child: MaterialApp.router(routerConfig: router),
     ),
@@ -438,6 +442,180 @@ void main() {
     });
   });
 
+  group('receipts', () {
+    final pdf = [0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34];
+
+    List<Override> pickerAndStore(
+      FakeReceiptStore store,
+      PickedDocument? picked,
+    ) => [
+      expenseReceiptStoreProvider.overrideWithValue(store),
+      documentPickerProvider.overrideWithValue(_Picker(picked)),
+    ];
+
+    testWidgets('attaching walks the three steps and shows the receipt', (
+      tester,
+    ) async {
+      final repo = FakeExpenseRepository()..items.add(_expense('1'));
+      final store = FakeReceiptStore();
+      await _pump(
+        tester,
+        repo,
+        start: '/expenses/1',
+        extra: pickerAndStore(store, PickedDocument('bill.pdf', pdf)),
+      );
+      expect(find.text('No receipt attached.'), findsOneWidget);
+      await tester.ensureVisible(find.byKey(const ValueKey('receipt-attach')));
+      await tester.tap(find.byKey(const ValueKey('receipt-attach')));
+      await tester.pumpAndSettle();
+      expect(repo.receiptRequests.single.contentType, 'application/pdf');
+      expect(repo.receiptRequests.single.sizeBytes, pdf.length);
+      expect(
+        repo.receiptRequests.single.requestId,
+        matches(RegExp(r'^[a-z0-9]{24}$')),
+      );
+      expect(store.uploads.single, contains('/expenseReceipts/1/r1/'));
+      expect(repo.receiptConfirms, ['r1']);
+      expect(find.text('bill.pdf'), findsOneWidget);
+    });
+
+    testWidgets(
+      'a file that is not allowed is refused before anything is sent',
+      (tester) async {
+        final repo = FakeExpenseRepository()..items.add(_expense('1'));
+        final store = FakeReceiptStore();
+        for (final bad in [
+          PickedDocument('page.html', [1, 2, 3]),
+          PickedDocument('huge.pdf', List.filled(5 * 1024 * 1024 + 1, 0)),
+          PickedDocument('empty.png', const []),
+        ]) {
+          await _pump(
+            tester,
+            repo,
+            start: '/expenses/1',
+            extra: pickerAndStore(store, bad),
+          );
+          await tester.ensureVisible(
+            find.byKey(const ValueKey('receipt-attach')),
+          );
+          await tester.tap(find.byKey(const ValueKey('receipt-attach')));
+          await tester.pumpAndSettle();
+        }
+        expect(repo.receiptRequests, isEmpty);
+        expect(store.uploads, isEmpty);
+      },
+    );
+
+    testWidgets('a failed upload does not confirm and says why', (
+      tester,
+    ) async {
+      final repo = FakeExpenseRepository()..items.add(_expense('1'));
+      final store = FakeReceiptStore()
+        ..failWith = const NetworkFailure('Offline');
+      await _pump(
+        tester,
+        repo,
+        start: '/expenses/1',
+        extra: pickerAndStore(store, PickedDocument('bill.pdf', pdf)),
+      );
+      await tester.ensureVisible(find.byKey(const ValueKey('receipt-attach')));
+      await tester.tap(find.byKey(const ValueKey('receipt-attach')));
+      await tester.pumpAndSettle();
+      expect(repo.receiptConfirms, isEmpty);
+      expect(find.text('No receipt attached.'), findsOneWidget);
+    });
+
+    testWidgets('removing asks first, then removes', (tester) async {
+      final repo = FakeExpenseRepository()
+        ..items.add(_expense('1'))
+        ..receiptsByExpense['1'] = [
+          const ExpenseReceipt(
+            id: 'r9',
+            fileName: 'old.png',
+            contentType: 'image/png',
+            sizeBytes: 2048,
+            storagePath: 'p/r9',
+          ),
+        ];
+      await _pump(tester, repo, start: '/expenses/1');
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('receipt-remove-r9')),
+      );
+      await tester.tap(find.byKey(const ValueKey('receipt-remove-r9')));
+      await tester.pumpAndSettle();
+      expect(
+        repo.receiptRemovals,
+        isEmpty,
+        reason: 'not before the person agrees',
+      );
+      await tester.tap(find.byKey(const ValueKey('receipt-remove-confirm')));
+      await tester.pumpAndSettle();
+      expect(repo.receiptRemovals, ['r9']);
+      expect(find.text('No receipt attached.'), findsOneWidget);
+    });
+
+    testWidgets('a paid expense shows its receipts but offers no change', (
+      tester,
+    ) async {
+      final repo = FakeExpenseRepository()
+        ..items.add(_expense('1', status: ExpenseStatus.paid))
+        ..receiptsByExpense['1'] = [
+          const ExpenseReceipt(
+            id: 'r9',
+            fileName: 'old.png',
+            contentType: 'image/png',
+            sizeBytes: 2048,
+            storagePath: 'p/r9',
+          ),
+        ];
+      await _pump(tester, repo, start: '/expenses/1');
+      expect(find.text('old.png'), findsOneWidget);
+      expect(find.byKey(const ValueKey('receipt-attach')), findsNothing);
+      expect(find.byKey(const ValueKey('receipt-remove-r9')), findsNothing);
+    });
+
+    testWidgets('no more than three receipts: the attach button goes away', (
+      tester,
+    ) async {
+      final repo = FakeExpenseRepository()
+        ..items.add(_expense('1'))
+        ..receiptsByExpense['1'] = [
+          for (var i = 1; i <= 3; i++)
+            ExpenseReceipt(
+              id: 'r$i',
+              fileName: 'f$i.png',
+              contentType: 'image/png',
+              sizeBytes: 100,
+              storagePath: 'p/r$i',
+            ),
+        ];
+      await _pump(tester, repo, start: '/expenses/1');
+      expect(find.byKey(const ValueKey('receipt-attach')), findsNothing);
+    });
+
+    testWidgets('the list shows how many receipts an expense has', (
+      tester,
+    ) async {
+      final repo = FakeExpenseRepository()
+        ..items.add(
+          Expense(
+            id: '1',
+            number: 'EXP-1',
+            branchId: 'main',
+            categoryId: 'cat_other',
+            categoryName: 'Other',
+            amountMinor: 100,
+            currency: 'INR',
+            expenseDate: '2026-11-10',
+            status: ExpenseStatus.draft,
+            receiptCount: 2,
+          ),
+        );
+      await _pump(tester, repo);
+      expect(find.textContaining('📎 2'), findsOneWidget);
+    });
+  });
+
   group('layout', () {
     for (final (name, size, scale) in [
       ('phone', const Size(360, 700), 1.5),
@@ -471,4 +649,12 @@ void main() {
       }
     }
   });
+}
+
+class _Picker implements DocumentPicker {
+  final PickedDocument? picked;
+  _Picker(this.picked);
+
+  @override
+  Future<PickedDocument?> pick({required bool photoOnly}) async => picked;
 }

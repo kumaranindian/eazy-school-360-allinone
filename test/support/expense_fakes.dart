@@ -207,4 +207,101 @@ class FakeExpenseRepository implements ExpenseRepository {
       nextCursor: end < all.length ? {'at': end} : null,
     );
   }
+
+  // ---- receipts ----
+  final Map<String, List<ExpenseReceipt>> receiptsByExpense = {};
+  final List<
+    ({String fileName, String contentType, int sizeBytes, String? requestId})
+  >
+  receiptRequests = [];
+  final List<String> receiptConfirms = [];
+  final List<String> receiptRemovals = [];
+
+  @override
+  Future<({String id, String storagePath})> requestReceiptUpload(
+    String schoolId,
+    String branchId,
+    String expenseId, {
+    required String fileName,
+    required String contentType,
+    required int sizeBytes,
+    String? requestId,
+  }) async {
+    _maybeFail();
+    receiptRequests.add((
+      fileName: fileName,
+      contentType: contentType,
+      sizeBytes: sizeBytes,
+      requestId: requestId,
+    ));
+    final id = 'r${receiptRequests.length}';
+    return (
+      id: id,
+      storagePath:
+          'schools/$schoolId/branches/$branchId/expenseReceipts/$expenseId/$id/receipt',
+    );
+  }
+
+  @override
+  Future<void> confirmReceiptUpload(
+    String schoolId,
+    String branchId,
+    String expenseId,
+    String receiptId,
+  ) async {
+    _maybeFail();
+    receiptConfirms.add(receiptId);
+    final req = receiptRequests[int.parse(receiptId.substring(1)) - 1];
+    (receiptsByExpense[expenseId] ??= []).add(
+      ExpenseReceipt(
+        id: receiptId,
+        fileName: req.fileName,
+        contentType: req.contentType,
+        sizeBytes: req.sizeBytes,
+        storagePath: 'p/$receiptId',
+      ),
+    );
+  }
+
+  @override
+  Future<void> removeReceipt(
+    String schoolId,
+    String branchId,
+    String expenseId,
+    String receiptId,
+  ) async {
+    _maybeFail();
+    receiptRemovals.add(receiptId);
+    receiptsByExpense[expenseId]?.removeWhere((r) => r.id == receiptId);
+  }
+
+  @override
+  Future<List<ExpenseReceipt>> receipts(
+    String schoolId,
+    String branchId,
+    String expenseId,
+  ) async {
+    _maybeFail();
+    return List.of(receiptsByExpense[expenseId] ?? const []);
+  }
+}
+
+class FakeReceiptStore implements ExpenseReceiptStore {
+  final Map<String, List<int>> objects = {};
+  final List<String> uploads = [];
+  Object? failWith;
+
+  @override
+  Future<void> upload({
+    required String path,
+    required List<int> bytes,
+    required String contentType,
+  }) async {
+    if (failWith != null) throw failWith!;
+    uploads.add(path);
+    objects[path] = bytes;
+  }
+
+  @override
+  Future<List<int>> read(String path) async => objects[path] ?? const [];
 }
