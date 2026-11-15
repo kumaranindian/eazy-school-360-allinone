@@ -31,10 +31,20 @@ change) to `platformAuditLog`, and a trigger copies them into the central trail 
 | DATA_CONFIG | school profile, regional, branding, settings, imports, exports of business data | | | **Not yet** | branding/regional callables do not write the central trail yet |
 | READ | profile / contact / fee viewed | direct Firestore reads | | **Not capturable** | only exports and audit-log access (above) are observable |
 
+## Every callable, with request and response (added 2026-11-15)
+`functions/call_audit.js` wraps the handler of **every** `onCall` in `index.js`, so each callable writes one `API_<NAME>` event (T1, category by name, `API` when unknown) holding: `actionName` (the callable name), caller, school/branch, `request`, `response` (or `error` code/message), result (`DENIED` for permission/auth refusals), `durationMs`, IP and user agent. A new callable is covered with no extra code.
+- **Secrets** (passwords, OTPs, tokens, keys, reset links, bearer/JWT strings) are masked in both directions; the key stays so the fact it was sent is visible. **Personal data is kept**; only platform owner/compliance can read the trail.
+- **Size cap** 20 KB per body (depth 10, 3,000 nodes, 200 items per list/map); over it the body becomes `{ truncated, bytes, preview }`.
+- **Not echoed**: reading the trail (`queryAuditEvents`, `exportAuditEvents`, `getAuditSummary`, `getAuditEvent`) keeps the request but not the response; `reportClientEvent` is not audited twice.
+- **Data writes** (the 18 watched modules) now also keep the full `before` / `after` document under the same masking and cap, and `actionName` = `collection.operation`.
+- **Reading a payload**: the list shows only the action name; `getAuditEvent` (owner/compliance, itself audited as `AUDIT_EVENT_VIEWED`) returns the bodies, shown in the console by "Show request and response".
+- The audit write never changes the call: a failed write is logged and the caller still gets the handler's own result or error. Cost: one user read and one event write per call.
+- Branding/regional, admission documents/fees/conversions and every other callable are therefore now in the trail (as API events); what remains uncovered is direct client writes to collections that have no watcher.
+
 ## What the trail can answer
 Who changed what, in which school, when, and how reliable that statement is; denied and failed attempts that the server can see; every use of the audit log itself.
 It cannot prove what a client says about itself (T4), and it does not see reads.
 
 ## Known gaps (kept visible on purpose)
-1. App does not send T4 reports yet. 2. Academic setup (classes, sections, subjects, years, holidays), admission documents/fees/conversions, branding/regional/settings changes, notification acknowledgement and delivery are not in the central trail yet.
+1. App does not send T4 reports yet. 2. Academic setup (classes, sections, subjects, years, holidays) written straight from the app has no watcher; notification delivery has its own log. (Branding/regional, admission documents/fees/conversions and notification acknowledgement go through callables and are now recorded as API events.)
 3. A client write can in principle skip the trigger only if the function is down: the trigger retries until it succeeds, but nothing alerts on a stuck retry (Cloud Monitoring alert not created).

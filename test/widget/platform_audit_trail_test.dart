@@ -50,7 +50,11 @@ AuditEventView _event(
   String trust = 'T2',
   List<Map<String, Object?>> changes = const [],
   int at = 1700000000000,
+  bool hasPayload = false,
 }) => AuditEventView.fromMap({
+  'actionName': hasPayload ? 'updateAdmissionEnquiry' : null,
+  'hasPayload': hasPayload,
+  'durationMs': hasPayload ? 42 : null,
   'id': id,
   'eventType': type,
   'category': category,
@@ -281,6 +285,60 @@ void main() {
         );
       },
     );
+  });
+
+  group('audit request and response', () {
+    testWidgets(
+      'the action name shows at once; the bodies load only when asked and are copyable JSON',
+      (tester) async {
+        tester.view.physicalSize = const Size(900, 2400);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final ops = FakePlatformOpsRepository(stats: fakeStats())
+          ..auditPageOne = AuditPage(
+            events: [_event('e1', type: 'API_UPDATE', hasPayload: true)],
+          )
+          ..auditDetail = const AuditEventDetail(
+            request: {'enquiryId': 'e1', 'password': '[masked]'},
+            response: {'ok': true},
+          );
+        await _pump(tester, ops: ops);
+        await tester.tap(find.byKey(const ValueKey('audit-e1')));
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining('updateAdmissionEnquiry', findRichText: true),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('42 ms', findRichText: true),
+          findsOneWidget,
+        );
+        expect(ops.auditDetailsOpened, isEmpty, reason: 'nothing fetched yet');
+        await tester.tap(find.byKey(const ValueKey('audit-show-payload')));
+        await tester.pumpAndSettle();
+        expect(ops.auditDetailsOpened, ['e1']);
+        expect(find.byKey(const ValueKey('audit-payload-Request')), findsOne);
+        expect(find.textContaining('"enquiryId": "e1"'), findsOneWidget);
+        expect(find.textContaining('[masked]'), findsOneWidget);
+        expect(find.byKey(const ValueKey('audit-payload-Response')), findsOne);
+      },
+    );
+
+    testWidgets('an event with no stored body offers no payload button', (
+      tester,
+    ) async {
+      final ops = FakePlatformOpsRepository(stats: fakeStats())
+        ..auditPageOne = AuditPage(events: [_event('e1')]);
+      await _pump(tester, ops: ops);
+      await tester.tap(find.byKey(const ValueKey('audit-e1')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('audit-show-payload')), findsNothing);
+    });
+
+    test('the month an event lives in is derived in UTC', () {
+      expect(_event('e1', at: 1700000000000).month, '202311');
+      expect(_event('e1', at: 1698796800000 - 1).month, '202310');
+    });
   });
 
   group('audit trail filters and paging', () {

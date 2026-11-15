@@ -11,7 +11,7 @@ test('index.js loads and exports the governance callables, scheduler and trigger
     'listMyPlatformNotifications', 'acknowledgeNotification', 'dismissNotification',
     'savePlan', 'listPlans', 'setSubscription', 'extendSubscription', 'renewSubscription', 'cancelSubscription', 'grantTrial', 'getSubscriptionHistory', 'subscriptionMonitor',
     'setSchoolFeatures', 'getFeatureConfig', 'setFeatureDefaults', 'getFeatureHistory',
-    'queryAuditEvents', 'exportAuditEvents', 'getAuditSummary', 'reportClientEvent', 'auditRetention', 'auditMirrorPlatform', 'auditMirrorAuth',
+    'queryAuditEvents', 'exportAuditEvents', 'getAuditSummary', 'getAuditEvent', 'reportClientEvent', 'auditRetention', 'auditMirrorPlatform', 'auditMirrorAuth',
   ];
   for (const name of want) assert.ok(m[name], `missing export ${name}`);
   const watched = Object.keys(m).filter((k) => k.startsWith('moduleWatch_'));

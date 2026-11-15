@@ -129,6 +129,10 @@ abstract class PlatformOpsRepository {
   /// The filtered events as CSV text (capped by the server; the export is audited).
   Future<({String csv, int rows, bool capped})> exportAudit(AuditFilter filter);
 
+  /// One event with its request, response and before/after bodies (the
+  /// list leaves them out; opening one is itself audited).
+  Future<AuditEventDetail> auditEvent(AuditEventView event);
+
   // ---- subscriptions (owner writes; every platform role reads) ----
   Future<List<PlatformPlan>> plans();
 

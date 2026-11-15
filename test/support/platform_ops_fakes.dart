@@ -461,6 +461,17 @@ class FakePlatformOpsRepository implements PlatformOpsRepository {
     return auditSummaryValue;
   }
 
+  /// What `auditEvent` returns (tests set it).
+  AuditEventDetail auditDetail = const AuditEventDetail();
+  final List<String> auditDetailsOpened = [];
+
+  @override
+  Future<AuditEventDetail> auditEvent(AuditEventView event) async {
+    _maybeFail();
+    auditDetailsOpened.add(event.id);
+    return auditDetail;
+  }
+
   @override
   Future<({String csv, int rows, bool capped})> exportAudit(
     AuditFilter filter,

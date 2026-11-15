@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -389,10 +391,19 @@ class _EventTile extends StatelessWidget {
   }
 }
 
-class _EventDialog extends StatelessWidget {
+class _EventDialog extends ConsumerStatefulWidget {
   final AuditEventView event;
 
   const _EventDialog({required this.event});
+
+  @override
+  ConsumerState<_EventDialog> createState() => _EventDialogState();
+}
+
+class _EventDialogState extends ConsumerState<_EventDialog> {
+  Future<AuditEventDetail>? _detail;
+
+  AuditEventView get event => widget.event;
 
   @override
   Widget build(BuildContext context) {
@@ -441,6 +452,11 @@ class _EventDialog extends StatelessWidget {
                   event.targetEntityId,
                 ].whereType<String>().join(' '),
               ),
+              row('Action', event.actionName),
+              row(
+                'Duration',
+                event.durationMs == null ? null : '${event.durationMs} ms',
+              ),
               row('Summary', event.description),
               if (event.changes.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.xs),
@@ -454,6 +470,40 @@ class _EventDialog extends StatelessWidget {
                   ),
               ],
               row('Reference', event.correlationId),
+              if (event.hasPayload) ...[
+                const SizedBox(height: AppSpacing.sm),
+                if (_detail == null)
+                  OutlinedButton.icon(
+                    key: const ValueKey('audit-show-payload'),
+                    icon: const Icon(Icons.data_object),
+                    label: const Text('Show request and response'),
+                    onPressed: () {
+                      final f = ref
+                          .read(platformOpsRepositoryProvider)
+                          .auditEvent(event);
+                      setState(() {
+                        _detail = f;
+                      });
+                    },
+                  )
+                else
+                  FutureBuilder<AuditEventDetail>(
+                    future: _detail,
+                    builder: (context, snap) {
+                      if (snap.hasError) {
+                        return Text(
+                          userMessageFor(snap.error!),
+                          key: const ValueKey('audit-payload-error'),
+                        );
+                      }
+                      final d = snap.data;
+                      if (d == null) {
+                        return const LinearProgressIndicator();
+                      }
+                      return _Payloads(detail: d);
+                    },
+                  ),
+              ],
             ],
           ),
         ),
@@ -463,6 +513,57 @@ class _EventDialog extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
           child: const Text('Close'),
         ),
+      ],
+    );
+  }
+}
+
+/// The stored bodies of one event as selectable, copyable JSON. Secrets are
+/// already masked by the server.
+class _Payloads extends StatelessWidget {
+  final AuditEventDetail detail;
+
+  const _Payloads({required this.detail});
+
+  static String pretty(Object? v) =>
+      const JsonEncoder.withIndent('  ').convert(v);
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final sections = <(String, Object?)>[
+      ('Request', detail.request),
+      ('Response', detail.response),
+      ('Error', detail.error),
+      ('Before', detail.before),
+      ('After', detail.after),
+    ].where((s) => s.$2 != null).toList();
+    if (sections.isEmpty) {
+      return const Text('No request or response was stored for this event.');
+    }
+    return Column(
+      key: const ValueKey('audit-payloads'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final (label, body) in sections) ...[
+          Row(
+            children: [
+              Expanded(child: Text(label, style: text.labelLarge)),
+              IconButton(
+                tooltip: 'Copy $label',
+                icon: const Icon(Icons.copy, size: 18),
+                onPressed: () =>
+                    Clipboard.setData(ClipboardData(text: pretty(body))),
+              ),
+            ],
+          ),
+          SelectableText(
+            pretty(body),
+            key: ValueKey('audit-payload-$label'),
+            style: text.bodySmall?.copyWith(fontFamily: 'monospace'),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+        ],
       ],
     );
   }
