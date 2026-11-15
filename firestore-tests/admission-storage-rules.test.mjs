@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { test, before, after, beforeEach } from 'node:test';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getBytes, deleteObject } from 'firebase/storage';
+import { ref, uploadBytes, getBytes, deleteObject, listAll } from 'firebase/storage';
 
 let env;
 before(async () => {
@@ -54,9 +54,24 @@ async function seed(docMeta = meta()) {
 }
 const put = (uid, p = path(), opts = { contentType: 'application/pdf' }, bytes = BYTES) => uploadBytes(ref(store(uid), p), bytes, opts);
 
+// clearStorage() did not remove uploaded objects between tests in CI, and the rule is
+// create-only (an upload over an existing object is refused), so a leftover object from
+// an earlier test made a later first upload fail. Delete every object explicitly.
+async function wipeStorage() {
+  await env.withSecurityRulesDisabled(async (c) => {
+    const walk = async (r) => {
+      const l = await listAll(r);
+      await Promise.all(l.items.map((i) => deleteObject(i)));
+      await Promise.all(l.prefixes.map(walk));
+    };
+    await walk(ref(c.storage(), 'schools'));
+  });
+}
+
 beforeEach(async () => {
   await env.clearFirestore();
   await env.clearStorage();
+  await wipeStorage();
 });
 
 test('an approved upload by the school admin or the branch admin of that branch succeeds, once', async () => {
