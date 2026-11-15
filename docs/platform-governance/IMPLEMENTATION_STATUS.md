@@ -89,3 +89,7 @@ Cross-role matrix (22 callables x 15 callers, denied calls prove no write), host
 
 ## Phase 13 summary (2026-11-14)
 Prepared, not executed: `DEPLOYMENT_GUIDE.md` (ordered dev rollout, smoke test table, per-step rollback, kill switch), `READINESS_ASSESSMENT.md` (verdict: ready for dev after four human steps, not yet for prod; evidence, unverified areas, open items), `tool/governance_dry_run.js` (read-only migration dry run; refuses every write; production needs `--read-prod`), `functions/deploy_manifest.test.js` (offline validation of every function name, trigger path, region and trigger kind: 159 functions, 109 callable / 41 event / 9 scheduled), env settings added to `functions/env.example`. No Firebase project was contacted and no deploy was run.
+
+
+## Follow-up: every callable audited with request and response (2026-11-15)
+Done: `functions/call_audit.js` (wraps all callables), payload recording and masking in `audit.js`, `getAuditEvent`, before/after on data writes, console detail view. Tests: `functions/call_audit.test.js` (11), `platform_audit_trail_test.dart` (+3). Decisions: all callables + watched data writes; full payloads with secrets masked; 20 KB cap with the existing archive-first retention. Not deployed. After deploy, `AUDIT_RETENTION_DAYS` and storage growth should be watched: bodies make events larger.

@@ -342,6 +342,17 @@ class FirebasePlatformOpsRepository implements PlatformOpsRepository {
   }
 
   @override
+  Future<AuditEventDetail> auditEvent(AuditEventView event) async {
+    final out = await _call('getAuditEvent', {
+      'eventId': event.id,
+      'month': event.month,
+    });
+    return AuditEventDetail.fromMap(
+      Map<String, dynamic>.from((out['event'] as Map?) ?? const {}),
+    );
+  }
+
+  @override
   Future<List<PlatformPlan>> plans() async {
     final out = await _call('listPlans', const {});
     return [

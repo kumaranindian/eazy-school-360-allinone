@@ -5,7 +5,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 const { setGlobalOptions } = require('firebase-functions/v2');
 const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require('firebase-functions/v2/firestore');
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onCall: rawOnCall, HttpsError } = require('firebase-functions/v2/https');
 const { getAuth } = require('firebase-admin/auth');
 const { FieldValue } = require('firebase-admin/firestore');
 const logger = require('firebase-functions/logger');
@@ -43,6 +43,11 @@ initializeApp();
 setGlobalOptions({ region: process.env.FUNCTIONS_REGION || 'asia-south1', maxInstances: 10 });
 
 const db = getFirestore();
+
+// EVERY callable goes through here: its action name, caller, request, response or error and timing are
+// written to the central audit trail (call_audit.js). Late-bound (adminCtx is defined further down).
+const auditedCall = require('./call_audit').makeAuditedCall({ ctx: () => adminCtx(), log: (m, d) => logger.warn(m, d) });
+const onCall = (options, handler) => rawOnCall(options, auditedCall(handler));
 const messaging = getMessaging();
 
 // Pushes one notification document. Idempotent and retryable: see deliver.js
@@ -572,6 +577,7 @@ exports.setPlatformAdminStatus = platformCall('setPlatformAdminStatus', platform
 exports.queryAuditEvents = platformCall('queryAuditEvents', audit.queryAuditEvents);
 exports.exportAuditEvents = platformCall('exportAuditEvents', audit.exportAuditEvents, (o) => ({ rows: o.rows }));
 exports.getAuditSummary = platformCall('getAuditSummary', audit.getAuditSummary);
+exports.getAuditEvent = platformCall('getAuditEvent', audit.getAuditEvent);
 // What only the app can see (sign-out, expired session, a screen refused). Untrusted, allow-listed, rate limited.
 exports.reportClientEvent = onCall(callOptions(), async (request) => {
   const a = signedIn(request);

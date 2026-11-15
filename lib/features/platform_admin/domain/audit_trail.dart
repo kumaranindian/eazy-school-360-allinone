@@ -51,6 +51,13 @@ class AuditEventView {
   final Map<String, dynamic> metadata;
   final String? correlationId;
 
+  /// The operation that ran (the callable name, or `collection.operation`
+  /// for a data write), and whether a request/response/before/after body was
+  /// stored (fetched on demand: [AuditEventDetail]).
+  final String? actionName;
+  final bool hasPayload;
+  final int? durationMs;
+
   const AuditEventView({
     required this.id,
     required this.eventType,
@@ -74,6 +81,9 @@ class AuditEventView {
     this.changes = const [],
     this.metadata = const {},
     this.correlationId,
+    this.actionName,
+    this.hasPayload = false,
+    this.durationMs,
   });
 
   factory AuditEventView.fromMap(Map<String, dynamic> m) => AuditEventView(
@@ -104,7 +114,16 @@ class AuditEventView {
     ],
     metadata: Map<String, dynamic>.from((m['metadata'] as Map?) ?? const {}),
     correlationId: m['correlationId'] as String?,
+    actionName: m['actionName'] as String?,
+    hasPayload: m['hasPayload'] == true,
+    durationMs: (m['durationMs'] as num?)?.toInt(),
   );
+
+  /// The month partition the server stores this event in (UTC).
+  String get month {
+    final t = (at ?? DateTime.fromMillisecondsSinceEpoch(0)).toUtc();
+    return '${t.year}${t.month.toString().padLeft(2, '0')}';
+  }
 
   bool get denied => result == 'DENIED';
   bool get failed => result == 'FAILURE';
@@ -123,6 +142,46 @@ class AuditEventView {
     final words = eventType.toLowerCase().replaceAll('_', ' ');
     return words.isEmpty ? '' : words[0].toUpperCase() + words.substring(1);
   }
+}
+
+/// What was sent and returned for one event (secrets are masked by the
+/// server; bodies over the size cap carry `truncated`, `bytes` and a preview).
+class AuditEventDetail {
+  final Object? request;
+  final Object? response;
+  final Object? before;
+  final Object? after;
+  final Map<String, dynamic>? error;
+  final Map<String, dynamic>? client;
+
+  const AuditEventDetail({
+    this.request,
+    this.response,
+    this.before,
+    this.after,
+    this.error,
+    this.client,
+  });
+
+  factory AuditEventDetail.fromMap(Map<String, dynamic> m) {
+    Map<String, dynamic>? map(Object? v) =>
+        v is Map ? Map<String, dynamic>.from(v) : null;
+    return AuditEventDetail(
+      request: m['request'],
+      response: m['response'],
+      before: m['before'],
+      after: m['after'],
+      error: map(m['error']),
+      client: map(m['client']),
+    );
+  }
+
+  bool get isEmpty =>
+      request == null &&
+      response == null &&
+      before == null &&
+      after == null &&
+      error == null;
 }
 
 /// One page of events and where the next one starts (null = no more).
@@ -294,9 +353,11 @@ const auditCategories = [
   'DATA_CONFIG',
   'PLATFORM',
   'SECURITY',
+  'API',
 ];
 
 String auditCategoryLabel(String c) {
+  if (c == 'API') return 'API calls';
   final w = c.toLowerCase().replaceAll('_', ' / ');
   return w.isEmpty ? c : w[0].toUpperCase() + w.substring(1);
 }

@@ -20,7 +20,7 @@ const { validId, own } = require('./ids');
 
 const CATEGORIES = Object.freeze([
   'AUTHENTICATION', 'SCHOOL', 'SUBSCRIPTION', 'FEATURE', 'STUDENT', 'PARENT', 'STAFF', 'ATTENDANCE_LEAVE',
-  'FEES', 'ACADEMIC', 'ADMISSION', 'COMMUNICATION', 'DATA_CONFIG', 'PLATFORM', 'SECURITY',
+  'FEES', 'ACADEMIC', 'ADMISSION', 'COMMUNICATION', 'DATA_CONFIG', 'PLATFORM', 'SECURITY', 'API',
 ]);
 const ACTIONS = Object.freeze([
   'CREATE', 'UPDATE', 'DELETE', 'ACTIVATE', 'DEACTIVATE', 'SUSPEND', 'REACTIVATE', 'EXPIRE', 'CLOSE', 'RECOVER',
@@ -43,6 +43,57 @@ const SECRET_STRING = /(^|\s)bearer\s+\S+|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,
 const MAX_STRING = 300;
 const MAX_CHANGES = 30;
 const MAX_META_KEYS = 20;
+
+// ---- full payloads (requests, responses, before/after documents) ---------------------------------------
+// Unlike `redact` (short, shallow, for metadata), payloads keep the whole structure and every personal
+// value; only secrets are masked (the key stays so you can see it was sent). Capped at PAYLOAD_MAX_BYTES.
+const PAYLOAD_SECRET_KEY = /pass(word|wd|code|phrase)|^pwd$|otp|token|secret|authorization|api[-_]?key|private[-_]?key|download[-_]?url|signed[-_]?url|credential|pepper|oobcode|cookie/i;
+const PAYLOAD_SECRET_URL = /https?:\/\/\S*([?&](token|alt=media|x-goog-signature|key|oobcode|apikey|sig|signature)=)/i;
+const PAYLOAD_MAX_BYTES = 20 * 1024;
+const PAYLOAD_MAX_DEPTH = 10;
+const PAYLOAD_MAX_NODES = 3000;
+const PAYLOAD_MAX_STRING = 2000;
+const PAYLOAD_MAX_ITEMS = 200;
+const MASK = '[masked]';
+
+function redactPayload(value, state = { nodes: 0 }, depth = 0) {
+  if (value === null || value === undefined) return null;
+  if (++state.nodes > PAYLOAD_MAX_NODES) return '[truncated]';
+  if (typeof value === 'string') return PAYLOAD_SECRET_URL.test(value) || SECRET_STRING.test(value) ? MASK : value.slice(0, PAYLOAD_MAX_STRING);
+  if (typeof value === 'number') return Number.isFinite(value) ? value : String(value);
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'bigint') return String(value);
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value.toDate === 'function' && typeof value.toMillis === 'function') return new Date(value.toMillis()).toISOString(); // Firestore Timestamp
+  if (Buffer.isBuffer(value) || value instanceof Uint8Array) return `[binary ${value.length} bytes]`;
+  if (depth >= PAYLOAD_MAX_DEPTH) return '[truncated]';
+  if (Array.isArray(value)) {
+    const out = value.slice(0, PAYLOAD_MAX_ITEMS).map((v) => redactPayload(v, state, depth + 1));
+    if (value.length > PAYLOAD_MAX_ITEMS) out.push(`[${value.length - PAYLOAD_MAX_ITEMS} more items]`);
+    return out;
+  }
+  if (typeof value === 'object') {
+    if (typeof value.path === 'string' && typeof value.id === 'string' && typeof value.get === 'function') return `[ref ${value.path}]`; // Firestore reference
+    const out = {};
+    for (const [k0, v] of Object.entries(value).slice(0, PAYLOAD_MAX_ITEMS)) {
+      let k = String(k0).slice(0, 100).replace(/\//g, '_');
+      if (!k || /^__.*__$/.test(k)) k = `_${k}`;
+      out[k] = PAYLOAD_SECRET_KEY.test(k) ? MASK : redactPayload(v, state, depth + 1);
+    }
+    return out;
+  }
+  return null;
+}
+
+/** Redacts [value] and bounds its stored size: over the cap it becomes { truncated, bytes, preview }. */
+function payload(value, maxBytes = PAYLOAD_MAX_BYTES) {
+  if (value === undefined) return null;
+  const clean = redactPayload(value);
+  const json = JSON.stringify(clean);
+  const bytes = Buffer.byteLength(json || 'null');
+  if (bytes <= maxBytes) return clean;
+  return { truncated: true, bytes, preview: json.slice(0, maxBytes) };
+}
 
 const text = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const toMs = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : t instanceof Date ? t.getTime() : typeof t === 'number' ? t : null);
@@ -129,6 +180,16 @@ function buildEvent(input, nowDate) {
     metadata: redact(i.metadata || {}),
     schemaVersion: SCHEMA_VERSION,
   };
+  // Full detail (all optional): which action (callable / operation name), what was sent and returned.
+  const actionName = text(i.actionName, 100);
+  if (actionName) event.actionName = actionName;
+  if (i.request !== undefined) event.request = payload(i.request);
+  if (i.response !== undefined) event.response = payload(i.response);
+  if (i.before !== undefined) event.before = payload(i.before);
+  if (i.after !== undefined) event.after = payload(i.after);
+  if (i.error) event.error = { code: text(i.error.code, 60) || null, message: text(i.error.message, 300) || null, details: payload(i.error.details, 2048) };
+  if (Number.isFinite(i.durationMs)) event.durationMs = Math.max(0, Math.round(i.durationMs));
+  if (i.client && typeof i.client === 'object') event.client = { ip: text(i.client.ip, 64) || null, userAgent: text(i.client.userAgent, 200) || null };
   return { event, month: monthOf(nowDate) };
 }
 
@@ -292,6 +353,9 @@ function fromModuleWrite({ eventId, schoolId, branchId, collection, docId, befor
     safeFields: m.safe,
     changes: action === 'UPDATE' ? changes : action === 'CREATE' ? m.safe.filter((f) => doc[f] !== undefined).map((f) => ({ field: f, from: null, to: doc[f] })) : [],
     description: `${m.entity} ${action.toLowerCase()}d`,
+    actionName: `${collection}.${action.toLowerCase()}`,
+    before: before || undefined,
+    after: after || undefined,
     metadata: { collection },
   };
 }
@@ -309,6 +373,9 @@ const PRIMARY = ['schoolId', 'actorUserId', 'category', 'eventType', 'result', '
 
 const view = (e) => ({
   id: e.eventId,
+  actionName: e.actionName || null,
+  hasPayload: e.request !== undefined || e.response !== undefined || e.before !== undefined || e.after !== undefined,
+  durationMs: e.durationMs === undefined ? null : e.durationMs,
   eventType: e.eventType,
   category: e.category,
   schoolId: e.schoolId || null,
@@ -330,6 +397,17 @@ const view = (e) => ({
   changes: (e.changeSummary && e.changeSummary.changes) || [],
   metadata: e.metadata || {},
   correlationId: e.correlationId || null,
+});
+
+/** The full event, payloads included (the list view leaves them out to stay small). */
+const detailView = (e) => ({
+  ...view(e),
+  request: e.request === undefined ? null : e.request,
+  response: e.response === undefined ? null : e.response,
+  before: e.before === undefined ? null : e.before,
+  after: e.after === undefined ? null : e.after,
+  error: e.error || null,
+  client: e.client || null,
 });
 
 /** Validates the filter shape shared by query, export and summary. */
@@ -439,6 +517,23 @@ async function queryAuditEvents(ctx, uid, token, data) {
     });
   }
   return { events: r.events.map(view), nextCursor: r.cursor, truncated: r.truncated };
+}
+
+/** Owner/compliance: one event with its request, response and before/after payloads. Itself audited. */
+async function getAuditEvent(ctx, uid, token, data) {
+  const caller = await reader(ctx, uid, token);
+  if (caller.error) return { error: caller.error };
+  const month = data && data.month;
+  const eventId = data && data.eventId;
+  if (typeof month !== 'string' || !/^\d{6}$/.test(month) || typeof eventId !== 'string' || !/^[a-f0-9]{32}$/.test(eventId)) return { error: 'INVALID_ARGUMENT', reason: 'event' };
+  const snap = await partition(ctx.db, month).doc(eventId).get();
+  if (!snap.exists) return { error: 'NOT_FOUND' };
+  await recordSafe(ctx, {
+    sourceId: `detail|${uid}|${eventId}|${ctx.nowDate().getTime()}`, eventType: 'AUDIT_EVENT_VIEWED', category: 'SECURITY', action: 'VIEW', source: 'CALLABLE',
+    actorUserId: uid, actorRole: caller.platformRole, actorNameSnapshot: caller.profile.email, application: 'PLATFORM_ADMIN',
+    metadata: { viewedEventId: eventId, month },
+  });
+  return { event: detailView(snap.data()) };
 }
 
 const csvCell = (v) => {
@@ -637,6 +732,7 @@ module.exports = {
   CATEGORIES, ACTIONS, RESULTS, SOURCES, TRUST, MODULES, CLIENT_EVENTS, EXPORT_CAP, MAX_SPAN_DAYS, RATE_MAX, CSV_HEADER,
   redact, changeList, buildEvent, eventIdFor, monthOf, monthsBetween, partition, diffFields,
   record, recordSafe, fromPlatformAudit, fromAuthAudit, fromModuleWrite,
-  queryAuditEvents, exportAuditEvents, getAuditSummary, reportClientEvent, runAuditRetention,
+  queryAuditEvents, exportAuditEvents, getAuditSummary, getAuditEvent, reportClientEvent, runAuditRetention,
+  redactPayload, payload, PAYLOAD_MAX_BYTES, detailView,
   csvCell, view,
 };
