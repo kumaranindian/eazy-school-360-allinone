@@ -1,5 +1,6 @@
 import 'package:eazy_school_360/features/expenses/domain/expense.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense_category.dart';
+import 'package:eazy_school_360/features/expenses/domain/expense_report.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense_repository.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense_settings.dart';
 
@@ -205,6 +206,62 @@ class FakeExpenseRepository implements ExpenseRepository {
     return ExpensePage(
       expenses: all.sublist(start, end),
       nextCursor: end < all.length ? {'at': end} : null,
+    );
+  }
+
+  // ---- reports ----
+  ExpenseReport reportToReturn = const ExpenseReport(
+    currency: 'INR',
+    fromDate: '2026-11-01',
+    toDate: '2026-11-15',
+    scope: 'BRANCH',
+    rows: 0,
+    truncated: false,
+    totals: ExpenseTotals(),
+    byStatus: {},
+    byCategory: [],
+    byMonth: [],
+    byBranch: [],
+  );
+  final List<({String? branchId, String from, String to})> reportQueries = [];
+  final List<
+    ({String? branchId, String from, String to, ExpenseStatus? status})
+  >
+  exports = [];
+  String csvToReturn = 'number,date\nEXP-1,2026-11-10';
+  bool csvCapped = false;
+
+  @override
+  Future<ExpenseReport> report(
+    String schoolId, {
+    String? branchId,
+    required String fromDate,
+    required String toDate,
+  }) async {
+    _maybeFail();
+    reportQueries.add((branchId: branchId, from: fromDate, to: toDate));
+    return reportToReturn;
+  }
+
+  @override
+  Future<({String csv, int rows, bool capped})> exportCsv(
+    String schoolId, {
+    String? branchId,
+    required String fromDate,
+    required String toDate,
+    ExpenseStatus? status,
+  }) async {
+    _maybeFail();
+    exports.add((
+      branchId: branchId,
+      from: fromDate,
+      to: toDate,
+      status: status,
+    ));
+    return (
+      csv: csvToReturn,
+      rows: csvToReturn.split('\n').length - 1,
+      capped: csvCapped,
     );
   }
 

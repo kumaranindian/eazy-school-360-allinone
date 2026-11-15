@@ -8,6 +8,7 @@ import '../../../core/errors/app_failure.dart';
 import '../../../core/errors/error_mapper.dart';
 import '../domain/expense.dart';
 import '../domain/expense_category.dart';
+import '../domain/expense_report.dart';
 import '../domain/expense_repository.dart';
 import '../domain/expense_settings.dart';
 
@@ -287,6 +288,43 @@ class FirebaseExpenseRepository implements ExpenseRepository {
       for (final h in (out['history'] as List? ?? const []))
         ExpenseHistoryEntry.fromMap(Map<String, dynamic>.from(h as Map)),
     ];
+  }
+
+  @override
+  Future<ExpenseReport> report(
+    String schoolId, {
+    String? branchId,
+    required String fromDate,
+    required String toDate,
+  }) async => ExpenseReport.fromMap(
+    await _call('getExpenseReport', {
+      'schoolId': schoolId,
+      'branchId': ?branchId,
+      'fromDate': fromDate,
+      'toDate': toDate,
+    }),
+  );
+
+  @override
+  Future<({String csv, int rows, bool capped})> exportCsv(
+    String schoolId, {
+    String? branchId,
+    required String fromDate,
+    required String toDate,
+    ExpenseStatus? status,
+  }) async {
+    final out = await _call('exportExpenses', {
+      'schoolId': schoolId,
+      'branchId': ?branchId,
+      'fromDate': fromDate,
+      'toDate': toDate,
+      'status': ?status?.wire,
+    });
+    return (
+      csv: (out['csv'] as String?) ?? '',
+      rows: (out['rows'] as num?)?.toInt() ?? 0,
+      capped: out['capped'] == true,
+    );
   }
 
   @override

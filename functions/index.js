@@ -574,6 +574,9 @@ exports.payExpense = expenseCall('payExpense', expenseWorkflow.payExpense);
 exports.cancelExpense = expenseCall('cancelExpense', expenseWorkflow.cancelExpense);
 exports.reopenExpense = expenseCall('reopenExpense', expenseWorkflow.reopenExpense);
 exports.getExpenseHistory = expenseCall('getExpenseHistory', expenseWorkflow.getExpenseHistory);
+const expenseReports = require('./expense_reports');
+exports.getExpenseReport = expenseCall('getExpenseReport', expenseReports.getExpenseReport);
+exports.exportExpenses = expenseCall('exportExpenses', expenseReports.exportExpenses);
 const expenseReceipts = require('./expense_receipts');
 const receiptCall = (name, fn) =>
   onCall(callOptions(), async (request) => {

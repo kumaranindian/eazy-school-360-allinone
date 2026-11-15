@@ -129,6 +129,7 @@ abstract final class AppRoutes {
   static const String expenses = '/expenses';
   static const String expenseNew = '/expenses/new';
   static const String expenseSettings = '/expenses/settings';
+  static const String expenseReports = '/expenses/reports';
   static const String expenseDetail = '/expenses/:expenseId';
   static const String expenseEdit = '/expenses/:expenseId/edit';
 
@@ -301,6 +302,7 @@ abstract final class AppRoutes {
     expenses: Permission.viewExpenses,
     expenseNew: Permission.createExpenses,
     expenseSettings: Permission.viewExpenses,
+    expenseReports: Permission.viewExpenseReports,
     expenseDetail: Permission.viewExpenses,
     expenseEdit: Permission.createExpenses,
     leave: Permission.viewLeave,

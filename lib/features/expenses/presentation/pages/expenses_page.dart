@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/permissions/permission.dart';
+import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/regional/school_time.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/error/empty_view.dart';
@@ -26,6 +27,17 @@ class ExpensesPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Expenses'),
         actions: [
+          if (ref
+                  .watch(tenantContextProvider)
+                  .value
+                  ?.can(Permission.viewExpenseReports) ??
+              false)
+            IconButton(
+              key: const ValueKey('expenses-reports'),
+              tooltip: 'Reports',
+              icon: const Icon(Icons.insights_outlined),
+              onPressed: () => context.go('/expenses/reports'),
+            ),
           IconButton(
             key: const ValueKey('expenses-settings'),
             tooltip: 'Categories and settings',

@@ -6,7 +6,9 @@ import 'package:eazy_school_360/core/permissions/user_role.dart';
 import 'package:eazy_school_360/features/authentication/domain/app_user.dart';
 import 'package:eazy_school_360/features/authentication/presentation/providers/auth_providers.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense.dart';
+import 'package:eazy_school_360/features/expenses/domain/expense_report.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense_settings.dart';
+import 'package:eazy_school_360/features/expenses/presentation/pages/expense_reports_page.dart';
 import 'package:eazy_school_360/features/admission/presentation/providers/document_picker.dart';
 import 'package:eazy_school_360/features/expenses/presentation/expenses_routes.dart';
 import 'package:eazy_school_360/features/expenses/presentation/providers/expense_providers.dart';
@@ -907,6 +909,217 @@ void main() {
     });
   });
 
+  group('reports', () {
+    ExpenseReport report({
+      bool whole = false,
+      bool truncated = false,
+      int rows = 3,
+    }) => ExpenseReport(
+      currency: 'INR',
+      fromDate: '2026-11-01',
+      toDate: '2026-11-15',
+      scope: whole ? 'SCHOOL' : 'BRANCH',
+      rows: rows,
+      truncated: truncated,
+      totals: const ExpenseTotals(
+        spentMinor: 450000,
+        paidMinor: 400000,
+        unpaidApprovedMinor: 50000,
+        awaitingApprovalMinor: 70000,
+      ),
+      byStatus: {
+        for (final s in ExpenseStatus.values)
+          s: (count: s == ExpenseStatus.paid ? 2 : 0, totalMinor: 0),
+      },
+      byCategory: const [
+        ExpenseBucket(
+          label: 'Utilities',
+          key: 'cat_u',
+          count: 2,
+          totalMinor: 300000,
+          paidMinor: 300000,
+        ),
+        ExpenseBucket(
+          label: 'Other',
+          key: 'cat_o',
+          count: 1,
+          totalMinor: 150000,
+          paidMinor: 100000,
+        ),
+      ],
+      byMonth: const [
+        ExpenseBucket(
+          label: '2026-11',
+          key: '2026-11',
+          count: 3,
+          totalMinor: 450000,
+          paidMinor: 400000,
+        ),
+      ],
+      byBranch: whole
+          ? const [
+              ExpenseBucket(
+                label: 'North',
+                key: 'b2',
+                count: 2,
+                totalMinor: 300000,
+                paidMinor: 300000,
+              ),
+            ]
+          : const [],
+    );
+
+    testWidgets('shows the totals, the breakdowns and what spend means', (
+      tester,
+    ) async {
+      final repo = FakeExpenseRepository()..reportToReturn = report();
+      await _pump(tester, repo, start: '/expenses/reports');
+      Finder inCard(String key, String text) => find.descendant(
+        of: find.byKey(ValueKey(key)),
+        matching: find.text(text),
+      );
+      expect(inCard('report-spent', '₹4,500.00'), findsOneWidget);
+      expect(inCard('report-paid', '₹4,000.00'), findsOneWidget);
+      expect(inCard('report-unpaid', '₹500.00'), findsOneWidget);
+      expect(inCard('report-awaiting', '₹700.00'), findsOneWidget);
+      expect(find.byKey(const ValueKey('report-by-category')), findsOneWidget);
+      expect(find.text('Utilities'), findsOneWidget);
+      expect(find.text('2026-11'), findsOneWidget);
+      expect(find.byKey(const ValueKey('report-by-branch')), findsNothing);
+      expect(
+        find.textContaining('Spend counts approved and paid'),
+        findsOneWidget,
+      );
+      expect(repo.reportQueries.single.branchId, 'main');
+    });
+
+    testWidgets('an empty period says so and offers no export', (tester) async {
+      final repo = FakeExpenseRepository()..reportToReturn = report(rows: 0);
+      await _pump(tester, repo, start: '/expenses/reports');
+      expect(find.text('No expenses in this period.'), findsOneWidget);
+      expect(find.byKey(const ValueKey('report-export')), findsNothing);
+    });
+
+    testWidgets('a truncated report says the numbers are partial', (
+      tester,
+    ) async {
+      final repo = FakeExpenseRepository()
+        ..reportToReturn = report(truncated: true);
+      await _pump(tester, repo, start: '/expenses/reports');
+      expect(find.byKey(const ValueKey('report-truncated')), findsOneWidget);
+    });
+
+    testWidgets('choosing another range asks for exactly that range', (
+      tester,
+    ) async {
+      final repo = FakeExpenseRepository()..reportToReturn = report();
+      await _pump(tester, repo, start: '/expenses/reports');
+      await tester.tap(find.byKey(const ValueKey('range-thisYear')));
+      await tester.pumpAndSettle();
+      expect(repo.reportQueries.last.from, endsWith('-01-01'));
+      await tester.tap(find.byKey(const ValueKey('range-lastMonth')));
+      await tester.pumpAndSettle();
+      expect(repo.reportQueries.last.from, endsWith('-01'));
+      expect(repo.reportQueries.length, greaterThanOrEqualTo(3));
+    });
+
+    testWidgets('only a school admin can ask for every branch', (tester) async {
+      final repo = FakeExpenseRepository()..reportToReturn = report();
+      await _pump(tester, repo, start: '/expenses/reports');
+      expect(find.byKey(const ValueKey('report-all-branches')), findsNothing);
+      final admin = FakeExpenseRepository()
+        ..reportToReturn = report(whole: true);
+      await _pump(
+        tester,
+        admin,
+        role: UserRole.schoolAdmin,
+        start: '/expenses/reports',
+      );
+      expect(admin.reportQueries.last.branchId, 'main');
+      await tester.tap(find.byKey(const ValueKey('report-all-branches')));
+      await tester.pumpAndSettle();
+      expect(admin.reportQueries.last.branchId, isNull);
+      expect(find.byKey(const ValueKey('report-by-branch')), findsOneWidget);
+    });
+
+    testWidgets('export saves the CSV under a name that carries the range', (
+      tester,
+    ) async {
+      final repo = FakeExpenseRepository()..reportToReturn = report();
+      final saver = _Saver();
+      await _pump(
+        tester,
+        repo,
+        start: '/expenses/reports',
+        extra: [expenseCsvSaverProvider.overrideWithValue(saver)],
+      );
+      await tester.ensureVisible(find.byKey(const ValueKey('report-export')));
+      await tester.tap(find.byKey(const ValueKey('report-export')));
+      await tester.pumpAndSettle();
+      expect(repo.exports.single.branchId, 'main');
+      expect(
+        saver.saved.single.name,
+        matches(
+          RegExp(r'^expenses_\d{4}-\d{2}-\d{2}_to_\d{4}-\d{2}-\d{2}\.csv$'),
+        ),
+      );
+      expect(saver.saved.single.content, startsWith('number,date'));
+      expect(find.text('Saved 1 rows.'), findsOneWidget);
+    });
+
+    testWidgets(
+      'a capped export tells the person, a cancelled save says nothing was saved',
+      (tester) async {
+        final repo = FakeExpenseRepository()
+          ..reportToReturn = report()
+          ..csvCapped = true;
+        final saver = _Saver();
+        await _pump(
+          tester,
+          repo,
+          start: '/expenses/reports',
+          extra: [expenseCsvSaverProvider.overrideWithValue(saver)],
+        );
+        await tester.ensureVisible(find.byKey(const ValueKey('report-export')));
+        await tester.tap(find.byKey(const ValueKey('report-export')));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('the maximum'), findsOneWidget);
+        saver.result = false;
+        await tester.pump(const Duration(seconds: 5));
+        await tester.tap(find.byKey(const ValueKey('report-export')));
+        await tester.pumpAndSettle();
+        expect(find.text('Nothing was saved.'), findsOneWidget);
+      },
+    );
+
+    testWidgets('a failed report offers a retry', (tester) async {
+      final repo = FakeExpenseRepository()
+        ..failWith = const NetworkFailure('Offline');
+      await _pump(tester, repo, start: '/expenses/reports');
+      expect(find.text('Retry'), findsOneWidget);
+    });
+
+    for (final (name, size, scale) in [
+      ('phone', const Size(360, 700), 1.5),
+      ('tablet', const Size(800, 1000), 1.0),
+    ]) {
+      testWidgets('the report fits on a $name at text x$scale', (tester) async {
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(tester.platformDispatcher.clearAllTestValues);
+        final repo = FakeExpenseRepository()
+          ..reportToReturn = report(whole: true, truncated: true);
+        await _pump(
+          tester,
+          repo,
+          role: UserRole.schoolAdmin,
+          start: '/expenses/reports',
+          size: size,
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+  });
+
   group('layout of the workflow states', () {
     for (final status in ExpenseStatus.values) {
       testWidgets('${status.name} fits on a phone at text x1.5', (
@@ -979,4 +1192,15 @@ class _Picker implements DocumentPicker {
 
   @override
   Future<PickedDocument?> pick({required bool photoOnly}) async => picked;
+}
+
+class _Saver implements CsvSaver {
+  final List<({String name, String content})> saved = [];
+  bool result = true;
+
+  @override
+  Future<bool> save(String fileName, String content) async {
+    saved.add((name: fileName, content: content));
+    return result;
+  }
 }

@@ -1,5 +1,6 @@
 import 'expense.dart';
 import 'expense_category.dart';
+import 'expense_report.dart';
 import 'expense_settings.dart';
 
 /// Expense data. Every call goes through a Cloud Function: clients have no
@@ -110,6 +111,25 @@ abstract interface class ExpenseRepository {
     String branchId,
     String expenseId,
   );
+
+  // ---- reports (phase E5) ----
+
+  /// [branchId] null = every branch (school administrators only).
+  Future<ExpenseReport> report(
+    String schoolId, {
+    String? branchId,
+    required String fromDate,
+    required String toDate,
+  });
+
+  /// The same rows as CSV text (capped by the server).
+  Future<({String csv, int rows, bool capped})> exportCsv(
+    String schoolId, {
+    String? branchId,
+    required String fromDate,
+    required String toDate,
+    ExpenseStatus? status,
+  });
 
   // ---- receipts (docs/expense-management/, phase E3) ----
 

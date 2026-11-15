@@ -165,6 +165,13 @@ const _sections = [
       AppColors.orange,
       path: AppRoutes.expenses,
     ),
+    _Shortcut(
+      'Expense reports',
+      'Spending by category and month',
+      Icons.insights_outlined,
+      AppColors.orange,
+      path: AppRoutes.expenseReports,
+    ),
   ]),
   _Section('Leave', 'Requests, balances and approvals', [
     _Shortcut(
