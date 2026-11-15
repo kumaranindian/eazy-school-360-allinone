@@ -170,7 +170,9 @@ service firebase.storage {
       // Platform admins have no blanket read: support access is Firestore-only
       // and never includes uploaded documents.
       allow read: if admissionStaff(schoolId, branchId);
-      allow create: if admissionStaff(schoolId, branchId)
+      // `resource == null` makes create-only explicit: an upload to a path that
+      // already holds a file is an overwrite and is refused (found by the CI emulator run).
+      allow create: if resource == null && admissionStaff(schoolId, branchId)
         && firestore.exists(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/admissionDocuments/$(docId))
         && firestore.get(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/admissionDocuments/$(docId)).data.status == 'UPLOADING'
         && firestore.get(/databases/(default)/documents/schools/$(schoolId)/branches/$(branchId)/admissionDocuments/$(docId)).data.enquiryId == enquiryId

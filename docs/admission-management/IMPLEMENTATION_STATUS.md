@@ -147,6 +147,11 @@ function `admissionFollowUpReminders`, notification types `ADMISSION_FOLLOWUP_DU
   rules (+1: Finance reads fees/payments but nothing else; 15 passing), Dart role-matrix and route tests (4) and Finance widget tests (6).
 - Not done: Finance cannot see fee info of a *converted* student inside the normal student fee screens (no ledger posting, see phase 8); the Admission fees list shows up to 200 open fees.
 
+## Storage rules: found and fixed by CI (after phase 13)
+The first CI run with a working Storage emulator ran the admission Storage rule tests (they cannot run in the build sandbox). Five of six passed; the sixth showed that a **second upload to
+the same path was accepted** (the rule's `allow create` did not exclude an existing object, unlike every other create-only rule in `storage.rules`). Fixed by adding `resource == null`
+to the create rule, so a stored document can no longer be overwritten from a client. The CI run on this branch is the check that the fix works.
+
 ## Known limitations (phase 6)
 - The Storage rules are untested in an emulator (see above); the real upload → confirm round trip and `FirebaseAdmissionDocumentStore` are untested.
 - (Phase 7 added fees.) No conversion to a student (phase 8): an APPROVED application is the end of the road for now.
