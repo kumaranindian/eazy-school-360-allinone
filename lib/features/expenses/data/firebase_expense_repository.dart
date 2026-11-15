@@ -192,6 +192,103 @@ class FirebaseExpenseRepository implements ExpenseRepository {
     }),
   );
 
+  Future<ExpenseStatus> _step(
+    String name,
+    String schoolId,
+    String branchId,
+    String expenseId,
+    Map<String, dynamic> extra,
+  ) async {
+    final out = await _call(name, {
+      'schoolId': schoolId,
+      'branchId': branchId,
+      'expenseId': expenseId,
+      ...extra,
+    });
+    return ExpenseStatus.fromWire(out['status'] as String?);
+  }
+
+  @override
+  Future<ExpenseStatus> submitExpense(
+    String schoolId,
+    String branchId,
+    String expenseId, {
+    int? baseVersion,
+  }) => _step('submitExpense', schoolId, branchId, expenseId, {
+    'baseVersion': ?baseVersion,
+  });
+
+  @override
+  Future<ExpenseStatus> decideExpense(
+    String schoolId,
+    String branchId,
+    String expenseId, {
+    required bool approve,
+    String? reason,
+    int? baseVersion,
+  }) => _step('decideExpense', schoolId, branchId, expenseId, {
+    'decision': approve ? 'APPROVE' : 'REJECT',
+    'reason': ?reason,
+    'baseVersion': ?baseVersion,
+  });
+
+  @override
+  Future<ExpenseStatus> payExpense(
+    String schoolId,
+    String branchId,
+    String expenseId, {
+    required PaymentMode paymentMode,
+    String paymentReference = '',
+    String? paidDate,
+    int? baseVersion,
+  }) => _step('payExpense', schoolId, branchId, expenseId, {
+    'payment': {
+      'paymentMode': paymentMode.wire,
+      'paymentReference': paymentReference,
+      'paidDate': ?paidDate,
+    },
+    'baseVersion': ?baseVersion,
+  });
+
+  @override
+  Future<ExpenseStatus> cancelExpense(
+    String schoolId,
+    String branchId,
+    String expenseId, {
+    String? reason,
+    int? baseVersion,
+  }) => _step('cancelExpense', schoolId, branchId, expenseId, {
+    'reason': ?reason,
+    'baseVersion': ?baseVersion,
+  });
+
+  @override
+  Future<ExpenseStatus> reopenExpense(
+    String schoolId,
+    String branchId,
+    String expenseId, {
+    int? baseVersion,
+  }) => _step('reopenExpense', schoolId, branchId, expenseId, {
+    'baseVersion': ?baseVersion,
+  });
+
+  @override
+  Future<List<ExpenseHistoryEntry>> history(
+    String schoolId,
+    String branchId,
+    String expenseId,
+  ) async {
+    final out = await _call('getExpenseHistory', {
+      'schoolId': schoolId,
+      'branchId': branchId,
+      'expenseId': expenseId,
+    });
+    return [
+      for (final h in (out['history'] as List? ?? const []))
+        ExpenseHistoryEntry.fromMap(Map<String, dynamic>.from(h as Map)),
+    ];
+  }
+
   @override
   Future<({String id, String storagePath})> requestReceiptUpload(
     String schoolId,

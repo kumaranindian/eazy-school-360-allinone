@@ -3,7 +3,9 @@
 /// only ever sends [ExpenseInput].
 library;
 
+import '../../../core/permissions/user_role.dart';
 import '../../fees/domain/money.dart';
+import 'expense_settings.dart';
 
 enum ExpenseStatus {
   draft('DRAFT', 'Draft'),
@@ -66,6 +68,13 @@ class Expense {
   /// Receipts in use (maintained by the server).
   final int receiptCount;
 
+  /// Workflow details (empty until the step happens).
+  final String? submittedBy;
+  final String? decidedByName;
+  final String? decisionReason;
+  final String? paidDate;
+  final String? cancelReason;
+
   const Expense({
     required this.id,
     required this.number,
@@ -84,6 +93,11 @@ class Expense {
     this.createdBy,
     this.createdByName,
     this.receiptCount = 0,
+    this.submittedBy,
+    this.decidedByName,
+    this.decisionReason,
+    this.paidDate,
+    this.cancelReason,
   });
 
   factory Expense.fromMap(Map<String, dynamic> m) => Expense(
@@ -104,6 +118,11 @@ class Expense {
     createdBy: m['createdBy'] as String?,
     createdByName: m['createdByName'] as String?,
     receiptCount: (m['receiptCount'] as num?)?.toInt() ?? 0,
+    submittedBy: m['submittedBy'] as String?,
+    decidedByName: m['decidedByName'] as String?,
+    decisionReason: m['decisionReason'] as String?,
+    paidDate: m['paidDate'] as String?,
+    cancelReason: m['cancelReason'] as String?,
   );
 
   bool get isDraft => status == ExpenseStatus.draft;
@@ -294,5 +313,108 @@ abstract final class ReceiptRules {
       return 'Rename the file with a shorter name and no slashes.';
     }
     return null;
+  }
+}
+
+/// One step in an expense's history (append-only on the server).
+class ExpenseHistoryEntry {
+  final int seq;
+  final String action;
+  final ExpenseStatus from;
+  final ExpenseStatus to;
+  final String? reason;
+
+  /// A step the system took itself (approval switched off for the school).
+  final bool auto;
+  final String? actorName;
+  final String? actorRole;
+  final DateTime? at;
+
+  const ExpenseHistoryEntry({
+    required this.seq,
+    required this.action,
+    required this.from,
+    required this.to,
+    this.reason,
+    this.auto = false,
+    this.actorName,
+    this.actorRole,
+    this.at,
+  });
+
+  factory ExpenseHistoryEntry.fromMap(Map<String, dynamic> m) =>
+      ExpenseHistoryEntry(
+        seq: (m['seq'] as num?)?.toInt() ?? 0,
+        action: (m['action'] as String?) ?? '',
+        from: ExpenseStatus.fromWire(m['from'] as String?),
+        to: ExpenseStatus.fromWire(m['to'] as String?),
+        reason: m['reason'] as String?,
+        auto: m['auto'] == true,
+        actorName: m['actorName'] as String?,
+        actorRole: m['actorRole'] as String?,
+        at: m['atMs'] is num
+            ? DateTime.fromMillisecondsSinceEpoch((m['atMs'] as num).toInt())
+            : null,
+      );
+
+  /// "Submitted", "Approved", ... for the timeline.
+  String get label => switch (action) {
+    'submit' => 'Submitted',
+    'approve' => auto ? 'Approved automatically' : 'Approved',
+    'reject' => 'Rejected',
+    'pay' => 'Paid',
+    'cancel' => 'Cancelled',
+    'reopen' => 'Reopened as a draft',
+    _ => action,
+  };
+}
+
+enum ExpenseAction { edit, submit, approve, reject, pay, cancel, reopen }
+
+/// What a person may do to an expense, for showing the right buttons. This
+/// mirrors the server (`expense_workflow.js mayAct`), which decides for real:
+/// hiding a button is never the guard.
+abstract final class ExpenseActions {
+  static Set<ExpenseAction> available(
+    Expense e, {
+    required UserRole role,
+    required String uid,
+    required ExpenseSettings settings,
+  }) {
+    final own = e.createdBy == uid;
+    final admin = role == UserRole.schoolAdmin || role == UserRole.branchAdmin;
+    final maker = own || admin;
+    final mine = own || e.submittedBy == uid;
+    final mayDecide =
+        (role == UserRole.schoolAdmin ||
+            (role == UserRole.branchAdmin &&
+                settings.approverRoles.contains(UserRole.branchAdmin))) &&
+        (!mine || settings.allowSelfApproval);
+    final mayPay = role == UserRole.schoolAdmin || role == UserRole.finance;
+    final out = <ExpenseAction>{};
+    switch (e.status) {
+      case ExpenseStatus.draft:
+        if (maker) {
+          out.addAll({
+            ExpenseAction.edit,
+            ExpenseAction.submit,
+            ExpenseAction.cancel,
+          });
+        }
+      case ExpenseStatus.submitted:
+        if (mayDecide) {
+          out.addAll({ExpenseAction.approve, ExpenseAction.reject});
+        }
+        if (admin || own) out.add(ExpenseAction.cancel);
+      case ExpenseStatus.approved:
+        if (mayPay) out.add(ExpenseAction.pay);
+        if (admin) out.add(ExpenseAction.cancel);
+      case ExpenseStatus.rejected:
+        if (maker) out.add(ExpenseAction.reopen);
+      case ExpenseStatus.paid:
+      case ExpenseStatus.cancelled:
+        break;
+    }
+    return out;
   }
 }

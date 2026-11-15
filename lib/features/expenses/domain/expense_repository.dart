@@ -61,6 +61,56 @@ abstract interface class ExpenseRepository {
     Map<String, dynamic>? cursor,
   });
 
+  // ---- workflow (phase E4). Each returns the new status; a repeat is harmless. ----
+
+  Future<ExpenseStatus> submitExpense(
+    String schoolId,
+    String branchId,
+    String expenseId, {
+    int? baseVersion,
+  });
+
+  /// [approve] true to approve, false to reject (a reason of 10+ characters).
+  Future<ExpenseStatus> decideExpense(
+    String schoolId,
+    String branchId,
+    String expenseId, {
+    required bool approve,
+    String? reason,
+    int? baseVersion,
+  });
+
+  Future<ExpenseStatus> payExpense(
+    String schoolId,
+    String branchId,
+    String expenseId, {
+    required PaymentMode paymentMode,
+    String paymentReference = '',
+    String? paidDate,
+    int? baseVersion,
+  });
+
+  Future<ExpenseStatus> cancelExpense(
+    String schoolId,
+    String branchId,
+    String expenseId, {
+    String? reason,
+    int? baseVersion,
+  });
+
+  Future<ExpenseStatus> reopenExpense(
+    String schoolId,
+    String branchId,
+    String expenseId, {
+    int? baseVersion,
+  });
+
+  Future<List<ExpenseHistoryEntry>> history(
+    String schoolId,
+    String branchId,
+    String expenseId,
+  );
+
   // ---- receipts (docs/expense-management/, phase E3) ----
 
   /// Step 1: asks the server to approve an upload; returns where to put it.

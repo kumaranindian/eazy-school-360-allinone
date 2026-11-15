@@ -616,6 +616,328 @@ void main() {
     });
   });
 
+  group('workflow', () {
+    Future<void> tapKey(WidgetTester tester, String key) async {
+      final f = find.byKey(ValueKey(key));
+      await tester.ensureVisible(f);
+      await tester.pumpAndSettle();
+      await tester.tap(f);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the maker submits a draft and sees it as submitted', (
+      tester,
+    ) async {
+      final repo = FakeExpenseRepository()..items.add(_expense('1'));
+      await _pump(tester, repo, start: '/expenses/1');
+      expect(find.byKey(const ValueKey('expense-approve')), findsNothing);
+      await tapKey(tester, 'expense-submit');
+      expect(repo.steps, ['submit:1']);
+      expect(find.text('Submitted'), findsWidgets);
+      expect(find.byKey(const ValueKey('expense-submit')), findsNothing);
+    });
+
+    testWidgets(
+      'a school admin approves someone else\'s expense after confirming',
+      (tester) async {
+        final repo = FakeExpenseRepository()
+          ..items.add(
+            _expense(
+              '1',
+              status: ExpenseStatus.submitted,
+              createdBy: 'someone',
+            ),
+          );
+        await _pump(
+          tester,
+          repo,
+          role: UserRole.schoolAdmin,
+          start: '/expenses/1',
+        );
+        await tapKey(tester, 'expense-approve');
+        expect(repo.steps, isEmpty, reason: 'not before the person confirms');
+        await tester.tap(find.byKey(const ValueKey('expense-approve-confirm')));
+        await tester.pumpAndSettle();
+        expect(repo.steps, ['approve:1']);
+        expect(find.text('Approved'), findsWidgets);
+      },
+    );
+
+    testWidgets('rejecting needs a real reason and sends it', (tester) async {
+      final repo = FakeExpenseRepository()
+        ..items.add(
+          _expense('1', status: ExpenseStatus.submitted, createdBy: 'someone'),
+        );
+      await _pump(
+        tester,
+        repo,
+        role: UserRole.schoolAdmin,
+        start: '/expenses/1',
+      );
+      await tapKey(tester, 'expense-reject');
+      await tester.enterText(
+        find.byKey(const ValueKey('expense-reason')),
+        'too short',
+      );
+      await tester.tap(find.byKey(const ValueKey('expense-reason-confirm')));
+      await tester.pumpAndSettle();
+      expect(find.text('Write at least 10 characters.'), findsOneWidget);
+      expect(repo.steps, isEmpty);
+      await tester.enterText(
+        find.byKey(const ValueKey('expense-reason')),
+        'Please attach the supplier invoice.',
+      );
+      await tester.tap(find.byKey(const ValueKey('expense-reason-confirm')));
+      await tester.pumpAndSettle();
+      expect(repo.steps, ['reject:1']);
+      expect(
+        repo.decisions.single.reason,
+        'Please attach the supplier invoice.',
+      );
+    });
+
+    testWidgets(
+      'nobody sees Approve on their own expense, and finance never does',
+      (tester) async {
+        final mine = FakeExpenseRepository()
+          ..items.add(_expense('1', status: ExpenseStatus.submitted));
+        await _pump(
+          tester,
+          mine,
+          role: UserRole.schoolAdmin,
+          start: '/expenses/1',
+        );
+        expect(find.byKey(const ValueKey('expense-approve')), findsNothing);
+        final other = FakeExpenseRepository()
+          ..items.add(
+            _expense(
+              '1',
+              status: ExpenseStatus.submitted,
+              createdBy: 'someone',
+            ),
+          );
+        await _pump(
+          tester,
+          other,
+          role: UserRole.finance,
+          start: '/expenses/1',
+        );
+        expect(find.byKey(const ValueKey('expense-approve')), findsNothing);
+        expect(find.byKey(const ValueKey('expense-reject')), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'finance marks an approved expense paid: the mode is required',
+      (tester) async {
+        final repo = FakeExpenseRepository()
+          ..items.add(
+            _expense('1', status: ExpenseStatus.approved, createdBy: 'someone'),
+          );
+        await _pump(tester, repo, start: '/expenses/1');
+        await tapKey(tester, 'expense-pay');
+        await tester.tap(find.byKey(const ValueKey('pay-confirm')));
+        await tester.pumpAndSettle();
+        expect(find.text('Choose how it was paid.'), findsOneWidget);
+        expect(repo.payments, isEmpty);
+        await tester.tap(find.byKey(const ValueKey('pay-mode')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('UPI').last);
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const ValueKey('pay-reference')),
+          '  UTR123 ',
+        );
+        await tester.tap(find.byKey(const ValueKey('pay-confirm')));
+        await tester.pumpAndSettle();
+        expect(repo.payments.single.mode, PaymentMode.upi);
+        expect(repo.payments.single.reference, 'UTR123');
+        expect(
+          repo.payments.single.date,
+          matches(RegExp(r'^\d{4}-\d{2}-\d{2}$')),
+        );
+        expect(find.text('Paid'), findsWidgets);
+      },
+    );
+
+    testWidgets('a branch admin cannot pay', (tester) async {
+      final repo = FakeExpenseRepository()
+        ..items.add(
+          _expense('1', status: ExpenseStatus.approved, createdBy: 'someone'),
+        );
+      await _pump(
+        tester,
+        repo,
+        role: UserRole.branchAdmin,
+        start: '/expenses/1',
+      );
+      expect(find.byKey(const ValueKey('expense-pay')), findsNothing);
+    });
+
+    testWidgets(
+      'cancelling a submitted expense needs a reason; a draft does not',
+      (tester) async {
+        final sub = FakeExpenseRepository()
+          ..items.add(_expense('1', status: ExpenseStatus.submitted));
+        await _pump(tester, sub, start: '/expenses/1');
+        await tapKey(tester, 'expense-cancel');
+        await tester.tap(find.byKey(const ValueKey('expense-reason-confirm')));
+        await tester.pumpAndSettle();
+        expect(sub.steps, isEmpty);
+        await tester.enterText(
+          find.byKey(const ValueKey('expense-reason')),
+          'Entered twice by mistake.',
+        );
+        await tester.tap(find.byKey(const ValueKey('expense-reason-confirm')));
+        await tester.pumpAndSettle();
+        expect(sub.steps, ['cancel:1']);
+        final draft = FakeExpenseRepository()..items.add(_expense('2'));
+        await _pump(tester, draft, start: '/expenses/2');
+        await tapKey(tester, 'expense-cancel');
+        await tester.tap(find.byKey(const ValueKey('expense-reason-confirm')));
+        await tester.pumpAndSettle();
+        expect(draft.steps, ['cancel:2']);
+      },
+    );
+
+    testWidgets(
+      'a rejected expense shows why and can be reopened by its maker',
+      (tester) async {
+        final repo = FakeExpenseRepository()
+          ..items.add(
+            Expense(
+              id: '1',
+              number: 'EXP-1',
+              branchId: 'main',
+              categoryId: 'cat_other',
+              categoryName: 'Other',
+              amountMinor: 100,
+              currency: 'INR',
+              expenseDate: '2026-11-10',
+              status: ExpenseStatus.rejected,
+              createdBy: _uid,
+              decisionReason: 'Wrong category, please fix.',
+            ),
+          );
+        await _pump(tester, repo, start: '/expenses/1');
+        expect(
+          find.textContaining('Wrong category, please fix.'),
+          findsOneWidget,
+        );
+        await tapKey(tester, 'expense-reopen');
+        expect(repo.steps, ['reopen:1']);
+        expect(find.text('Draft'), findsWidgets);
+      },
+    );
+
+    testWidgets('a paid or cancelled expense offers no action', (tester) async {
+      for (final s in [ExpenseStatus.paid, ExpenseStatus.cancelled]) {
+        final repo = FakeExpenseRepository()
+          ..items.add(_expense('1', status: s));
+        await _pump(
+          tester,
+          repo,
+          role: UserRole.schoolAdmin,
+          start: '/expenses/1',
+        );
+        for (final k in [
+          'submit',
+          'approve',
+          'reject',
+          'pay',
+          'cancel',
+          'reopen',
+          'edit',
+        ]) {
+          expect(
+            find.byKey(ValueKey('expense-$k')),
+            findsNothing,
+            reason: '${s.name} $k',
+          );
+        }
+      }
+    });
+
+    testWidgets('the history shows each step, who did it and why', (
+      tester,
+    ) async {
+      final repo = FakeExpenseRepository()
+        ..items.add(_expense('1', status: ExpenseStatus.approved))
+        ..historyEntries.addAll([
+          ExpenseHistoryEntry(
+            seq: 1,
+            action: 'submit',
+            from: ExpenseStatus.draft,
+            to: ExpenseStatus.submitted,
+            actorName: 'Grace Hopper',
+            at: DateTime(2026, 11, 10, 9),
+          ),
+          const ExpenseHistoryEntry(
+            seq: 2,
+            action: 'approve',
+            from: ExpenseStatus.submitted,
+            to: ExpenseStatus.approved,
+            auto: true,
+            reason: 'approval is not required in this school',
+          ),
+        ]);
+      await _pump(tester, repo, start: '/expenses/1');
+      await tester.ensureVisible(find.byKey(const ValueKey('expense-history')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('history-1')), findsOneWidget);
+      expect(find.textContaining('Grace Hopper'), findsOneWidget);
+      expect(find.text('Approved automatically'), findsOneWidget);
+    });
+
+    testWidgets('a refused step is explained and the expense does not change', (
+      tester,
+    ) async {
+      final repo = FakeExpenseRepository()..items.add(_expense('1'));
+      await _pump(tester, repo, start: '/expenses/1');
+      repo.failWith = const ValidationFailure(
+        'A receipt is required for this amount; attach one before submitting.',
+      );
+      await tester.ensureVisible(find.byKey(const ValueKey('expense-submit')));
+      await tester.tap(find.byKey(const ValueKey('expense-submit')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.textContaining('A receipt is required'), findsOneWidget);
+      expect(repo.steps, isEmpty);
+      expect(find.byKey(const ValueKey('expense-submit')), findsOneWidget);
+    });
+  });
+
+  group('layout of the workflow states', () {
+    for (final status in ExpenseStatus.values) {
+      testWidgets('${status.name} fits on a phone at text x1.5', (
+        tester,
+      ) async {
+        tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+        addTearDown(tester.platformDispatcher.clearAllTestValues);
+        final repo = FakeExpenseRepository()
+          ..items.add(_expense('1', status: status, createdBy: 'someone'))
+          ..historyEntries.add(
+            const ExpenseHistoryEntry(
+              seq: 1,
+              action: 'submit',
+              from: ExpenseStatus.draft,
+              to: ExpenseStatus.submitted,
+              actorName: 'A person with a rather long display name',
+              reason: 'a long reason that goes on and on for a while',
+            ),
+          );
+        await _pump(
+          tester,
+          repo,
+          role: UserRole.schoolAdmin,
+          start: '/expenses/1',
+          size: const Size(360, 700),
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+  });
+
   group('layout', () {
     for (final (name, size, scale) in [
       ('phone', const Size(360, 700), 1.5),
