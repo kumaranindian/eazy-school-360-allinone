@@ -26,6 +26,7 @@ const CATALOGUE = Object.freeze([
   { key: 'exams', label: 'Exams, marks and results', dependsOn: ['students', 'academic'] },
   { key: 'timetable', label: 'Timetable and substitutions', dependsOn: ['academic', 'staff'] },
   { key: 'homework', label: 'Homework and submissions', dependsOn: ['academic'] },
+  { key: 'expenses', label: 'Expense management', dependsOn: [] },
   { key: 'announcements', label: 'Announcements', dependsOn: [] },
   { key: 'messages', label: 'Parent-teacher messaging', dependsOn: ['parents'] },
   { key: 'notifications', label: 'Push and in-app notifications', dependsOn: [] },

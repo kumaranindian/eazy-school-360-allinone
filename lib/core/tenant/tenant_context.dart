@@ -83,6 +83,12 @@ class TenantContext {
     Permission.enterMarks: 'exams',
     Permission.approveResults: 'exams',
     Permission.viewOwnResults: 'exams',
+    Permission.viewExpenses: 'expenses',
+    Permission.createExpenses: 'expenses',
+    Permission.approveExpenses: 'expenses',
+    Permission.payExpenses: 'expenses',
+    Permission.manageExpenseSettings: 'expenses',
+    Permission.viewExpenseReports: 'expenses',
     Permission.viewNotifications: 'notifications',
     Permission.useMessages: 'messages',
   };
