@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 import '../../../core/config/functions_region.dart';
 import '../../../core/errors/app_failure.dart';
@@ -188,4 +191,121 @@ class FirebaseExpenseRepository implements ExpenseRepository {
       'cursor': ?cursor,
     }),
   );
+
+  @override
+  Future<({String id, String storagePath})> requestReceiptUpload(
+    String schoolId,
+    String branchId,
+    String expenseId, {
+    required String fileName,
+    required String contentType,
+    required int sizeBytes,
+    String? requestId,
+  }) async {
+    final out = await _call('requestExpenseReceiptUpload', {
+      'schoolId': schoolId,
+      'branchId': branchId,
+      'expenseId': expenseId,
+      'receipt': {
+        'fileName': fileName,
+        'contentType': contentType,
+        'sizeBytes': sizeBytes,
+      },
+      'requestId': ?requestId,
+    });
+    return (
+      id: (out['id'] as String?) ?? '',
+      storagePath: (out['storagePath'] as String?) ?? '',
+    );
+  }
+
+  @override
+  Future<void> confirmReceiptUpload(
+    String schoolId,
+    String branchId,
+    String expenseId,
+    String receiptId,
+  ) async {
+    await _call('confirmExpenseReceiptUpload', {
+      'schoolId': schoolId,
+      'branchId': branchId,
+      'expenseId': expenseId,
+      'receiptId': receiptId,
+    });
+  }
+
+  @override
+  Future<void> removeReceipt(
+    String schoolId,
+    String branchId,
+    String expenseId,
+    String receiptId,
+  ) async {
+    await _call('removeExpenseReceipt', {
+      'schoolId': schoolId,
+      'branchId': branchId,
+      'expenseId': expenseId,
+      'receiptId': receiptId,
+    });
+  }
+
+  @override
+  Future<List<ExpenseReceipt>> receipts(
+    String schoolId,
+    String branchId,
+    String expenseId,
+  ) async {
+    final out = await _call('listExpenseReceipts', {
+      'schoolId': schoolId,
+      'branchId': branchId,
+      'expenseId': expenseId,
+    });
+    return [
+      for (final r in (out['receipts'] as List? ?? const []))
+        ExpenseReceipt.fromMap(Map<String, dynamic>.from(r as Map)),
+    ];
+  }
+}
+
+class FirebaseExpenseReceiptStore implements ExpenseReceiptStore {
+  final FirebaseStorage _storage;
+
+  FirebaseExpenseReceiptStore({FirebaseStorage? storage})
+    : _storage = storage ?? FirebaseStorage.instance;
+
+  @override
+  Future<void> upload({
+    required String path,
+    required List<int> bytes,
+    required String contentType,
+  }) async {
+    try {
+      await _storage
+          .ref(path)
+          .putData(
+            Uint8List.fromList(bytes),
+            SettableMetadata(contentType: contentType),
+          )
+          .timeout(const Duration(minutes: 2));
+    } catch (e, st) {
+      throw mapExceptionToFailure(e, st);
+    }
+  }
+
+  @override
+  Future<List<int>> read(String path) async {
+    try {
+      final data = await _storage
+          .ref(path)
+          .getData(ReceiptRules.maxBytes)
+          .timeout(const Duration(minutes: 2));
+      if (data == null) {
+        throw const NotFoundFailure('That file could not be found.');
+      }
+      return data;
+    } catch (e, st) {
+      if (e is AppFailure) rethrow;
+      throw mapExceptionToFailure(e, st);
+    }
+  }
 }

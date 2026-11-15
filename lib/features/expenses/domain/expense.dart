@@ -63,6 +63,9 @@ class Expense {
   final String? createdBy;
   final String? createdByName;
 
+  /// Receipts in use (maintained by the server).
+  final int receiptCount;
+
   const Expense({
     required this.id,
     required this.number,
@@ -80,6 +83,7 @@ class Expense {
     this.version = 1,
     this.createdBy,
     this.createdByName,
+    this.receiptCount = 0,
   });
 
   factory Expense.fromMap(Map<String, dynamic> m) => Expense(
@@ -99,6 +103,7 @@ class Expense {
     version: (m['version'] as num?)?.toInt() ?? 1,
     createdBy: m['createdBy'] as String?,
     createdByName: m['createdByName'] as String?,
+    receiptCount: (m['receiptCount'] as num?)?.toInt() ?? 0,
   );
 
   bool get isDraft => status == ExpenseStatus.draft;
@@ -228,4 +233,66 @@ class ExpensePage {
         ? Map<String, dynamic>.from(m['nextCursor'] as Map)
         : null,
   );
+}
+
+/// A receipt attached to an expense (only the metadata; the file itself is in
+/// Storage and is read through the signed-in user's own access).
+class ExpenseReceipt {
+  final String id;
+  final String fileName;
+  final String contentType;
+  final int sizeBytes;
+  final String storagePath;
+
+  const ExpenseReceipt({
+    required this.id,
+    required this.fileName,
+    required this.contentType,
+    required this.sizeBytes,
+    required this.storagePath,
+  });
+
+  factory ExpenseReceipt.fromMap(Map<String, dynamic> m) => ExpenseReceipt(
+    id: (m['id'] as String?) ?? '',
+    fileName: (m['fileName'] as String?) ?? '',
+    contentType: (m['contentType'] as String?) ?? '',
+    sizeBytes: (m['sizeBytes'] as num?)?.toInt() ?? 0,
+    storagePath: (m['storagePath'] as String?) ?? '',
+  );
+
+  bool get isImage => contentType.startsWith('image/');
+  bool get isPdf => contentType == 'application/pdf';
+}
+
+/// What a receipt may be (the same limits as the server and storage.rules).
+abstract final class ReceiptRules {
+  static const maxBytes = 5 * 1024 * 1024;
+  static const maxPerExpense = 3;
+  static const _types = {
+    'pdf': 'application/pdf',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'png': 'image/png',
+  };
+  static const extensions = ['pdf', 'jpg', 'jpeg', 'png'];
+
+  /// The content type for a file name, or null when it is not allowed.
+  static String? contentTypeFor(String fileName) {
+    final dot = fileName.lastIndexOf('.');
+    if (dot < 0 || dot == fileName.length - 1) return null;
+    return _types[fileName.substring(dot + 1).toLowerCase()];
+  }
+
+  /// A plain-words problem with a chosen file, or null when it can be sent.
+  static String? problem(String fileName, int sizeBytes) {
+    if (contentTypeFor(fileName) == null) {
+      return 'Choose a PDF, JPEG or PNG file.';
+    }
+    if (sizeBytes < 1) return 'That file is empty.';
+    if (sizeBytes > maxBytes) return 'A receipt can be at most 5 MB.';
+    if (fileName.length > 120 || RegExp(r'[\\/\x00-\x1f]').hasMatch(fileName)) {
+      return 'Rename the file with a shorter name and no slashes.';
+    }
+    return null;
+  }
 }

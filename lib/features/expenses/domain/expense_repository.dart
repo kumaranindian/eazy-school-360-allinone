@@ -60,4 +60,51 @@ abstract interface class ExpenseRepository {
     String? toDate,
     Map<String, dynamic>? cursor,
   });
+
+  // ---- receipts (docs/expense-management/, phase E3) ----
+
+  /// Step 1: asks the server to approve an upload; returns where to put it.
+  /// A repeated [requestId] returns the first request.
+  Future<({String id, String storagePath})> requestReceiptUpload(
+    String schoolId,
+    String branchId,
+    String expenseId, {
+    required String fileName,
+    required String contentType,
+    required int sizeBytes,
+    String? requestId,
+  });
+
+  /// Step 3: the server checks what was stored and marks the receipt in use.
+  Future<void> confirmReceiptUpload(
+    String schoolId,
+    String branchId,
+    String expenseId,
+    String receiptId,
+  );
+
+  Future<void> removeReceipt(
+    String schoolId,
+    String branchId,
+    String expenseId,
+    String receiptId,
+  );
+
+  Future<List<ExpenseReceipt>> receipts(
+    String schoolId,
+    String branchId,
+    String expenseId,
+  );
+}
+
+/// The bytes of receipts (Storage). Behind an interface so tests need no
+/// Firebase; Storage rules decide who may write and read.
+abstract interface class ExpenseReceiptStore {
+  Future<void> upload({
+    required String path,
+    required List<int> bytes,
+    required String contentType,
+  });
+
+  Future<List<int>> read(String path);
 }

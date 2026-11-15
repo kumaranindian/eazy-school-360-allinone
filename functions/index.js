@@ -567,6 +567,28 @@ exports.createExpense = expenseCall('createExpense', expenses.createExpense);
 exports.updateExpense = expenseCall('updateExpense', expenses.updateExpense);
 exports.getExpense = expenseCall('getExpense', expenses.getExpense);
 exports.listExpenses = expenseCall('listExpenses', expenses.listExpenses);
+const expenseReceipts = require('./expense_receipts');
+const receiptCall = (name, fn) =>
+  onCall(callOptions(), async (request) => {
+    const a = signedIn(request);
+    const out = await fn({ ...adminCtx(), wall: () => new Date(), storage: bucketStorage(getStorage().bucket()) }, a.uid, a.token, request.data);
+    if (out.error) fail(out);
+    logger.info(name, { by: a.uid });
+    return out.result;
+  });
+exports.requestExpenseReceiptUpload = receiptCall('requestExpenseReceiptUpload', expenseReceipts.requestUpload);
+exports.confirmExpenseReceiptUpload = receiptCall('confirmExpenseReceiptUpload', expenseReceipts.confirmUpload);
+exports.removeExpenseReceipt = receiptCall('removeExpenseReceipt', expenseReceipts.removeReceipt);
+exports.listExpenseReceipts = receiptCall('listExpenseReceipts', expenseReceipts.listReceipts);
+// Receipt uploads that were requested but never confirmed are cleaned up daily.
+exports.expenseReceiptCleanup = onSchedule({ schedule: 'every 24 hours', timeZone: 'UTC' }, async () => {
+  try {
+    const r = await expenseReceipts.cleanupAbandonedUploads({ db, storage: bucketStorage(getStorage().bucket()), now: () => new Date(), log: (event, f) => logger.info(event, f) });
+    logger.info('expense receipt cleanup', r);
+  } catch (e) {
+    logger.error('expense receipt cleanup failed', { category: errorCategory(e) });
+  }
+});
 
 exports.updatePlatformBranding = onCall(callOptions(), async (request) => {
   const a = signedIn(request);

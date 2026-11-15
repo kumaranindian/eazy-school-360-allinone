@@ -305,6 +305,7 @@ const expenseView = (id, d) => ({
   paymentReference: d.paymentReference || '',
   status: d.status,
   version: Number.isInteger(d.version) ? d.version : 1,
+  receiptCount: Number.isInteger(d.receiptCount) ? d.receiptCount : 0,
   createdBy: d.createdBy || null,
   createdByName: d.createdByName || null,
   createdAtMs: toMs(d.createdAt),
@@ -455,5 +456,5 @@ module.exports = {
   authorize, roleIn, validateSettings, ensureDefaultCategories, categoryId,
   getExpenseSettings, saveExpenseSettings, listExpenseCategories, saveExpenseCategory,
   STATUSES, PAYMENT_MODES, validateExpense, civilToday,
-  createExpense, updateExpense, getExpense, listExpenses,
+  createExpense, updateExpense, getExpense, listExpenses, expenseCollection: expenseCol,
 };
