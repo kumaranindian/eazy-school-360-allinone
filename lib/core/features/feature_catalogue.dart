@@ -27,6 +27,7 @@ const List<FeatureDef> kFeatureCatalogue = [
   FeatureDef('exams', 'Exams, marks and results', ['students', 'academic']),
   FeatureDef('timetable', 'Timetable and substitutions', ['academic', 'staff']),
   FeatureDef('homework', 'Homework and submissions', ['academic']),
+  FeatureDef('expenses', 'Expense management'),
   FeatureDef('announcements', 'Announcements'),
   FeatureDef('messages', 'Parent-teacher messaging', ['parents']),
   FeatureDef('notifications', 'Push and in-app notifications'),

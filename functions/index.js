@@ -271,6 +271,7 @@ const STATUS = {
   NOT_FOUND: 'not-found',
   ABORTED: 'aborted',
   EMAIL_IN_USE: 'already-exists',
+  ALREADY_EXISTS: 'already-exists',
   UNAUTHENTICATED: 'unauthenticated',
   RATE_LIMITED: 'resource-exhausted',
   RESOURCE_EXHAUSTED: 'resource-exhausted',
@@ -546,6 +547,22 @@ exports.notifyAdmissionAssignment = onDocumentUpdated(
 );
 exports.getAdmissionReport = admissionCall('getAdmissionReport', require('./admission_reports').getAdmissionReport, (d) => ({ scope: d.branchId ? 'branch' : 'school' }));
 exports.changeAdmissionEnquiryStatus = admissionCall('changeAdmissionEnquiryStatus', admission.changeEnquiryStatus, (d, r) => ({ enquiry: d.enquiryId, status: r.status }));
+
+// Expense management (docs/expense-management/). Every call checks the caller's role, branch scope and the
+// school's module switch inside expenses.js (one capability table), so these only authenticate and report.
+const expenses = require('./expenses');
+const expenseCall = (name, fn) =>
+  onCall(callOptions(), async (request) => {
+    const a = signedIn(request);
+    const out = await fn(adminCtx(), a.uid, a.token, request.data);
+    if (out.error) fail(out);
+    logger.info(name, { by: a.uid });
+    return out.result === undefined ? out : out.result;
+  });
+exports.getExpenseSettings = expenseCall('getExpenseSettings', expenses.getExpenseSettings);
+exports.saveExpenseSettings = expenseCall('saveExpenseSettings', expenses.saveExpenseSettings);
+exports.listExpenseCategories = expenseCall('listExpenseCategories', expenses.listExpenseCategories);
+exports.saveExpenseCategory = expenseCall('saveExpenseCategory', expenses.saveExpenseCategory);
 
 exports.updatePlatformBranding = onCall(callOptions(), async (request) => {
   const a = signedIn(request);

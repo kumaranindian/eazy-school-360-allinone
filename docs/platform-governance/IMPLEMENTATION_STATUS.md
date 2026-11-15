@@ -93,3 +93,7 @@ Prepared, not executed: `DEPLOYMENT_GUIDE.md` (ordered dev rollout, smoke test t
 
 ## Follow-up: every callable audited with request and response (2026-11-15)
 Done: `functions/call_audit.js` (wraps all callables), payload recording and masking in `audit.js`, `getAuditEvent`, before/after on data writes, console detail view. Tests: `functions/call_audit.test.js` (11), `platform_audit_trail_test.dart` (+3). Decisions: all callables + watched data writes; full payloads with secrets masked; 20 KB cap with the existing archive-first retention. Not deployed. After deploy, `AUDIT_RETENTION_DAYS` and storage growth should be watched: bodies make events larger.
+
+
+## Expense management, phase E1 foundation (2026-11-15)
+Plan: `docs/expense-management/IMPLEMENTATION_PLAN.md`. Done: `functions/expenses.js` (capability table, `authorize` with role, branch scope, login state, school state and module switch; settings with an optimistic version; categories seeded on first use, system category protected), four callables (`getExpenseSettings`, `saveExpenseSettings`, `listExpenseCategories`, `saveExpenseCategory`), `expenses` module in both feature catalogues, six permissions (Dart) with the module mapping, Dart domain/data/provider/fake. Tests: `functions/expenses.test.js` (8), `test/expenses/expense_foundation_test.dart` (10). No client rules by design (default deny; callables only). Not deployed. Deletion matrix row D4g added; the deletion processor entry comes with E2.

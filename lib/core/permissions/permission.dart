@@ -170,6 +170,27 @@ enum Permission {
   /// A parent's view of the linked children's homework, and submitting it.
   viewOwnHomework,
 
+  /// The expense list and details (docs/expense-management/). School admin,
+  /// and branch admin / finance for their own branch; the callables enforce
+  /// the same scope. Money and approvals are never written by the client.
+  viewExpenses,
+
+  /// Record and submit an expense.
+  createExpenses,
+
+  /// Approve or reject a submitted expense (school admin; a branch admin when
+  /// the school's approver roles include it - the server checks that too).
+  approveExpenses,
+
+  /// Mark an approved expense as paid (school admin and finance).
+  payExpenses,
+
+  /// Expense categories and settings (the approval switch): school admin only.
+  manageExpenseSettings,
+
+  /// Expense reports and export.
+  viewExpenseReports,
+
   /// Read announcements addressed to the person.
   viewAnnouncements,
 
