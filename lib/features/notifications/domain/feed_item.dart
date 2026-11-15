@@ -168,6 +168,16 @@ abstract final class NotificationNavigator {
         return n.refId == null
             ? AppRoutes.admissionFollowUps
             : AppRoutes.admissionEnquiry.replaceFirst(':enquiryId', n.refId!);
+      case 'EXPENSE_SUBMITTED':
+      case 'EXPENSE_APPROVED':
+      case 'EXPENSE_READY_TO_PAY':
+      case 'EXPENSE_REJECTED':
+      case 'EXPENSE_PAID':
+        // Staff only; the router applies the same permission again.
+        if (!can(Permission.viewExpenses)) return null;
+        return n.refId == null
+            ? AppRoutes.expenses
+            : AppRoutes.expenseDetail.replaceFirst(':expenseId', n.refId!);
       default:
         return null;
     }

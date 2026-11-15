@@ -2,7 +2,9 @@ import 'package:eazy_school_360/core/features/feature_catalogue.dart';
 import 'package:eazy_school_360/core/permissions/permission.dart';
 import 'package:eazy_school_360/core/permissions/role_permissions.dart';
 import 'package:eazy_school_360/core/permissions/user_role.dart';
+import 'package:eazy_school_360/core/routing/app_routes.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense.dart';
+import 'package:eazy_school_360/features/notifications/domain/feed_item.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense_category.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -290,5 +292,146 @@ void main() {
       expect(r.isPdf, isTrue);
       expect(r.isImage, isFalse);
     });
+  });
+
+  group('ExpenseActions mirrors the server rules', () {
+    Expense e(ExpenseStatus s, {String by = 'maker', String? submittedBy}) =>
+        Expense(
+          id: '1',
+          number: 'EXP-1',
+          branchId: 'b',
+          categoryId: 'c',
+          categoryName: 'Other',
+          amountMinor: 100,
+          currency: 'INR',
+          expenseDate: '2026-11-10',
+          status: s,
+          createdBy: by,
+          submittedBy: submittedBy,
+        );
+    Set<ExpenseAction> a(
+      Expense x,
+      UserRole r, {
+      String uid = 'u',
+      ExpenseSettings s = const ExpenseSettings(),
+    }) => ExpenseActions.available(x, role: r, uid: uid, settings: s);
+
+    test(
+      'draft: the maker or an admin edits, submits and cancels; nobody else',
+      () {
+        final d = e(ExpenseStatus.draft);
+        expect(a(d, UserRole.finance, uid: 'maker'), {
+          ExpenseAction.edit,
+          ExpenseAction.submit,
+          ExpenseAction.cancel,
+        });
+        expect(a(d, UserRole.finance), isEmpty);
+        expect(a(d, UserRole.branchAdmin), contains(ExpenseAction.submit));
+        expect(a(d, UserRole.teacher), isEmpty);
+      },
+    );
+
+    test('submitted: only an approver who did not make it can decide', () {
+      final s = e(ExpenseStatus.submitted);
+      expect(a(s, UserRole.schoolAdmin), {
+        ExpenseAction.approve,
+        ExpenseAction.reject,
+        ExpenseAction.cancel,
+      });
+      expect(a(s, UserRole.schoolAdmin, uid: 'maker'), {ExpenseAction.cancel});
+      expect(
+        a(
+          s,
+          UserRole.schoolAdmin,
+          uid: 'maker',
+          s: const ExpenseSettings(allowSelfApproval: true),
+        ),
+        contains(ExpenseAction.approve),
+      );
+      expect(a(s, UserRole.branchAdmin), {ExpenseAction.cancel});
+      expect(
+        a(
+          s,
+          UserRole.branchAdmin,
+          s: const ExpenseSettings(
+            approverRoles: [UserRole.schoolAdmin, UserRole.branchAdmin],
+          ),
+        ),
+        containsAll([ExpenseAction.approve, ExpenseAction.reject]),
+      );
+      expect(a(s, UserRole.finance), isEmpty);
+      expect(a(s, UserRole.finance, uid: 'maker'), {ExpenseAction.cancel});
+      expect(
+        a(e(ExpenseStatus.submitted, submittedBy: 'u'), UserRole.schoolAdmin),
+        {ExpenseAction.cancel},
+        reason: 'nor the person who submitted it',
+      );
+    });
+
+    test('approved: finance and the school admin pay; admins cancel', () {
+      final x = e(ExpenseStatus.approved);
+      expect(a(x, UserRole.finance), {ExpenseAction.pay});
+      expect(a(x, UserRole.schoolAdmin), {
+        ExpenseAction.pay,
+        ExpenseAction.cancel,
+      });
+      expect(a(x, UserRole.branchAdmin), {ExpenseAction.cancel});
+      expect(a(x, UserRole.finance, uid: 'maker'), {ExpenseAction.pay});
+    });
+
+    test(
+      'rejected can be reopened by its maker or an admin; paid and cancelled are final',
+      () {
+        expect(a(e(ExpenseStatus.rejected), UserRole.finance), isEmpty);
+        expect(a(e(ExpenseStatus.rejected), UserRole.finance, uid: 'maker'), {
+          ExpenseAction.reopen,
+        });
+        expect(a(e(ExpenseStatus.rejected), UserRole.branchAdmin), {
+          ExpenseAction.reopen,
+        });
+        for (final s in [ExpenseStatus.paid, ExpenseStatus.cancelled]) {
+          for (final r in UserRole.values) {
+            expect(
+              a(e(s), r, uid: 'maker'),
+              isEmpty,
+              reason: '${s.name} ${r.name}',
+            );
+          }
+        }
+      },
+    );
+  });
+
+  test('expense notices open the expense for people who can see expenses', () {
+    FeedItem n(String type) => FeedItem(
+      id: 'n',
+      source: FeedSource.targeted,
+      branchId: 'main',
+      type: type,
+      title: 't',
+      refId: 'e9',
+    );
+    for (final type in [
+      'EXPENSE_SUBMITTED',
+      'EXPENSE_APPROVED',
+      'EXPENSE_READY_TO_PAY',
+      'EXPENSE_REJECTED',
+      'EXPENSE_PAID',
+    ]) {
+      for (final role in [
+        UserRole.schoolAdmin,
+        UserRole.branchAdmin,
+        UserRole.finance,
+      ]) {
+        expect(
+          NotificationNavigator.routeFor(n(type), role),
+          AppRoutes.expenseDetail.replaceFirst(':expenseId', 'e9'),
+          reason: '$type ${role.name}',
+        );
+      }
+      for (final role in [UserRole.teacher, UserRole.parent]) {
+        expect(NotificationNavigator.routeFor(n(type), role), isNull);
+      }
+    }
   });
 }

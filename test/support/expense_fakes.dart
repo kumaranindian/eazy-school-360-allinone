@@ -208,6 +208,129 @@ class FakeExpenseRepository implements ExpenseRepository {
     );
   }
 
+  // ---- workflow ----
+  final List<String> steps = [];
+  final List<({String? reason, bool? approve})> decisions = [];
+  final List<({PaymentMode mode, String reference, String? date})> payments =
+      [];
+  final List<ExpenseHistoryEntry> historyEntries = [];
+  ExpenseSettings approvalOff = const ExpenseSettings(approvalRequired: false);
+
+  void _move(String expenseId, ExpenseStatus to) {
+    final i = items.indexWhere((e) => e.id == expenseId);
+    final e = items[i];
+    items[i] = Expense(
+      id: e.id,
+      number: e.number,
+      branchId: e.branchId,
+      categoryId: e.categoryId,
+      categoryName: e.categoryName,
+      amountMinor: e.amountMinor,
+      currency: e.currency,
+      expenseDate: e.expenseDate,
+      status: to,
+      payee: e.payee,
+      description: e.description,
+      paymentMode: e.paymentMode,
+      paymentReference: e.paymentReference,
+      version: e.version + 1,
+      createdBy: e.createdBy,
+      receiptCount: e.receiptCount,
+    );
+  }
+
+  @override
+  Future<ExpenseStatus> submitExpense(
+    String schoolId,
+    String branchId,
+    String expenseId, {
+    int? baseVersion,
+  }) async {
+    _maybeFail();
+    steps.add('submit:$expenseId');
+    final to = current.approvalRequired
+        ? ExpenseStatus.submitted
+        : ExpenseStatus.approved;
+    _move(expenseId, to);
+    return to;
+  }
+
+  @override
+  Future<ExpenseStatus> decideExpense(
+    String schoolId,
+    String branchId,
+    String expenseId, {
+    required bool approve,
+    String? reason,
+    int? baseVersion,
+  }) async {
+    _maybeFail();
+    steps.add('${approve ? 'approve' : 'reject'}:$expenseId');
+    decisions.add((reason: reason, approve: approve));
+    final to = approve ? ExpenseStatus.approved : ExpenseStatus.rejected;
+    _move(expenseId, to);
+    return to;
+  }
+
+  @override
+  Future<ExpenseStatus> payExpense(
+    String schoolId,
+    String branchId,
+    String expenseId, {
+    required PaymentMode paymentMode,
+    String paymentReference = '',
+    String? paidDate,
+    int? baseVersion,
+  }) async {
+    _maybeFail();
+    steps.add('pay:$expenseId');
+    payments.add((
+      mode: paymentMode,
+      reference: paymentReference,
+      date: paidDate,
+    ));
+    _move(expenseId, ExpenseStatus.paid);
+    return ExpenseStatus.paid;
+  }
+
+  @override
+  Future<ExpenseStatus> cancelExpense(
+    String schoolId,
+    String branchId,
+    String expenseId, {
+    String? reason,
+    int? baseVersion,
+  }) async {
+    _maybeFail();
+    steps.add('cancel:$expenseId');
+    decisions.add((reason: reason, approve: null));
+    _move(expenseId, ExpenseStatus.cancelled);
+    return ExpenseStatus.cancelled;
+  }
+
+  @override
+  Future<ExpenseStatus> reopenExpense(
+    String schoolId,
+    String branchId,
+    String expenseId, {
+    int? baseVersion,
+  }) async {
+    _maybeFail();
+    steps.add('reopen:$expenseId');
+    _move(expenseId, ExpenseStatus.draft);
+    return ExpenseStatus.draft;
+  }
+
+  @override
+  Future<List<ExpenseHistoryEntry>> history(
+    String schoolId,
+    String branchId,
+    String expenseId,
+  ) async {
+    _maybeFail();
+    return List.of(historyEntries);
+  }
+
   // ---- receipts ----
   final Map<String, List<ExpenseReceipt>> receiptsByExpense = {};
   final List<

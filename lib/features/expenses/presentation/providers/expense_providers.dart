@@ -73,3 +73,10 @@ final expenseReceiptsProvider = FutureProvider.autoDispose
           .watch(expenseRepositoryProvider)
           .receipts(k.schoolId, k.branchId, k.expenseId),
     );
+
+final expenseHistoryProvider = FutureProvider.autoDispose
+    .family<List<ExpenseHistoryEntry>, ExpenseKey>(
+      (ref, k) => ref
+          .watch(expenseRepositoryProvider)
+          .history(k.schoolId, k.branchId, k.expenseId),
+    );
