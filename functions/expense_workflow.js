@@ -189,7 +189,7 @@ async function transition(ctx, uid, token, data, action) {
       seq += 1;
       tx.set(historyCol(ref).doc(seqId(seq)), {
         seq, action: st.action, from: st.from, to: st.to, reason: st.reason, auto: st.auto,
-        actorUid: st.auto ? null : uid, actorRole: st.auto ? 'SYSTEM' : caller.role, actorName: st.auto ? null : actorName,
+        actorId: st.auto ? null : uid, actorRole: st.auto ? 'SYSTEM' : caller.role, actorName: st.auto ? null : actorName,
         at: now, atMs: at.getTime(),
       });
     }

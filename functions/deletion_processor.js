@@ -27,7 +27,7 @@ const DELETED_NAME = 'Deleted user';
 const UID_FIELDS = [
   'actorId', 'applicantUserId', 'approvedBy', 'assignedTo', 'authorId', 'calculatedBy', 'changedBy',
   'completedBy', 'concessionApprovedBy', 'convertedBy', 'createdBy', 'decidedBy', 'finalizedBy', 'flaggedBy', 'gradedBy',
-  'linkedUserId', 'lockedBy', 'parentUserId', 'publishedBy', 'recipientUserId', 'recordedBy', 'reviewedBy',
+  'cancelledBy', 'linkedUserId', 'lockedBy', 'paidBy', 'parentUserId', 'publishedBy', 'recipientUserId', 'recordedBy', 'reviewedBy',
   'reversedBy', 'senderUserId', 'submittedBy', 'supersededBy', 'teacherUserId', 'updatedBy',
   'uploadedBy', 'userId', 'voidedBy',
 ];
@@ -59,7 +59,7 @@ const BRANCH_COLLECTIONS = [
   'academicYears', 'admissionActivities', 'admissionActivityHistory', 'admissionApplicationHistory', 'admissionApplications', 'admissionConversions', 'admissionDocuments', 'admissionEnquiries', 'admissionFeePayments', 'admissionFees', 'admissionNumbers', 'admissionStatusHistory', 'announcementHistory', 'announcements', 'assignmentSlots',
   'attendanceSessions', 'broadcastNotices', 'classSubjects', 'classes', 'conversationEvents',
   'conversations', 'departments', 'designations', 'examHistory', 'examRemarks', 'examinationSubjects',
-  'examinations', 'gradingSchemes', 'holidays', 'homework', 'homeworkHistory', 'homeworkRevisions',
+  'examinations', 'expenseReceipts', 'expenses', 'gradingSchemes', 'holidays', 'homework', 'homeworkHistory', 'homeworkRevisions',
   'homeworkSubmissions', 'leaveApplications', 'leaveBalances', 'leaveCalendar', 'leaveDayLocks',
   'leaveHistory', 'leaveLedger', 'leaveSettings', 'leaveTypes', 'marksEntries', 'marksRevisions',
   'marksSheetHistory', 'marksSheets', 'messageContacts', 'parentAccess', 'parents', 'periodSets',
@@ -70,7 +70,8 @@ const BRANCH_COLLECTIONS = [
 ];
 
 // Collections directly under schools/{s}.
-const SCHOOL_COLLECTIONS = ['academicYears', 'admissionSettings', 'authAudit', 'authSettings', 'branchAccessAudit', 'branding', 'feeReminderSettings', 'studentTransfers'];
+// expenseCategories / expenseSettings hold who last changed them; expenses (with their `history`) and receipts are branch collections above.
+const SCHOOL_COLLECTIONS = ['academicYears', 'admissionSettings', 'authAudit', 'authSettings', 'branchAccessAudit', 'branding', 'expenseCategories', 'expenseSettings', 'feeReminderSettings', 'studentTransfers'];
 
 // Nested collections, found with a collection-group query on a few fields each
 // (single-field indexes for these are declared in firestore.indexes.json).

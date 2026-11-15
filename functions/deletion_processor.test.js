@@ -221,6 +221,29 @@ test('authored records get the non-identifying token in every branch, other peop
   assert.strictEqual(get(db, `${S}/authAudit/e1`).actorId, 'adminA');
 });
 
+test('expense records keep their amounts and numbers, but not who recorded, decided, paid or cancelled them', async () => {
+  const { db, ctx } = setup();
+  const before = structuredClone(get(db, `${B1}/expenses/ex1`));
+  await dp.processRequest(ctx, await approved(db, 'teacher'));
+  const token = dp.tokenFor(KEY, 'teacher');
+  const ex1 = get(db, `${B1}/expenses/ex1`);
+  assert.deepStrictEqual([ex1.createdBy, ex1.updatedBy, ex1.submittedBy], [token, token, token]);
+  assert.strictEqual(ex1.createdByName, 'Deleted user');
+  assert.deepStrictEqual([ex1.decidedBy, ex1.decidedByName, ex1.paidBy], ['adminA', 'Admin A', 'adminA'], "someone else's name stays");
+  assert.deepStrictEqual([ex1.amountMinor, ex1.number, ex1.payee, ex1.status], [before.amountMinor, before.number, before.payee, before.status], 'the financial facts are untouched');
+  const ex2 = get(db, `${B1}/expenses/ex2`);
+  assert.deepStrictEqual([ex2.decidedBy, ex2.decidedByName, ex2.cancelledBy, ex2.updatedBy], [token, 'Deleted user', token, token]);
+  assert.deepStrictEqual([ex2.createdBy, ex2.createdByName], ['adminA', 'Admin A']);
+  const h1 = get(db, `${B1}/expenses/ex1/history/00001`);
+  assert.deepStrictEqual([h1.actorId, h1.actorName, h1.action, h1.actorRole], [token, 'Deleted user', 'submit', 'FINANCE']);
+  assert.deepStrictEqual([get(db, `${B1}/expenses/ex1/history/00002`).actorId, get(db, `${B1}/expenses/ex1/history/00002`).actorName], ['adminA', 'Admin A']);
+  const rc = get(db, `${B1}/expenseReceipts/r1`);
+  assert.deepStrictEqual([rc.createdBy, rc.updatedBy, rc.fileName, rc.status], [token, token, 'bill.pdf', 'UPLOADED']);
+  assert.strictEqual(get(db, `${S}/expenseSettings/config`).updatedBy, token);
+  assert.strictEqual(get(db, `${S}/expenseCategories/cat_x`).createdBy, token);
+  assert.strictEqual(get(db, `${S}/expenseCategories/cat_x`).updatedBy, 'adminA');
+});
+
 test('the token is stable per person, different between people, and keyed', () => {
   assert.strictEqual(dp.tokenFor('k', 'u1'), dp.tokenFor('k', 'u1'));
   assert.notStrictEqual(dp.tokenFor('k', 'u1'), dp.tokenFor('k', 'u2'));
