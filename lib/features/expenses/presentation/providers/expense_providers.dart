@@ -5,6 +5,7 @@ import '../../../users/presentation/providers/user_providers.dart'
 import '../../data/firebase_expense_repository.dart';
 import '../../domain/expense.dart';
 import '../../domain/expense_category.dart';
+import '../../domain/expense_report.dart';
 import '../../domain/expense_repository.dart';
 import '../../domain/expense_settings.dart';
 
@@ -79,4 +80,23 @@ final expenseHistoryProvider = FutureProvider.autoDispose
       (ref, k) => ref
           .watch(expenseRepositoryProvider)
           .history(k.schoolId, k.branchId, k.expenseId),
+    );
+
+typedef ExpenseReportKey = ({
+  String schoolId,
+  String? branchId,
+  String fromDate,
+  String toDate,
+});
+
+final expenseReportProvider = FutureProvider.autoDispose
+    .family<ExpenseReport, ExpenseReportKey>(
+      (ref, k) => ref
+          .watch(expenseRepositoryProvider)
+          .report(
+            k.schoolId,
+            branchId: k.branchId,
+            fromDate: k.fromDate,
+            toDate: k.toDate,
+          ),
     );

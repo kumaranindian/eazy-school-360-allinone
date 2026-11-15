@@ -6,6 +6,7 @@ import 'package:eazy_school_360/core/routing/app_routes.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense.dart';
 import 'package:eazy_school_360/features/notifications/domain/feed_item.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense_category.dart';
+import 'package:eazy_school_360/features/expenses/domain/expense_report.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -433,5 +434,117 @@ void main() {
         expect(NotificationNavigator.routeFor(n(type), role), isNull);
       }
     }
+  });
+
+  group('ExpenseRanges', () {
+    test('this month runs from the 1st to today', () {
+      final r = ExpenseRanges.thisMonth(DateTime(2026, 11, 15));
+      expect((r.from, r.to), ('2026-11-01', '2026-11-15'));
+    });
+
+    test(
+      'last month is the whole of the month before, across a year end and a leap day',
+      () {
+        expect(ExpenseRanges.lastMonth(DateTime(2026, 11, 15)), (
+          from: '2026-10-01',
+          to: '2026-10-31',
+        ));
+        expect(ExpenseRanges.lastMonth(DateTime(2027, 1, 5)), (
+          from: '2026-12-01',
+          to: '2026-12-31',
+        ));
+        expect(ExpenseRanges.lastMonth(DateTime(2028, 3, 1)), (
+          from: '2028-02-01',
+          to: '2028-02-29',
+        ));
+      },
+    );
+
+    test(
+      'this year starts on 1 January; last 30 days is exactly 30 days incl. today',
+      () {
+        expect(
+          ExpenseRanges.thisYear(DateTime(2026, 11, 15)).from,
+          '2026-01-01',
+        );
+        final r = ExpenseRanges.last30Days(DateTime(2026, 11, 15));
+        expect((r.from, r.to), ('2026-10-17', '2026-11-15'));
+        expect(
+          DateTime.parse(r.to).difference(DateTime.parse(r.from)).inDays,
+          29,
+        );
+        expect(
+          ExpenseRanges.last30Days(DateTime(2026, 1, 10)).from,
+          '2025-12-12',
+        );
+      },
+    );
+
+    test('a custom range is checked in plain words', () {
+      String? p(String a, String b) =>
+          ExpenseRanges.problem(a, b, '2026-11-15');
+      expect(p('2026-11-01', '2026-11-15'), isNull);
+      expect(p('', '2026-11-15'), contains('both'));
+      expect(p('2026-11-10', '2026-11-01'), contains('after'));
+      expect(p('2026-11-01', '2026-11-16'), contains('future'));
+      expect(
+        p('2025-11-15', '2026-11-15'),
+        isNull,
+        reason: 'a year is allowed',
+      );
+      expect(p('2025-11-14', '2026-11-15'), contains('a year'));
+    });
+  });
+
+  test('ExpenseReport reads the server map and tolerates missing parts', () {
+    final r = ExpenseReport.fromMap({
+      'currency': 'INR',
+      'fromDate': '2026-11-01',
+      'toDate': '2026-11-15',
+      'scope': 'SCHOOL',
+      'rows': 3,
+      'totals': {'spentMinor': 450000, 'paidMinor': 400000},
+      'byStatus': {
+        'PAID': {'count': 2, 'totalMinor': 400000},
+      },
+      'byCategory': [
+        {
+          'categoryId': 'c',
+          'name': 'Utilities',
+          'count': 2,
+          'totalMinor': 300000,
+          'paidMinor': 300000,
+        },
+      ],
+      'byMonth': [
+        {
+          'month': '2026-11',
+          'count': 3,
+          'totalMinor': 450000,
+          'paidMinor': 400000,
+        },
+      ],
+      'byBranch': [
+        {
+          'branchId': 'b1',
+          'name': 'Main',
+          'count': 1,
+          'totalMinor': 1,
+          'paidMinor': 0,
+        },
+      ],
+    });
+    expect(r.wholeSchool, isTrue);
+    expect(r.totals.spentMinor, 450000);
+    expect(r.totals.awaitingApprovalMinor, 0);
+    expect(r.byStatus[ExpenseStatus.paid]!.count, 2);
+    expect(r.byStatus[ExpenseStatus.draft]!.count, 0);
+    expect(
+      (r.byCategory.single.label, r.byCategory.single.key),
+      ('Utilities', 'c'),
+    );
+    expect(r.byMonth.single.label, '2026-11');
+    expect(r.byBranch.single.label, 'Main');
+    expect(ExpenseReport.fromMap(const {}).isEmpty, isTrue);
   });
 }

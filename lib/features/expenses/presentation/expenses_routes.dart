@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 
 import 'pages/expense_detail_page.dart';
 import 'pages/expense_form_page.dart';
+import 'pages/expense_reports_page.dart';
 import 'pages/expense_settings_page.dart';
 import 'pages/expenses_page.dart';
 
@@ -15,6 +16,10 @@ List<RouteBase> expenseRoutes() => [
       GoRoute(
         path: 'new',
         builder: (context, state) => const ExpenseFormPage(),
+      ),
+      GoRoute(
+        path: 'reports',
+        builder: (context, state) => const ExpenseReportsPage(),
       ),
       GoRoute(
         path: 'settings',

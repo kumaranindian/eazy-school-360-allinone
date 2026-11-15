@@ -15,7 +15,8 @@ const crypto = require('node:crypto');
 const audit = require('./audit');
 
 const NOT_AUDITED = new Set(['reportClientEvent']);
-const RESPONSE_OMITTED = new Set(['queryAuditEvents', 'exportAuditEvents', 'getAuditSummary', 'getAuditEvent']);
+// Reading the trail is not echoed back into it, and an expense export (payees, details) is not copied into the audit either: the event keeps the request, the row count is in the log.
+const RESPONSE_OMITTED = new Set(['queryAuditEvents', 'exportAuditEvents', 'getAuditSummary', 'getAuditEvent', 'exportExpenses']);
 
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
 const ROLE_APP = { PLATFORM_ADMIN: 'PLATFORM_ADMIN', SCHOOL_ADMIN: 'SCHOOL_ADMIN', BRANCH_ADMIN: 'BRANCH_ADMIN', TEACHER: 'TEACHER', PARENT: 'PARENT', FINANCE: 'FINANCE' };
