@@ -55,3 +55,5 @@ The five payroll callables (`listPayComponents`, `savePayComponent`, `getSalaryS
 `previewPayroll` (P2) is audited like the others; its response (pay figures) is omitted, the request (who, which month) is kept. `getPayrollSettings` / `savePayrollSettings` carry no pay figures and are recorded in full.
 
 Payroll runs (P3): the eleven run callables are audited like every callable. `listPayrollRuns`, `getPayrollRun` and `getPayslip` responses (pay figures) are omitted; `adjustPayslip` records its request with the amount masked; the writes return only ids and status. Who prepared, adjusted, approved, paid or cancelled a run is also in the run's own append-only history.
+
+`listMyPayslips` and `getMyPayslip` (P4) responses are omitted from the trail (own pay figures); the request, who and which month, is kept.

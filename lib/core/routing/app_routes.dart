@@ -139,6 +139,10 @@ abstract final class AppRoutes {
   static const String payrollPreview = '/payroll/preview';
   static const String payrollRuns = '/payroll/runs';
   static const String payrollRun = '/payroll/runs/:period';
+
+  /// A staff member's own payslips (phase P4).
+  static const String myPayslips = '/my-payslips';
+  static const String myPayslip = '/my-payslips/:branchId/:period';
   static const String payrollStaff = '/payroll/staff/:staffId';
 
   /// Leave (Milestone 7). `/my-leave` is the self-service area: a staff
@@ -318,6 +322,8 @@ abstract final class AppRoutes {
     payrollPreview: Permission.viewPayroll,
     payrollRuns: Permission.viewPayroll,
     payrollRun: Permission.viewPayroll,
+    myPayslips: Permission.viewOwnPayslips,
+    myPayslip: Permission.viewOwnPayslips,
     payrollStaff: Permission.viewPayroll,
     leave: Permission.viewLeave,
     leaveApplications: Permission.viewLeave,

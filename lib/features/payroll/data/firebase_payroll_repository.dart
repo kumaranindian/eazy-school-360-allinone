@@ -7,6 +7,7 @@ import '../domain/payroll.dart';
 import '../../expenses/domain/expense.dart' show PaymentMode;
 import '../domain/payroll_preview.dart';
 import '../domain/payroll_run.dart';
+import '../domain/payslip_document.dart';
 import '../domain/payroll_repository.dart';
 
 class FirebasePayrollRepository implements PayrollRepository {
@@ -490,4 +491,27 @@ class FirebasePayrollRepository implements PayrollRepository {
     'reason': reason,
     'baseVersion': ?baseVersion,
   });
+
+  @override
+  Future<List<MyPayslipSummary>> myPayslips(String schoolId) async {
+    final out = await _call('listMyPayslips', {'schoolId': schoolId});
+    return [
+      for (final p in (out['payslips'] as List? ?? const []))
+        MyPayslipSummary.fromMap(_map(p)),
+    ];
+  }
+
+  @override
+  Future<PayslipDocument> myPayslip(
+    String schoolId,
+    String branchId,
+    String period,
+  ) async {
+    final out = await _call('getMyPayslip', {
+      'schoolId': schoolId,
+      'branchId': branchId,
+      'period': period,
+    });
+    return PayslipDocument.fromMap(_map(out['payslip']));
+  }
 }

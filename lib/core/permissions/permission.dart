@@ -201,6 +201,11 @@ enum Permission {
   /// Change pay components and salary structures: school admin only.
   managePayroll,
 
+  /// A staff member reads their OWN published payslips (phase P4). Every
+  /// staff role has it; the server finds the staff record from the signed-in
+  /// user and never accepts an id from the client.
+  viewOwnPayslips,
+
   /// Read announcements addressed to the person.
   viewAnnouncements,
 

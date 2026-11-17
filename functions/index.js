@@ -601,6 +601,9 @@ exports.listPayrollRuns = payrollCall('listPayrollRuns', payrollRuns.listPayroll
 exports.getPayrollRun = payrollCall('getPayrollRun', payrollRuns.getPayrollRun);
 exports.getPayslip = payrollCall('getPayslip', payrollRuns.getPayslip);
 exports.getPayrollRunHistory = payrollCall('getPayrollRunHistory', payrollRuns.getPayrollRunHistory);
+const payrollPayslips = require('./payroll_payslips');
+exports.listMyPayslips = payrollCall('listMyPayslips', payrollPayslips.listMyPayslips);
+exports.getMyPayslip = payrollCall('getMyPayslip', payrollPayslips.getMyPayslip);
 const expenseReceipts = require('./expense_receipts');
 const receiptCall = (name, fn) =>
   onCall(callOptions(), async (request) => {

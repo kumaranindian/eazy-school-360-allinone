@@ -91,6 +91,7 @@ class TenantContext {
     Permission.viewExpenseReports: 'expenses',
     Permission.viewPayroll: 'payroll',
     Permission.managePayroll: 'payroll',
+    Permission.viewOwnPayslips: 'payroll',
     Permission.viewNotifications: 'notifications',
     Permission.useMessages: 'messages',
   };

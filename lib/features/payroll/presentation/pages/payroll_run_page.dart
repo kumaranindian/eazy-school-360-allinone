@@ -12,6 +12,8 @@ import '../../domain/payroll_preview.dart';
 import '../../domain/payroll_repository.dart';
 import '../../domain/payroll_run.dart';
 import '../providers/payroll_providers.dart';
+import '../../domain/payslip_document.dart';
+import '../widgets/payslip_print.dart';
 
 /// `/payroll/runs/:period`: one run. Its totals, what to check, every payslip,
 /// and the actions the person may take (recalculate, adjust, approve, pay,
@@ -166,6 +168,7 @@ class _RunState extends ConsumerState<_Run> {
         row: row,
         currency: d.run.currency,
         canAdjust: RunActions.canAdjust(d),
+        run: d.run,
         baseVersion: d.run.version,
         onChanged: _refresh,
       ),
@@ -559,6 +562,7 @@ class _SlipDialog extends ConsumerStatefulWidget {
   final PayslipRow row;
   final String currency;
   final bool canAdjust;
+  final PayrollRun run;
   final int baseVersion;
   final VoidCallback onChanged;
 
@@ -569,6 +573,7 @@ class _SlipDialog extends ConsumerStatefulWidget {
     required this.row,
     required this.currency,
     required this.canAdjust,
+    required this.run,
     required this.baseVersion,
     required this.onChanged,
   });
@@ -727,6 +732,28 @@ class _SlipDialogState extends ConsumerState<_SlipDialog> {
         ),
       ),
       actions: [
+        // The official payslip exists once the run is paid (published).
+        if (widget.run.status == RunStatus.paid)
+          TextButton(
+            key: const ValueKey('slip-pdf'),
+            onPressed: () async {
+              final p = loaded.value;
+              if (p == null) return;
+              final doc = PayslipDocument.fromAdmin(
+                p,
+                widget.run,
+                schoolName: '',
+                branchName: '',
+              );
+              await PayslipPrint.download(
+                ref,
+                doc,
+                schoolId: widget.schoolId,
+                branchId: widget.branchId,
+              );
+            },
+            child: const Text('Download PDF'),
+          ),
         if (widget.canAdjust)
           TextButton(
             key: const ValueKey('adj-add'),

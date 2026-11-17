@@ -150,6 +150,14 @@ class AppShell extends ConsumerWidget {
     ),
     (
       NavDestination(
+        label: 'My payslips',
+        icon: Icons.request_page_outlined,
+        selectedIcon: Icons.request_page,
+      ),
+      AppRoutes.myPayslips,
+    ),
+    (
+      NavDestination(
         label: 'Timetable',
         icon: Icons.calendar_view_week_outlined,
         selectedIcon: Icons.calendar_view_week,
@@ -314,6 +322,11 @@ class AppShell extends ConsumerWidget {
       'Payroll',
       'Pay components and salary structures',
       Icons.account_balance_wallet_outlined,
+    ),
+    AppRoutes.myPayslips: (
+      'My payslips',
+      'Your paid salary slips',
+      Icons.request_page_outlined,
     ),
     AppRoutes.myLeave: (
       'Your leave',

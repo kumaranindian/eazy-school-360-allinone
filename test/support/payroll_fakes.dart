@@ -4,6 +4,7 @@ import 'package:eazy_school_360/features/expenses/domain/expense.dart'
     show PaymentMode;
 import 'package:eazy_school_360/features/payroll/domain/payroll_repository.dart';
 import 'package:eazy_school_360/features/payroll/domain/payroll_run.dart';
+import 'package:eazy_school_360/features/payroll/domain/payslip_document.dart';
 
 /// In-memory [PayrollRepository]. Records what the app asks for so tests can
 /// check the request, and can be told to fail.
@@ -380,6 +381,29 @@ class FakePayrollRepository implements PayrollRepository {
   }) async {
     _maybeFail();
     _call('cancel', {'reason': reason});
+  }
+
+  // ---- a staff member's own payslips (phase P4) ----
+  final List<MyPayslipSummary> mine = [];
+  PayslipDocument? mineDoc;
+  final List<String> mineCalls = [];
+
+  @override
+  Future<List<MyPayslipSummary>> myPayslips(String schoolId) async {
+    _maybeFail();
+    mineCalls.add('list');
+    return [...mine];
+  }
+
+  @override
+  Future<PayslipDocument> myPayslip(
+    String schoolId,
+    String branchId,
+    String period,
+  ) async {
+    _maybeFail();
+    mineCalls.add('$branchId/$period');
+    return mineDoc!;
   }
 }
 

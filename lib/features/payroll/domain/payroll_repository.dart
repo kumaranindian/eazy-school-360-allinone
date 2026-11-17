@@ -2,6 +2,7 @@ import 'payroll.dart';
 import '../../expenses/domain/expense.dart' show PaymentMode;
 import 'payroll_preview.dart';
 import 'payroll_run.dart';
+import 'payslip_document.dart';
 
 /// Payroll data. Every call goes through a Cloud Function: clients have no
 /// Firestore rules for pay data, so a salary can be neither written nor read
@@ -150,4 +151,17 @@ abstract interface class PayrollRepository {
     required String reason,
     int? baseVersion,
   });
+
+  // ---- a staff member's own payslips (phase P4) ----
+
+  /// The months the signed-in staff member has been paid, newest first.
+  Future<List<MyPayslipSummary>> myPayslips(String schoolId);
+
+  /// One of their own payslips (the server finds the staff record from the
+  /// sign-in; no staff id is sent).
+  Future<PayslipDocument> myPayslip(
+    String schoolId,
+    String branchId,
+    String period,
+  );
 }

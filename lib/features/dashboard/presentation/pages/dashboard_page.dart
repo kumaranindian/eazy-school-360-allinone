@@ -182,6 +182,15 @@ const _sections = [
       path: AppRoutes.payroll,
     ),
   ]),
+  _Section('My payslips', 'Your paid salary slips', [
+    _Shortcut(
+      'My payslips',
+      'View and download your payslips',
+      Icons.request_page_outlined,
+      AppColors.orange,
+      path: AppRoutes.myPayslips,
+    ),
+  ]),
   _Section('Leave', 'Requests, balances and approvals', [
     _Shortcut(
       'Leave',

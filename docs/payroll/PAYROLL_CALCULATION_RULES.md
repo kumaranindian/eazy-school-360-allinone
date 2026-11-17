@@ -52,3 +52,15 @@ DRAFT -> CALCULATED -> APPROVED -> PAID        (CANCELLED from DRAFT, CALCULATED
 After APPROVED nothing in the run changes (a correction is a one-off item in the NEXT run). Every change runs in a transaction that re-reads the run, checks the status it came from and writes the new status and a history entry together. Responses of the writes carry no amounts; the reads that do (`listPayrollRuns`, `getPayrollRun`, `getPayslip`) are kept out of the audit trail, and the request of `adjustPayslip` is recorded with the amount masked.
 
 Not yet: publishing payslips to staff and notifications (P4), posting the paid run to the Salaries expense and the payroll register (P5).
+
+# Payslips (phase P4)
+
+**Published means paid.** Marking a run PAID publishes its payslips (`publishedAt` on the run). Nothing is readable by a staff member before that: a calculated, approved or cancelled run answers NOT_FOUND (it does not even hint that a run exists).
+
+**A staff member reads only their own.** `listMyPayslips` and `getMyPayslip` (`functions/payroll_payslips.js`) take no staff id: the staff record is found from the signed-in user (`staff.userId`), in the user's own branch(es) (a school admin is looked up in every branch). Refused: a parent, a user of another school, a deactivated user, a platform admin, a school with the `payroll` module off or suspended; a user with no staff record gets an empty list or NOT_FOUND. The answer has the school and branch names, the days, every line (with the structure amount when attendance reduced it), the one-off items by name and amount (not the internal reason an administrator wrote), totals, the paid date and the payment mode (not the reference). It never contains the warnings that approvers saw. Responses are kept out of the audit trail.
+
+**Notification.** Paying creates one in-app notice per staff member with an ACTIVE login of this school (`PAYSLIP_PUBLISHED__{period}__{uid}`, written with `create`, so a repeat creates nothing and a retried payment completes any that were missed). The text is "Your payslip for November 2026 is available." and never contains an amount (it shows on a lock screen). The existing push trigger delivers it; tapping it opens My payslips.
+
+**PDF.** Built on the device from the answer (`PayslipPdf`: one A4 page on the school letterhead, the same `FeeLetterhead` and money text as invoices and receipts; many lines continue onto further pages), so no pay data is generated or stored on a server. A staff member prints or saves their own from My payslips; a school admin or finance user can print a copy of any payslip of a PAID run from the run page (for staff without a login).
+
+Not yet: posting the paid run to the Salaries expense and the payroll register with CSV (P5).

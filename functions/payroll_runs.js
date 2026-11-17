@@ -24,6 +24,7 @@ const { authorize, CAPS } = require('./payroll');
 const { civilToday, wall, validDate, PAYMENT_MODES } = require('./expenses');
 const calendar = require('./payroll_calendar');
 const preview = require('./payroll_preview');
+const { createOnce } = require('./notify_events');
 
 const SCHOOL_ADMIN = 'SCHOOL_ADMIN';
 const REASON_MIN = 10;
@@ -73,6 +74,7 @@ const runView = (id, r) => ({
   approvedAtMs: toMs(r.approvedAt),
   approvedByName: r.approvedByName || null,
   paidAtMs: toMs(r.paidAt),
+  publishedAtMs: toMs(r.publishedAt),
   paidDate: r.paidDate || null,
   paymentMode: r.paymentMode || null,
   paymentReference: r.paymentReference || null,
@@ -355,6 +357,31 @@ async function preparedBy(db, runRef, uid) {
   return snap.docs.some((d) => PREPARING.includes(d.data().action));
 }
 
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const monthLabel = (period) => `${MONTH_NAMES[Number(period.slice(5, 7)) - 1]} ${period.slice(0, 4)}`;
+
+/** One in-app notice per staff member with an active login, once per run. Returns how many were created. */
+async function publishNotices(ctx, schoolId, branchId, period) {
+  const { db } = ctx;
+  const runRef = runs(db, schoolId, branchId).doc(period);
+  const col = branchRef(db, schoolId, branchId).collection('notifications');
+  let created = 0;
+  for (const d of (await slips(runRef).limit(1500).get()).docs) {
+    const staff = (await branchRef(db, schoolId, branchId).collection('staff').doc(d.id).get()).data();
+    const to = staff && typeof staff.userId === 'string' && validId(staff.userId) ? staff.userId : null;
+    if (!to) continue;
+    const user = (await db.collection('users').doc(to).get()).data();
+    if (!user || user.schoolId !== schoolId || user.status !== 'ACTIVE') continue;
+    const ok = await createOnce(col.doc(`PAYSLIP_PUBLISHED__${period}__${to}`), {
+      schoolId, branchId, audience: 'USER', recipientUserId: to, type: 'PAYSLIP_PUBLISHED',
+      title: 'Your payslip is ready', body: `Your payslip for ${monthLabel(period)} is available.`,
+      refType: 'PAYSLIP', refId: period, createdBy: 'system', createdAt: ctx.now, readAt: null,
+    });
+    if (ok) created++;
+  }
+  return created;
+}
+
 async function transition(ctx, uid, token, data, action) {
   const { db, now } = ctx;
   const spec = Object.prototype.hasOwnProperty.call(TRANSITIONS, action) ? TRANSITIONS[action] : null;
@@ -404,7 +431,7 @@ async function transition(ctx, uid, token, data, action) {
     seen = run.version;
   }
 
-  return db.runTransaction(async (tx) => {
+  const out = await db.runTransaction(async (tx) => {
     const cur = (await tx.get(runRef)).data();
     if (!cur) return { error: 'NOT_FOUND', reason: 'that run does not exist' };
     if (cur.status === spec.to) return { result: { id: data.period, status: cur.status, version: cur.version, duplicate: true } };
@@ -419,11 +446,23 @@ async function transition(ctx, uid, token, data, action) {
     tx.set(historyCol(runRef).doc(seqId(seq)), historyEntry(uid, caller, seq, action, cur.status, spec.to, reason, ctx));
     const patch = { status: spec.to, version: cur.version + 1, historyCount: seq, updatedAt: now, updatedBy: uid };
     if (action === 'approve') Object.assign(patch, { approvedAt: now, approvedBy: uid, approvedByName: actorOf(caller).name });
-    if (action === 'pay') Object.assign(patch, { ...payment, paidAt: now, paidBy: uid });
+    // paying publishes the payslips: from now on each staff member can read their own
+    if (action === 'pay') Object.assign(patch, { ...payment, paidAt: now, paidBy: uid, publishedAt: now });
     if (action === 'cancel') Object.assign(patch, { cancelledAt: now, cancelledBy: uid, cancelReason: reason });
     tx.update(runRef, patch);
     return { result: { id: data.period, status: spec.to, version: cur.version + 1 } };
   }, { maxAttempts: 10 });
+  // Published: tell each staff member who has a login that their payslip is ready (best effort, and safe to repeat:
+  // one notice per person and month, so a retried payment completes any that were missed). The text names the
+  // month only, never an amount.
+  if (action === 'pay' && out.result && out.result.status === 'PAID') {
+    try {
+      out.result.noticesCreated = await publishNotices(ctx, schoolId, branchId, data.period);
+    } catch (e) {
+      if (ctx.log) ctx.log('payslip notices failed', { category: String((e && e.code) || 'error') });
+    }
+  }
+  return out;
 }
 const approvePayrollRun = (ctx, uid, token, data) => transition(ctx, uid, token, data, 'approve');
 const payPayrollRun = (ctx, uid, token, data) => transition(ctx, uid, token, data, 'pay');
@@ -494,7 +533,7 @@ async function getPayrollRunHistory(ctx, uid, token, data) {
 }
 
 module.exports = {
-  TRANSITIONS, CAP, PREPARING, slipTotals, validateAdjustment,
+  TRANSITIONS, CAP, PREPARING, slipTotals, validateAdjustment, publishNotices, monthLabel,
   createPayrollRun, calculatePayrollRun, adjustPayslip, removePayslipAdjustment,
   approvePayrollRun, payPayrollRun, cancelPayrollRun,
   listPayrollRuns, getPayrollRun, getPayslip, getPayrollRunHistory,

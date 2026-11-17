@@ -4,6 +4,7 @@ import '../../data/firebase_payroll_repository.dart';
 import '../../domain/payroll.dart';
 import '../../domain/payroll_preview.dart';
 import '../../domain/payroll_run.dart';
+import '../../domain/payslip_document.dart';
 import '../../domain/payroll_repository.dart';
 
 final payrollRepositoryProvider = Provider<PayrollRepository>(
@@ -104,4 +105,19 @@ final payrollRunHistoryProvider = FutureProvider.autoDispose
       (ref, k) => ref
           .watch(payrollRepositoryProvider)
           .runHistory(k.schoolId, k.branchId, k.period),
+    );
+
+final myPayslipsProvider = FutureProvider.autoDispose
+    .family<List<MyPayslipSummary>, String>(
+      (ref, schoolId) =>
+          ref.watch(payrollRepositoryProvider).myPayslips(schoolId),
+    );
+
+typedef MyPayslipKey = ({String schoolId, String branchId, String period});
+
+final myPayslipProvider = FutureProvider.autoDispose
+    .family<PayslipDocument, MyPayslipKey>(
+      (ref, k) => ref
+          .watch(payrollRepositoryProvider)
+          .myPayslip(k.schoolId, k.branchId, k.period),
     );
