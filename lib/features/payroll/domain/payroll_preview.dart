@@ -22,15 +22,21 @@ enum UnmarkedDays {
 
 class PayrollSettings {
   final UnmarkedDays unmarkedDays;
+
+  /// A school with one administrator can let them approve a run they
+  /// prepared. Off by default (separation of duties).
+  final bool allowSelfApproval;
   final int version;
 
   const PayrollSettings({
     this.unmarkedDays = UnmarkedDays.paid,
+    this.allowSelfApproval = false,
     this.version = 0,
   });
 
   factory PayrollSettings.fromMap(Map<String, dynamic> m) => PayrollSettings(
     unmarkedDays: UnmarkedDays.fromWire(m['unmarkedDays']),
+    allowSelfApproval: m['allowSelfApproval'] == true,
     version: (m['version'] as num?)?.toInt() ?? 0,
   );
 }

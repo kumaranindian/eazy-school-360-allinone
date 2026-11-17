@@ -68,6 +68,8 @@ void main() {
         AppRoutes.payroll,
         AppRoutes.payrollComponents,
         AppRoutes.payrollPreview,
+        AppRoutes.payrollRuns,
+        AppRoutes.payrollRun,
         AppRoutes.payrollStaff,
       ]) {
         expect(

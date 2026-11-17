@@ -17,8 +17,9 @@ const audit = require('./audit');
 const NOT_AUDITED = new Set(['reportClientEvent']);
 // Reading the trail is not echoed back into it, and an expense export (payees, details) is not copied into the audit either: the event keeps the request, the row count is in the log.
 // Salary data is the most sensitive in the system and the trail is broadly readable by platform owners and compliance, so payroll reads are not copied into it (the event keeps who looked, when, and for whom) and a saved structure's amounts are not recorded (only that it was saved, and how many lines).
-const RESPONSE_OMITTED = new Set(['queryAuditEvents', 'exportAuditEvents', 'getAuditSummary', 'getAuditEvent', 'exportExpenses', 'getSalaryStructure', 'listSalaryStructures', 'previewPayroll']);
+const RESPONSE_OMITTED = new Set(['queryAuditEvents', 'exportAuditEvents', 'getAuditSummary', 'getAuditEvent', 'exportExpenses', 'getSalaryStructure', 'listSalaryStructures', 'previewPayroll', 'listPayrollRuns', 'getPayrollRun', 'getPayslip']);
 const REQUEST_REDACTED = {
+  adjustPayslip: (d) => ({ ...d, adjustment: d.adjustment && typeof d.adjustment === 'object' ? { ...d.adjustment, amountMinor: '[amount not recorded]' } : '[not recorded]' }),
   saveSalaryStructure: (d) => ({ ...d, lines: Array.isArray(d.lines) ? `[${d.lines.length} lines; amounts not recorded]` : '[not recorded]' }),
 };
 
@@ -53,7 +54,7 @@ const ACTION_RULES = [
   [/^reject/, 'REJECT'],
   [/^(reset|refresh)/, 'RESET'],
   [/^(assign|reassign)/, 'ASSIGN'],
-  [/^(update|save|set|change|reschedule|complete|waive|renew|extend|review|transition|process)/, 'UPDATE'],
+  [/^(update|save|set|change|reschedule|complete|waive|renew|extend|review|transition|process|adjust|calculate|pay)/, 'UPDATE'],
 ];
 const actionOf = (name) => (ACTION_RULES.find(([re]) => re.test(name)) || [null, 'OTHER'])[1];
 

@@ -54,7 +54,7 @@ test('the lists do not name collections that no longer exist', () => {
     ...Object.keys(p.NESTED_GROUPS),
     ...p.FINANCIAL,
   ];
-  const stale = listed.filter((c) => !named.has(c) && !/^(feeCounters|invoiceNumbers|receiptNumbers|expenses|expenseReceipts|expenseCategories|expenseSettings|salaryStructures|payComponents|payrollSettings)$/.test(c));
+  const stale = listed.filter((c) => !named.has(c) && !/^(feeCounters|invoiceNumbers|receiptNumbers|expenses|expenseReceipts|expenseCategories|expenseSettings|salaryStructures|payComponents|payrollSettings|payrollRuns|payslips)$/.test(c));
   assert.deepStrictEqual(stale, []);
 });
 

@@ -1,6 +1,9 @@
 import 'package:eazy_school_360/features/payroll/domain/payroll.dart';
 import 'package:eazy_school_360/features/payroll/domain/payroll_preview.dart';
+import 'package:eazy_school_360/features/expenses/domain/expense.dart'
+    show PaymentMode;
 import 'package:eazy_school_360/features/payroll/domain/payroll_repository.dart';
+import 'package:eazy_school_360/features/payroll/domain/payroll_run.dart';
 
 /// In-memory [PayrollRepository]. Records what the app asks for so tests can
 /// check the request, and can be told to fail.
@@ -144,6 +147,7 @@ class FakePayrollRepository implements PayrollRepository {
   PayPreviewStaff? staffPreview;
   final List<({String branch, String? staff, String period})> previewCalls = [];
   final List<UnmarkedDays> savedSettings = [];
+  final List<bool> savedSelfApproval = [];
 
   @override
   Future<({PayrollSettings settings, bool canManage})> payrollSettings(
@@ -157,12 +161,15 @@ class FakePayrollRepository implements PayrollRepository {
   Future<int> savePayrollSettings(
     String schoolId,
     UnmarkedDays unmarkedDays, {
+    bool allowSelfApproval = false,
     int? baseVersion,
   }) async {
     _maybeFail();
     savedSettings.add(unmarkedDays);
+    savedSelfApproval.add(allowSelfApproval);
     settings = PayrollSettings(
       unmarkedDays: unmarkedDays,
+      allowSelfApproval: allowSelfApproval,
       version: settings.version + 1,
     );
     return settings.version;
@@ -196,6 +203,183 @@ class FakePayrollRepository implements PayrollRepository {
     _maybeFail();
     previewCalls.add((branch: branchId, staff: staffId, period: period));
     return staffPreview!;
+  }
+
+  // ---- runs (phase P3) ----
+  final List<PayrollRun> runItems = [];
+  final Map<String, List<PayslipRow>> runSlips = {};
+  final Map<String, Payslip> slipDetails = {};
+  bool canPrepare = true;
+  bool canApprove = true;
+  bool canPay = true;
+  bool allowSelf = false;
+  final List<String> runCalls = [];
+  final List<Map<String, Object?>> runArgs = [];
+
+  void _call(String name, [Map<String, Object?> args = const {}]) {
+    runCalls.add(name);
+    runArgs.add({'call': name, ...args});
+  }
+
+  @override
+  Future<PayrollRunList> runs(String schoolId, String branchId) async {
+    _maybeFail();
+    return PayrollRunList(
+      runs: [...runItems],
+      canPrepare: canPrepare,
+      canApprove: canApprove,
+      canPay: canPay,
+    );
+  }
+
+  @override
+  Future<PayrollRunDetail> run(
+    String schoolId,
+    String branchId,
+    String period,
+  ) async {
+    _maybeFail();
+    final r = runItems.firstWhere((x) => x.period == period);
+    return PayrollRunDetail(
+      run: r,
+      payslips: runSlips[period] ?? const [],
+      skipped: r.skippedCount,
+      canPrepare: canPrepare,
+      canApprove: canApprove,
+      canPay: canPay,
+      allowSelfApproval: allowSelf,
+    );
+  }
+
+  @override
+  Future<Payslip> payslip(
+    String schoolId,
+    String branchId,
+    String period,
+    String staffId,
+  ) async {
+    _maybeFail();
+    return slipDetails[staffId]!;
+  }
+
+  @override
+  Future<List<RunHistoryEntry>> runHistory(
+    String schoolId,
+    String branchId,
+    String period,
+  ) async => const [
+    RunHistoryEntry(
+      seq: 1,
+      action: 'create',
+      to: 'CALCULATED',
+      actorName: 'Fay Finance',
+    ),
+  ];
+
+  @override
+  Future<void> createRun(
+    String schoolId,
+    String branchId,
+    String period,
+  ) async {
+    _maybeFail();
+    _call('createRun', {'period': period});
+    runItems.insert(
+      0,
+      PayrollRun(
+        period: period,
+        status: RunStatus.calculated,
+        version: 2,
+        currency: currency,
+        payslipCount: 1,
+        netMinor: 100,
+        grossMinor: 100,
+      ),
+    );
+  }
+
+  @override
+  Future<void> recalculateRun(
+    String schoolId,
+    String branchId,
+    String period, {
+    int? baseVersion,
+  }) async {
+    _maybeFail();
+    _call('recalculate', {'period': period, 'baseVersion': baseVersion});
+  }
+
+  @override
+  Future<void> addAdjustment(
+    String schoolId,
+    String branchId,
+    String period,
+    String staffId, {
+    required PayKind kind,
+    required String label,
+    required int amountMinor,
+    required String reason,
+    int? baseVersion,
+  }) async {
+    _maybeFail();
+    _call('adjust', {
+      'staffId': staffId,
+      'kind': kind,
+      'label': label,
+      'amountMinor': amountMinor,
+      'reason': reason,
+    });
+  }
+
+  @override
+  Future<void> removeAdjustment(
+    String schoolId,
+    String branchId,
+    String period,
+    String staffId,
+    String adjustmentId, {
+    int? baseVersion,
+  }) async {
+    _maybeFail();
+    _call('removeAdjustment', {'staffId': staffId, 'id': adjustmentId});
+  }
+
+  @override
+  Future<void> approveRun(
+    String schoolId,
+    String branchId,
+    String period, {
+    required bool acknowledgeWarnings,
+    int? baseVersion,
+  }) async {
+    _maybeFail();
+    _call('approve', {'ack': acknowledgeWarnings, 'baseVersion': baseVersion});
+  }
+
+  @override
+  Future<void> payRun(
+    String schoolId,
+    String branchId,
+    String period, {
+    required PaymentMode mode,
+    String? reference,
+    String? paidDate,
+    int? baseVersion,
+  }) async {
+    _maybeFail();
+    _call('pay', {'mode': mode, 'reference': reference});
+  }
+
+  @override
+  Future<void> cancelRun(
+    String schoolId,
+    String branchId,
+    String period, {
+    required String reason,
+    int? baseVersion,
+  }) async {
+    _maybeFail();
+    _call('cancel', {'reason': reason});
   }
 }
 

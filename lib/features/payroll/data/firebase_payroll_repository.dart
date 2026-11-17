@@ -4,7 +4,9 @@ import '../../../core/config/functions_region.dart';
 import '../../../core/errors/app_failure.dart';
 import '../../../core/errors/error_mapper.dart';
 import '../domain/payroll.dart';
+import '../../expenses/domain/expense.dart' show PaymentMode;
 import '../domain/payroll_preview.dart';
+import '../domain/payroll_run.dart';
 import '../domain/payroll_repository.dart';
 
 class FirebasePayrollRepository implements PayrollRepository {
@@ -198,11 +200,15 @@ class FirebasePayrollRepository implements PayrollRepository {
   Future<int> savePayrollSettings(
     String schoolId,
     UnmarkedDays unmarkedDays, {
+    bool allowSelfApproval = false,
     int? baseVersion,
   }) async {
     final out = await _call('savePayrollSettings', {
       'schoolId': schoolId,
-      'settings': {'unmarkedDays': unmarkedDays.wire},
+      'settings': {
+        'unmarkedDays': unmarkedDays.wire,
+        'allowSelfApproval': allowSelfApproval,
+      },
       'baseVersion': ?baseVersion,
     });
     return (out['version'] as num?)?.toInt() ?? 0;
@@ -272,4 +278,216 @@ class FirebasePayrollRepository implements PayrollRepository {
           : PayCalculation.fromMap(_map(out['calculation'])),
     );
   }
+
+  // ---- runs (phase P3) ----
+
+  Map<String, dynamic> _scope(
+    String schoolId,
+    String branchId,
+    String period,
+  ) => {'schoolId': schoolId, 'branchId': branchId, 'period': period};
+
+  @override
+  Future<PayrollRunList> runs(String schoolId, String branchId) async {
+    final out = await _call('listPayrollRuns', {
+      'schoolId': schoolId,
+      'branchId': branchId,
+    });
+    return PayrollRunList(
+      runs: [
+        for (final r in (out['runs'] as List? ?? const []))
+          PayrollRun.fromMap(_map(r)),
+      ],
+      canPrepare: out['canPrepare'] == true,
+      canApprove: out['canApprove'] == true,
+      canPay: out['canPay'] == true,
+    );
+  }
+
+  PayslipRow _slipRow(Map<String, dynamic> m) => PayslipRow.fromMap(m);
+
+  @override
+  Future<PayrollRunDetail> run(
+    String schoolId,
+    String branchId,
+    String period,
+  ) async {
+    final out = await _call(
+      'getPayrollRun',
+      _scope(schoolId, branchId, period),
+    );
+    return PayrollRunDetail(
+      run: PayrollRun.fromMap(_map(out['run'])),
+      payslips: [
+        for (final p in (out['payslips'] as List? ?? const []))
+          _slipRow(_map(p)),
+      ],
+      skipped: (out['skippedStaffIds'] as List? ?? const []).length,
+      canPrepare: out['canPrepare'] == true,
+      canApprove: out['canApprove'] == true,
+      canPay: out['canPay'] == true,
+      allowSelfApproval: out['allowSelfApproval'] == true,
+    );
+  }
+
+  @override
+  Future<Payslip> payslip(
+    String schoolId,
+    String branchId,
+    String period,
+    String staffId,
+  ) async {
+    final out = await _call('getPayslip', {
+      ..._scope(schoolId, branchId, period),
+      'staffId': staffId,
+    });
+    final p = _map(out['payslip']);
+    return Payslip(
+      row: _slipRow(p),
+      currency: (p['currency'] as String?) ?? '',
+      lines: [
+        for (final l in (p['lines'] as List? ?? const []))
+          PayLineSnapshot(
+            name: (_map(l)['name'] as String?) ?? '',
+            kind: PayKind.fromWire(_map(l)['kind']),
+            plannedMinor: (_map(l)['plannedMinor'] as num?)?.toInt() ?? 0,
+            amountMinor: (_map(l)['amountMinor'] as num?)?.toInt() ?? 0,
+          ),
+      ],
+      adjustments: [
+        for (final a in (p['adjustments'] as List? ?? const []))
+          PayAdjustment.fromMap(_map(a)),
+      ],
+      warnings: [
+        for (final w in (p['warnings'] as List? ?? const []))
+          PayWarning.fromMap(_map(w)).text,
+      ],
+      baseGrossMinor: (p['baseGrossMinor'] as num?)?.toInt() ?? 0,
+      unrecoveredDeductionMinor:
+          (p['unrecoveredDeductionMinor'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  @override
+  Future<List<RunHistoryEntry>> runHistory(
+    String schoolId,
+    String branchId,
+    String period,
+  ) async {
+    final out = await _call(
+      'getPayrollRunHistory',
+      _scope(schoolId, branchId, period),
+    );
+    return [
+      for (final h in (out['history'] as List? ?? const []))
+        RunHistoryEntry(
+          seq: (_map(h)['seq'] as num?)?.toInt() ?? 0,
+          action: (_map(h)['action'] as String?) ?? '',
+          from: _map(h)['from'] as String?,
+          to: _map(h)['to'] as String?,
+          reason: _map(h)['reason'] as String?,
+          actorName: _map(h)['actorName'] as String?,
+          actorRole: _map(h)['actorRole'] as String?,
+          atMs: (_map(h)['atMs'] as num?)?.toInt(),
+        ),
+    ];
+  }
+
+  @override
+  Future<void> createRun(String schoolId, String branchId, String period) =>
+      _call('createPayrollRun', _scope(schoolId, branchId, period));
+
+  @override
+  Future<void> recalculateRun(
+    String schoolId,
+    String branchId,
+    String period, {
+    int? baseVersion,
+  }) => _call('calculatePayrollRun', {
+    ..._scope(schoolId, branchId, period),
+    'baseVersion': ?baseVersion,
+  });
+
+  @override
+  Future<void> addAdjustment(
+    String schoolId,
+    String branchId,
+    String period,
+    String staffId, {
+    required PayKind kind,
+    required String label,
+    required int amountMinor,
+    required String reason,
+    int? baseVersion,
+  }) => _call('adjustPayslip', {
+    ..._scope(schoolId, branchId, period),
+    'staffId': staffId,
+    'adjustment': {
+      'kind': kind.wire,
+      'label': label,
+      'amountMinor': amountMinor,
+      'reason': reason,
+    },
+    'baseVersion': ?baseVersion,
+  });
+
+  @override
+  Future<void> removeAdjustment(
+    String schoolId,
+    String branchId,
+    String period,
+    String staffId,
+    String adjustmentId, {
+    int? baseVersion,
+  }) => _call('removePayslipAdjustment', {
+    ..._scope(schoolId, branchId, period),
+    'staffId': staffId,
+    'adjustmentId': adjustmentId,
+    'baseVersion': ?baseVersion,
+  });
+
+  @override
+  Future<void> approveRun(
+    String schoolId,
+    String branchId,
+    String period, {
+    required bool acknowledgeWarnings,
+    int? baseVersion,
+  }) => _call('approvePayrollRun', {
+    ..._scope(schoolId, branchId, period),
+    'acknowledgeWarnings': acknowledgeWarnings,
+    'baseVersion': ?baseVersion,
+  });
+
+  @override
+  Future<void> payRun(
+    String schoolId,
+    String branchId,
+    String period, {
+    required PaymentMode mode,
+    String? reference,
+    String? paidDate,
+    int? baseVersion,
+  }) => _call('payPayrollRun', {
+    ..._scope(schoolId, branchId, period),
+    'payment': {
+      'paymentMode': mode.wire,
+      'paymentReference': ?reference,
+      'paidDate': ?paidDate,
+    },
+    'baseVersion': ?baseVersion,
+  });
+
+  @override
+  Future<void> cancelRun(
+    String schoolId,
+    String branchId,
+    String period, {
+    required String reason,
+    int? baseVersion,
+  }) => _call('cancelPayrollRun', {
+    ..._scope(schoolId, branchId, period),
+    'reason': reason,
+    'baseVersion': ?baseVersion,
+  });
 }

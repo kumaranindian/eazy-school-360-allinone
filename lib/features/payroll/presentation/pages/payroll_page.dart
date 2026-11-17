@@ -23,6 +23,12 @@ class PayrollPage extends ConsumerWidget {
         title: const Text('Payroll'),
         actions: [
           IconButton(
+            key: const ValueKey('payroll-runs'),
+            tooltip: 'Payroll runs',
+            icon: const Icon(Icons.receipt_long_outlined),
+            onPressed: () => context.go('/payroll/runs'),
+          ),
+          IconButton(
             key: const ValueKey('payroll-preview'),
             tooltip: 'Pay for a month',
             icon: const Icon(Icons.calculate_outlined),

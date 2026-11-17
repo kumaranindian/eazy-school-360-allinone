@@ -17,7 +17,7 @@ const { civilToday, wall } = require('./expenses');
 const calendar = require('./payroll_calendar');
 const { calculateMonth, UNMARKED } = require('./payroll_calculator');
 
-const DEFAULT_SETTINGS = Object.freeze({ unmarkedDays: 'PAID' });
+const DEFAULT_SETTINGS = Object.freeze({ unmarkedDays: 'PAID', allowSelfApproval: false });
 const ATTENDANCE_CAP = 20000;
 const LEAVE_CAP = 5000;
 const STAFF_CAP = 1000;
@@ -31,9 +31,19 @@ const reasonOf = (errors) => Object.entries(errors).map(([k, v]) => `${k}: ${v}`
 function validateSettings(input) {
   const i = input && typeof input === 'object' ? input : {};
   if (i.unmarkedDays !== undefined && !UNMARKED.includes(i.unmarkedDays)) return { errors: { unmarkedDays: `one of ${UNMARKED.join(', ')}` } };
-  return { value: { unmarkedDays: i.unmarkedDays === undefined ? DEFAULT_SETTINGS.unmarkedDays : i.unmarkedDays } };
+  if (i.allowSelfApproval !== undefined && typeof i.allowSelfApproval !== 'boolean') return { errors: { allowSelfApproval: 'must be true or false' } };
+  return {
+    value: {
+      unmarkedDays: i.unmarkedDays === undefined ? DEFAULT_SETTINGS.unmarkedDays : i.unmarkedDays,
+      allowSelfApproval: i.allowSelfApproval === undefined ? DEFAULT_SETTINGS.allowSelfApproval : i.allowSelfApproval,
+    },
+  };
 }
-const settingsView = (s) => ({ unmarkedDays: UNMARKED.includes(s && s.unmarkedDays) ? s.unmarkedDays : DEFAULT_SETTINGS.unmarkedDays, version: s && Number.isInteger(s.version) ? s.version : 0 });
+const settingsView = (s) => ({
+  unmarkedDays: UNMARKED.includes(s && s.unmarkedDays) ? s.unmarkedDays : DEFAULT_SETTINGS.unmarkedDays,
+  allowSelfApproval: s && s.allowSelfApproval === true,
+  version: s && Number.isInteger(s.version) ? s.version : 0,
+});
 
 /** The school's payroll policy (defaults when never saved). School admin and finance. */
 async function getPayrollSettings(ctx, uid, token, data) {
@@ -124,6 +134,32 @@ const summary = (r) => ({
 });
 
 /**
+ * Every current staff member of the branch employed at any time in [period], each with the structure in force
+ * on the 1st and the month's calculation (null when there is no structure). Shared by the preview and by
+ * payroll runs, so a run pays exactly what the preview showed.
+ */
+async function branchCalculations(db, schoolId, branchId, period, settings, facts) {
+  const b = branchRef(db, schoolId, branchId);
+  const periodStart = `${period}-01`;
+  const all = (await b.collection('staff').limit(STAFF_CAP).get()).docs.map((d) => ({ id: d.id, data: d.data() }));
+  const byStaff = new Map();
+  for (const d of (await b.collection('salaryStructures').limit(STAFF_CAP * 5).get()).docs) {
+    const v = d.data();
+    if (!byStaff.has(v.staffId)) byStaff.set(v.staffId, []);
+    byStaff.get(v.staffId).push({ id: d.id, data: v });
+  }
+  const rows = [];
+  for (const s of all) {
+    const emp = employmentOf(s.data);
+    if (emp.to && emp.to < facts.from) continue; // left before this month
+    if (emp.from && emp.from > facts.to) continue; // joins after it
+    const inf = inForce(byStaff.get(s.id) || [], periodStart);
+    rows.push({ staff: s, inf, calc: payFor(s, inf && inf.data, facts, settings) });
+  }
+  return { rows };
+}
+
+/**
  * What a month's pay would be. With a staffId: the full explanation for that person (every line, each day,
  * every warning). Without: one summary row per current staff member of the branch. Nothing is saved.
  * School admin and finance only (a branch admin sees no pay).
@@ -171,27 +207,13 @@ async function previewPayroll(ctx, uid, token, data) {
     };
   }
 
-  const all = (await staffCol.limit(STAFF_CAP).get()).docs.map((d) => ({ id: d.id, data: d.data() }));
-  const latest = new Map();
-  for (const d of (await sCol.limit(STAFF_CAP * 5).get()).docs) {
-    const v = d.data();
-    if (!latest.has(v.staffId)) latest.set(v.staffId, []);
-    latest.get(v.staffId).push({ id: d.id, data: v });
-  }
-  const rows = [];
-  for (const s of all) {
-    const emp = employmentOf(s.data);
-    if (emp.to && emp.to < facts.from) continue; // left before this month
-    if (emp.from && emp.from > facts.to) continue; // joins after it
-    const inf = inForce(latest.get(s.id) || [], periodStart);
-    const r = payFor(s, inf && inf.data, facts, settings);
-    rows.push({
-      staffId: s.id, name: staffName(s.data), employeeCode: s.data.employeeCode || '', status: s.data.status || '',
-      hasStructure: !!inf, calculation: r ? summary(r) : null,
-    });
-  }
+  const calcs = await branchCalculations(db, schoolId, branchId, period, settings, facts);
+  const rows = calcs.rows.map((r) => ({
+    staffId: r.staff.id, name: staffName(r.staff.data), employeeCode: r.staff.data.employeeCode || '', status: r.staff.data.status || '',
+    hasStructure: !!r.inf, calculation: r.calc ? summary(r.calc) : null,
+  }));
   rows.sort((a, b) => a.name.localeCompare(b.name));
   return { result: { period, currency: school.currency || 'INR', settings: { unmarkedDays: settings.unmarkedDays }, workingDays: facts.workingDates.length, staff: rows } };
 }
 
-module.exports = { DEFAULT_SETTINGS, validateSettings, settingsView, getPayrollSettings, savePayrollSettings, previewPayroll, payFor, employmentOf, loadFacts, settingsRef };
+module.exports = { branchCalculations, staffName, DEFAULT_SETTINGS, validateSettings, settingsView, getPayrollSettings, savePayrollSettings, previewPayroll, payFor, employmentOf, loadFacts, settingsRef };

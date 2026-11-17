@@ -1,5 +1,7 @@
 import 'payroll.dart';
+import '../../expenses/domain/expense.dart' show PaymentMode;
 import 'payroll_preview.dart';
+import 'payroll_run.dart';
 
 /// Payroll data. Every call goes through a Cloud Function: clients have no
 /// Firestore rules for pay data, so a salary can be neither written nor read
@@ -41,6 +43,7 @@ abstract interface class PayrollRepository {
   Future<int> savePayrollSettings(
     String schoolId,
     UnmarkedDays unmarkedDays, {
+    bool allowSelfApproval = false,
     int? baseVersion,
   });
 
@@ -70,5 +73,81 @@ abstract interface class PayrollRepository {
     required List<SalaryLineInput> lines,
     String? reason,
     int? baseSeq,
+  });
+
+  // ---- runs (phase P3) ----
+
+  Future<PayrollRunList> runs(String schoolId, String branchId);
+
+  Future<PayrollRunDetail> run(String schoolId, String branchId, String period);
+
+  Future<Payslip> payslip(
+    String schoolId,
+    String branchId,
+    String period,
+    String staffId,
+  );
+
+  Future<List<RunHistoryEntry>> runHistory(
+    String schoolId,
+    String branchId,
+    String period,
+  );
+
+  /// Creates the month's run and calculates it. One run per branch and month.
+  Future<void> createRun(String schoolId, String branchId, String period);
+
+  Future<void> recalculateRun(
+    String schoolId,
+    String branchId,
+    String period, {
+    int? baseVersion,
+  });
+
+  Future<void> addAdjustment(
+    String schoolId,
+    String branchId,
+    String period,
+    String staffId, {
+    required PayKind kind,
+    required String label,
+    required int amountMinor,
+    required String reason,
+    int? baseVersion,
+  });
+
+  Future<void> removeAdjustment(
+    String schoolId,
+    String branchId,
+    String period,
+    String staffId,
+    String adjustmentId, {
+    int? baseVersion,
+  });
+
+  Future<void> approveRun(
+    String schoolId,
+    String branchId,
+    String period, {
+    required bool acknowledgeWarnings,
+    int? baseVersion,
+  });
+
+  Future<void> payRun(
+    String schoolId,
+    String branchId,
+    String period, {
+    required PaymentMode mode,
+    String? reference,
+    String? paidDate,
+    int? baseVersion,
+  });
+
+  Future<void> cancelRun(
+    String schoolId,
+    String branchId,
+    String period, {
+    required String reason,
+    int? baseVersion,
   });
 }

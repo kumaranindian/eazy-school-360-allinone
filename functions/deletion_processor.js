@@ -63,7 +63,7 @@ const BRANCH_COLLECTIONS = [
   'homeworkSubmissions', 'leaveApplications', 'leaveBalances', 'leaveCalendar', 'leaveDayLocks',
   'leaveHistory', 'leaveLedger', 'leaveSettings', 'leaveTypes', 'marksEntries', 'marksRevisions',
   'marksSheetHistory', 'marksSheets', 'messageContacts', 'parentAccess', 'parents', 'periodSets',
-  'resultSummaries', 'salaryStructures', 'settings', 'staff', 'staffAttendance', 'staffAttendanceDays', 'staffCodes',
+  'payrollRuns', 'resultSummaries', 'salaryStructures', 'settings', 'staff', 'staffAttendance', 'staffAttendanceDays', 'staffCodes',
   'studentAttendance', 'students', 'subjects', 'substitutionDays', 'substitutionHistory',
   'substitutions', 'teacherAccess', 'teacherAssignments', 'timetableCounters', 'timetableEntries',
   'timetableHistory', 'timetableLocks', 'timetables',
@@ -80,6 +80,7 @@ const NESTED_GROUPS = {
   documents: ['createdBy', 'updatedBy', 'uploadedBy'],
   history: ['changedBy', 'actorId', 'createdBy', 'updatedBy'],
   messages: ['senderUserId', 'createdBy'],
+  payslips: ['createdBy', 'updatedBy'],
   parentLinks: ['createdBy', 'updatedBy'],
   sections: ['createdBy', 'updatedBy'],
 };

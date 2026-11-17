@@ -29,6 +29,10 @@ const CAPS = Object.freeze({
   view: [SCHOOL_ADMIN, FINANCE],
   editStructure: [SCHOOL_ADMIN],
   manage: [SCHOOL_ADMIN],
+  // payroll runs (phase P3): finance prepares and pays, only a school admin approves
+  prepare: [SCHOOL_ADMIN, FINANCE],
+  approve: [SCHOOL_ADMIN],
+  pay: [SCHOOL_ADMIN, FINANCE],
 });
 
 const trim = (v) => (typeof v === 'string' ? v.trim() : '');

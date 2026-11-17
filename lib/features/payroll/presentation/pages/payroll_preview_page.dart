@@ -62,20 +62,25 @@ class _PreviewState extends ConsumerState<_Preview> {
       payrollSettingsProvider(widget.schoolId).future,
     );
     if (!mounted) return;
-    final chosen = await showDialog<UnmarkedDays>(
+    final chosen = await showDialog<({UnmarkedDays unmarked, bool self})>(
       context: context,
       builder: (_) => _SettingsDialog(
-        current: loaded.settings.unmarkedDays,
+        current: loaded.settings,
         canManage: loaded.canManage,
       ),
     );
-    if (chosen == null || chosen == loaded.settings.unmarkedDays) return;
+    if (chosen == null ||
+        (chosen.unmarked == loaded.settings.unmarkedDays &&
+            chosen.self == loaded.settings.allowSelfApproval)) {
+      return;
+    }
     try {
       await ref
           .read(payrollRepositoryProvider)
           .savePayrollSettings(
             widget.schoolId,
-            chosen,
+            chosen.unmarked,
+            allowSelfApproval: chosen.self,
             baseVersion: loaded.settings.version,
           );
       ref.invalidate(payrollSettingsProvider(widget.schoolId));
@@ -193,7 +198,7 @@ class _PreviewState extends ConsumerState<_Preview> {
 }
 
 class _SettingsDialog extends StatefulWidget {
-  final UnmarkedDays current;
+  final PayrollSettings current;
   final bool canManage;
 
   const _SettingsDialog({required this.current, required this.canManage});
@@ -203,7 +208,8 @@ class _SettingsDialog extends StatefulWidget {
 }
 
 class _SettingsDialogState extends State<_SettingsDialog> {
-  late UnmarkedDays _value = widget.current;
+  late UnmarkedDays _value = widget.current.unmarkedDays;
+  late bool _self = widget.current.allowSelfApproval;
 
   @override
   Widget build(BuildContext context) {
@@ -225,6 +231,18 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                 title: Text(u.label),
                 contentPadding: EdgeInsets.zero,
               ),
+            SwitchListTile(
+              key: const ValueKey('allow-self-approval'),
+              contentPadding: EdgeInsets.zero,
+              value: _self,
+              onChanged: widget.canManage
+                  ? (v) => setState(() => _self = v)
+                  : null,
+              title: const Text('Let one administrator prepare and approve'),
+              subtitle: const Text(
+                'Off by default: the person who prepared a payroll run cannot approve it.',
+              ),
+            ),
             const SizedBox(height: AppSpacing.sm),
             Text(
               widget.canManage
@@ -243,7 +261,8 @@ class _SettingsDialogState extends State<_SettingsDialog> {
         if (widget.canManage)
           FilledButton(
             key: const ValueKey('unmarked-save'),
-            onPressed: () => Navigator.pop(context, _value),
+            onPressed: () =>
+                Navigator.pop(context, (unmarked: _value, self: _self)),
             child: const Text('Save'),
           ),
       ],

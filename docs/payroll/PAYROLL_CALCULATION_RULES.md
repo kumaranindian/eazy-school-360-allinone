@@ -31,3 +31,24 @@ How a month's pay is worked out. The code is `functions/payroll_calculator.js` (
 
 ## Privacy
 `previewPayroll` returns pay figures, so it is school admin and finance only (a branch admin, teacher, parent and the staff member themselves get nothing) and its response is not copied into the audit trail (the request, who and which month, is).
+
+# Payroll runs (phase P3)
+
+One run per branch and month: `schools/{s}/branches/{b}/payrollRuns/{yyyy-mm}`, with a `payslips/{staffId}` subcollection (a frozen snapshot per person) and an append-only `history`. Code: `functions/payroll_runs.js`. No client rules: every read and write is a callable for the school admin and finance (a branch admin, teacher, parent and the staff member themselves get nothing yet; own payslips arrive with phase P4).
+
+```
+DRAFT -> CALCULATED -> APPROVED -> PAID        (CANCELLED from DRAFT, CALCULATED or APPROVED)
+```
+
+| Step | Who | Rule |
+|---|---|---|
+| Create (and calculate) | school admin, finance | one run per branch and month; the month cannot be in the future or more than 2 years back; a CANCELLED month can be started again (the history is kept and continues). The payslips are computed by the same code as the preview, so a run pays exactly what the preview showed |
+| Recalculate | school admin, finance | only while DRAFT or CALCULATED; keeps one-off items already entered; people who no longer qualify are removed; an item the new base cannot carry (the net would go negative) is dropped and counted in the answer |
+| Adjust (add or remove a one-off item) | school admin, finance | only while CALCULATED; a name (2-60), an amount, a reason (10-300); at most 10 per payslip; the net may never go below 0; the history names the item and the reason, never the amount |
+| Approve | school admin only | the person who prepared it (created, recalculated or adjusted) cannot approve, unless the school switched `allowSelfApproval` on (one-administrator schools); a run with things to check or staff without a structure needs an explicit acknowledgement; the stored totals must equal the sum of the payslips (otherwise recalculate); the version the approver saw must still be current |
+| Pay | school admin, finance | mode (cash, bank transfer, UPI, cheque, card, other), optional reference, a date that is not in the future and not before the month; paying twice is harmless; a paid run is final |
+| Cancel | finance before approval, school admin at any open stage | a reason of 10-300 characters; a paid run cannot be cancelled |
+
+After APPROVED nothing in the run changes (a correction is a one-off item in the NEXT run). Every change runs in a transaction that re-reads the run, checks the status it came from and writes the new status and a history entry together. Responses of the writes carry no amounts; the reads that do (`listPayrollRuns`, `getPayrollRun`, `getPayslip`) are kept out of the audit trail, and the request of `adjustPayslip` is recorded with the amount masked.
+
+Not yet: publishing payslips to staff and notifications (P4), posting the paid run to the Salaries expense and the payroll register (P5).
