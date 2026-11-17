@@ -42,6 +42,7 @@ const Map<String, String> _titles = {
   AppRoutes.leave: 'Leave Management',
   AppRoutes.expenses: 'Expenses',
   AppRoutes.expenseReports: 'Expense reports',
+  AppRoutes.payroll: 'Payroll',
   AppRoutes.leaveReports: 'Leave Reports',
   AppRoutes.myLeave: 'My Leave',
   AppRoutes.timetable: 'Timetable',

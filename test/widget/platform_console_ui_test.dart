@@ -85,7 +85,7 @@ Future<_World> _pump(
   UserProfile? profile,
   PlatformRole role = PlatformRole.owner,
   FakePlatformConsoleRepository? repo,
-  Size size = const Size(1000, 2600),
+  Size size = const Size(1000, 3000),
   double textScale = 1,
 }) async {
   tester.view.physicalSize = size;

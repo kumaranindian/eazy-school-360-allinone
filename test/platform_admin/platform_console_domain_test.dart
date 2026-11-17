@@ -121,7 +121,9 @@ void main() {
               (p == Permission.managePlatform ||
                   (p.name.startsWith('view') &&
                       !p.name.startsWith('viewOwn') &&
-                      p != Permission.viewNotifications));
+                      p != Permission.viewNotifications &&
+                      // pay data is never part of a support grant
+                      p != Permission.viewPayroll));
           expect(session.can(p), allowedInSupport, reason: '$p');
         }
       },

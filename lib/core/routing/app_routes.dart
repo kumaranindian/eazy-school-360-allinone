@@ -133,6 +133,12 @@ abstract final class AppRoutes {
   static const String expenseDetail = '/expenses/:expenseId';
   static const String expenseEdit = '/expenses/:expenseId/edit';
 
+  /// Staff payroll (docs/expense-management/ section 6).
+  static const String payroll = '/payroll';
+  static const String payrollComponents = '/payroll/components';
+  static const String payrollPreview = '/payroll/preview';
+  static const String payrollStaff = '/payroll/staff/:staffId';
+
   /// Leave (Milestone 7). `/my-leave` is the self-service area: a staff
   /// member's own leave, or a parent's children's.
   static const String leave = '/leave';
@@ -305,6 +311,10 @@ abstract final class AppRoutes {
     expenseReports: Permission.viewExpenseReports,
     expenseDetail: Permission.viewExpenses,
     expenseEdit: Permission.createExpenses,
+    payroll: Permission.viewPayroll,
+    payrollComponents: Permission.viewPayroll,
+    payrollPreview: Permission.viewPayroll,
+    payrollStaff: Permission.viewPayroll,
     leave: Permission.viewLeave,
     leaveApplications: Permission.viewLeave,
     leaveApplicationDetail: Permission.viewLeave,

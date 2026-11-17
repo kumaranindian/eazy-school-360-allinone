@@ -50,7 +50,7 @@ test('planChange: enabling needs dependencies; disabling needs confirmation and 
   assert.deepEqual(F.planChange(off, { feeReminders: true }, false), { error: 'FAILED_PRECONDITION', reason: 'DEPENDENCY', keys: ['fees'] });
   assert.equal(F.planChange(off, { fees: true, feeReminders: true }, false).changed.length, 2, 'both together is fine');
   assert.equal(F.planChange(on, { fees: true }, false).changed.length, 0, 'no-op');
-  assert.equal(F.planChange(on, { payroll: false }, true).reason, 'features');
+  assert.equal(F.planChange(on, { nonexistent: false }, true).reason, 'features');
   assert.equal(F.planChange(on, { fees: 'no' }, true).reason, 'features');
   assert.equal(F.consistent(F.planChange(on, { students: false }, true).next), true, 'the result is always consistent');
 });

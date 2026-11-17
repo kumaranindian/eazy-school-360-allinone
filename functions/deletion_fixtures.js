@@ -65,6 +65,11 @@ const seed = () => ({
   [`${B1}/expenseReceipts/r1`]: { expenseId: 'ex1', fileName: 'bill.pdf', status: 'UPLOADED', createdBy: 'teacher', updatedBy: 'teacher' },
   [`${S}/expenseSettings/config`]: { approvalRequired: true, updatedBy: 'teacher' },
   [`${S}/expenseCategories/cat_x`]: { name: 'Garden', createdBy: 'teacher', updatedBy: 'adminA' },
+  // staff payroll: pay data is kept (it is a financial record), who set it is not
+  [`${B1}/salaryStructures/st1_00001`]: { staffId: 'st1', seq: 1, grossMinor: 5000, netMinor: 5000, latest: true, createdBy: 'adminA', updatedBy: 'adminA' },
+  [`${B1}/salaryStructures/st1_00002`]: { staffId: 'st1', seq: 2, grossMinor: 6000, netMinor: 6000, latest: false, createdBy: 'teacher', updatedBy: 'teacher' },
+  [`${S}/payComponents/pc_x`]: { name: 'Allowance', kind: 'EARNING', calc: 'FIXED', createdBy: 'teacher', updatedBy: 'adminA' },
+  [`${S}/payrollSettings/config`]: { unmarkedDays: 'PAID', updatedBy: 'teacher' },
   [`${B1}/leaveApplications/l1`]: { applicantUserId: 'teacher', applicantName: 'Tia Teacher', reason: 'surgery', startDateKey: '2026-10-01', attachments: [{ path: `${B1}/leaveDocs/teacher/l1/note.pdf`, name: 'note.pdf' }], decidedBy: 'adminA', decidedByName: 'Admin A', status: 'APPROVED' },
   [`${B1}/leaveApplications/l2`]: { applicantUserId: 'other', applicantName: 'Olly Other', reason: 'fever', attachments: [{ path: `${B1}/leaveDocs/other/l2/x.pdf`, name: 'x.pdf' }], decidedBy: 'teacher', decidedByName: 'Tia Teacher', status: 'APPROVED' },
   [`${B1}/staff/st1`]: { userId: 'teacher', firstName: 'Tia', lastName: 'Teacher', phone: '+913', email: 't@x.com', employeeCode: 'E1', joiningDate: '2020', departmentId: 'd1', photoUrl: 'p', bloodGroup: 'O+', alternatePhone: '9', address: 'addr', city: 'c', state: 's', country: 'IN', postalCode: '1' },

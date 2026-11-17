@@ -577,6 +577,18 @@ exports.getExpenseHistory = expenseCall('getExpenseHistory', expenseWorkflow.get
 const expenseReports = require('./expense_reports');
 exports.getExpenseReport = expenseCall('getExpenseReport', expenseReports.getExpenseReport);
 exports.exportExpenses = expenseCall('exportExpenses', expenseReports.exportExpenses);
+// Staff payroll (docs/expense-management/ section 6). Salary data: only the callable's own role checks decide, and nothing about a salary is written to the logs (only who called).
+const payroll = require('./payroll');
+const payrollCall = (name, fn) => expenseCall(name, fn);
+exports.listPayComponents = payrollCall('listPayComponents', payroll.listPayComponents);
+exports.savePayComponent = payrollCall('savePayComponent', payroll.savePayComponent);
+exports.getSalaryStructure = payrollCall('getSalaryStructure', payroll.getSalaryStructure);
+exports.saveSalaryStructure = payrollCall('saveSalaryStructure', payroll.saveSalaryStructure);
+exports.listSalaryStructures = payrollCall('listSalaryStructures', payroll.listSalaryStructures);
+const payrollPreview = require('./payroll_preview');
+exports.getPayrollSettings = payrollCall('getPayrollSettings', payrollPreview.getPayrollSettings);
+exports.savePayrollSettings = payrollCall('savePayrollSettings', payrollPreview.savePayrollSettings);
+exports.previewPayroll = payrollCall('previewPayroll', payrollPreview.previewPayroll);
 const expenseReceipts = require('./expense_receipts');
 const receiptCall = (name, fn) =>
   onCall(callOptions(), async (request) => {
