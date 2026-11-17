@@ -1,6 +1,7 @@
 import 'payroll.dart';
 import '../../expenses/domain/expense.dart' show PaymentMode;
 import 'payroll_preview.dart';
+import 'payroll_register.dart';
 import 'payroll_run.dart';
 import 'payslip_document.dart';
 
@@ -160,6 +161,24 @@ abstract interface class PayrollRepository {
   /// One of their own payslips (the server finds the staff record from the
   /// sign-in; no staff id is sent).
   Future<PayslipDocument> myPayslip(
+    String schoolId,
+    String branchId,
+    String period,
+  );
+
+  // ---- the payroll register (phase P5) ----
+
+  /// What was PAID between [fromPeriod] and [toPeriod] (`yyyy-mm`), for the
+  /// branch.
+  Future<PayrollRegister> register(
+    String schoolId,
+    String branchId, {
+    required String fromPeriod,
+    required String toPeriod,
+  });
+
+  /// The CSV of one paid run: one row per person, one column per component.
+  Future<({String csv, int rows})> exportRegister(
     String schoolId,
     String branchId,
     String period,

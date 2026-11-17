@@ -69,6 +69,7 @@ void main() {
         AppRoutes.payrollComponents,
         AppRoutes.payrollPreview,
         AppRoutes.payrollRuns,
+        AppRoutes.payrollRegister,
         AppRoutes.payrollRun,
         AppRoutes.payrollStaff,
       ]) {

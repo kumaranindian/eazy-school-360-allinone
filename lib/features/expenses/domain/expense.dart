@@ -75,6 +75,12 @@ class Expense {
   final String? paidDate;
   final String? cancelReason;
 
+  /// `MANUAL`, or `PAYROLL` for the one expense a paid payroll run posts.
+  final String source;
+
+  /// `yyyy-mm` of the payroll run that posted it, for a payroll expense.
+  final String? payrollPeriod;
+
   const Expense({
     required this.id,
     required this.number,
@@ -98,6 +104,8 @@ class Expense {
     this.decisionReason,
     this.paidDate,
     this.cancelReason,
+    this.source = 'MANUAL',
+    this.payrollPeriod,
   });
 
   factory Expense.fromMap(Map<String, dynamic> m) => Expense(
@@ -123,7 +131,12 @@ class Expense {
     decisionReason: m['decisionReason'] as String?,
     paidDate: m['paidDate'] as String?,
     cancelReason: m['cancelReason'] as String?,
+    source: (m['source'] as String?) ?? 'MANUAL',
+    payrollPeriod: m['payrollPeriod'] as String?,
   );
+
+  /// Posted by a paid payroll run (read-only here; see the run).
+  bool get isPayroll => source == 'PAYROLL';
 
   bool get isDraft => status == ExpenseStatus.draft;
 
@@ -365,6 +378,7 @@ class ExpenseHistoryEntry {
     'pay' => 'Paid',
     'cancel' => 'Cancelled',
     'reopen' => 'Reopened as a draft',
+    'post' => 'Posted from payroll',
     _ => action,
   };
 }

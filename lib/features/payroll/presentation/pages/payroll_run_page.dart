@@ -4,7 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/error/error_view.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../../core/permissions/permission.dart';
+import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../expenses/domain/expense.dart' show PaymentMode;
+import '../../../expenses/presentation/pages/expense_reports_page.dart'
+    show expenseCsvSaverProvider;
 import '../../../fees/domain/money.dart';
 import '../../../staff/presentation/widgets/staff_branch_scope.dart';
 import '../../domain/payroll.dart';
@@ -98,6 +104,24 @@ class _RunState extends ConsumerState<_Run> {
   }
 
   PayrollRepository get _repo => ref.read(payrollRepositoryProvider);
+
+  Future<void> _exportCsv() async {
+    await _do(() async {
+      final out = await _repo.exportRegister(
+        widget.schoolId,
+        widget.branchId,
+        widget.period,
+      );
+      final saved = await ref
+          .read(expenseCsvSaverProvider)
+          .save('payroll_register_${widget.period}.csv', out.csv);
+      if (mounted && saved) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Saved ${out.rows} payslips.')));
+      }
+    });
+  }
 
   Future<void> _approve(PayrollRunDetail d) async {
     final ok = await showDialog<bool>(
@@ -231,6 +255,12 @@ class _RunState extends ConsumerState<_Run> {
                     '${(run.paymentReference ?? '').isEmpty ? '' : ' · ${run.paymentReference}'}',
                     style: text.bodySmall,
                   ),
+                if (run.status == RunStatus.paid && run.expenseNumber != null)
+                  Text(
+                    'Recorded as expense ${run.expenseNumber} (Salaries)',
+                    key: const ValueKey('run-expense'),
+                    style: text.bodySmall,
+                  ),
                 if (run.status == RunStatus.cancelled)
                   Text(
                     'Cancelled: ${run.cancelReason ?? ''}',
@@ -296,6 +326,25 @@ class _RunState extends ConsumerState<_Run> {
                         done: 'Recalculated.',
                       ),
                 child: const Text('Recalculate'),
+              ),
+            if (run.status == RunStatus.paid)
+              OutlinedButton.icon(
+                key: const ValueKey('run-csv'),
+                onPressed: _busy ? null : _exportCsv,
+                icon: const Icon(Icons.download_outlined),
+                label: const Text('Download register (CSV)'),
+              ),
+            if (run.status == RunStatus.paid &&
+                run.expenseId != null &&
+                (ref
+                        .watch(tenantContextProvider)
+                        .value
+                        ?.can(Permission.viewExpenses) ??
+                    false))
+              TextButton(
+                key: const ValueKey('run-open-expense'),
+                onPressed: () => context.go('/expenses/${run.expenseId}'),
+                child: const Text('Open the expense'),
               ),
             if (RunActions.canCancel(d))
               TextButton(

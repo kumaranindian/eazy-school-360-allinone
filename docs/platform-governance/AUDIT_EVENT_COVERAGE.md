@@ -57,3 +57,5 @@ The five payroll callables (`listPayComponents`, `savePayComponent`, `getSalaryS
 Payroll runs (P3): the eleven run callables are audited like every callable. `listPayrollRuns`, `getPayrollRun` and `getPayslip` responses (pay figures) are omitted; `adjustPayslip` records its request with the amount masked; the writes return only ids and status. Who prepared, adjusted, approved, paid or cancelled a run is also in the run's own append-only history.
 
 `listMyPayslips` and `getMyPayslip` (P4) responses are omitted from the trail (own pay figures); the request, who and which month, is kept.
+
+`getPayrollRegister` and `exportPayrollRegister` (P5) responses are omitted from the trail (pay totals and per-person rows); the request is kept. The expense a paid run posts has its own `history` entry (`post`).

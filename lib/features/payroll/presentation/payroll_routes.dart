@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'pages/pay_components_page.dart';
 import 'pages/payroll_page.dart';
 import 'pages/payroll_preview_page.dart';
+import 'pages/payroll_register_page.dart';
 import 'pages/payroll_run_page.dart';
 import 'pages/payroll_runs_page.dart';
 import 'pages/salary_structure_page.dart';
@@ -17,6 +18,10 @@ List<RouteBase> payrollRoutes() => [
       GoRoute(
         path: 'components',
         builder: (context, state) => const PayComponentsPage(),
+      ),
+      GoRoute(
+        path: 'register',
+        builder: (context, state) => const PayrollRegisterPage(),
       ),
       GoRoute(
         path: 'runs',

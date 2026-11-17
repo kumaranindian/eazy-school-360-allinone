@@ -6,6 +6,7 @@ import '../../../core/errors/error_mapper.dart';
 import '../domain/payroll.dart';
 import '../../expenses/domain/expense.dart' show PaymentMode;
 import '../domain/payroll_preview.dart';
+import '../domain/payroll_register.dart';
 import '../domain/payroll_run.dart';
 import '../domain/payslip_document.dart';
 import '../domain/payroll_repository.dart';
@@ -513,5 +514,37 @@ class FirebasePayrollRepository implements PayrollRepository {
       'period': period,
     });
     return PayslipDocument.fromMap(_map(out['payslip']));
+  }
+
+  @override
+  Future<PayrollRegister> register(
+    String schoolId,
+    String branchId, {
+    required String fromPeriod,
+    required String toPeriod,
+  }) async => PayrollRegister.fromMap(
+    await _call('getPayrollRegister', {
+      'schoolId': schoolId,
+      'branchId': branchId,
+      'fromPeriod': fromPeriod,
+      'toPeriod': toPeriod,
+    }),
+  );
+
+  @override
+  Future<({String csv, int rows})> exportRegister(
+    String schoolId,
+    String branchId,
+    String period,
+  ) async {
+    final out = await _call('exportPayrollRegister', {
+      'schoolId': schoolId,
+      'branchId': branchId,
+      'period': period,
+    });
+    return (
+      csv: (out['csv'] as String?) ?? '',
+      rows: (out['rows'] as num?)?.toInt() ?? 0,
+    );
   }
 }

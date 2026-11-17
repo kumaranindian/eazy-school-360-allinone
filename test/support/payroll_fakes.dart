@@ -2,6 +2,7 @@ import 'package:eazy_school_360/features/payroll/domain/payroll.dart';
 import 'package:eazy_school_360/features/payroll/domain/payroll_preview.dart';
 import 'package:eazy_school_360/features/expenses/domain/expense.dart'
     show PaymentMode;
+import 'package:eazy_school_360/features/payroll/domain/payroll_register.dart';
 import 'package:eazy_school_360/features/payroll/domain/payroll_repository.dart';
 import 'package:eazy_school_360/features/payroll/domain/payroll_run.dart';
 import 'package:eazy_school_360/features/payroll/domain/payslip_document.dart';
@@ -404,6 +405,46 @@ class FakePayrollRepository implements PayrollRepository {
     _maybeFail();
     mineCalls.add('$branchId/$period');
     return mineDoc!;
+  }
+
+  // ---- the payroll register (phase P5) ----
+  PayrollRegister? registerResult;
+  final List<({String from, String to})> registerCalls = [];
+  final List<String> exportCalls = [];
+  String exportCsv = 'employee_code,name\r\nE1,Asha Rao';
+
+  @override
+  Future<PayrollRegister> register(
+    String schoolId,
+    String branchId, {
+    required String fromPeriod,
+    required String toPeriod,
+  }) async {
+    _maybeFail();
+    registerCalls.add((from: fromPeriod, to: toPeriod));
+    return registerResult ??
+        PayrollRegister(
+          currency: currency,
+          fromPeriod: fromPeriod,
+          toPeriod: toPeriod,
+          rows: const [],
+          runs: 0,
+          payslipCount: 0,
+          grossMinor: 0,
+          deductionsMinor: 0,
+          netMinor: 0,
+        );
+  }
+
+  @override
+  Future<({String csv, int rows})> exportRegister(
+    String schoolId,
+    String branchId,
+    String period,
+  ) async {
+    _maybeFail();
+    exportCalls.add(period);
+    return (csv: exportCsv, rows: 1);
   }
 }
 

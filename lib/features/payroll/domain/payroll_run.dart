@@ -44,6 +44,10 @@ class PayrollRun {
   final String? paymentReference;
   final String? cancelReason;
 
+  /// The Salaries expense a paid run posted (number and id), once paid.
+  final String? expenseId;
+  final String? expenseNumber;
+
   const PayrollRun({
     required this.period,
     required this.status,
@@ -63,6 +67,8 @@ class PayrollRun {
     this.paymentMode,
     this.paymentReference,
     this.cancelReason,
+    this.expenseId,
+    this.expenseNumber,
   });
 
   factory PayrollRun.fromMap(Map<String, dynamic> m) => PayrollRun(
@@ -85,6 +91,8 @@ class PayrollRun {
     paymentMode: m['paymentMode'] as String?,
     paymentReference: m['paymentReference'] as String?,
     cancelReason: m['cancelReason'] as String?,
+    expenseId: m['expenseId'] as String?,
+    expenseNumber: m['expenseNumber'] as String?,
   );
 
   /// Something the person approving should look at first.

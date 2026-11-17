@@ -21,7 +21,7 @@
 const crypto = require('node:crypto');
 const { validId } = require('./ids');
 const { authorize, CAPS } = require('./payroll');
-const { civilToday, wall, validDate, PAYMENT_MODES } = require('./expenses');
+const { civilToday, wall, validDate, PAYMENT_MODES, ensureDefaultCategories, categoryId: expenseCategoryId } = require('./expenses');
 const calendar = require('./payroll_calendar');
 const preview = require('./payroll_preview');
 const { createOnce } = require('./notify_events');
@@ -75,6 +75,8 @@ const runView = (id, r) => ({
   approvedByName: r.approvedByName || null,
   paidAtMs: toMs(r.paidAt),
   publishedAtMs: toMs(r.publishedAt),
+  expenseId: r.expenseId || null,
+  expenseNumber: r.expenseNumber || null,
   paidDate: r.paidDate || null,
   paymentMode: r.paymentMode || null,
   paymentReference: r.paymentReference || null,
@@ -431,6 +433,9 @@ async function transition(ctx, uid, token, data, action) {
     seen = run.version;
   }
 
+  // paying also records the salaries as ONE expense (the Salaries category); the category must exist first
+  if (action === 'pay') await ensureDefaultCategories(ctx, schoolId);
+  const expRef = branchRef(db, schoolId, branchId).collection('expenses').doc(`payroll_${data.period}`);
   const out = await db.runTransaction(async (tx) => {
     const cur = (await tx.get(runRef)).data();
     if (!cur) return { error: 'NOT_FOUND', reason: 'that run does not exist' };
@@ -442,6 +447,15 @@ async function transition(ctx, uid, token, data, action) {
       if (reason.length < REASON_MIN) return { error: 'INVALID_ARGUMENT', reason: `reason: at least ${REASON_MIN} characters` };
       if (cur.status === 'APPROVED' && caller.role !== SCHOOL_ADMIN) return { error: 'PERMISSION_DENIED', reason: 'only a school administrator can cancel an approved run' };
     }
+    // (every read of this transaction happens before its first write)
+    let posting = null;
+    if (action === 'pay' && cur.netMinor > 0) {
+      const year = payment.paidDate.slice(0, 4);
+      const seqRef = branchRef(db, schoolId, branchId).collection('expenseSequences').doc(`EXP-${year}`);
+      const existing = (await tx.get(expRef)).exists;
+      const sequence = (await tx.get(seqRef)).data();
+      posting = { year, seqRef, existing, next: (sequence && Number.isInteger(sequence.next) ? sequence.next : 0) + 1 };
+    }
     const seq = (Number.isInteger(cur.historyCount) ? cur.historyCount : 0) + 1;
     tx.set(historyCol(runRef).doc(seqId(seq)), historyEntry(uid, caller, seq, action, cur.status, spec.to, reason, ctx));
     const patch = { status: spec.to, version: cur.version + 1, historyCount: seq, updatedAt: now, updatedBy: uid };
@@ -449,8 +463,34 @@ async function transition(ctx, uid, token, data, action) {
     // paying publishes the payslips: from now on each staff member can read their own
     if (action === 'pay') Object.assign(patch, { ...payment, paidAt: now, paidBy: uid, publishedAt: now });
     if (action === 'cancel') Object.assign(patch, { cancelledAt: now, cancelledBy: uid, cancelReason: reason });
+    let expenseNumber = null;
+    if (posting) {
+      expenseNumber = `EXP-${posting.year}-${String(posting.next).padStart(5, '0')}`;
+      const label = monthLabel(data.period);
+      const actor = actorOf(caller);
+      if (!posting.existing) {
+        tx.set(posting.seqRef, { schoolId, branchId, year: posting.year, next: posting.next, updatedAt: now });
+        // One expense for the whole run, already PAID: the run's approval is the approval. Amount = the net pay paid out.
+        tx.set(expRef, {
+          schoolId, branchId, number: expenseNumber, categoryId: expenseCategoryId('SALARIES'), categoryName: 'Salaries',
+          amountMinor: cur.netMinor, currency: cur.currency, expenseDate: payment.paidDate,
+          payee: `Payroll ${label}`, description: `Salaries for ${label} (${cur.payslipCount} staff)`,
+          paymentMode: payment.paymentMode, paymentReference: payment.paymentReference,
+          status: 'PAID', version: 1, source: 'PAYROLL', payrollPeriod: data.period, receiptCount: 0, historyCount: 1,
+          createdAt: now, createdBy: uid, createdByName: actor.name, updatedAt: now, updatedBy: uid,
+          submittedAt: cur.calculatedAt || now, submittedBy: cur.calculatedBy || uid,
+          decidedAt: cur.approvedAt || now, decidedBy: cur.approvedBy || uid, decidedByName: cur.approvedByName || null, decisionReason: `Approved with payroll run ${data.period}`,
+          paidAt: now, paidBy: uid, paidDate: payment.paidDate,
+        });
+        tx.set(expRef.collection('history').doc(seqId(1)), {
+          seq: 1, action: 'post', from: null, to: 'PAID', reason: `Posted from payroll run ${data.period}`, auto: false,
+          actorId: uid, actorRole: actor.role, actorName: actor.name, at: now, atMs: wall(ctx).getTime(),
+        });
+      }
+      Object.assign(patch, { expenseId: expRef.id, expenseNumber });
+    }
     tx.update(runRef, patch);
-    return { result: { id: data.period, status: spec.to, version: cur.version + 1 } };
+    return { result: { id: data.period, status: spec.to, version: cur.version + 1, expenseNumber } };
   }, { maxAttempts: 10 });
   // Published: tell each staff member who has a login that their payslip is ready (best effort, and safe to repeat:
   // one notice per person and month, so a retried payment completes any that were missed). The text names the

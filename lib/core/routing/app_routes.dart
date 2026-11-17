@@ -138,6 +138,7 @@ abstract final class AppRoutes {
   static const String payrollComponents = '/payroll/components';
   static const String payrollPreview = '/payroll/preview';
   static const String payrollRuns = '/payroll/runs';
+  static const String payrollRegister = '/payroll/register';
   static const String payrollRun = '/payroll/runs/:period';
 
   /// A staff member's own payslips (phase P4).
@@ -321,6 +322,7 @@ abstract final class AppRoutes {
     payrollComponents: Permission.viewPayroll,
     payrollPreview: Permission.viewPayroll,
     payrollRuns: Permission.viewPayroll,
+    payrollRegister: Permission.viewPayroll,
     payrollRun: Permission.viewPayroll,
     myPayslips: Permission.viewOwnPayslips,
     myPayslip: Permission.viewOwnPayslips,

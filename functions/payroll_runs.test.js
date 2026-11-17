@@ -324,3 +324,102 @@ test('a client cannot plant a status, totals or a payslip through any request fi
   assert.notEqual(p.adjustments[0].id, 'planted');
   assert.equal(p.grossMinor, 2600000);
 });
+
+// ---- phase P5: the paid run is posted as ONE Salaries expense --------------------------------------------------
+
+const exp = require('./expenses');
+const expWf = require('./expense_workflow');
+const expReports = require('./expense_reports');
+const expense = async (db) => (await db.collection('schools').doc('sA').collection('branches').doc('b1').collection('expenses').doc('payroll_2026-11').get()).data();
+const payIt = async (ctx, extra = {}) => {
+  await create(ctx, 'fin');
+  await r.approvePayrollRun(ctx, 'owner', T, base());
+  return r.payPayrollRun(ctx, 'fin', T, base({ payment: { paymentMode: 'BANK_TRANSFER', paymentReference: 'NEFT-9', paidDate: '2026-11-30', ...extra } }));
+};
+
+test('P5: paying posts one PAID Salaries expense for the net pay, linked both ways', async () => {
+  const { ctx, db } = env();
+  await create(ctx, 'fin');
+  await r.adjustPayslip(ctx, 'fin', T, base({ staffId: 'st1', adjustment: adj() }));
+  await r.adjustPayslip(ctx, 'fin', T, base({ staffId: 'st2', adjustment: adj({ kind: 'DEDUCTION', label: 'Loan', amountMinor: 100000, reason: 'Salary advance recovery agreed' }) }));
+  await r.approvePayrollRun(ctx, 'owner2', T, base());
+  const out = await r.payPayrollRun(ctx, 'fin', T, base({ payment: { paymentMode: 'BANK_TRANSFER', paymentReference: 'NEFT-9', paidDate: '2026-11-30' } }));
+  assert.equal(out.result.expenseNumber, 'EXP-2026-00001');
+  const e = await expense(db);
+  assert.deepEqual(
+    [e.number, e.categoryId, e.categoryName, e.amountMinor, e.currency, e.expenseDate, e.status, e.source, e.payrollPeriod, e.paymentMode, e.paymentReference, e.paidDate, e.paidBy, e.decidedBy, e.version],
+    ['EXP-2026-00001', 'cat_salaries', 'Salaries', 6700000, 'INR', '2026-11-30', 'PAID', 'PAYROLL', '2026-11', 'BANK_TRANSFER', 'NEFT-9', '2026-11-30', 'fin', 'owner2', 1],
+    'the amount is the NET pay (6,800,000 earned less 100,000 recovered), adjustments included',
+  );
+  assert.equal(e.payee, 'Payroll November 2026');
+  assert.equal(e.description, 'Salaries for November 2026 (2 staff)');
+  const rn = await run(db);
+  assert.deepEqual([rn.expenseId, rn.expenseNumber], ['payroll_2026-11', 'EXP-2026-00001']);
+  assert.equal((await r.getPayrollRun(ctx, 'owner', T, base())).result.run.expenseNumber, 'EXP-2026-00001');
+  const h = [...db.store.entries()].filter(([k]) => k.includes('/expenses/payroll_2026-11/history/')).map(([, v]) => v);
+  assert.deepEqual(h.map((x) => [x.seq, x.action, x.to, x.actorId]), [[1, 'post', 'PAID', 'fin']]);
+  assert.equal((await db.collection('schools').doc('sA').collection('branches').doc('b1').collection('expenseSequences').doc('EXP-2026').get()).data().next, 1);
+  assert.ok((await db.collection('schools').doc('sA').collection('expenseCategories').doc('cat_salaries').get()).exists, 'the Salaries category is there');
+});
+
+test('P5: the number continues the branch sequence; a repeated payment never posts twice', async () => {
+  const { ctx, db } = env({ [`${B}/expenseSequences/EXP-2026`]: { next: 41 } });
+  const out = await payIt(ctx);
+  assert.equal(out.result.expenseNumber, 'EXP-2026-00042');
+  const again = await r.payPayrollRun(ctx, 'owner', T, base({ payment: { paymentMode: 'CASH' } }));
+  assert.equal(again.result.duplicate, true);
+  assert.equal((await db.collection('schools').doc('sA').collection('branches').doc('b1').collection('expenseSequences').doc('EXP-2026').get()).data().next, 42);
+  assert.equal([...db.store.keys()].filter((k) => /\/expenses\/[^/]+$/.test(k)).length, 1);
+});
+
+test('P5: a refused or failed payment posts nothing', async () => {
+  const { ctx, db } = env();
+  await create(ctx, 'fin');
+  assert.equal((await r.payPayrollRun(ctx, 'fin', T, base({ payment: { paymentMode: 'CASH' } }))).error, 'FAILED_PRECONDITION', 'not approved');
+  await r.approvePayrollRun(ctx, 'owner', T, base().period ? base() : base());
+  assert.equal((await r.payPayrollRun(ctx, 'ba1', T, base({ payment: { paymentMode: 'CASH' } }))).error, 'PERMISSION_DENIED');
+  assert.equal((await r.payPayrollRun(ctx, 'fin', T, base({ payment: { paymentMode: 'BARTER' } }))).error, 'INVALID_ARGUMENT');
+  assert.equal(await expense(db), undefined);
+  assert.equal((await run(db)).expenseNumber, undefined);
+});
+
+test('P5: a month whose net pay is zero posts no expense', async () => {
+  const absent = Object.fromEntries(NOV.flatMap((d) => ['st1', 'st2'].map((s) => [`${B}/staffAttendance/${d}_${s}`, { staffId: s, dateKey: d, status: 'ABSENT' }])));
+  const { ctx, db } = env(absent);
+  const out = await payIt(ctx);
+  assert.equal(out.result.status, 'PAID');
+  assert.equal(out.result.expenseNumber, null);
+  assert.equal(await expense(db), undefined);
+});
+
+test('P5: the expense shows in the expense module, cannot be edited or cancelled there, and counts in its reports', async () => {
+  const { ctx, db } = env();
+  await payIt(ctx);
+  const got = await exp.getExpense(ctx, 'fin', T, { schoolId: 'sA', branchId: 'b1', expenseId: 'payroll_2026-11' });
+  assert.deepEqual([got.result.expense.status, got.result.expense.source, got.result.expense.payrollPeriod, got.result.expense.amountMinor], ['PAID', 'PAYROLL', '2026-11', 6300000]);
+  const list = await exp.listExpenses(ctx, 'owner', T, { schoolId: 'sA', branchId: 'b1' });
+  assert.ok(list.result.expenses.some((x) => x.id === 'payroll_2026-11' && x.source === 'PAYROLL'));
+  const edit = await exp.updateExpense(ctx, 'owner', T, { schoolId: 'sA', branchId: 'b1', expenseId: 'payroll_2026-11', expense: { categoryId: 'cat_other', amountMinor: 1, expenseDate: '2026-11-01' } });
+  assert.equal(edit.error, 'FAILED_PRECONDITION', 'only a draft can be edited');
+  const cancel = await expWf.cancelExpense(ctx, 'owner', T, { schoolId: 'sA', branchId: 'b1', expenseId: 'payroll_2026-11', reason: 'Trying to undo the salaries' });
+  assert.equal(cancel.error, 'FAILED_PRECONDITION', 'a paid expense cannot be cancelled');
+  const rep = await expReports.getExpenseReport(ctx, 'owner', T, { schoolId: 'sA', branchId: 'b1', fromDate: '2026-11-01', toDate: '2026-11-30' });
+  assert.equal(rep.result.totals.spentMinor, 6300000);
+  assert.ok(rep.result.byCategory.some((c) => c.categoryId === 'cat_salaries' && c.totalMinor === 6300000), 'under Salaries');
+  assert.equal((await expense(db)).status, 'PAID');
+});
+
+test('P5: with the expense module switched off the run is still paid and the record is kept', async () => {
+  const { ctx, db } = env({ 'schools/sA': { name: 'A', status: 'ACTIVE', currency: 'INR', timezone: 'Asia/Kolkata', features: { expenses: false } } });
+  const out = await payIt(ctx);
+  assert.equal(out.result.status, 'PAID');
+  assert.equal((await expense(db)).source, 'PAYROLL');
+});
+
+test('P5: an expense already at that id is never overwritten', async () => {
+  const { ctx, db } = env({ [`${B}/expenses/payroll_2026-11`]: { number: 'EXP-2026-00007', amountMinor: 1, status: 'PAID', source: 'PAYROLL', note: 'kept' } });
+  const out = await payIt(ctx);
+  assert.equal(out.result.status, 'PAID');
+  const e = await expense(db);
+  assert.deepEqual([e.number, e.amountMinor, e.note], ['EXP-2026-00007', 1, 'kept']);
+});

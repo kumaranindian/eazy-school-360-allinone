@@ -39,6 +39,8 @@ Expense _expense(
   String date = '2026-11-10',
   String category = 'cat_other',
   String? createdBy = _uid,
+  String source = 'MANUAL',
+  String? payrollPeriod,
 }) => Expense(
   id: id,
   number: 'EXP-2026-000$id',
@@ -51,6 +53,8 @@ Expense _expense(
   status: status,
   payee: payee,
   createdBy: createdBy,
+  source: source,
+  payrollPeriod: payrollPeriod,
 );
 
 Future<GoRouter> _pump(
@@ -554,6 +558,32 @@ void main() {
       await tester.pumpAndSettle();
       expect(repo.receiptRemovals, ['r9']);
       expect(find.text('No receipt attached.'), findsOneWidget);
+    });
+
+    testWidgets('a payroll expense says so and opens its run', (tester) async {
+      final repo = FakeExpenseRepository()
+        ..items.add(
+          _expense(
+            '9',
+            status: ExpenseStatus.paid,
+            category: 'cat_salaries',
+            source: 'PAYROLL',
+            payrollPeriod: '2026-11',
+          ),
+        );
+      await _pump(tester, repo, start: '/expenses/9');
+      expect(find.byKey(const ValueKey('expense-payroll')), findsOneWidget);
+      expect(find.text('Open November 2026 payroll run'), findsOneWidget);
+      expect(find.byKey(const ValueKey('expense-edit')), findsNothing);
+      expect(find.byKey(const ValueKey('expense-cancel')), findsNothing);
+    });
+
+    testWidgets('a manual expense has no payroll chip', (tester) async {
+      final repo = FakeExpenseRepository()
+        ..items.add(_expense('8', status: ExpenseStatus.paid));
+      await _pump(tester, repo, start: '/expenses/8');
+      expect(find.byKey(const ValueKey('expense-payroll')), findsNothing);
+      expect(find.byKey(const ValueKey('expense-open-run')), findsNothing);
     });
 
     testWidgets('a paid expense shows its receipts but offers no change', (

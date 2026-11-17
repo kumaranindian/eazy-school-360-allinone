@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/firebase_payroll_repository.dart';
 import '../../domain/payroll.dart';
 import '../../domain/payroll_preview.dart';
+import '../../domain/payroll_register.dart';
 import '../../domain/payroll_run.dart';
 import '../../domain/payslip_document.dart';
 import '../../domain/payroll_repository.dart';
@@ -120,4 +121,23 @@ final myPayslipProvider = FutureProvider.autoDispose
       (ref, k) => ref
           .watch(payrollRepositoryProvider)
           .myPayslip(k.schoolId, k.branchId, k.period),
+    );
+
+typedef RegisterKey = ({
+  String schoolId,
+  String branchId,
+  String fromPeriod,
+  String toPeriod,
+});
+
+final payrollRegisterProvider = FutureProvider.autoDispose
+    .family<PayrollRegister, RegisterKey>(
+      (ref, k) => ref
+          .watch(payrollRepositoryProvider)
+          .register(
+            k.schoolId,
+            k.branchId,
+            fromPeriod: k.fromPeriod,
+            toPeriod: k.toPeriod,
+          ),
     );
