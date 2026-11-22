@@ -44,6 +44,11 @@ setGlobalOptions({ region: process.env.FUNCTIONS_REGION || 'asia-south1', maxIns
 
 const db = getFirestore();
 
+// Scheduled work: each task registers its body here and runs inside one of the three Cloud Scheduler
+// ticks defined at the end of this file (scheduled_jobs.js has the plan, cadences and budget).
+const scheduledJobs = require('./scheduled_jobs');
+const jobs = {};
+
 // EVERY callable goes through here: its action name, caller, request, response or error and timing are
 // written to the central audit trail (call_audit.js). Late-bound (adminCtx is defined further down).
 const auditedCall = require('./call_audit').makeAuditedCall({ ctx: () => adminCtx(), log: (m, d) => logger.warn(m, d) });
@@ -85,17 +90,16 @@ exports.pushNotification = onDocumentCreated(
 
 // Finishes deliveries that failed, were cut short or were abandoned by a
 // crashed invocation. Frequent and cheap when there is nothing to do.
-exports.pushRedrive = onSchedule(
-  { schedule: 'every 5 minutes', timeZone: 'Asia/Kolkata', timeoutSeconds: 540 },
-  async () => {
-    try {
-      const r = await delivery.redrive();
-      if (r.due > 0) logger.info('push redrive', r);
-    } catch (e) {
-      logger.error('push redrive failed', { category: errorCategory(e) });
-    }
-  },
-);
+// Runs in the `frequent` tick (every 5 minutes).
+jobs.pushRedrive = async () => {
+  try {
+    const r = await delivery.redrive();
+    if (r.due > 0) logger.info('push redrive', r);
+  } catch (e) {
+    logger.error('push redrive failed', { category: errorCategory(e) });
+    throw e; // recorded as FAILED (schedulerState) and retried on the next tick
+  }
+};
 
 // ---- Device registration (push tokens) -------------------------------------
 // Clients cannot write device documents (firestore.rules); they register here
@@ -157,19 +161,17 @@ exports.notifyHolidayWritten = onDocumentWritten(
 // Hourly; each school is handled at ITS OWN delivery time in ITS OWN time zone
 // (Regional settings), following its Fee reminder settings (days before / on /
 // after the due date; defaults 3 and 0 before, 1, 7 and 15 after). Idempotent,
-// so a re-run (or the next hour's retry) sends nothing new.
-exports.feeDueReminders = onSchedule(
-  { schedule: 'every 1 hours', timeZone: 'UTC' },
-  async () => {
-    try {
-      const r = await notifyEvents.runFeeDueReminders({ ...events(), log: (event, f) => logger.info(event, f) });
-      if (r.failed || r.truncated) logger.warn('fee due reminders finished with problems', r);
-      else logger.info('fee due reminders', r);
-    } catch (e) {
-      logger.error('fee due reminders failed', { category: errorCategory(e) });
-    }
-  },
-);
+// so a re-run (or the next hour's retry) sends nothing new. Runs in the `hourly` tick.
+jobs.feeDueReminders = async () => {
+  try {
+    const r = await notifyEvents.runFeeDueReminders({ ...events(), log: (event, f) => logger.info(event, f) });
+    if (r.failed || r.truncated) logger.warn('fee due reminders finished with problems', r);
+    else logger.info('fee due reminders', r);
+  } catch (e) {
+    logger.error('fee due reminders failed', { category: errorCategory(e) });
+    throw e; // recorded as FAILED (schedulerState) and retried on the next tick
+  }
+};
 
 // Creates sign-in accounts for existing staff / parent records and links them.
 // Callable by school/branch admins only (checked server-side).
@@ -362,8 +364,8 @@ exports.auditMirrorAuth = onDocumentCreated({ document: 'schools/{schoolId}/auth
 );
 
 // Daily: months older than the retention window are exported to Cloud Storage. Nothing is deleted unless
-// AUDIT_RETENTION_DELETE=true (default: keep everything online).
-exports.auditRetention = onSchedule({ schedule: 'every day 03:30', timeZone: 'UTC', timeoutSeconds: 540 }, async () => {
+// AUDIT_RETENTION_DELETE=true (default: keep everything online). Runs last in the `daily` tick.
+jobs.auditRetention = async () => {
   try {
     const r = await audit.runAuditRetention(adminCtx(), bucketStorage(getStorage().bucket()), {
       retentionDays: Number(process.env.AUDIT_RETENTION_DAYS) || 400,
@@ -373,8 +375,9 @@ exports.auditRetention = onSchedule({ schedule: 'every day 03:30', timeZone: 'UT
     logger.info('audit retention', r);
   } catch (e) {
     logger.error('audit retention failed', { category: errorCategory(e) });
+    throw e; // recorded as FAILED (schedulerState) and retried on the next tick
   }
-});
+};
 
 exports.getLoginAccess = onCall(callOptions(), async (request) => {
   const a = signedIn(request);
@@ -451,18 +454,16 @@ exports.confirmAdmissionDocumentUpload = admissionCall('confirmAdmissionDocument
 exports.verifyAdmissionDocument = admissionCall('verifyAdmissionDocument', admissionApplications.verifyDocument, (d) => ({ enquiry: d.enquiryId, document: d.documentId, decision: d.decision }));
 exports.removeAdmissionDocument = admissionCall('removeAdmissionDocument', admissionApplications.removeDocument, (d) => ({ enquiry: d.enquiryId, document: d.documentId }));
 
-// Uploads that were requested but never confirmed are cleaned up daily.
-exports.admissionDocumentCleanup = onSchedule(
-  { schedule: 'every 24 hours', timeZone: 'UTC' },
-  async () => {
-    try {
-      const r = await admissionApplications.cleanupAbandonedUploads({ db, storage: bucketStorage(getStorage().bucket()), now: () => new Date(), log: (event, f) => logger.info(event, f) });
-      logger.info('admission document cleanup', r);
-    } catch (e) {
-      logger.error('admission document cleanup failed', { category: errorCategory(e) });
-    }
-  },
-);
+// Uploads that were requested but never confirmed are cleaned up daily (`daily` tick).
+jobs.admissionDocumentCleanup = async () => {
+  try {
+    const r = await admissionApplications.cleanupAbandonedUploads({ db, storage: bucketStorage(getStorage().bucket()), now: () => new Date(), log: (event, f) => logger.info(event, f) });
+    logger.info('admission document cleanup', r);
+  } catch (e) {
+    logger.error('admission document cleanup failed', { category: errorCategory(e) });
+    throw e; // recorded as FAILED (schedulerState) and retried on the next tick
+  }
+};
 
 exports.scheduleAdmissionVisit = admissionCall('scheduleAdmissionVisit', admissionActivities.scheduleVisit, (d, r) => ({ enquiry: d.enquiryId, visit: r.id }));
 exports.rescheduleAdmissionActivity = admissionCall('rescheduleAdmissionActivity', admissionActivities.rescheduleActivity, (d) => ({ enquiry: d.enquiryId, activity: d.activityId }));
@@ -471,19 +472,17 @@ exports.completeAdmissionActivity = admissionCall('completeAdmissionActivity', a
 exports.cancelAdmissionActivity = admissionCall('cancelAdmissionActivity', admissionActivities.cancelActivity, (d) => ({ enquiry: d.enquiryId, activity: d.activityId }));
 
 // Follow-up reminders: hourly, at each school's own local reminder time.
-// Idempotent (derived ids + create()), so a retry or re-run sends nothing new.
-exports.admissionFollowUpReminders = onSchedule(
-  { schedule: 'every 1 hours', timeZone: 'UTC' },
-  async () => {
-    try {
-      const r = await admissionActivities.runFollowUpReminders({ ...events(), log: (event, f) => logger.info(event, f) });
-      if (r.failed) logger.warn('admission follow-up reminders finished with problems', r);
-      else logger.info('admission follow-up reminders', r);
-    } catch (e) {
-      logger.error('admission follow-up reminders failed', { category: errorCategory(e) });
-    }
-  },
-);
+// Idempotent (derived ids + create()), so a retry or re-run sends nothing new. Runs in the `hourly` tick.
+jobs.admissionFollowUpReminders = async () => {
+  try {
+    const r = await admissionActivities.runFollowUpReminders({ ...events(), log: (event, f) => logger.info(event, f) });
+    if (r.failed) logger.warn('admission follow-up reminders finished with problems', r);
+    else logger.info('admission follow-up reminders', r);
+  } catch (e) {
+    logger.error('admission follow-up reminders failed', { category: errorCategory(e) });
+    throw e; // recorded as FAILED (schedulerState) and retried on the next tick
+  }
+};
 
 const admissionFees = require('./admission_fees');
 exports.setAdmissionFee = admissionCall('setAdmissionFee', admissionFees.setAdmissionFee, (d) => ({ enquiry: d.enquiryId, category: d.category }));
@@ -620,15 +619,16 @@ exports.requestExpenseReceiptUpload = receiptCall('requestExpenseReceiptUpload',
 exports.confirmExpenseReceiptUpload = receiptCall('confirmExpenseReceiptUpload', expenseReceipts.confirmUpload);
 exports.removeExpenseReceipt = receiptCall('removeExpenseReceipt', expenseReceipts.removeReceipt);
 exports.listExpenseReceipts = receiptCall('listExpenseReceipts', expenseReceipts.listReceipts);
-// Receipt uploads that were requested but never confirmed are cleaned up daily.
-exports.expenseReceiptCleanup = onSchedule({ schedule: 'every 24 hours', timeZone: 'UTC' }, async () => {
+// Receipt uploads that were requested but never confirmed are cleaned up daily (`daily` tick).
+jobs.expenseReceiptCleanup = async () => {
   try {
     const r = await expenseReceipts.cleanupAbandonedUploads({ db, storage: bucketStorage(getStorage().bucket()), now: () => new Date(), log: (event, f) => logger.info(event, f) });
     logger.info('expense receipt cleanup', r);
   } catch (e) {
     logger.error('expense receipt cleanup failed', { category: errorCategory(e) });
+    throw e; // recorded as FAILED (schedulerState) and retried on the next tick
   }
-});
+};
 
 exports.updatePlatformBranding = onCall(callOptions(), async (request) => {
   const a = signedIn(request);
@@ -699,18 +699,16 @@ exports.withdrawPlatformNotice = platformCall('withdrawPlatformNotice', platform
 exports.listPlatformNotices = platformCall('listPlatformNotices', platformOps.listPlatformNotices);
 exports.setAppRequirements = platformCall('setAppRequirements', platformOps.setAppRequirements);
 
-// Nightly dashboard numbers and per-school usage (also on demand: refreshPlatformStats).
-exports.platformStatsRollup = onSchedule(
-  { schedule: 'every day 02:00', timeZone: 'Asia/Kolkata', timeoutSeconds: 540, memory: '512MiB' },
-  async () => {
-    try {
-      const r = await platformOps.computeStats(adminCtx());
-      logger.info('platform stats rolled up', r);
-    } catch (e) {
-      logger.error('platform stats rollup failed', { category: errorCategory(e) });
-    }
-  },
-);
+// Nightly dashboard numbers and per-school usage (also on demand: refreshPlatformStats). `daily` tick.
+jobs.platformStatsRollup = async () => {
+  try {
+    const r = await platformOps.computeStats(adminCtx());
+    logger.info('platform stats rolled up', r);
+  } catch (e) {
+    logger.error('platform stats rollup failed', { category: errorCategory(e) });
+    throw e; // recorded as FAILED (schedulerState) and retried on the next tick
+  }
+};
 
 // A school's status changed (by setSchoolStatus, offboarding, or a console edit):
 // mirror it onto its users so the rules and callables enforce it. Idempotent.
@@ -739,16 +737,18 @@ exports.cancelSubscription = platformCall('cancelSubscription', sub(subscription
 exports.grantTrial = platformCall('grantTrial', sub(subscriptions.grantTrial), (o) => ({ status: o.status }));
 exports.getSubscriptionHistory = platformCall('getSubscriptionHistory', subscriptions.getSubscriptionHistory);
 
-// Every 15 minutes: time-based subscription changes (start, end, grace) reach the lifecycle and the access mirror.
-exports.subscriptionMonitor = onSchedule({ schedule: 'every 15 minutes', timeZone: 'UTC', timeoutSeconds: 540 }, async () => {
+// Every 15 minutes (every third `frequent` tick): time-based subscription changes (start, end, grace) reach
+// the lifecycle and the access mirror.
+jobs.subscriptionMonitor = async () => {
   try {
     const r = await subscriptionEnforcement.runSubscriptionMonitor(adminCtx(), { log: (e, f) => logger.warn(e, f) });
     if (r.failed) logger.warn('subscription monitor finished with problems', r);
     else logger.info('subscription monitor', r);
   } catch (e) {
     logger.error('subscription monitor failed', { category: errorCategory(e) });
+    throw e; // recorded as FAILED (schedulerState) and retried on the next tick
   }
-});
+};
 const schoolCall = (name, fn) =>
   onCall(callOptions(), async (request) => {
     const a = signedIn(request);
@@ -1122,43 +1122,42 @@ exports.reviewAccountDeletion = onCall(callOptions(), async (request) => {
   return out.result;
 });
 
-exports.expireDeletionRequests = onSchedule(
-  { schedule: 'every 24 hours', timeZone: 'Asia/Kolkata', timeoutSeconds: 120 },
-  async () => {
-    try {
-      const n = await accountDeletion.expireUnverified(deletionCtx());
-      logger.info('unverified deletion requests expired', { expired: n });
-    } catch (e) {
-      logger.error('expire deletion requests failed', { category: errorCategory(e) });
-    }
-  },
-);
+// Daily (`daily` tick): unverified requests lapse.
+jobs.expireDeletionRequests = async () => {
+  try {
+    const n = await accountDeletion.expireUnverified(deletionCtx());
+    logger.info('unverified deletion requests expired', { expired: n });
+  } catch (e) {
+    logger.error('expire deletion requests failed', { category: errorCategory(e) });
+    throw e; // recorded as FAILED (schedulerState) and retried on the next tick
+  }
+};
 
 // ---- Carrying out approved requests -------------------------------------------
 // Off unless ACCOUNT_DELETION_PROCESSING_ENABLED=true in the project's functions
 // env. Deleting needs the pepper only to derive the non-identifying audit token.
 
 const PROCESS_BUDGET_MS = 8 * 60 * 1000;
-const processingCtx = () => ({
+// [limit]: an earlier deadline set by the caller (the hourly tick shares its time with the reminders).
+const processingCtx = (limit = Infinity) => ({
   db,
   auth: getAuth(),
   storage: bucketStorage(getStorage().bucket()),
   now: () => new Date(),
   key: OTP_PEPPER.value(),
-  deadline: Date.now() + PROCESS_BUDGET_MS,
+  deadline: Math.min(Date.now() + PROCESS_BUDGET_MS, limit),
 });
 
-exports.processDeletionRequests = onSchedule(
-  { schedule: 'every 60 minutes', timeZone: 'Asia/Kolkata', timeoutSeconds: 540, memory: '512MiB', secrets: [OTP_PEPPER] },
-  async () => {
-    try {
-      const r = await deletionProcessor.sweep(processingCtx());
-      logger.info('deletion sweep', r.skipped ? { skipped: true } : { processed: r.results.map((x) => ({ reference: x.reference, status: x.status })) });
-    } catch (e) {
-      logger.error('deletion sweep failed', { category: errorCategory(e) });
-    }
-  },
-);
+// Hourly, last in the `hourly` tick, within what is left of the tick's budget.
+jobs.processDeletionRequests = async ({ deadline } = {}) => {
+  try {
+    const r = await deletionProcessor.sweep(processingCtx(deadline));
+    logger.info('deletion sweep', r.skipped ? { skipped: true } : { processed: r.results.map((x) => ({ reference: x.reference, status: x.status })) });
+  } catch (e) {
+    logger.error('deletion sweep failed', { category: errorCategory(e) });
+    throw e; // recorded as FAILED (schedulerState) and retried on the next tick
+  }
+};
 
 // Avail404 only: run one approved request now instead of waiting for the sweep.
 exports.processAccountDeletion = onCall(
@@ -1176,3 +1175,47 @@ exports.processAccountDeletion = onCall(
     return { reference, status: out.status, done: out.done === true };
   },
 );
+
+// ---- Scheduled work: ONE Cloud Scheduler job ----------------------------------
+// `masterScheduler` (every 15 minutes, prod only) dispatches every scheduled task; scheduled_jobs.js has the
+// plan (tick / hourly / daily), the once-per-window claims in `schedulerState` and the shared deadline.
+// Every Scheduler job beyond three per billing account is billed, so never add another onSchedule export:
+// add a `jobs.<name>` body above and an entry in scheduledJobs.PLAN.
+
+// A planned task without a body (or a body nothing runs) fails loading, so the tests and the deploy catch it.
+{
+  const missing = scheduledJobs.TASK_NAMES.filter((n) => typeof jobs[n] !== 'function');
+  const unplanned = Object.keys(jobs).filter((n) => !scheduledJobs.TASK_NAMES.includes(n));
+  if (missing.length || unplanned.length) throw new Error(`scheduled jobs out of step: missing ${missing}, unplanned ${unplanned}`);
+}
+
+const TICK_OPTIONS = { timeoutSeconds: scheduledJobs.TICK_TIMEOUT_S, memory: '512MiB', secrets: [OTP_PEPPER] };
+const tickLog = (m, f) => logger.error(m, f);
+
+if (scheduledJobs.schedulerEnabled()) {
+  exports.masterScheduler = onSchedule(
+    { schedule: scheduledJobs.SCHEDULE, timeZone: scheduledJobs.TIME_ZONE, maxInstances: 1, ...TICK_OPTIONS },
+    async (event) => {
+      const at = event && event.scheduleTime ? new Date(event.scheduleTime) : new Date();
+      const r = await scheduledJobs.runTick(jobs, { db, at, log: tickLog });
+      if (r.failed.length) logger.warn('scheduler tick finished with problems', r);
+      else if (r.ran.some((n) => n !== 'pushRedrive' && n !== 'subscriptionMonitor')) logger.info('scheduler tick', r);
+    },
+  );
+} else {
+  // Projects without the scheduler (dev): a platform OWNER (second factor required) runs one task on demand.
+  // `force` runs it now regardless of its window (and without claiming one).
+  exports.runScheduledTask = onCall(callOptions(TICK_OPTIONS), async (request) => {
+    const a = signedIn(request);
+    const caller = await platformAdmin.platformCaller(db, a.uid, a.token, ['OWNER']);
+    if (caller.error) throw new HttpsError('permission-denied', caller.error, { reason: caller.error });
+    const task = request.data && request.data.task;
+    if (!scheduledJobs.TASK_NAMES.includes(task)) {
+      throw new HttpsError('invalid-argument', 'INVALID_ARGUMENT', { reason: 'INVALID_ARGUMENT', tasks: scheduledJobs.TASK_NAMES });
+    }
+    const force = !(request.data && request.data.force === false);
+    const r = await scheduledJobs.runTick(jobs, { db, only: [task], force, log: tickLog });
+    logger.info('scheduled task run on demand', { by: a.uid, task, force, ...r });
+    return r;
+  });
+}

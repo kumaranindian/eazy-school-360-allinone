@@ -8,10 +8,10 @@ it fires. Written 2026-11-13; the alert definitions below were NOT created or te
 - **Platform dashboard** (Platform home): schools by status, new schools, students/staff/parents,
   sign-in activity (today / week / month) and a "needs attention" list (deletion requests
   waiting, open support sessions, offboardings, overdue bills). Numbers come from
-  `platformStats/current`, recomputed nightly by `platformStatsRollup` (02:00 Asia/Kolkata) and on demand
+  `platformStats/current`, recomputed nightly by the `platformStatsRollup` task of `masterScheduler` (first tick at or after 02:00 Asia/Kolkata; state in `schedulerState/platformStatsRollup`) and on demand
   by the refresh button (not more than once every 5 minutes).
 - **Stale numbers warning**: the dashboard turns red when the numbers are older than 36 hours, which means the
-  nightly job did not run. Check Cloud Scheduler and the function logs.
+  nightly job did not run. Check the `masterScheduler` job in Cloud Scheduler, `schedulerState/platformStatsRollup` (status, error) and the function logs. Dev has no scheduler by design.
 - **Per-school usage** in `schoolUsage/{schoolId}` (students, staff, parents, branches, users), same job.
 - **Audit log** (`platformAuditLog`) for every platform action; **support access log** per school.
 
@@ -21,7 +21,7 @@ Send all of them to a monitored channel (email group, Slack, or on-call).
 | Alert | Condition (Logs-based or metric) | Why |
 |---|---|---|
 | Functions error rate | `cloudfunctions.googleapis.com/function/execution_count` with `status != ok`, > 5% over 10 minutes for any function | Broken release or outage |
-| Nightly rollup failed | Log: `resource.type="cloud_function" AND textPayload:"platform stats rollup failed"` (or severity ERROR from `platformStatsRollup`) | Dashboard goes stale |
+| Nightly rollup failed | Log: `resource.type="cloud_function" AND textPayload:"platform stats rollup failed"` (or `"scheduled task failed"` with `task=platformStatsRollup` from `masterScheduler`) | Dashboard goes stale |
 | Suspension fan-out not finished | Log: `"school access applied"` with `done=false`, or the function `schoolStatusChanged` retrying more than 3 times in an hour | Users of a suspended school are not yet paused |
 | Deletion processor failing | Log: `"deletion sweep failed"` | Google Play deletion requirement |
 | Support access granted | Log: `jsonPayload.message="requestSupportAccess"` (any occurrence) | Someone looked into a school; send to the security channel |
