@@ -187,7 +187,7 @@ test('recalculate keeps the adjustments, picks up new facts and drops people who
   assert.equal(p.netMinor, 2500000);
   assert.equal(await slip(db, 'st2'), undefined);
   const rn = await run(db);
-  assert.deepEqual([rn.netMinor, rn.payslipCount, rn.version], [2500000, 1, 4]);
+  assert.deepEqual([rn.netMinor, rn.payslipCount, rn.version], [2500000, 1, 6], 'create 1, lock 2, calculated 3, adjust 4, lock 5, calculated 6');
   assert.equal((await r.calculatePayrollRun(ctx, 'owner', T, base({ baseVersion: 1 }))).error, 'ABORTED');
 });
 
@@ -213,7 +213,7 @@ test('approve: separation of duties, things to check, tampered totals, frozen af
   assert.equal((await ap('owner2', { acknowledgeWarnings: true })).error, 'FAILED_PRECONDITION');
   await r.calculatePayrollRun(ctx, 'fin', T, base());
   const ok = await ap('owner2', { acknowledgeWarnings: true });
-  assert.deepEqual([ok.result.status, ok.result.version], ['APPROVED', 4]);
+  assert.deepEqual([ok.result.status, ok.result.version], ['APPROVED', 6]);
   const rn = await run(db);
   assert.deepEqual([rn.approvedBy, rn.approvedByName], ['owner2', 'Omar Owner']);
   assert.equal((await ap('owner2', { acknowledgeWarnings: true })).result.duplicate, true, 'approving twice is harmless');
@@ -267,7 +267,7 @@ test('pay: only an approved run; mode, reference and date are checked; paying tw
   }
   assert.equal((await pay('ba1', { paymentMode: 'CASH' })).error, 'PERMISSION_DENIED');
   const ok = await pay('fin', { paymentMode: 'BANK_TRANSFER', paymentReference: ' NEFT-991 ', paidDate: '2026-11-30' });
-  assert.deepEqual([ok.result.status, ok.result.version], ['PAID', 4]);
+  assert.deepEqual([ok.result.status, ok.result.version], ['PAID', 5]);
   const rn = await run(db);
   assert.deepEqual([rn.paidBy, rn.paidDate, rn.paymentMode, rn.paymentReference], ['fin', '2026-11-30', 'BANK_TRANSFER', 'NEFT-991']);
   assert.equal((await pay('owner', { paymentMode: 'CASH' })).result.duplicate, true);
@@ -318,7 +318,7 @@ test('a client cannot plant a status, totals or a payslip through any request fi
   const out = await r.createPayrollRun(ctx, 'fin', T, { ...base(), status: 'PAID', netMinor: 1, payslipCount: 99, createdBy: 'x', version: 50 });
   assert.equal(out.result.status, 'CALCULATED');
   const rn = await run(db);
-  assert.deepEqual([rn.status, rn.netMinor, rn.payslipCount, rn.createdBy, rn.version], ['CALCULATED', 6300000, 2, 'fin', 2]);
+  assert.deepEqual([rn.status, rn.netMinor, rn.payslipCount, rn.createdBy, rn.version], ['CALCULATED', 6300000, 2, 'fin', 3]);
   await r.adjustPayslip(ctx, 'fin', T, base({ staffId: 'st1', adjustment: { ...adj(), id: 'planted', atMs: 1, grossMinor: 9 }, grossMinor: 9 }));
   const p = await slip(db, 'st1');
   assert.notEqual(p.adjustments[0].id, 'planted');

@@ -274,6 +274,7 @@ async function saveSalaryStructure(ctx, uid, token, data) {
   const snapshot = ev.lines.map((l) => ({ ...l, nameSnapshot: comps.get(l.componentId).name }));
 
   const versions = await versionsOf(db, schoolId, branchId, data.staffId);
+  if (versions.length >= MAX_VERSIONS) return { error: 'FAILED_PRECONDITION', reason: `at most ${MAX_VERSIONS} versions of one salary structure` };
   const latest = versions[0] || null;
   if (latest && data.effectiveFrom < latest.data.effectiveFrom) return { error: 'FAILED_PRECONDITION', reason: `effectiveFrom: cannot be before the current latest version (${latest.data.effectiveFrom}); history is not rewritten` };
   if (latest && reason.length < REASON_MIN) return { error: 'INVALID_ARGUMENT', reason: `reason: ${REASON_MIN}-${REASON_MAX} characters, explain the change` };
@@ -306,8 +307,9 @@ async function listSalaryStructures(ctx, uid, token, data) {
   const branchId = data && data.branchId;
   if (!validId(branchId)) return { error: 'PERMISSION_DENIED' };
   if (!(await authorize(db, uid, token, schoolId, branchId, 'view'))) return { error: 'PERMISSION_DENIED' };
-  const staff = await db.collection('schools').doc(schoolId).collection('branches').doc(branchId).collection('staff').limit(1000).get();
-  const latest = await structures(db, schoolId, branchId).where('latest', '==', true).limit(1000).get();
+  const staff = await db.collection('schools').doc(schoolId).collection('branches').doc(branchId).collection('staff').limit(1001).get();
+  const latest = await structures(db, schoolId, branchId).where('latest', '==', true).limit(1001).get();
+  if (staff.docs.length > 1000 || latest.docs.length > 1000) return { error: 'FAILED_PRECONDITION', reason: 'more than 1000 staff in this branch; the list cannot be shown safely' };
   const byStaff = new Map(latest.docs.map((d) => [d.data().staffId, d.data()]));
   const rows = staff.docs
     .filter((s) => !TERMINAL.includes(s.data().status))

@@ -141,9 +141,14 @@ const summary = (r) => ({
 async function branchCalculations(db, schoolId, branchId, period, settings, facts) {
   const b = branchRef(db, schoolId, branchId);
   const periodStart = `${period}-01`;
-  const all = (await b.collection('staff').limit(STAFF_CAP).get()).docs.map((d) => ({ id: d.id, data: d.data() }));
+  // A payroll that silently leaves someone out is worse than one that refuses: when a limit is reached, say so.
+  const staffSnap = await b.collection('staff').limit(STAFF_CAP + 1).get();
+  if (staffSnap.docs.length > STAFF_CAP) return { error: 'FAILED_PRECONDITION', reason: `more than ${STAFF_CAP} staff in this branch; payroll cannot be calculated safely` };
+  const all = staffSnap.docs.map((d) => ({ id: d.id, data: d.data() }));
+  const structSnap = await b.collection('salaryStructures').limit(STAFF_CAP * 5 + 1).get();
+  if (structSnap.docs.length > STAFF_CAP * 5) return { error: 'FAILED_PRECONDITION', reason: 'too many salary structure versions in this branch; payroll cannot be calculated safely' };
   const byStaff = new Map();
-  for (const d of (await b.collection('salaryStructures').limit(STAFF_CAP * 5).get()).docs) {
+  for (const d of structSnap.docs) {
     const v = d.data();
     if (!byStaff.has(v.staffId)) byStaff.set(v.staffId, []);
     byStaff.get(v.staffId).push({ id: d.id, data: v });
@@ -208,6 +213,7 @@ async function previewPayroll(ctx, uid, token, data) {
   }
 
   const calcs = await branchCalculations(db, schoolId, branchId, period, settings, facts);
+  if (calcs.error) return calcs;
   const rows = calcs.rows.map((r) => ({
     staffId: r.staff.id, name: staffName(r.staff.data), employeeCode: r.staff.data.employeeCode || '', status: r.staff.data.status || '',
     hasStructure: !!r.inf, calculation: r.calc ? summary(r.calc) : null,

@@ -150,7 +150,7 @@ test('payroll: salary reads are not copied into the trail and a saved structure\
   [e] = s2.events();
   assert.equal(e.request.lines, '[2 lines; amounts not recorded]');
   assert.equal(JSON.stringify(e).includes('3300000'), false, 'no amount anywhere in the event');
-  assert.equal(e.request.reason, 'Annual increment');
+  assert.equal(e.request.reason, '[not recorded]', 'a pay-change reason is HR information');
   assert.deepEqual(e.response, { id: 'st1_00002', seq: 2 });
   const s3 = setup('listSalaryStructures');
   await s3.wrap(async () => ({ staff: [{ netMinor: 1 }] }))(req({ schoolId: 's1', branchId: 'b1' }));

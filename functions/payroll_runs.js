@@ -31,6 +31,9 @@ const REASON_MIN = 10;
 const REASON_MAX = 300;
 const MAX_ADJUSTMENTS = 10;
 const BATCH = 400;
+// A recalculation holds the run for this long at most (a crashed one must not block it for ever).
+const LOCK_MS = 5 * 60 * 1000;
+const isCalculating = (run, nowMs) => run && run.calculating === true && Number.isFinite(run.calculatingAtMs) && nowMs - run.calculatingAtMs < LOCK_MS;
 
 const TRANSITIONS = Object.freeze({
   calculate: { from: ['DRAFT', 'CALCULATED'], to: 'CALCULATED' },
@@ -173,15 +176,48 @@ function historyEntry(uid, caller, seq, action, from, to, reason, ctx) {
 async function calculateInto(ctx, uid, caller, schoolId, branchId, period, action) {
   const { db, now } = ctx;
   const runRef = runs(db, schoolId, branchId).doc(period);
-  const before = (await runRef.get()).data();
-  if (!before) return { error: 'NOT_FOUND', reason: 'that run does not exist' };
-  if (!TRANSITIONS.calculate.from.includes(before.status)) return { error: 'FAILED_PRECONDITION', reason: `cannot calculate a run that is ${String(before.status).toLowerCase()}` };
 
+  // Take the run first: from here until the end nobody can approve, adjust or start another calculation. This
+  // closes the window in which payslips could be rewritten under an approval being signed at the same moment.
+  // The lock raises the version, so an approval that started before it fails its version check.
+  const lockedAt = wall(ctx).getTime();
+  const locked = await db.runTransaction(async (tx) => {
+    const cur = (await tx.get(runRef)).data();
+    if (!cur) return { error: 'NOT_FOUND', reason: 'that run does not exist' };
+    if (!TRANSITIONS.calculate.from.includes(cur.status)) return { error: 'FAILED_PRECONDITION', reason: `cannot calculate a run that is ${String(cur.status).toLowerCase()}` };
+    if (isCalculating(cur, lockedAt)) return { error: 'ABORTED', reason: 'this run is being calculated right now; try again in a moment' };
+    tx.update(runRef, { calculating: true, calculatingAtMs: lockedAt, version: cur.version + 1, updatedAt: now, updatedBy: uid });
+    return { before: { ...cur, version: cur.version + 1 } };
+  }, { maxAttempts: 5 });
+  if (locked.error) return locked;
+  const before = locked.before;
+  const release = async () => {
+    try {
+      await db.runTransaction(async (tx) => {
+        const cur = (await tx.get(runRef)).data();
+        if (cur && cur.calculating === true && cur.calculatingAtMs === lockedAt) tx.update(runRef, { calculating: false, calculatingAtMs: null, version: cur.version + 1 });
+      });
+    } catch (_) { /* the lock expires on its own */ }
+  };
+  try {
+    const out = await calculateLocked(ctx, uid, caller, schoolId, branchId, period, action, runRef, before, lockedAt);
+    if (out.error) await release();
+    return out;
+  } catch (e) {
+    await release();
+    throw e;
+  }
+}
+
+async function calculateLocked(ctx, uid, caller, schoolId, branchId, period, action, runRef, before, lockedAt) {
+  const { db, now } = ctx;
   const settings = await loadPayrollSettings(db, schoolId);
   const loaded = await preview.loadFacts(db, schoolId, branchId, period);
   if (loaded.error) return loaded;
   const { facts } = loaded;
-  const { rows } = await preview.branchCalculations(db, schoolId, branchId, period, settings, facts);
+  const calcs = await preview.branchCalculations(db, schoolId, branchId, period, settings, facts);
+  if (calcs.error) return calcs;
+  const { rows } = calcs;
   const school = (await db.collection('schools').doc(schoolId).get()).data() || {};
   const currency = school.currency || 'INR';
 
@@ -235,7 +271,7 @@ async function calculateInto(ctx, uid, caller, schoolId, branchId, period, actio
 
   const out = await db.runTransaction(async (tx) => {
     const cur = (await tx.get(runRef)).data();
-    if (!cur || cur.version !== before.version || cur.status !== before.status) return { error: 'ABORTED', reason: 'changed by someone else; reload' };
+    if (!cur || cur.version !== before.version || cur.status !== before.status || cur.calculating !== true || cur.calculatingAtMs !== lockedAt) return { error: 'ABORTED', reason: 'changed by someone else; reload' };
     let seq = Number.isInteger(cur.historyCount) ? cur.historyCount : 0;
     seq += 1;
     tx.set(historyCol(runRef).doc(seqId(seq)), historyEntry(uid, caller, seq, action, cur.status, 'CALCULATED', null, ctx));
@@ -245,7 +281,7 @@ async function calculateInto(ctx, uid, caller, schoolId, branchId, period, actio
       payslipCount: eligible.length, skippedCount: skipped.length, skippedStaffIds: skipped.slice(0, 100),
       warningCount: totals.warnings, adjustmentCount: totals.adjustments,
       grossMinor: totals.gross, deductionsMinor: totals.ded, netMinor: totals.net, unrecoveredDeductionMinor: totals.unrecovered,
-      calculatedAt: now, calculatedBy: uid, updatedAt: now, updatedBy: uid,
+      calculatedAt: now, calculatedBy: uid, updatedAt: now, updatedBy: uid, calculating: false, calculatingAtMs: null,
     });
     return { result: { id: period, period, status: 'CALCULATED', version: cur.version + 1, payslipCount: eligible.length, skippedCount: skipped.length, droppedAdjustments, removedPayslips: stale.length } };
   }, { maxAttempts: 5 });
@@ -315,6 +351,7 @@ async function changeAdjustment(ctx, uid, token, data, remove) {
     const run = (await tx.get(runRef)).data();
     if (!run) return { error: 'NOT_FOUND', reason: 'that run does not exist' };
     if (run.status !== 'CALCULATED') return { error: 'FAILED_PRECONDITION', reason: 'a run can only be adjusted while it is calculated, before approval' };
+    if (isCalculating(run, wall(ctx).getTime())) return { error: 'ABORTED', reason: 'this run is being calculated right now; try again in a moment' };
     if (data.baseVersion !== undefined && data.baseVersion !== run.version) return { error: 'ABORTED', reason: 'changed by someone else; reload' };
     const slip = (await tx.get(slipRef)).data();
     if (!slip) return { error: 'NOT_FOUND', reason: 'that person has no payslip in this run' };
@@ -419,6 +456,7 @@ async function transition(ctx, uid, token, data, action) {
     const run = (await runRef.get()).data();
     if (!run) return { error: 'NOT_FOUND', reason: 'that run does not exist' };
     if (run.status === spec.to) return { result: { id: data.period, status: run.status, version: run.version, duplicate: true } };
+    if (isCalculating(run, wall(ctx).getTime())) return { error: 'ABORTED', reason: 'this run is being calculated right now; try again in a moment' };
     if (run.status !== 'CALCULATED') return { error: 'FAILED_PRECONDITION', reason: `cannot approve a run that is ${String(run.status).toLowerCase()}` };
     if (data.baseVersion !== undefined && data.baseVersion !== run.version) return { error: 'ABORTED', reason: 'changed by someone else; reload' };
     const settings = await loadPayrollSettings(db, schoolId);
@@ -442,6 +480,7 @@ async function transition(ctx, uid, token, data, action) {
     if (cur.status === spec.to) return { result: { id: data.period, status: cur.status, version: cur.version, duplicate: true } };
     if (!spec.from.includes(cur.status)) return { error: 'FAILED_PRECONDITION', reason: `cannot ${action} a run that is ${String(cur.status).toLowerCase()}` };
     if (data.baseVersion !== undefined && data.baseVersion !== cur.version) return { error: 'ABORTED', reason: 'changed by someone else; reload' };
+    if (action === 'approve' && isCalculating(cur, wall(ctx).getTime())) return { error: 'ABORTED', reason: 'this run is being calculated right now; try again in a moment' };
     if (seen !== null && cur.version !== seen) return { error: 'ABORTED', reason: 'changed while you were approving; reload and check again' };
     if (action === 'cancel') {
       if (reason.length < REASON_MIN) return { error: 'INVALID_ARGUMENT', reason: `reason: at least ${REASON_MIN} characters` };
