@@ -90,6 +90,8 @@ Entry points are explicit: `lib/main_dev.dart`, `main_prod.dart` (optionally wit
 
 **Cloud Functions config**: `functions/.env.<project>` (copy `functions/env.example`, git-ignored) holds `FUNCTIONS_REGION=asia-south1`, WhatsApp settings, `ENFORCE_APP_CHECK` (keep false until apps send tokens) and `ACCOUNT_DELETION_PROCESSING_ENABLED`.
 
+**Scheduled work**: ONE Cloud Scheduler job, `masterScheduler` (every 15 min, Asia/Kolkata, prod only), because Cloud Scheduler bills every job beyond three per billing account (shared with other projects), paused or not; this was ~99% of the Firebase bill. It dispatches every task by cadence (`tick` / `hourly` per UTC hour / `daily` from 02:00 IST) with once-per-window claims in `schedulerState/{task}` (server-only, no client rules; failed runs retry next tick, at most 3 per window). A new scheduled task is a `jobs.<name>` body in `functions/index.js` that throws on failure plus an entry in `PLAN` (`functions/scheduled_jobs.js`), never a new `onSchedule` export (`deploy_manifest.test.js` fails on a second one; index.js refuses to load if body and plan disagree). It is not exported to projects whose id ends in `-dev` (the CLI sets `GCLOUD_PROJECT` at deploy) or with `SCHEDULED_JOBS=off`; there the OWNER-only callable `runScheduledTask({task})` runs a task on demand. Setup and cleanup: `docs/scheduled-jobs.md`.
+
 **Routing**: `go_router` with `StatefulShellRoute.indexedStack`; per-feature route files (e.g. `fees_routes.dart`) plug into `lib/core/routing`.
 
 ## Testing conventions

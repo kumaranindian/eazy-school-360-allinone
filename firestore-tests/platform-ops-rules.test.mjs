@@ -50,6 +50,7 @@ beforeEach(async () => {
     };
     for (const [uid, u] of Object.entries(users)) await setDoc(doc(d, 'users', uid), { name: 'T', email: `${uid}@e.com`, status: 'ACTIVE', ...u, ...base });
     await setDoc(doc(d, 'platformStats', 'current'), { schools: { total: 2 }, computedAtMs: 1 });
+    await setDoc(doc(d, 'schedulerState', 'feeDueReminders'), { window: 'H:2026-11-22T10', status: 'DONE' });
     await setDoc(doc(d, 'schoolUsage', A), { schoolId: A, students: 1 });
     await setDoc(doc(d, 'platformSettings', 'app'), { minBuild: { android: 13, ios: 0 }, maintenance: { enabled: false } });
     await setDoc(doc(d, 'platformSettings', 'secret'), { x: 1 });
@@ -134,6 +135,7 @@ test('stats, usage and notices have no client access at all (they are read throu
   const everyone = [['owner', mfa('pfo-owner')], ['viewer', mfa('pfo-viewer')], ['admin', as('pfo-admin')], ['branch', as('pfo-branch')], ['teacher', as('pfo-teacher')], ['anon', env.unauthenticatedContext().firestore()]];
   for (const [who, d] of everyone) {
     await assertFails(getDoc(doc(d, 'platformStats', 'current')), `${who} stats`);
+    await assertFails(getDoc(doc(d, 'schedulerState', 'feeDueReminders')), `${who} scheduler state`);
     await assertFails(getDoc(doc(d, 'schoolUsage', A)), `${who} usage`);
     await assertFails(getDoc(doc(d, 'platformNotices', 'all')), `${who} notice`);
     await assertFails(getDocs(query(collection(d, 'platformNotices'), where('audienceAll', '==', true))), `${who} notice list`);
@@ -144,6 +146,7 @@ test('stats, usage and notices have no client access at all (they are read throu
 test('nobody writes stats, usage or notices from a client', async () => {
   for (const d of [mfa('pfo-owner'), as('pfo-admin')]) {
     await assertFails(setDoc(doc(d, 'platformStats', 'current'), { forged: 1 }));
+    await assertFails(setDoc(doc(d, 'schedulerState', 'feeDueReminders'), { status: 'DONE', window: 'H:2099-01-01T00' }));
     await assertFails(updateDoc(doc(d, 'platformStats', 'current'), { students: 9 }));
     await assertFails(setDoc(doc(d, 'schoolUsage', A), { students: 9 }));
     await assertFails(setDoc(doc(d, 'platformNotices', 'forged'), { title: 'x', audienceAll: true, schoolIds: [], status: 'ACTIVE' }));

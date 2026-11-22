@@ -26,7 +26,7 @@
 
 ## Rollback
 - Switch the module off per school (Admission settings) — existing data stays, new enquiries stop.
-- Reminders can be switched off per school (Admission settings → Daily follow-up reminders) or by disabling the `admissionFollowUpReminders` function.
+- Reminders can be switched off per school (Admission settings → Daily follow-up reminders) (the `masterScheduler` job runs every scheduled task; pausing it pauses all of them).
 - Functions/rules/indexes are additive: remove the callables or redeploy the previous rules;
   nothing else reads these collections. Data is not deleted by rollback.
 

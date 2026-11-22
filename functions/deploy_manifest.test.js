@@ -55,7 +55,7 @@ test('scheduled functions have a real schedule', () => {
 
 test('the governance functions are all present (a rename would silently orphan the deployed one)', () => {
   const have = new Set(endpoints.map((e) => e.name));
-  for (const n of ['subscriptionMonitor', 'auditRetention', 'schoolCreated', 'auditMirrorPlatform', 'auditMirrorAuth', 'schoolStatusChanged', 'moduleWatch_students', 'moduleWatch_invoices', 'moduleWatch_homework']) {
+  for (const n of ['masterScheduler', 'schoolCreated', 'auditMirrorPlatform', 'auditMirrorAuth', 'schoolStatusChanged', 'moduleWatch_students', 'moduleWatch_invoices', 'moduleWatch_homework']) {
     assert.ok(have.has(n), n);
   }
 });
@@ -71,4 +71,9 @@ test('function count and breakdown (printed for the deployment checklist)', () =
   console.log(`# functions: ${endpoints.length} total`, JSON.stringify(by));
   // 2nd-gen projects default to a quota of 1,000 functions per region; stay well inside it.
   assert.ok(endpoints.length < 500);
+});
+
+test('at most one scheduled function (each Cloud Scheduler job is billed; add tasks to scheduled_jobs.PLAN)', () => {
+  const scheduled = endpoints.filter(({ ep }) => ep.scheduleTrigger).map((e) => e.name);
+  assert.ok(scheduled.length <= 1, `scheduled functions: ${scheduled.join(', ')}`);
 });

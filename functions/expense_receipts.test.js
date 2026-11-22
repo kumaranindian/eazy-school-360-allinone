@@ -217,5 +217,7 @@ test('the daily cleanup abandons only stale unconfirmed uploads and deletes thei
 
 test('the receipt callables and the cleanup job are wired', () => {
   const m = require('./index.js');
-  for (const n of ['requestExpenseReceiptUpload', 'confirmExpenseReceiptUpload', 'removeExpenseReceipt', 'listExpenseReceipts', 'expenseReceiptCleanup']) assert.ok(m[n], n);
+  for (const n of ['requestExpenseReceiptUpload', 'confirmExpenseReceiptUpload', 'removeExpenseReceipt', 'listExpenseReceipts']) assert.ok(m[n], n);
+  assert.ok(m.masterScheduler, 'masterScheduler');
+  assert.ok(require('./scheduled_jobs').PLAN.some((t) => t.name === 'expenseReceiptCleanup' && t.cadence === 'daily'), 'cleanup runs daily');
 });
