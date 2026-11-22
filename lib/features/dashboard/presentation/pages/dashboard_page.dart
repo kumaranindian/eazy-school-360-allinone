@@ -173,6 +173,24 @@ const _sections = [
       path: AppRoutes.expenseReports,
     ),
   ]),
+  _Section('Payroll', 'Pay components and salary structures', [
+    _Shortcut(
+      'Payroll',
+      'Salary structures for your staff',
+      Icons.account_balance_wallet_outlined,
+      AppColors.orange,
+      path: AppRoutes.payroll,
+    ),
+  ]),
+  _Section('My payslips', 'Your paid salary slips', [
+    _Shortcut(
+      'My payslips',
+      'View and download your payslips',
+      Icons.request_page_outlined,
+      AppColors.orange,
+      path: AppRoutes.myPayslips,
+    ),
+  ]),
   _Section('Leave', 'Requests, balances and approvals', [
     _Shortcut(
       'Leave',
@@ -263,14 +281,6 @@ const _sections = [
       'Admission enquiries',
       'Capture and follow up enquiries',
       Icons.how_to_reg_outlined,
-      AppColors.accent,
-      comingSoon: true,
-      adminsOnly: true,
-    ),
-    _Shortcut(
-      'Payroll',
-      'Salaries and payslips',
-      Icons.payments_outlined,
       AppColors.accent,
       comingSoon: true,
       adminsOnly: true,

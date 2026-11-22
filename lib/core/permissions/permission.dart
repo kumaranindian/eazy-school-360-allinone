@@ -191,6 +191,21 @@ enum Permission {
   /// Expense reports and export.
   viewExpenseReports,
 
+  /// Staff payroll: pay components and each staff member's salary structure
+  /// (docs/expense-management/ section 6). Salary data is the most sensitive
+  /// data in the system: school admin and finance only, and the server (no
+  /// client rules) decides. A branch admin, a teacher and the staff member
+  /// themselves cannot read these figures.
+  viewPayroll,
+
+  /// Change pay components and salary structures: school admin only.
+  managePayroll,
+
+  /// A staff member reads their OWN published payslips (phase P4). Every
+  /// staff role has it; the server finds the staff record from the signed-in
+  /// user and never accepts an id from the client.
+  viewOwnPayslips,
+
   /// Read announcements addressed to the person.
   viewAnnouncements,
 

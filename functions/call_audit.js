@@ -16,7 +16,13 @@ const audit = require('./audit');
 
 const NOT_AUDITED = new Set(['reportClientEvent']);
 // Reading the trail is not echoed back into it, and an expense export (payees, details) is not copied into the audit either: the event keeps the request, the row count is in the log.
-const RESPONSE_OMITTED = new Set(['queryAuditEvents', 'exportAuditEvents', 'getAuditSummary', 'getAuditEvent', 'exportExpenses']);
+// Salary data is the most sensitive in the system and the trail is broadly readable by platform owners and compliance, so payroll reads are not copied into it (the event keeps who looked, when, and for whom) and a saved structure's amounts are not recorded (only that it was saved, and how many lines).
+const RESPONSE_OMITTED = new Set(['queryAuditEvents', 'exportAuditEvents', 'getAuditSummary', 'getAuditEvent', 'exportExpenses', 'getSalaryStructure', 'listSalaryStructures', 'previewPayroll', 'listPayrollRuns', 'getPayrollRun', 'getPayslip', 'listMyPayslips', 'getMyPayslip', 'getPayrollRegister', 'exportPayrollRegister', 'getPayrollRunHistory']);
+const REQUEST_REDACTED = {
+  // the amount, the item's name and the reason are HR information; the trail keeps who, which run, which person and the kind of item
+  adjustPayslip: (d) => ({ ...d, adjustment: d.adjustment && typeof d.adjustment === 'object' ? { kind: d.adjustment.kind, amountMinor: '[not recorded]', label: '[not recorded]', reason: '[not recorded]' } : '[not recorded]' }),
+  saveSalaryStructure: (d) => ({ ...d, reason: d.reason === undefined ? undefined : '[not recorded]', lines: Array.isArray(d.lines) ? `[${d.lines.length} lines; amounts not recorded]` : '[not recorded]' }),
+};
 
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
 const ROLE_APP = { PLATFORM_ADMIN: 'PLATFORM_ADMIN', SCHOOL_ADMIN: 'SCHOOL_ADMIN', BRANCH_ADMIN: 'BRANCH_ADMIN', TEACHER: 'TEACHER', PARENT: 'PARENT', FINANCE: 'FINANCE' };
@@ -41,7 +47,7 @@ const CATEGORY_RULES = [
 const categoryOf = (name) => (CATEGORY_RULES.find(([re]) => re.test(name)) || [null, 'API'])[1];
 
 const ACTION_RULES = [
-  [/^(get|list|query|diagnose|view|search|check|find)/, 'VIEW'],
+  [/^(get|list|query|diagnose|view|search|check|find|preview)/, 'VIEW'],
   [/^export/, 'EXPORT'],
   [/^(create|add|register|request|submit|schedule|provision|record|grant|convert)/, 'CREATE'],
   [/^(delete|remove|cancel|unregister|refund|dismiss)/, 'DELETE'],
@@ -49,7 +55,7 @@ const ACTION_RULES = [
   [/^reject/, 'REJECT'],
   [/^(reset|refresh)/, 'RESET'],
   [/^(assign|reassign)/, 'ASSIGN'],
-  [/^(update|save|set|change|reschedule|complete|waive|renew|extend|review|transition|process)/, 'UPDATE'],
+  [/^(update|save|set|change|reschedule|complete|waive|renew|extend|review|transition|process|adjust|calculate|pay)/, 'UPDATE'],
 ];
 const actionOf = (name) => (ACTION_RULES.find(([re]) => re.test(name)) || [null, 'OTHER'])[1];
 
@@ -95,7 +101,7 @@ function makeAuditedCall({ ctx, nameOf = () => process.env.FUNCTION_TARGET || 'u
       targetEntityId: pick(data.studentId) || pick(data.enquiryId) || pick(data.uid) || pick(data.targetUid) || null,
       correlationId: /^[A-Za-z0-9_-]{1,64}$/.test(trace) ? trace : null,
       description: `${name} ${e ? `failed (${e.code || 'error'})` : 'succeeded'}`,
-      request: request ? request.data : undefined,
+      request: request ? (REQUEST_REDACTED[name] && request.data && typeof request.data === 'object' ? REQUEST_REDACTED[name](request.data) : request.data) : undefined,
       response: !e && !RESPONSE_OMITTED.has(name) ? outcome.result : undefined,
       error: e ? { code: e.code, message: e.message, details: e.details } : undefined,
       durationMs: outcome.ms,
@@ -124,4 +130,4 @@ function makeAuditedCall({ ctx, nameOf = () => process.env.FUNCTION_TARGET || 'u
   };
 }
 
-module.exports = { makeAuditedCall, eventTypeOf, categoryOf, actionOf, NOT_AUDITED, RESPONSE_OMITTED };
+module.exports = { makeAuditedCall, eventTypeOf, categoryOf, actionOf, NOT_AUDITED, RESPONSE_OMITTED, REQUEST_REDACTED };

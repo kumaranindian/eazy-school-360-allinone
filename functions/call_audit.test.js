@@ -136,3 +136,27 @@ test('data writes record the full before and after documents', () => {
   const sparse = audit.buildEvent(audit.fromModuleWrite({ eventId: 'ev2', schoolId: 's1', branchId: 'b1', collection: 'students', docId: 'st1', before: null, after: { status: 'ACTIVE' } }), NOW).event;
   assert.equal(sparse.before, undefined);
 });
+
+test('payroll: salary reads are not copied into the trail and a saved structure\'s amounts are not recorded', async () => {
+  const { wrap, events } = setup('getSalaryStructure');
+  await wrap(async () => ({ current: { netMinor: 3900000, lines: [{ amountMinor: 3000000 }] } }))(req({ schoolId: 's1', branchId: 'b1', staffId: 'st1' }));
+  let [e] = events();
+  assert.equal(e.response, undefined, 'the response (a salary) is not stored');
+  assert.equal(e.request.staffId, 'st1', 'who was looked at is');
+  assert.equal(e.result, 'SUCCESS');
+
+  const s2 = setup('saveSalaryStructure');
+  await s2.wrap(async () => ({ id: 'st1_00002', seq: 2 }))(req({ schoolId: 's1', branchId: 'b1', staffId: 'st1', effectiveFrom: '2026-12-01', reason: 'Annual increment', lines: [{ componentId: 'pc_basic', amountMinor: 3300000 }, { componentId: 'x', amountMinor: 1 }] }));
+  [e] = s2.events();
+  assert.equal(e.request.lines, '[2 lines; amounts not recorded]');
+  assert.equal(JSON.stringify(e).includes('3300000'), false, 'no amount anywhere in the event');
+  assert.equal(e.request.reason, '[not recorded]', 'a pay-change reason is HR information');
+  assert.deepEqual(e.response, { id: 'st1_00002', seq: 2 });
+  const s3 = setup('listSalaryStructures');
+  await s3.wrap(async () => ({ staff: [{ netMinor: 1 }] }))(req({ schoolId: 's1', branchId: 'b1' }));
+  assert.equal(s3.events()[0].response, undefined);
+  // a malformed body must not break the call or leak
+  const s4 = setup('saveSalaryStructure');
+  await s4.wrap(async () => ({}))(req('not an object'));
+  assert.equal(s4.events().length, 1);
+});

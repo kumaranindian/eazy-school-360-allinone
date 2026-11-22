@@ -142,6 +142,22 @@ class AppShell extends ConsumerWidget {
     ),
     (
       NavDestination(
+        label: 'Payroll',
+        icon: Icons.account_balance_wallet_outlined,
+        selectedIcon: Icons.account_balance_wallet,
+      ),
+      AppRoutes.payroll,
+    ),
+    (
+      NavDestination(
+        label: 'My payslips',
+        icon: Icons.request_page_outlined,
+        selectedIcon: Icons.request_page,
+      ),
+      AppRoutes.myPayslips,
+    ),
+    (
+      NavDestination(
         label: 'Timetable',
         icon: Icons.calendar_view_week_outlined,
         selectedIcon: Icons.calendar_view_week,
@@ -301,6 +317,16 @@ class AppShell extends ConsumerWidget {
       'Expenses',
       'Record and review school spending',
       Icons.payments_outlined,
+    ),
+    AppRoutes.payroll: (
+      'Payroll',
+      'Pay components and salary structures',
+      Icons.account_balance_wallet_outlined,
+    ),
+    AppRoutes.myPayslips: (
+      'My payslips',
+      'Your paid salary slips',
+      Icons.request_page_outlined,
     ),
     AppRoutes.myLeave: (
       'Your leave',

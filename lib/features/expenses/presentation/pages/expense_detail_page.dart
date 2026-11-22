@@ -313,8 +313,29 @@ class _BodyState extends ConsumerState<_Body> {
                   ? scheme.primaryContainer
                   : null,
             ),
+            if (e.isPayroll)
+              const Chip(
+                key: ValueKey('expense-payroll'),
+                visualDensity: VisualDensity.compact,
+                label: Text('Payroll'),
+              ),
           ],
         ),
+        if (e.isPayroll && e.payrollPeriod != null)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const ValueKey('expense-open-run'),
+                onPressed: () => context.go('/payroll/runs/${e.payrollPeriod}'),
+                icon: const Icon(Icons.account_balance_wallet_outlined),
+                label: Text(
+                  'Open ${periodLabelOf(e.payrollPeriod!)} payroll run',
+                ),
+              ),
+            ),
+          ),
         const SizedBox(height: AppSpacing.md),
         if (a.isNotEmpty)
           Padding(
@@ -864,4 +885,26 @@ class _ReceiptsState extends ConsumerState<_Receipts> {
       ],
     );
   }
+}
+
+/// `2026-11` -> "November 2026" (kept here so expenses need not import payroll).
+String periodLabelOf(String period) {
+  const names = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  final m = period.length >= 7 ? int.tryParse(period.substring(5, 7)) : null;
+  return m == null || m < 1 || m > 12
+      ? period
+      : '${names[m - 1]} ${period.substring(0, 4)}';
 }

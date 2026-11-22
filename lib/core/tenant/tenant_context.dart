@@ -89,6 +89,9 @@ class TenantContext {
     Permission.payExpenses: 'expenses',
     Permission.manageExpenseSettings: 'expenses',
     Permission.viewExpenseReports: 'expenses',
+    Permission.viewPayroll: 'payroll',
+    Permission.managePayroll: 'payroll',
+    Permission.viewOwnPayslips: 'payroll',
     Permission.viewNotifications: 'notifications',
     Permission.useMessages: 'messages',
   };
@@ -108,6 +111,9 @@ class TenantContext {
     return permission == Permission.managePlatform ||
         (name.startsWith('view') &&
             !name.startsWith('viewOwn') &&
-            permission != Permission.viewNotifications);
+            permission != Permission.viewNotifications &&
+            // Pay data is never part of a support grant (the server refuses a
+            // platform admin too: they belong to no school).
+            permission != Permission.viewPayroll);
   }
 }

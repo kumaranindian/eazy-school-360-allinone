@@ -304,6 +304,8 @@ const expenseView = (id, d) => ({
   paymentMode: d.paymentMode || null,
   paymentReference: d.paymentReference || '',
   status: d.status,
+  source: d.source || 'MANUAL',
+  payrollPeriod: d.payrollPeriod || null,
   version: Number.isInteger(d.version) ? d.version : 1,
   receiptCount: Number.isInteger(d.receiptCount) ? d.receiptCount : 0,
   submittedBy: d.submittedBy || null,

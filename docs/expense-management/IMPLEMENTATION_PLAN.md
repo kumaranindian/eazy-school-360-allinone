@@ -1,6 +1,6 @@
 # Expense Management and Staff Payroll: implementation plan
 
-Status: **plan, nothing built yet** (2026-11-15). Decisions taken: approval is a per-school setting; roles are School Admin (the school owner is a School Admin), Branch Admin (own branch) and Finance; budgets later; staff payroll is in scope; recurring and reimbursable expenses are out of v1.
+Status: expenses E1-E5 and hardening are built, deployed (dev and prod) and merged into `develop`; payroll P1 is built on branch `feature/payroll` (2026-11-17), P2-P5 are next. Decisions taken: approval is a per-school setting; roles are School Admin (the school owner is a School Admin), Branch Admin (own branch) and Finance; budgets later; staff payroll is in scope; recurring and reimbursable expenses are out of v1.
 
 Follows the repo's conventions: feature-first (`lib/features/<f>/{domain,data,presentation}`), pure rules in domain, money as integer minor units (`Money` with the currency), school days via `SchoolTime`, branch scoping, write paths as callables, audit through `call_audit.js`, one phase at a time with tests and docs.
 

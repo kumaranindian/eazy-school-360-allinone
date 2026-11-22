@@ -63,7 +63,7 @@ const BRANCH_COLLECTIONS = [
   'homeworkSubmissions', 'leaveApplications', 'leaveBalances', 'leaveCalendar', 'leaveDayLocks',
   'leaveHistory', 'leaveLedger', 'leaveSettings', 'leaveTypes', 'marksEntries', 'marksRevisions',
   'marksSheetHistory', 'marksSheets', 'messageContacts', 'parentAccess', 'parents', 'periodSets',
-  'resultSummaries', 'settings', 'staff', 'staffAttendance', 'staffAttendanceDays', 'staffCodes',
+  'payrollRuns', 'resultSummaries', 'salaryStructures', 'settings', 'staff', 'staffAttendance', 'staffAttendanceDays', 'staffCodes',
   'studentAttendance', 'students', 'subjects', 'substitutionDays', 'substitutionHistory',
   'substitutions', 'teacherAccess', 'teacherAssignments', 'timetableCounters', 'timetableEntries',
   'timetableHistory', 'timetableLocks', 'timetables',
@@ -71,7 +71,7 @@ const BRANCH_COLLECTIONS = [
 
 // Collections directly under schools/{s}.
 // expenseCategories / expenseSettings hold who last changed them; expenses (with their `history`) and receipts are branch collections above.
-const SCHOOL_COLLECTIONS = ['academicYears', 'admissionSettings', 'authAudit', 'authSettings', 'branchAccessAudit', 'branding', 'expenseCategories', 'expenseSettings', 'feeReminderSettings', 'studentTransfers'];
+const SCHOOL_COLLECTIONS = ['academicYears', 'admissionSettings', 'authAudit', 'authSettings', 'branchAccessAudit', 'branding', 'expenseCategories', 'expenseSettings', 'feeReminderSettings', 'payComponents', 'payrollSettings', 'studentTransfers'];
 
 // Nested collections, found with a collection-group query on a few fields each
 // (single-field indexes for these are declared in firestore.indexes.json).
@@ -80,6 +80,7 @@ const NESTED_GROUPS = {
   documents: ['createdBy', 'updatedBy', 'uploadedBy'],
   history: ['changedBy', 'actorId', 'createdBy', 'updatedBy'],
   messages: ['senderUserId', 'createdBy'],
+  payslips: ['createdBy', 'updatedBy'],
   parentLinks: ['createdBy', 'updatedBy'],
   sections: ['createdBy', 'updatedBy'],
 };

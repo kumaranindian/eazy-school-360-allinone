@@ -106,10 +106,13 @@ void main() {
       expect(find.text(group), findsWidgets, reason: group);
     }
     // Planned modules for admins include the admin-only ones.
-    for (final name in ['Transport', 'Payroll', 'Reports and analytics']) {
+    for (final name in ['Transport', 'Reports and analytics']) {
       await _scrollTo(tester, find.text(name));
       expect(find.text(name), findsOneWidget, reason: name);
     }
+    // Payroll is a real module now: a section with a tile, not Coming soon.
+    await _scrollTo(tester, find.text('Payroll').first);
+    expect(find.text('Payroll'), findsWidgets);
     expect(find.text('Coming soon'), findsWidgets);
     expect(tester.takeException(), isNull);
   });

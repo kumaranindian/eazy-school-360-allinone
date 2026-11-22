@@ -48,3 +48,14 @@ It cannot prove what a client says about itself (T4), and it does not see reads.
 ## Known gaps (kept visible on purpose)
 1. App does not send T4 reports yet. 2. Academic setup (classes, sections, subjects, years, holidays) written straight from the app has no watcher; notification delivery has its own log. (Branding/regional, admission documents/fees/conversions and notification acknowledgement go through callables and are now recorded as API events.)
 3. A client write can in principle skip the trigger only if the function is down: the trigger retries until it succeeds, but nothing alerts on a stuck retry (Cloud Monitoring alert not created).
+
+## Payroll (P1)
+The five payroll callables (`listPayComponents`, `savePayComponent`, `getSalaryStructure`, `saveSalaryStructure`, `listSalaryStructures`) are audited by `call_audit.js` like every callable. Salary figures never enter the trail: responses of `getSalaryStructure` and `listSalaryStructures` are omitted, and `saveSalaryStructure` records its request with `lines` replaced by a count (the staff id, effective date and reason are kept, so who changed whose pay, when and why is auditable without the amounts). Covered by `call_audit.test.js`.
+
+`previewPayroll` (P2) is audited like the others; its response (pay figures) is omitted, the request (who, which month) is kept. `getPayrollSettings` / `savePayrollSettings` carry no pay figures and are recorded in full.
+
+Payroll runs (P3): the eleven run callables are audited like every callable. `listPayrollRuns`, `getPayrollRun` and `getPayslip` responses (pay figures) are omitted; `adjustPayslip` records its request with the amount masked; the writes return only ids and status. Who prepared, adjusted, approved, paid or cancelled a run is also in the run's own append-only history.
+
+`listMyPayslips` and `getMyPayslip` (P4) responses are omitted from the trail (own pay figures); the request, who and which month, is kept.
+
+`getPayrollRegister` and `exportPayrollRegister` (P5) responses are omitted from the trail (pay totals and per-person rows); the request is kept. The expense a paid run posts has its own `history` entry (`post`).

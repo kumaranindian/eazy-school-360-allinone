@@ -178,6 +178,9 @@ abstract final class NotificationNavigator {
         return n.refId == null
             ? AppRoutes.expenses
             : AppRoutes.expenseDetail.replaceFirst(':expenseId', n.refId!);
+      case 'PAYSLIP_PUBLISHED':
+        // Only the staff member it was written for; the router checks again.
+        return can(Permission.viewOwnPayslips) ? AppRoutes.myPayslips : null;
       default:
         return null;
     }
