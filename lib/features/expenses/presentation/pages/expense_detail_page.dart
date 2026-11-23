@@ -146,17 +146,17 @@ class _BodyState extends ConsumerState<_Body> {
   Future<void> _approve() async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Approve this expense?'),
         content: Text('${e.number} · ${e.amountText}'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Not now'),
           ),
           FilledButton(
             key: const ValueKey('expense-approve-confirm'),
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Approve'),
           ),
         ],
@@ -739,17 +739,17 @@ class _ReceiptsState extends ConsumerState<_Receipts> {
   Future<void> _remove(ExpenseReceipt r) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Remove this receipt?'),
         content: Text(r.fileName),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Keep'),
           ),
           FilledButton(
             key: const ValueKey('receipt-remove-confirm'),
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Remove'),
           ),
         ],
@@ -784,7 +784,7 @@ class _ReceiptsState extends ConsumerState<_Receipts> {
       if (!mounted) return;
       await showDialog<void>(
         context: context,
-        builder: (_) => Dialog(
+        builder: (dialogContext) => Dialog(
           key: const ValueKey('receipt-viewer'),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -794,7 +794,7 @@ class _ReceiptsState extends ConsumerState<_Receipts> {
                 trailing: IconButton(
                   tooltip: 'Close',
                   icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(dialogContext),
                 ),
               ),
               Flexible(
