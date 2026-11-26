@@ -460,6 +460,23 @@ void main() {
       await _close(tester, w);
     });
 
+    testWidgets(
+      'expenses and payroll are not reachable in a support session (DEF-08)',
+      (tester) async {
+        final w = await _pump(tester);
+        await _startSession(tester, w);
+        for (final path in [AppRoutes.expenses, AppRoutes.payroll]) {
+          await _open(tester, w, path);
+          expect(w.location, AppRoutes.dashboard, reason: path);
+        }
+        expect(
+          find.textContaining('do not have permission to manage expenses'),
+          findsNothing,
+        );
+        await _close(tester, w);
+      },
+    );
+
     testWidgets('a refused request shows the reason and starts nothing', (
       tester,
     ) async {

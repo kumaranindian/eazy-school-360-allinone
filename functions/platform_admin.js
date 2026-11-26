@@ -20,7 +20,7 @@ const PLATFORM_ROLES = ['OWNER', 'SUPPORT', 'COMPLIANCE', 'VIEWER'];
 // Profiles written before platformRole existed keep their full power until an
 // owner assigns a role (the only platform admin that existed could do it all).
 const LEGACY_ROLE = 'OWNER';
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const { isEmail } = require('./contact_validation');
 const DEFAULT_DOMAINS = ['avail404.com'];
 // Accounts a platform admin may be moved between.
 const STATUSES = ['ACTIVE', 'DISABLED'];
@@ -87,7 +87,7 @@ function validateNew(data, domains) {
   const email = typeof (data && data.email) === 'string' ? data.email.trim().toLowerCase() : '';
   const platformRole = data && data.platformRole;
   if (name.length < 2 || name.length > 100) return { error: 'INVALID_ARGUMENT', reason: 'name' };
-  if (!EMAIL.test(email) || email.length > 254) return { error: 'INVALID_ARGUMENT', reason: 'email' };
+  if (!isEmail(email)) return { error: 'INVALID_ARGUMENT', reason: 'email' };
   if (!PLATFORM_ROLES.includes(platformRole)) return { error: 'INVALID_ARGUMENT', reason: 'platformRole' };
   if (!domains.includes(email.split('@')[1])) return { error: 'INVALID_ARGUMENT', reason: 'emailDomain' };
   return { value: { name, email, platformRole } };

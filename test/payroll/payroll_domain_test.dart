@@ -111,9 +111,10 @@ void main() {
       const TenantContext(
         user: profile,
         supportSession: true,
-      ).can(Permission.viewExpenses),
+      ).can(Permission.viewStudentData),
       isTrue,
-      reason: 'other viewing is unchanged',
+      reason:
+          'other viewing is unchanged (expenses are hidden too: QA PLAT-01 DEF-08)',
     );
   });
 

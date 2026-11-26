@@ -114,6 +114,12 @@ class TenantContext {
             permission != Permission.viewNotifications &&
             // Pay data is never part of a support grant (the server refuses a
             // platform admin too: they belong to no school).
-            permission != Permission.viewPayroll);
+            permission != Permission.viewPayroll &&
+            // Expenses are read only through callables that check the
+            // caller's own school role, and support grants do not cover them
+            // (nor their receipts): hide the module instead of letting it
+            // fail with a permission error (QA PLAT-01 DEF-08).
+            permission != Permission.viewExpenses &&
+            permission != Permission.viewExpenseReports);
   }
 }

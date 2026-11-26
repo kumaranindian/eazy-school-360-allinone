@@ -164,6 +164,21 @@ test('overview: any platform role; metadata and counts only; no student records'
   assert.equal((await sa.getSchoolOverview(ctx, 'owner', MFA, { schoolId: 'ghost' })).error, 'NOT_FOUND');
 });
 
+test('overview: counts per branch, which add up to the totals (QA PLAT-01 DEF-07)', async () => {
+  const { db, ctx } = world();
+  db.store.set('schools/s1/branches/b2', { name: 'Nellai Branch', status: 'ACTIVE' });
+  db.store.set('schools/s1/branches/b2/students/st9', { schoolId: 's1' });
+  db.store.set('schools/s1/branches/b2/parents/p9', { schoolId: 's1' });
+  const out = await sa.getSchoolOverview(ctx, 'viewer', MFA, { schoolId: 's1' });
+  const by = Object.fromEntries(out.branches.map((b) => [b.name, b.counts]));
+  assert.deepEqual(by, {
+    Main: { students: 2, staff: 1, parents: 0 },
+    'Nellai Branch': { students: 1, staff: 0, parents: 1 },
+  });
+  assert.deepEqual(out.counts, { branches: 2, students: 3, staff: 1, parents: 1 });
+  assert.equal(JSON.stringify(out).includes('"st9"'), false, 'counts only, no ids');
+});
+
 test('overview does not list expired or revoked grants as active', async () => {
   const { ctx } = world();
   await sa.requestSupportAccess(ctx, 'support', MFA, ok);

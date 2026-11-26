@@ -140,9 +140,28 @@ test('create school: owner only, validated, and an existing email is never reuse
     { ...input, schoolName: 'x' }, { ...input, adminName: '' }, { ...input, adminEmail: 'nope' },
     { ...input, regional: { ...input.regional, currency: 'rupees' } }, { ...input, regional: { ...input.regional, countryCode: 'India' } },
     { ...input, regional: { ...input.regional, timezone: '' } }, { ...input, regional: undefined },
+    // QA PLAT-01 DEF-03 / DEF-05: letters in the phone, markup or an over-long local part in an email.
+    { ...input, phone: 'abcde' }, { ...input, phone: '12345' }, { ...input, adminEmail: '<script>@x.com' },
+    { ...input, adminEmail: `${'a'.repeat(70)}@x.com` }, { ...input, schoolEmail: '<script>@x.com' },
   ]) assert.equal((await sl.createSchoolWithAdmin(ctx, 'owner', MFA, bad)).error, 'INVALID_ARGUMENT', JSON.stringify(bad).slice(0, 60));
   assert.equal((await sl.createSchoolWithAdmin(ctx, 'owner', MFA, { ...input, adminEmail: 'taken@x.test' })).error, 'EMAIL_IN_USE');
   assert.equal([...db.store.keys()].filter((k) => k.startsWith('schools/') && k.split('/').length === 2).length, 2, 'no school created by refused calls');
+});
+
+test('create school: an empty phone is still allowed and a valid one is kept', async () => {
+  const { db, ctx } = world();
+  const none = await sl.createSchoolWithAdmin(ctx, 'owner', MFA, { ...input, phone: '' });
+  assert.equal(none.ok, true);
+  assert.equal(db.store.get(`schools/${none.schoolId}`).phone, null);
+  const ok = await sl.createSchoolWithAdmin(ctx, 'owner', MFA, { ...input, adminEmail: 'b@newschool.test', phone: ' +91 98765 43210 ' });
+  assert.equal(ok.ok, true);
+  assert.equal(db.store.get(`schools/${ok.schoolId}`).phone, '+91 98765 43210');
+});
+
+test('add school admin: a markup email is refused (DEF-05)', async () => {
+  const { ctx } = world({ 'schools/s1': school() });
+  const out = await sl.addSchoolAdmin(ctx, 'owner', MFA, { schoolId: 's1', name: 'New Head', email: '<script>@x.com' });
+  assert.deepEqual([out.error, out.reason], ['INVALID_ARGUMENT', 'adminEmail']);
 });
 
 test('add school admin: owner only; admins of a suspended school start paused', async () => {

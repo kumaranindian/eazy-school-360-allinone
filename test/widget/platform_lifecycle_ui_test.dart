@@ -752,11 +752,14 @@ void main() {
       final w = await _pump(tester);
       await _open(tester, w, _school1);
       await _tap(tester, 'admin-add');
-      await tester.enterText(find.byKey(const ValueKey('aa-email')), 'nope');
+      await tester.enterText(
+        find.byKey(const ValueKey('aa-email')),
+        '<script>@x.com',
+      );
       await tester.tap(find.byKey(const ValueKey('aa-save')));
       await tester.pumpAndSettle();
       expect(find.text('Enter their name'), findsOneWidget);
-      expect(find.text('Enter a valid email address'), findsOneWidget);
+      expect(find.text('Enter a valid email address.'), findsOneWidget);
       expect(w.ops.admins, isEmpty);
     });
 
@@ -1358,9 +1361,36 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Enter the school name'), findsOneWidget);
       expect(find.text('Enter their name'), findsOneWidget);
-      expect(find.text('Enter a valid email address'), findsOneWidget);
+      expect(find.text('Email is required.'), findsOneWidget);
       expect(w.ops.created, isEmpty);
     });
+
+    testWidgets(
+      'letters in the phone and a markup email are refused (DEF-03, DEF-05)',
+      (tester) async {
+        final w = await _pump(tester);
+        await _open(tester, w, AppRoutes.platformSchools);
+        await _tap(tester, 'schools-create');
+        await tester.enterText(
+          find.byKey(const ValueKey('cs-school')),
+          'New Horizon School',
+        );
+        await tester.enterText(
+          find.byKey(const ValueKey('cs-admin')),
+          'Asha Rao',
+        );
+        await tester.enterText(find.byKey(const ValueKey('cs-phone')), 'abcde');
+        await tester.enterText(
+          find.byKey(const ValueKey('cs-email')),
+          '<script>@x.com',
+        );
+        await tester.tap(find.byKey(const ValueKey('cs-create')));
+        await tester.pumpAndSettle();
+        expect(find.text('Enter a valid phone number.'), findsOneWidget);
+        expect(find.text('Enter a valid email address.'), findsOneWidget);
+        expect(w.ops.created, isEmpty);
+      },
+    );
 
     testWidgets('the country sets currency and date format', (tester) async {
       final w = await _pump(tester);
@@ -1583,6 +1613,28 @@ void main() {
       expect(w.ops.published.single.all, isFalse);
     });
 
+    testWidgets(
+      'at 250 px the audience labels use the width (QA PLAT-01 DEF-09)',
+      (tester) async {
+        final w = await _pump(tester, size: const Size(250, 900));
+        await _open(tester, w, AppRoutes.platformNotices);
+        await _tap(tester, 'notice-new');
+        final everyone = find.text('Every school administrator');
+        await tester.ensureVisible(everyone);
+        await tester.pumpAndSettle();
+        // The label gets most of the dialog, not a sliver beside the switch.
+        // (Widths, not line counts: tests use the square Ahem font.)
+        expect(tester.getSize(everyone).width, greaterThanOrEqualTo(110));
+        await tester.tap(find.byKey(const ValueKey('nt-all')));
+        await tester.pumpAndSettle();
+        final school = find.text('Rosewood High');
+        await tester.ensureVisible(school);
+        await tester.pumpAndSettle();
+        expect(tester.getSize(school).width, greaterThanOrEqualTo(100));
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     testWidgets('withdrawing asks first', (tester) async {
       final ops = FakePlatformOpsRepository(
         stats: fakeStats(),
@@ -1595,6 +1647,11 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('confirm-yes')));
       await tester.pumpAndSettle();
       expect(w.ops.withdrawn, ['n1']);
+      // Says so and updates the card at once, even though the re-fetched
+      // list (this fake) still reports the notice as live.
+      expect(find.text('Notice withdrawn.'), findsOneWidget);
+      expect(find.text('Withdrawn'), findsOneWidget);
+      expect(find.byKey(const ValueKey('withdraw-n1')), findsNothing);
     });
 
     testWidgets('compliance and viewers can read but not publish', (

@@ -27,6 +27,37 @@ final billingProvider = FutureProvider.autoDispose
       retry: (retryCount, error) => null,
     );
 
+/// Billing statuses changed in this session, by record id, as the server
+/// returned them: shown at once instead of after the list re-loads.
+class BillingStatusChanges
+    extends Notifier<Map<String, ({String status, String? paidDate})>> {
+  @override
+  Map<String, ({String status, String? paidDate})> build() => const {};
+
+  void set(String id, String status, {String? paidDate}) =>
+      state = {...state, id: (status: status, paidDate: paidDate)};
+}
+
+final billingStatusChangesProvider =
+    NotifierProvider<
+      BillingStatusChanges,
+      Map<String, ({String status, String? paidDate})>
+    >(BillingStatusChanges.new);
+
+/// Notices withdrawn in this visit to the page. The list shows them as
+/// withdrawn at once instead of waiting for the re-fetched list.
+class RecentlyWithdrawnNotices extends Notifier<Set<String>> {
+  @override
+  Set<String> build() => const {};
+
+  void add(String id) => state = {...state, id};
+}
+
+final recentlyWithdrawnNoticesProvider =
+    NotifierProvider.autoDispose<RecentlyWithdrawnNotices, Set<String>>(
+      RecentlyWithdrawnNotices.new,
+    );
+
 final platformNoticesProvider =
     FutureProvider.autoDispose<List<PlatformNotice>>(
       (ref) => ref.watch(platformOpsRepositoryProvider).notices(),
@@ -277,26 +308,28 @@ class PlatformOpsActions extends AsyncNotifier<void> {
         return _email(email);
       });
 
-  Future<bool> setFeatures(
+  /// The school's module switches after the change (from the function's
+  /// response, so the screen can show them before the overview re-loads), or
+  /// null when it failed.
+  Future<Map<String, bool>?> setFeatures(
     String schoolId,
     Map<String, bool> features, {
     String? reason,
     bool confirmDependants = false,
   }) async {
-    final ok = await _run(() async {
-      await _repo.setFeatures(
+    final stored = await _run(
+      () => _repo.setFeatures(
         schoolId: schoolId,
         features: features,
         reason: reason,
         confirmDependants: confirmDependants,
-      );
-      return true;
-    });
-    if (ok == true) {
+      ),
+    );
+    if (stored != null) {
       _refreshSchool(schoolId);
       ref.invalidate(featureHistoryProvider(schoolId));
     }
-    return ok ?? false;
+    return stored;
   }
 
   Future<bool> setFeatureDefaults(Map<String, bool> features) async {
@@ -362,17 +395,21 @@ class PlatformOpsActions extends AsyncNotifier<void> {
     String? paidDate,
     String? note,
   }) async {
-    final ok = await _run(() async {
-      await _repo.setBillingStatus(
+    final stored = await _run(
+      () => _repo.setBillingStatus(
         id: id,
         status: status,
         paidDate: paidDate,
         note: note,
-      );
-      return true;
-    });
-    if (ok == true) ref.invalidate(billingProvider);
-    return ok ?? false;
+      ),
+    );
+    if (stored == null) return false;
+    // Show the stored status at once; the list re-loads behind it.
+    ref
+        .read(billingStatusChangesProvider.notifier)
+        .set(id, stored, paidDate: stored == 'PAID' ? paidDate : null);
+    ref.invalidate(billingProvider);
+    return true;
   }
 
   /// Recomputes the dashboard numbers; null on failure, false when throttled.
@@ -412,7 +449,10 @@ class PlatformOpsActions extends AsyncNotifier<void> {
       await _repo.withdrawNotice(id);
       return true;
     });
-    if (ok == true) ref.invalidate(platformNoticesProvider);
+    if (ok == true) {
+      ref.read(recentlyWithdrawnNoticesProvider.notifier).add(id);
+      ref.invalidate(platformNoticesProvider);
+    }
     return ok ?? false;
   }
 

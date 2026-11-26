@@ -34,7 +34,9 @@ abstract class PlatformOpsRepository {
 
   /// Switches modules for one school. Switching OFF needs a [reason]; a module
   /// with dependants needs [confirmDependants] (they are switched off too).
-  Future<void> setFeatures({
+  /// Returns the school's module switches after the change, as the server
+  /// stored them (empty when the server did not send them).
+  Future<Map<String, bool>> setFeatures({
     required String schoolId,
     required Map<String, bool> features,
     String? reason,
@@ -87,7 +89,8 @@ abstract class PlatformOpsRepository {
     String? note,
   });
 
-  Future<void> setBillingStatus({
+  /// Returns the status the server stored.
+  Future<String> setBillingStatus({
     required String id,
     required String status,
     String? paidDate,

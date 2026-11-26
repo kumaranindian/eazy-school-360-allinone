@@ -111,7 +111,7 @@ if (require.main === module) {
         const name = typeof d.name === 'string' ? d.name.trim() : '';
         const email = typeof d.email === 'string' ? d.email.trim().toLowerCase() : '';
         if (name.length < 2 || name.length > 100) return { error: true, reason: 'name' };
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return { error: true, reason: 'email' };
+        if (!require(path.join(functions, 'contact_validation.js')).isEmail(email)) return { error: true, reason: 'email' };
         if (!domains.includes(email.split('@')[1])) return { error: true, reason: 'emailDomain' };
         return { value: { email, platformRole: d.platformRole } };
       },

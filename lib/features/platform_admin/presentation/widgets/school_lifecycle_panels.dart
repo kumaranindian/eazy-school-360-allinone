@@ -5,6 +5,7 @@ import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/features/feature_catalogue.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/validators/validators.dart';
 import '../../../../core/utils/date_formatting.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../../fees/domain/money.dart';
@@ -423,18 +424,37 @@ class SchoolFeaturesPanel extends ConsumerStatefulWidget {
 class _SchoolFeaturesPanelState extends ConsumerState<SchoolFeaturesPanel> {
   bool _history = false;
 
+  /// The switches the server returned for the last change, shown until the
+  /// re-loaded overview arrives (it can take a while: it counts every branch).
+  Map<String, bool>? _stored;
+
+  Map<String, bool> get _features => _stored ?? widget.overview.features;
+
+  @override
+  void didUpdateWidget(SchoolFeaturesPanel old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.overview, widget.overview)) _stored = null;
+  }
+
+  void _apply(Map<String, bool>? stored) {
+    if (stored != null && stored.isNotEmpty && mounted) {
+      setState(() => _stored = stored);
+    }
+  }
+
   Future<void> _flip(FeatureDef f, bool on) async {
     final o = widget.overview;
     final ops = ref.read(platformOpsActionsProvider.notifier);
     if (on) {
-      final ok = await ops.setFeatures(o.id, {f.key: true});
+      final stored = await ops.setFeatures(o.id, {f.key: true});
+      _apply(stored);
       if (!mounted) return;
-      _report(context, ref, ok, '${f.label} on.');
+      _report(context, ref, stored != null, '${f.label} on.');
       return;
     }
     final dependants = [
       for (final d in dependantsOf(f.key))
-        if (o.featureOn(d)) featureLabel(d),
+        if (featureUsable(_features, d)) featureLabel(d),
     ];
     final reason = await showReasonDialog(
       context,
@@ -447,14 +467,15 @@ class _SchoolFeaturesPanelState extends ConsumerState<SchoolFeaturesPanel> {
       destructive: true,
     );
     if (reason == null || !mounted) return;
-    final ok = await ops.setFeatures(
+    final stored = await ops.setFeatures(
       o.id,
       {f.key: false},
       reason: reason,
       confirmDependants: dependants.isNotEmpty,
     );
+    _apply(stored);
     if (!mounted) return;
-    _report(context, ref, ok, '${f.label} off.');
+    _report(context, ref, stored != null, '${f.label} off.');
   }
 
   @override
@@ -469,8 +490,8 @@ class _SchoolFeaturesPanelState extends ConsumerState<SchoolFeaturesPanel> {
         for (final f in kFeatureCatalogue)
           Builder(
             builder: (_) {
-              final on = o.featureOn(f.key);
-              final missing = missingDependencies(o.features, f.key);
+              final on = featureUsable(_features, f.key);
+              final missing = missingDependencies(_features, f.key);
               final blocked = !on && missing.isNotEmpty;
               return SwitchListTile(
                 key: ValueKey('feature-${f.key}'),
@@ -659,36 +680,42 @@ class SchoolBillingPanel extends ConsumerWidget {
     return _Panel(
       title: 'Billing',
       children: [
-        AsyncValueWidget(
-          value: ref.watch(billingProvider(overview.id)),
-          errorMessage: userMessageFor,
-          onRetry: () => ref.invalidate(billingProvider(overview.id)),
-          data: (b) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (b.owed.isEmpty)
-                Text('Nothing is owed.', style: text.bodyMedium)
-              else
-                for (final e in b.owed.entries)
-                  Text(
-                    'Owed ${Money.format(e.value.dueMinor, currency: e.key)}'
-                    '${e.value.overdueMinor > 0 ? ' · overdue ${Money.format(e.value.overdueMinor, currency: e.key)}' : ''}',
-                    style: text.bodyMedium?.copyWith(
-                      color: e.value.overdueMinor > 0
-                          ? Theme.of(context).colorScheme.error
-                          : null,
-                      fontWeight: FontWeight.w600,
+        // Reserves the usual height while the records load, so the buttons
+        // below do not jump when they arrive.
+        ConstrainedBox(
+          key: const ValueKey('billing-body'),
+          constraints: const BoxConstraints(minHeight: 96),
+          child: AsyncValueWidget(
+            value: ref.watch(billingProvider(overview.id)),
+            errorMessage: userMessageFor,
+            onRetry: () => ref.invalidate(billingProvider(overview.id)),
+            data: (b) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (b.owed.isEmpty)
+                  Text('Nothing is owed.', style: text.bodyMedium)
+                else
+                  for (final e in b.owed.entries)
+                    Text(
+                      'Owed ${Money.format(e.value.dueMinor, currency: e.key)}'
+                      '${e.value.overdueMinor > 0 ? ' · overdue ${Money.format(e.value.overdueMinor, currency: e.key)}' : ''}',
+                      style: text.bodyMedium?.copyWith(
+                        color: e.value.overdueMinor > 0
+                            ? Theme.of(context).colorScheme.error
+                            : null,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
+                const SizedBox(height: AppSpacing.xs),
+                for (final r in b.records)
+                  BillingRecordTile(
+                    record: r,
+                    todayKey: today,
+                    busy: busy,
+                    showSchool: false,
                   ),
-              const SizedBox(height: AppSpacing.xs),
-              for (final r in b.records)
-                BillingRecordTile(
-                  record: r,
-                  todayKey: today,
-                  busy: busy,
-                  showSchool: false,
-                ),
-            ],
+              ],
+            ),
           ),
         ),
         const SizedBox(height: AppSpacing.xs),
@@ -737,7 +764,22 @@ class BillingRecordTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final r = record;
+    final change = ref.watch(billingStatusChangesProvider)[record.id];
+    final r = change == null
+        ? record
+        : PlatformBillingRecord(
+            id: record.id,
+            schoolId: record.schoolId,
+            schoolName: record.schoolName,
+            period: record.period,
+            amountMinor: record.amountMinor,
+            currency: record.currency,
+            dueDate: record.dueDate,
+            status: change.status,
+            paidDate: change.paidDate ?? record.paidDate,
+            reference: record.reference,
+            note: record.note,
+          );
     final overdue = r.isOverdueOn(todayKey);
     final scheme = Theme.of(context).colorScheme;
     Future<void> set(String status, {String? paidDate}) async {
@@ -953,12 +995,7 @@ class _AddAdminDialogState extends State<_AddAdminDialog> {
               controller: _email,
               keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(labelText: 'Email'),
-              validator: (v) =>
-                  RegExp(
-                    r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$',
-                  ).hasMatch((v ?? '').trim())
-                  ? null
-                  : 'Enter a valid email address',
+              validator: Validators.email,
             ),
           ],
         ),

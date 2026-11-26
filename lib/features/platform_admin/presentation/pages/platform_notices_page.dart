@@ -37,6 +37,7 @@ class PlatformNoticesPage extends ConsumerWidget {
         role == PlatformRole.owner || role == PlatformRole.support;
     final busy = ref.watch(platformOpsActionsProvider).isLoading;
     final text = Theme.of(context).textTheme;
+    final justWithdrawn = ref.watch(recentlyWithdrawnNoticesProvider);
     return PlatformScaffold(
       title: 'Notices to schools',
       floatingActionButton: canPublish
@@ -69,6 +70,9 @@ class PlatformNoticesPage extends ConsumerWidget {
                       const SizedBox(height: AppSpacing.sm),
                   itemBuilder: (_, i) {
                     final n = list[i];
+                    final withdrawn =
+                        n.status == 'WITHDRAWN' || justWithdrawn.contains(n.id);
+                    final live = n.live && !withdrawn;
                     return Card(
                       key: ValueKey('notice-${n.id}'),
                       margin: EdgeInsets.zero,
@@ -85,9 +89,9 @@ class PlatformNoticesPage extends ConsumerWidget {
                                 Text(n.title, style: text.titleSmall),
                                 Chip(
                                   label: Text(
-                                    n.live
+                                    live
                                         ? 'Live'
-                                        : n.status == 'WITHDRAWN'
+                                        : withdrawn
                                         ? 'Withdrawn'
                                         : 'Not showing',
                                   ),
@@ -102,7 +106,7 @@ class PlatformNoticesPage extends ConsumerWidget {
                               ' · until ${formatInstant(n.endsAt)} · ${n.createdByEmail}',
                               style: text.bodySmall,
                             ),
-                            if (canPublish && n.live)
+                            if (canPublish && live)
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: TextButton(
@@ -127,7 +131,7 @@ class PlatformNoticesPage extends ConsumerWidget {
                                           if (!context.mounted) return;
                                           context.showSnackBar(
                                             ok
-                                                ? 'Withdrawn.'
+                                                ? 'Notice withdrawn.'
                                                 : userMessageFor(
                                                     ref
                                                         .read(
@@ -212,7 +216,21 @@ class _ComposeDialogState extends ConsumerState<_ComposeDialog> {
   Widget build(BuildContext context) {
     final busy = ref.watch(platformOpsActionsProvider).isLoading;
     final schools = ref.watch(platformSchoolsProvider).value ?? const [];
+    // On a narrow phone the default dialog margins and padding left the
+    // switch and school labels about 60 px, one or two letters per line (QA
+    // PLAT-01 DEF-09): use the width for the labels instead.
+    final width = MediaQuery.sizeOf(context).width;
     return AlertDialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: width < 600 ? (width < 360 ? 8 : 16) : 40,
+        vertical: 24,
+      ),
+      contentPadding: EdgeInsets.fromLTRB(
+        width < 360 ? 12 : 24,
+        16,
+        width < 360 ? 12 : 24,
+        8,
+      ),
       title: const Text('New notice'),
       content: SizedBox(
         width: 480,
@@ -245,6 +263,7 @@ class _ComposeDialogState extends ConsumerState<_ComposeDialog> {
                 ),
                 DropdownButtonFormField<NoticeSeverity>(
                   key: const ValueKey('nt-severity'),
+                  isExpanded: true,
                   value: _severity,
                   decoration: const InputDecoration(labelText: 'Importance'),
                   items: [
@@ -257,6 +276,7 @@ class _ComposeDialogState extends ConsumerState<_ComposeDialog> {
                 ),
                 DropdownButtonFormField<int>(
                   key: const ValueKey('nt-days'),
+                  isExpanded: true,
                   value: _days,
                   decoration: const InputDecoration(labelText: 'Show for'),
                   items: [

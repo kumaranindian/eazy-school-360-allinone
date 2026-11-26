@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../shared/widgets/app_version_footer.dart';
 import '../../../authentication/presentation/sign_out.dart';
 
 /// Frame of every platform-admin screen. These screens have no school or
@@ -50,18 +51,10 @@ class PlatformScaffold extends ConsumerWidget {
         actions: [
           ...actions,
           if (user != null)
-            Flexible(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    role == null ? user.email : '${user.email} · $role',
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-              ),
+            _Account(
+              key: const ValueKey('platform-account'),
+              email: user.email,
+              role: role,
             ),
           IconButton(
             tooltip: 'Sign out',
@@ -72,6 +65,54 @@ class PlatformScaffold extends ConsumerWidget {
       ),
       floatingActionButton: floatingActionButton,
       body: SafeArea(child: child),
+      // Version, build and (outside prod) environment, as on every other
+      // screen, so QA can tell which build they are testing.
+      bottomNavigationBar: const SafeArea(child: AppVersionFooter()),
+    );
+  }
+}
+
+/// Who is signed in, sized to the screen. A `Flexible` here made the actions
+/// row fill the whole app bar and pushed the other actions over the back
+/// arrow (QA DEF-02 / DEF-09), so the text gets a bounded width instead:
+/// email and role on wide screens, the role on narrow ones, and only an icon
+/// (with the full text as its tooltip) on very narrow ones.
+class _Account extends StatelessWidget {
+  final String email;
+  final String? role;
+
+  const _Account({super.key, required this.email, this.role});
+
+  @override
+  Widget build(BuildContext context) {
+    final full = role == null ? email : '$email · $role';
+    final width = MediaQuery.sizeOf(context).width;
+    if (width < 360) {
+      return Tooltip(
+        message: full,
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+          child: Icon(Icons.account_circle_outlined),
+        ),
+      );
+    }
+    final wide = width >= 720;
+    return Tooltip(
+      message: full,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: wide ? 320 : 120),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          child: Center(
+            child: Text(
+              wide ? full : (role ?? email),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

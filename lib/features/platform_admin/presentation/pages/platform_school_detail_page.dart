@@ -180,8 +180,15 @@ class PlatformSchoolDetailPage extends ConsumerWidget {
                     children: [
                       for (final b in o.branches)
                         ListTile(
+                          key: ValueKey('branch-${b.id}'),
                           dense: true,
                           title: Text(b.name),
+                          subtitle: b.students == null
+                              ? null
+                              : Text(
+                                  '${b.students} students · ${b.staff} staff '
+                                  '· ${b.parents} parents',
+                                ),
                           trailing: b.status == 'ACTIVE'
                               ? null
                               : Text(b.status.toLowerCase()),

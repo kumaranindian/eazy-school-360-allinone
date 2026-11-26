@@ -17,6 +17,7 @@ class ReturnTo {
     AppRoutes.forgotPassword,
     AppRoutes.createSchool,
     AppRoutes.accountInactive,
+    AppRoutes.platformMfa,
   };
 
   /// [raw] if it is a safe in-app destination, else null. Only a path on this

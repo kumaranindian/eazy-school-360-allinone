@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -28,9 +29,19 @@ class _LoginFormState extends ConsumerState<LoginForm> {
 
   @override
   void dispose() {
+    _forgetPassword();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  /// On the web, autofill-hinted fields are mirrored into hidden DOM inputs
+  /// that keep their value until the autofill context is finished (QA
+  /// DEF-04: the password stayed readable in the page after sign-in). Clear
+  /// it and finish the context once the password has been used.
+  void _forgetPassword() {
+    _passwordController.clear();
+    TextInput.finishAutofillContext();
   }
 
   Future<void> _submit() async {
@@ -49,12 +60,16 @@ class _LoginFormState extends ConsumerState<LoginForm> {
     if (error is MfaRequiredException) {
       // A correct password on an account with two-step verification: ask for
       // the code instead of showing an error.
+      // The pending sign-in no longer needs the password.
+      _forgetPassword();
       await MfaCodeDialog.show(context, error.pending);
       return;
     }
     if (state.hasError) {
       context.showSnackBar(userMessageFor(state.error!), isError: true);
+      return;
     }
+    _forgetPassword();
   }
 
   Future<void> _submitGoogle() async {
@@ -77,111 +92,121 @@ class _LoginFormState extends ConsumerState<LoginForm> {
       return PhoneOtpForm(onBack: () => setState(() => _phoneMode = false));
     }
 
-    return Form(
-      key: _formKey,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextFormField(
-            controller: _emailController,
-            enabled: !isSubmitting,
-            autofillHints: const [AutofillHints.email],
-            keyboardType: TextInputType.emailAddress,
-            textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              prefixIcon: Icon(Icons.email_outlined),
+    // Finishes the autofill context when the form leaves the tree, so no
+    // hidden password input outlives the sign-in page.
+    return AutofillGroup(
+      onDisposeAction: AutofillContextAction.commit,
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextFormField(
+              controller: _emailController,
+              enabled: !isSubmitting,
+              autofillHints: const [AutofillHints.email],
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                prefixIcon: Icon(Icons.email_outlined),
+              ),
+              validator: Validators.email,
             ),
-            validator: Validators.email,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          TextFormField(
-            controller: _passwordController,
-            enabled: !isSubmitting,
-            autofillHints: const [AutofillHints.password],
-            obscureText: _obscurePassword,
-            textInputAction: TextInputAction.done,
-            decoration: InputDecoration(
-              labelText: 'Password',
-              prefixIcon: const Icon(Icons.lock_outline),
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscurePassword
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined,
+            const SizedBox(height: AppSpacing.md),
+            TextFormField(
+              controller: _passwordController,
+              enabled: !isSubmitting,
+              autofillHints: const [AutofillHints.password],
+              obscureText: _obscurePassword,
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                prefixIcon: const Icon(Icons.lock_outline),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
                 ),
-                onPressed: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
+              ),
+              validator: Validators.password,
+              onFieldSubmitted: (_) => _submit(),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: isSubmitting
+                    ? null
+                    : () => context.push(AppRoutes.forgotPassword),
+                child: const Text('Forgot password?'),
               ),
             ),
-            validator: Validators.password,
-            onFieldSubmitted: (_) => _submit(),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
+            const SizedBox(height: AppSpacing.sm),
+            FilledButton(
+              onPressed: isSubmitting ? null : _submit,
+              child: signInState.isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    )
+                  : const Text('Sign in'),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              children: [
+                const Expanded(child: Divider()),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                  ),
+                  child: Text(
+                    'or',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                const Expanded(child: Divider()),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            OutlinedButton.icon(
+              onPressed: isSubmitting ? null : _submitGoogle,
+              icon: googleSignInState.isLoading
+                  ? const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.g_mobiledata),
+              label: const Text('Sign in with Google'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            OutlinedButton.icon(
               onPressed: isSubmitting
                   ? null
-                  : () => context.push(AppRoutes.forgotPassword),
-              child: const Text('Forgot password?'),
+                  : () => setState(() => _phoneMode = true),
+              icon: const Icon(Icons.phone_outlined),
+              label: const Text('Sign in with phone (WhatsApp code)'),
             ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          FilledButton(
-            onPressed: isSubmitting ? null : _submit,
-            child: signInState.isLoading
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2.5),
-                  )
-                : const Text('Sign in'),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              const Expanded(child: Divider()),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                child: Text('or', style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: AppSpacing.lg),
+            Center(
+              child: TextButton(
+                onPressed: isSubmitting
+                    ? null
+                    // `go`, not `push`: on the web only `go` gives the page
+                    // its own address (/register), so it survives a refresh
+                    // and can be shared. Drops any stale `?from=`.
+                    : () => context.go(AppRoutes.register),
+                child: const Text('Register your school'),
               ),
-              const Expanded(child: Divider()),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          OutlinedButton.icon(
-            onPressed: isSubmitting ? null : _submitGoogle,
-            icon: googleSignInState.isLoading
-                ? const SizedBox(
-                    height: 16,
-                    width: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.g_mobiledata),
-            label: const Text('Sign in with Google'),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          OutlinedButton.icon(
-            onPressed: isSubmitting
-                ? null
-                : () => setState(() => _phoneMode = true),
-            icon: const Icon(Icons.phone_outlined),
-            label: const Text('Sign in with phone (WhatsApp code)'),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Center(
-            child: TextButton(
-              onPressed: isSubmitting
-                  ? null
-                  // `go`, not `push`: on the web only `go` gives the page
-                  // its own address (/register), so it survives a refresh
-                  // and can be shared. Drops any stale `?from=`.
-                  : () => context.go(AppRoutes.register),
-              child: const Text('Register your school'),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
