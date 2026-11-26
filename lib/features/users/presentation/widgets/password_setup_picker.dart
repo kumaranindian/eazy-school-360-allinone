@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_constants.dart';
+import '../../../../core/validators/validators.dart';
 import '../../domain/login_provisioning.dart';
 
 /// The "how should the password be set?" choice shared by "Give login access"
@@ -35,15 +35,7 @@ class PasswordSetupPicker extends StatelessWidget {
     this.enabled = true,
   });
 
-  static String? passwordProblem(String v) {
-    if (v.length < AppConstants.minPasswordLength) {
-      return 'Use at least ${AppConstants.minPasswordLength} characters.';
-    }
-    if (!RegExp('[A-Za-z]').hasMatch(v) || !RegExp(r'\d').hasMatch(v)) {
-      return 'Include at least one letter and one number.';
-    }
-    return null;
-  }
+  static String? passwordProblem(String v) => Validators.newPasswordProblem(v);
 
   /// False only while the admin-defined password is missing, weak or
   /// mismatched.
@@ -121,7 +113,7 @@ class PasswordSetupPicker extends StatelessWidget {
               isDense: true,
               errorText:
                   confirm.text.isNotEmpty && confirm.text != password.text
-                  ? 'Passwords do not match'
+                  ? 'Passwords do not match.'
                   : null,
             ),
           ),

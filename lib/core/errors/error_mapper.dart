@@ -103,6 +103,14 @@ AppFailure _mapFirebaseAuthException(fb.FirebaseAuthException error) {
       );
     case 'network-request-failed':
       return const NetworkFailure();
+    case 'email-already-in-use':
+      return const AuthFailure(
+        'This email is already registered. Sign in instead.',
+      );
+    case 'weak-password':
+      return const ValidationFailure(
+        'That password is too weak. Use at least 8 characters with a letter and a number.',
+      );
     case 'account-exists-with-different-credential':
       return const AuthFailure(
         'An account already exists for this email with a different sign-in method.',

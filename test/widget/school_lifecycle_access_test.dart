@@ -127,8 +127,8 @@ void main() {
     () {
       final messages = <String, (String, String)>{
         'INACTIVE': (
-          'Account is inactive',
-          'Account is inactive. Please contact admin@avail404.com.',
+          'Your school is waiting for activation',
+          'Avail404 activates every new school before it can be used',
         ),
         'SUSPENDED': (
           'School account suspended',
@@ -160,6 +160,11 @@ void main() {
             );
             expect(find.text('Sign out'), findsOneWidget);
             expect(
+              find.byKey(const ValueKey('check-activation')),
+              e.key == 'INACTIVE' ? findsOneWidget : findsNothing,
+              reason: 'only a school waiting for activation can be re-checked',
+            );
+            expect(
               find.textContaining('Incorrect email or password'),
               findsNothing,
               reason: 'never reported as bad credentials',
@@ -183,7 +188,10 @@ void main() {
               school: SchoolStatus.inactive,
             );
             expect(path, '/account-inactive');
-            expect(find.text('Account is inactive'), findsOneWidget);
+            expect(
+              find.text('Your school is waiting for activation'),
+              findsOneWidget,
+            );
           },
         );
       }
@@ -221,13 +229,28 @@ void main() {
           school: SchoolStatus.closed,
         );
         expect(path, '/platform');
-        expect(find.text('Account is inactive'), findsNothing);
+        expect(
+          find.text('Your school is waiting for activation'),
+          findsNothing,
+        );
       },
     );
   });
 
   group('the screen stays usable on a phone at large text', () {
     for (final size in const [Size(360, 640), Size(768, 1024)]) {
+      testWidgets('waiting for activation at $size', (tester) async {
+        tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await _pump(
+          tester,
+          role: UserRole.schoolAdmin,
+          state: 'INACTIVE',
+          size: size,
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.byKey(const ValueKey('check-activation')), findsOneWidget);
+      });
       testWidgets('layout at $size', (tester) async {
         tester.platformDispatcher.textScaleFactorTestValue = 1.5;
         addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);

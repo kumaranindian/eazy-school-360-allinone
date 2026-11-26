@@ -174,7 +174,10 @@ class _LoginFormState extends ConsumerState<LoginForm> {
             child: TextButton(
               onPressed: isSubmitting
                   ? null
-                  : () => context.push(AppRoutes.register),
+                  // `go`, not `push`: on the web only `go` gives the page
+                  // its own address (/register), so it survives a refresh
+                  // and can be shared. Drops any stale `?from=`.
+                  : () => context.go(AppRoutes.register),
               child: const Text('Register your school'),
             ),
           ),

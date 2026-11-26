@@ -114,6 +114,10 @@ class SignUpController extends AsyncNotifier<void> {
   Future<void> build() async {}
 
   Future<void> signUp({required String email, required String password}) async {
+    // A second tap/Enter before the button disables must not send a second
+    // sign-up (it would fail with email-already-in-use after the first one
+    // created the account).
+    if (state.isLoading) return;
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       await ref

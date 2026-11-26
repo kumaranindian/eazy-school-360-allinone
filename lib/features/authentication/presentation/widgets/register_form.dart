@@ -21,7 +21,11 @@ class _RegisterFormState extends ConsumerState<RegisterForm> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _confirmPasswordFocus = FocusNode();
   bool _obscurePassword = true;
+  // Once a submit has shown errors, re-check fields as they are edited so a
+  // corrected value clears its message straight away.
+  bool _validateOnChange = false;
   bool _obscureConfirmPassword = true;
 
   @override
@@ -29,11 +33,15 @@ class _RegisterFormState extends ConsumerState<RegisterForm> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _confirmPasswordFocus.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      if (!_validateOnChange) setState(() => _validateOnChange = true);
+      return;
+    }
 
     await ref
         .read(signUpControllerProvider.notifier)
@@ -56,6 +64,9 @@ class _RegisterFormState extends ConsumerState<RegisterForm> {
 
     return Form(
       key: _formKey,
+      autovalidateMode: _validateOnChange
+          ? AutovalidateMode.onUserInteraction
+          : AutovalidateMode.disabled,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -92,11 +103,15 @@ class _RegisterFormState extends ConsumerState<RegisterForm> {
                     setState(() => _obscurePassword = !_obscurePassword),
               ),
             ),
-            validator: Validators.password,
+            validator: Validators.newPassword,
+            // Straight to Confirm password, not to the show/hide icon. This
+            // replaces the default "next" (which would focus the icon).
+            onEditingComplete: _confirmPasswordFocus.requestFocus,
           ),
           const SizedBox(height: AppSpacing.md),
           TextFormField(
             controller: _confirmPasswordController,
+            focusNode: _confirmPasswordFocus,
             enabled: !isSubmitting,
             autofillHints: const [AutofillHints.newPassword],
             obscureText: _obscureConfirmPassword,
@@ -117,7 +132,7 @@ class _RegisterFormState extends ConsumerState<RegisterForm> {
             ),
             validator: (value) {
               if (value != _passwordController.text) {
-                return 'Passwords do not match';
+                return 'Passwords do not match.';
               }
               return Validators.required(value, fieldName: 'Confirm password');
             },
@@ -160,7 +175,7 @@ class _RegisterFormState extends ConsumerState<RegisterForm> {
             child: TextButton(
               onPressed: isSubmitting
                   ? null
-                  : () => context.push(AppRoutes.login),
+                  : () => context.go(AppRoutes.login),
               child: const Text('Already have an account? Sign in'),
             ),
           ),

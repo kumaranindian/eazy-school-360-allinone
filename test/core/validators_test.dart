@@ -12,6 +12,76 @@ void main() {
       'accepts valid',
       () => expect(Validators.email('user@example.com'), isNull),
     );
+    test('accepts common real addresses', () {
+      for (final e in [
+        'first.last@school.co.in',
+        'o\'brien+fees@example.org',
+        'a_b-c@sub-domain.example.com',
+        '  padded@example.com  ',
+      ]) {
+        expect(Validators.email(e), isNull, reason: e);
+      }
+    });
+    test('rejects markup, bad dots and bad domains (DEF-04)', () {
+      for (final e in [
+        '<script>alert(1)</script>@x.com',
+        'a b@example.com',
+        '.lead@example.com',
+        'trail.@example.com',
+        'dou..ble@example.com',
+        'user@-bad.com',
+        'user@example',
+        'user@example.c',
+        'user@@example.com',
+      ]) {
+        expect(Validators.email(e), isNotNull, reason: e);
+      }
+    });
+    test('enforces the 64-character local part (DEF-04)', () {
+      expect(Validators.email('${'a' * 64}@example.com'), isNull);
+      expect(Validators.email('${'a' * 70}@example.com'), isNotNull);
+    });
+  });
+
+  group('Validators.phone', () {
+    test('optional when empty', () => expect(Validators.phone(''), isNull));
+    test('accepts usual formats', () {
+      for (final p in [
+        '+91 98765 43210',
+        '044-2345 6789',
+        '(04) 123 4567',
+        '9876543210',
+      ]) {
+        expect(Validators.phone(p), isNull, reason: p);
+      }
+    });
+    test('rejects letters and implausible lengths (DEF-03)', () {
+      for (final p in [
+        'abcde',
+        '98765abc10',
+        '12345',
+        '1234567890123456',
+        '98+765 43210',
+      ]) {
+        expect(Validators.phone(p), isNotNull, reason: p);
+      }
+    });
+  });
+
+  group('Validators.newPassword (OBS-01)', () {
+    test('needs 8 characters', () {
+      expect(Validators.newPassword('ab12'), isNotNull);
+    });
+    test('needs a letter and a number', () {
+      expect(Validators.newPassword('abcdefgh'), isNotNull);
+      expect(Validators.newPassword('12345678'), isNotNull);
+    });
+    test('accepts a letter-and-number password', () {
+      expect(Validators.newPassword('school2026'), isNull);
+    });
+    test('sign-in still accepts an older letters-only password', () {
+      expect(Validators.password('abcdefgh'), isNull);
+    });
   });
 
   group('Validators.password', () {

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/constants/app_constants.dart';
+import '../../../../core/validators/validators.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
@@ -54,16 +54,7 @@ class _ChangeInitialPasswordPageState
     super.dispose();
   }
 
-  static String? _policy(String? v) {
-    final value = v ?? '';
-    if (value.length < AppConstants.minPasswordLength) {
-      return 'Use at least ${AppConstants.minPasswordLength} characters.';
-    }
-    if (!RegExp('[A-Za-z]').hasMatch(value) || !RegExp(r'\d').hasMatch(value)) {
-      return 'Include at least one letter and one number.';
-    }
-    return null;
-  }
+  static String? _policy(String? v) => Validators.newPasswordProblem(v ?? '');
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
