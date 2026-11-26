@@ -164,12 +164,17 @@ async function getSchoolOverview(ctx, callerUid, token, data) {
 
   const branchSnap = await schoolRef.collection('branches').get();
   const branches = branchSnap.docs.map((d) => ({ id: d.id, name: d.data().name || d.id, status: d.data().status || '' }));
-  const sum = async (coll) => {
-    let n = 0;
-    for (const b of branches) n += await countOf(schoolRef.collection('branches').doc(b.id).collection(coll));
-    return n;
-  };
-  const [students, staff, parents] = [await sum('students'), await sum('staff'), await sum('parents')];
+  // Counts only (aggregate queries), per branch and in total: never a record.
+  for (const b of branches) {
+    const branchRef = schoolRef.collection('branches').doc(b.id);
+    b.counts = {
+      students: await countOf(branchRef.collection('students')),
+      staff: await countOf(branchRef.collection('staff')),
+      parents: await countOf(branchRef.collection('parents')),
+    };
+  }
+  const sum = (k) => branches.reduce((n, b) => n + b.counts[k], 0);
+  const [students, staff, parents] = [sum('students'), sum('staff'), sum('parents')];
 
   const adminSnap = await ctx.db.collection('users').where('schoolId', '==', schoolId).where('role', '==', 'SCHOOL_ADMIN').limit(20).get();
   const admins = adminSnap.docs.map((d) => ({ uid: d.id, name: d.data().name || '', email: d.data().email || '', status: d.data().status || '' }));

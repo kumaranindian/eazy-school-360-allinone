@@ -123,11 +123,25 @@ void main() {
                       !p.name.startsWith('viewOwn') &&
                       p != Permission.viewNotifications &&
                       // pay data is never part of a support grant
-                      p != Permission.viewPayroll));
+                      p != Permission.viewPayroll &&
+                      // nor expenses (callable-only; QA PLAT-01 DEF-08)
+                      p != Permission.viewExpenses &&
+                      p != Permission.viewExpenseReports));
           expect(session.can(p), allowedInSupport, reason: '$p');
         }
       },
     );
+
+    test('expenses and payroll are hidden in a support session (DEF-08)', () {
+      for (final p in const [
+        Permission.viewExpenses,
+        Permission.viewExpenseReports,
+        Permission.createExpenses,
+        Permission.viewPayroll,
+      ]) {
+        expect(session.can(p), isFalse, reason: '$p');
+      }
+    });
 
     test('nothing that writes is available', () {
       const writers = [

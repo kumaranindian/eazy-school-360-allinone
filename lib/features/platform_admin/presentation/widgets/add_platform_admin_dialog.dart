@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/validators/validators.dart';
 import '../../domain/platform_role.dart';
 import '../providers/platform_admin_providers.dart';
 
@@ -81,12 +82,7 @@ class _AddPlatformAdminDialogState
                   enabled: !busy,
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(labelText: 'Company email'),
-                  validator: (v) {
-                    final t = (v ?? '').trim();
-                    return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$').hasMatch(t)
-                        ? null
-                        : 'Enter a valid email address';
-                  },
+                  validator: Validators.email,
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 DropdownButtonFormField<PlatformRole>(

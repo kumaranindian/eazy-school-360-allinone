@@ -29,6 +29,7 @@ class _CreateSchoolFormState extends ConsumerState<CreateSchoolForm> {
   final _schoolEmailController = TextEditingController();
   final _schoolPhoneController = TextEditingController();
   RegionalSettings _regional = RegionalSettings.forCountry(Countries.all.first);
+  bool _validateOnChange = false;
 
   @override
   void initState() {
@@ -46,7 +47,10 @@ class _CreateSchoolFormState extends ConsumerState<CreateSchoolForm> {
   }
 
   Future<void> _submit() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      if (!_validateOnChange) setState(() => _validateOnChange = true);
+      return;
+    }
 
     await ref
         .read(createSchoolControllerProvider.notifier)
@@ -82,6 +86,9 @@ class _CreateSchoolFormState extends ConsumerState<CreateSchoolForm> {
 
     return Form(
       key: _formKey,
+      autovalidateMode: _validateOnChange
+          ? AutovalidateMode.onUserInteraction
+          : AutovalidateMode.disabled,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -119,6 +126,7 @@ class _CreateSchoolFormState extends ConsumerState<CreateSchoolForm> {
               labelText: 'School phone (optional)',
               prefixIcon: Icon(Icons.phone_outlined),
             ),
+            validator: Validators.phone,
             onFieldSubmitted: (_) => _submit(),
           ),
           const SizedBox(height: AppSpacing.md),

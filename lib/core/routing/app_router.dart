@@ -158,15 +158,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return path == '/' ? null : ReturnTo.redirect('/', state.uri);
         }
         final secured = security.value?.secondFactorSignedIn ?? false;
+        // A reload or deep link keeps where it was going (`?from=`) through
+        // the splash and the two-step page, and returns there once the
+        // session is secured (QA PLAT-01 DEF-06).
+        final platformFrom = _platformDestination(state.uri);
         if (!secured) {
-          return path == AppRoutes.platformMfa ? null : AppRoutes.platformMfa;
+          return path == AppRoutes.platformMfa
+              ? null
+              : ReturnTo.redirect(AppRoutes.platformMfa, state.uri);
         }
-        if (path == AppRoutes.platformMfa) return AppRoutes.platformHome;
+        if (path == AppRoutes.platformMfa) {
+          return platformFrom ?? AppRoutes.platformHome;
+        }
         final onPlatformPage =
             path == AppRoutes.platformHome ||
             path.startsWith('${AppRoutes.platformHome}/');
         if (tenant.school == null && !onPlatformPage) {
-          return AppRoutes.platformHome;
+          return platformFrom ?? AppRoutes.platformHome;
         }
       } else if (path == AppRoutes.platformMfa ||
           path == AppRoutes.platformHome ||
@@ -372,3 +380,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+/// The `?from=` destination carried by [uri] when it is a platform page,
+/// else null (a platform admin without a school only goes to those).
+String? _platformDestination(Uri uri) {
+  final from = ReturnTo.safe(uri.queryParameters[ReturnTo.param]);
+  if (from == null) return null;
+  final path = Uri.parse(from).path;
+  if (path == AppRoutes.platformMfa) return null;
+  final isPlatform =
+      path == AppRoutes.platformHome ||
+      path.startsWith('${AppRoutes.platformHome}/');
+  return isPlatform ? from : null;
+}

@@ -70,7 +70,7 @@ const REASON_MIN = 10;
 const OFFBOARD_REASON_MIN = 15;
 const GRACE_DAYS = 30;
 const PAGE = 400;
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const { isEmail, isPhone } = require('./contact_validation');
 const text = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const notFound = (e) => e && (e.code === 'auth/user-not-found' || e.code === 'not-found');
 
@@ -320,19 +320,22 @@ function validateSchool(d) {
   const dateFormat = text(r.dateFormat, 20);
   if (name.length < 2) return { error: 'INVALID_ARGUMENT', reason: 'schoolName' };
   if (adminName.length < 2) return { error: 'INVALID_ARGUMENT', reason: 'adminName' };
-  if (!EMAIL.test(adminEmail)) return { error: 'INVALID_ARGUMENT', reason: 'adminEmail' };
-  if (!EMAIL.test(schoolEmail)) return { error: 'INVALID_ARGUMENT', reason: 'schoolEmail' };
+  if (!isEmail(adminEmail)) return { error: 'INVALID_ARGUMENT', reason: 'adminEmail' };
+  if (!isEmail(schoolEmail)) return { error: 'INVALID_ARGUMENT', reason: 'schoolEmail' };
   if (!/^[A-Z]{2}$/.test(countryCode)) return { error: 'INVALID_ARGUMENT', reason: 'country' };
   if (!/^[A-Z]{3}$/.test(currency)) return { error: 'INVALID_ARGUMENT', reason: 'currency' };
   if (!timezone) return { error: 'INVALID_ARGUMENT', reason: 'timezone' };
   if (!dateFormat) return { error: 'INVALID_ARGUMENT', reason: 'dateFormat' };
+  // Optional, but when given it must look like a phone number (never letters).
+  const phone = typeof (d && d.phone) === 'string' ? d.phone.trim() : '';
+  if (phone && !isPhone(phone)) return { error: 'INVALID_ARGUMENT', reason: 'phone' };
   return {
     value: {
       name,
       adminName,
       adminEmail,
       schoolEmail,
-      phone: text(d.phone, 30) || null,
+      phone: phone || null,
       country: text(d.countryName, 80) || null,
       regional: { countryCode, currency, timezone, dateFormat },
     },
@@ -463,7 +466,7 @@ async function addSchoolAdmin(ctx, callerUid, token, data) {
   const email = text(data && data.email, 254).toLowerCase();
   if (!schoolId) return { error: 'INVALID_ARGUMENT', reason: 'schoolId' };
   if (name.length < 2) return { error: 'INVALID_ARGUMENT', reason: 'adminName' };
-  if (!EMAIL.test(email)) return { error: 'INVALID_ARGUMENT', reason: 'adminEmail' };
+  if (!isEmail(email)) return { error: 'INVALID_ARGUMENT', reason: 'adminEmail' };
   const school = await schoolOf(ctx.db, schoolId);
   if (!school) return { error: 'NOT_FOUND' };
   const user = await newAuthUser(ctx.auth, email, name);

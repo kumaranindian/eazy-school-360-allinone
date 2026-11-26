@@ -20,6 +20,8 @@ class CreateSchoolController extends AsyncNotifier<void> {
     String? schoolPhone,
     required RegionalSettings regional,
   }) async {
+    // Ignore a second submit while the first is still writing.
+    if (state.isLoading) return;
     final currentUser = ref.read(authRepositoryProvider).currentUser;
     if (currentUser == null) {
       state = AsyncError(const AuthFailure(), StackTrace.current);

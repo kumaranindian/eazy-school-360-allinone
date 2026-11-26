@@ -443,11 +443,14 @@ void main() {
       final w = await openAdmins(tester);
       await tester.tap(find.byKey(const ValueKey('pa-add')));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byKey(const ValueKey('pa-email')), 'nope');
+      await tester.enterText(
+        find.byKey(const ValueKey('pa-email')),
+        '<script>@x.com',
+      );
       await tester.tap(find.byKey(const ValueKey('pa-save')));
       await tester.pumpAndSettle();
       expect(find.text('Enter the full name'), findsOneWidget);
-      expect(find.text('Enter a valid email address'), findsOneWidget);
+      expect(find.text('Enter a valid email address.'), findsOneWidget);
       expect(w.admins.created, isEmpty);
     });
 

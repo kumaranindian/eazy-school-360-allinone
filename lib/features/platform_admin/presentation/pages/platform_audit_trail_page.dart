@@ -293,7 +293,24 @@ class _Summary extends ConsumerWidget {
         .watch(auditSummaryProvider)
         .when(
           loading: () => const LinearProgressIndicator(),
-          error: (e, _) => Text(userMessageFor(e)),
+          // The summary is a convenience: if it fails the event list below
+          // still loads, so say so plainly (never the raw Firebase text).
+          error: (e, _) => Row(
+            key: const ValueKey('audit-summary-error'),
+            children: [
+              Expanded(
+                child: Text(
+                  "The summary couldn't be loaded. The events below are "
+                  'still up to date.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              TextButton(
+                onPressed: () => ref.invalidate(auditSummaryProvider),
+                child: const Text('Reload summary'),
+              ),
+            ],
+          ),
           data: (s) => Wrap(
             key: const ValueKey('audit-summary'),
             spacing: AppSpacing.sm,

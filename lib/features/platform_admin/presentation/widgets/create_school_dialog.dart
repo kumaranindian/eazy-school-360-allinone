@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/regional/country.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/validators/validators.dart';
 import '../../domain/platform_ops_models.dart';
 import '../providers/platform_ops_providers.dart';
 
@@ -134,6 +135,7 @@ class _CreateSchoolDialogState extends ConsumerState<CreateSchoolDialog> {
                   decoration: const InputDecoration(
                     labelText: 'School phone (optional)',
                   ),
+                  validator: Validators.phone,
                 ),
                 const SizedBox(height: AppSpacing.md),
                 Text('First administrator', style: text.titleSmall),
@@ -154,12 +156,7 @@ class _CreateSchoolDialogState extends ConsumerState<CreateSchoolDialog> {
                   enabled: !busy,
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(labelText: 'Email'),
-                  validator: (v) =>
-                      RegExp(
-                        r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$',
-                      ).hasMatch((v ?? '').trim())
-                      ? null
-                      : 'Enter a valid email address',
+                  validator: Validators.email,
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(

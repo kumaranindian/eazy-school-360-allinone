@@ -594,6 +594,10 @@ async function getAuditSummary(ctx, uid, token, data) {
     for (const m of months) {
       let q = partition(ctx.db, m).where('timestampMs', '>=', fromMs_).where('timestampMs', '<=', toMs_);
       for (const [k, v] of extra) q = q.where(k, '==', v);
+      // Descending, like scan(): it is the (field ==, timestampMs DESC) composite indexes in
+      // firestore.indexes.json that exist. Without the orderBy the count needs an ASC index and
+      // Firestore refuses it (FAILED_PRECONDITION "requires an index"), surfacing as a 500.
+      q = q.orderBy('timestampMs', 'desc');
       n += (await q.count().get()).data().count;
     }
     return n;

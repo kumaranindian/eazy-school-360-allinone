@@ -289,7 +289,7 @@ class FakePlatformOpsRepository implements PlatformOpsRepository {
   }
 
   @override
-  Future<void> setFeatures({
+  Future<Map<String, bool>> setFeatures({
     required String schoolId,
     required Map<String, bool> features,
     String? reason,
@@ -298,7 +298,12 @@ class FakePlatformOpsRepository implements PlatformOpsRepository {
     _maybeFail();
     featureCalls.add((schoolId: schoolId, features: features));
     featureArgs.add((reason: reason, confirm: confirmDependants));
+    return featuresAfter ?? features;
   }
+
+  /// What `setFeatures` reports as the school's switches afterwards
+  /// (default: just the requested change).
+  Map<String, bool>? featuresAfter;
 
   final featureArgs = <({String? reason, bool confirm})>[];
   List<FeatureHistoryEntry> featureHist = [];
@@ -372,7 +377,7 @@ class FakePlatformOpsRepository implements PlatformOpsRepository {
   }
 
   @override
-  Future<void> setBillingStatus({
+  Future<String> setBillingStatus({
     required String id,
     required String status,
     String? paidDate,
@@ -380,6 +385,7 @@ class FakePlatformOpsRepository implements PlatformOpsRepository {
   }) async {
     _maybeFail();
     billSet.add((id: id, status: status, paidDate: paidDate));
+    return status;
   }
 
   @override
@@ -439,6 +445,9 @@ class FakePlatformOpsRepository implements PlatformOpsRepository {
     failures: 0,
     clientReported: 0,
   );
+
+  /// When set, only the summary fails (the event list still loads).
+  Object? auditSummaryError;
   final auditQueries = <({AuditFilter filter, Map<String, dynamic>? cursor})>[];
   final auditExports = <AuditFilter>[];
   String auditCsv = 'time_utc,event_type\n';
@@ -458,6 +467,7 @@ class FakePlatformOpsRepository implements PlatformOpsRepository {
   @override
   Future<AuditSummary> auditSummary({int hours = 24}) async {
     _maybeFail();
+    if (auditSummaryError != null) throw auditSummaryError!;
     return auditSummaryValue;
   }
 

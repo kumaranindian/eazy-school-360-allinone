@@ -64,6 +64,13 @@ class AccountInactivePage extends ConsumerWidget {
     }
 
     final paused = cause == InactiveCause.schoolPaused;
+    // A newly registered school waits for Avail404 to activate it: a normal
+    // step, not a fault, so it reads as "waiting" and can be re-checked.
+    final awaitingActivation =
+        paused &&
+        error is AccountInactiveException &&
+        error.schoolState == 'INACTIVE';
+    final waiting = isInvited || awaitingActivation;
     return AuthScaffold(
       title: title,
       subtitle: message,
@@ -72,14 +79,33 @@ class AccountInactivePage extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Icon(
-            isInvited ? Icons.hourglass_empty : Icons.block,
+            waiting ? Icons.hourglass_empty : Icons.block,
             size: 48,
-            color: isInvited
+            color: waiting
                 ? Theme.of(context).colorScheme.tertiary
                 : Theme.of(context).colorScheme.error,
           ),
           const SizedBox(height: AppSpacing.lg),
-          if (paused) ...[
+          if (awaitingActivation) ...[
+            FilledButton.icon(
+              key: const ValueKey('check-activation'),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Check again'),
+              onPressed: () => ref.invalidate(tenantContextProvider),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            OutlinedButton.icon(
+              key: const ValueKey('contact-support'),
+              icon: const Icon(Icons.mail_outline),
+              label: const Text('Contact support'),
+              onPressed: () => _contactSupport(context),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextButton(
+              onPressed: () => signOutWithCleanup(ref),
+              child: const Text('Sign out'),
+            ),
+          ] else if (paused) ...[
             FilledButton.icon(
               key: const ValueKey('contact-support'),
               icon: const Icon(Icons.mail_outline),
@@ -124,6 +150,12 @@ class AccountInactivePage extends ConsumerWidget {
     'School account closed',
     'Your school account has been closed. Please contact '
         '$platformSupportEmail.',
+  ),
+  'INACTIVE' => (
+    'Your school is waiting for activation',
+    'Your school has been registered. Avail404 activates every new school '
+        'before it can be used, and you can sign in to the dashboard as soon '
+        'as it is active. Questions? Contact $platformSupportEmail.',
   ),
   _ => (
     'Account is inactive',

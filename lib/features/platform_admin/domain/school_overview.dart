@@ -122,6 +122,9 @@ class SchoolOverview {
             id: b['id'] as String,
             name: (b['name'] as String?) ?? '',
             status: (b['status'] as String?) ?? '',
+            students: _count(b['counts'], 'students'),
+            staff: _count(b['counts'], 'staff'),
+            parents: _count(b['counts'], 'parents'),
           ),
       ],
       students: (c['students'] as num?)?.toInt() ?? 0,
@@ -159,14 +162,28 @@ class SchoolOverview {
   }
 }
 
+/// A count from a `counts` map, or null when the server sent none (an older
+/// function version).
+int? _count(Object? counts, String key) =>
+    counts is Map ? (counts[key] as num?)?.toInt() : null;
+
 class OverviewBranch {
   final String id;
   final String name;
   final String status;
+
+  /// Head counts for this branch (aggregate counts, never records); null
+  /// when the server did not send them.
+  final int? students;
+  final int? staff;
+  final int? parents;
   const OverviewBranch({
     required this.id,
     required this.name,
     required this.status,
+    this.students,
+    this.staff,
+    this.parents,
   });
 }
 

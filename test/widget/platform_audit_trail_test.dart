@@ -18,6 +18,7 @@ import 'package:eazy_school_360/features/school_setup/presentation/providers/sch
 import 'package:eazy_school_360/features/users/domain/user_profile.dart';
 import 'package:eazy_school_360/features/users/domain/user_status.dart';
 import 'package:eazy_school_360/features/users/presentation/providers/user_providers.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -139,6 +140,23 @@ Future<_W> _pump(
 }
 
 void main() {
+  testWidgets(
+    'a failing summary (DEF-01) shows a plain message and the events still load',
+    (tester) async {
+      final ops = FakePlatformOpsRepository(stats: fakeStats())
+        ..auditSummaryError = FirebaseFunctionsException(
+          code: 'internal',
+          message: 'INTERNAL',
+        );
+      await _pump(tester, ops: ops);
+      expect(find.byKey(const ValueKey('audit-summary-error')), findsOneWidget);
+      expect(find.textContaining('Firebase error'), findsNothing);
+      expect(find.textContaining('INTERNAL'), findsNothing);
+      expect(find.text('Nothing recorded for these filters.'), findsOneWidget);
+      expect(ops.auditQueries, isNotEmpty);
+    },
+  );
+
   group('audit trail access', () {
     for (final role in [PlatformRole.owner, PlatformRole.compliance]) {
       testWidgets('${role.name} sees the trail', (tester) async {

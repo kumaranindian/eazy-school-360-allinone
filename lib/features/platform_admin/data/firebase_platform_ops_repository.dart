@@ -136,18 +136,24 @@ class FirebasePlatformOpsRepository implements PlatformOpsRepository {
   }
 
   @override
-  Future<void> setFeatures({
+  Future<Map<String, bool>> setFeatures({
     required String schoolId,
     required Map<String, bool> features,
     String? reason,
     bool confirmDependants = false,
   }) async {
-    await _call('setSchoolFeatures', {
+    final out = await _call('setSchoolFeatures', {
       'schoolId': schoolId,
       'features': features,
       if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
       if (confirmDependants) 'confirmDependants': true,
     });
+    final stored = out['features'];
+    return {
+      if (stored is Map)
+        for (final e in stored.entries)
+          if (e.value is bool) e.key.toString(): e.value as bool,
+    };
   }
 
   @override
@@ -221,18 +227,19 @@ class FirebasePlatformOpsRepository implements PlatformOpsRepository {
   }
 
   @override
-  Future<void> setBillingStatus({
+  Future<String> setBillingStatus({
     required String id,
     required String status,
     String? paidDate,
     String? note,
   }) async {
-    await _call('setBillingStatus', {
+    final out = await _call('setBillingStatus', {
       'id': id,
       'status': status,
       'paidDate': ?paidDate,
       if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
     });
+    return (out['status'] as String?) ?? status;
   }
 
   @override
