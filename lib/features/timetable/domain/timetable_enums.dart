@@ -95,6 +95,7 @@ enum IssueKind {
   sectionOverlap('SECTION_OVERLAP'),
   teacherOnLeave('TEACHER_ON_LEAVE'),
   empty('EMPTY'),
+  unfilled('UNFILLED'),
   stalePeriods('STALE_PERIODS');
 
   final String wireValue;

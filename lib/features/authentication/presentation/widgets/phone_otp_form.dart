@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../domain/phone_otp.dart';
 import '../providers/auth_providers.dart';
+import '../../../../shared/forms/app_form.dart';
 
 /// Phone sign-in: enter the registered mobile, then the 6-digit code sent by
 /// WhatsApp. Signing in happens only after the server accepts the code; the
@@ -82,8 +83,8 @@ class _PhoneOtpFormState extends ConsumerState<PhoneOtpForm> {
     );
 
     if (s.step == OtpStep.enterPhone) {
-      return Form(
-        key: _phoneKey,
+      return AppForm(
+        formKey: _phoneKey,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -123,8 +124,8 @@ class _PhoneOtpFormState extends ConsumerState<PhoneOtpForm> {
       );
     }
 
-    return Form(
-      key: _codeKey,
+    return AppForm(
+      formKey: _codeKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

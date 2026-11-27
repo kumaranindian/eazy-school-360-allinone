@@ -20,6 +20,7 @@ const admission = require('./admission');
 const admissionActivities = require('./admission_activities');
 const admissionApplications = require('./admission_applications');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { onObjectFinalized } = require('firebase-functions/v2/storage');
 const { defineSecret, defineString } = require('firebase-functions/params');
 const { createSchoolAdmin, provisionLogins, changeInitialPassword, resetLoginPassword, ensureAuthUser, enablePortalLinks } = require('./provision');
 const access = require('./access');
@@ -453,6 +454,37 @@ exports.requestAdmissionDocumentUpload = admissionCall('requestAdmissionDocument
 exports.confirmAdmissionDocumentUpload = admissionCall('confirmAdmissionDocumentUpload', admissionApplications.confirmDocumentUpload, (d) => ({ enquiry: d.enquiryId, document: d.documentId }));
 exports.verifyAdmissionDocument = admissionCall('verifyAdmissionDocument', admissionApplications.verifyDocument, (d) => ({ enquiry: d.enquiryId, document: d.documentId, decision: d.decision }));
 exports.removeAdmissionDocument = admissionCall('removeAdmissionDocument', admissionApplications.removeDocument, (d) => ({ enquiry: d.enquiryId, document: d.documentId }));
+
+// HW-01-OBS-01: every homework / announcement attachment is checked once it
+// lands: contents that do not match the type are deleted, the rest marked
+// PASSED (storage.rules keep a PENDING file from parents and teachers).
+const uploadCheck = require('./upload_check');
+// The default bucket (dev: eazy-school-360-dev.firebasestorage.app, in the
+// functions' region). The CLI sets FIREBASE_CONFIG when it reads this code.
+const uploadBucket = (() => {
+  try {
+    const c = JSON.parse(process.env.FIREBASE_CONFIG || '{}');
+    if (c.storageBucket) return c.storageBucket;
+  } catch (_) { /* fall through */ }
+  return `${process.env.GCLOUD_PROJECT || 'demo-eazy-school-360'}.firebasestorage.app`;
+})();
+exports.checkUploadedFile = onObjectFinalized({ bucket: uploadBucket, memory: '256MiB', timeoutSeconds: 60, retry: true }, async (event) => {
+  const name = event.data.name;
+  if (!uploadCheck.kindOf(name)) return;
+  try {
+    const r = await uploadCheck.checkUploadedObject({
+      bucket: getStorage().bucket(event.data.bucket),
+      name,
+      log: (msg, f) => logger.warn(msg, f),
+    });
+    logger.info('upload check', { kind: uploadCheck.kindOf(name), ...r });
+  } catch (e) {
+    // A file deleted meanwhile is fine; anything else is retried.
+    if (e && (e.code === 404 || e.code === '404')) return;
+    logger.error('upload check failed', { category: errorCategory(e) });
+    throw e;
+  }
+});
 
 // Uploads that were requested but never confirmed are cleaned up daily (`daily` tick).
 jobs.admissionDocumentCleanup = async () => {

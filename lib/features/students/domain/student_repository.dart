@@ -95,6 +95,15 @@ abstract class StudentRepository {
     required String createdBy,
   });
 
+  /// Students of the branch with this full name and date of birth, to warn
+  /// about a likely duplicate admission (STU-01-OBS-01).
+  Future<List<Student>> findByNameAndBirthDate({
+    required String schoolId,
+    required String branchId,
+    required String fullName,
+    required DateTime dateOfBirth,
+  });
+
   Future<void> updateStudentProfile(
     Student student, {
     required String updatedBy,

@@ -475,6 +475,61 @@ service cloud.firestore {
         && getAfter(admissionPath(schoolId, branchId, admissionKey(nd()))).data.studentId == studentId;
     }
 
+    // STF-01-DEF-01: the fields the Add staff form requires.
+    function validStaffPerson(d) {
+      return d.firstName is string && d.firstName.trim().size() > 0
+        && d.lastName is string && d.lastName.trim().size() > 0
+        && d.dateOfBirth is timestamp
+        && d.gender in ['MALE', 'FEMALE', 'OTHER']
+        && d.phone is string && d.phone.trim().matches('^\\+?[0-9 ()-]{7,20}$');
+    }
+
+    // SET-01-DEF-01: a section's capacity is optional, else a whole number >= 1.
+    function validCapacity(d) {
+      return !('capacity' in d) || d.capacity == null
+        || (d.capacity is int && d.capacity >= 1 && d.capacity <= 10000);
+    }
+
+    // STU-02-DEF-01: one parent per email address in a school. The key
+    // (lower-cased, '/' -> '%2F') is the id of schools/{s}/parentEmails/{key},
+    // written in the same transaction as the parent; the app's
+    // ParentEmailReservation computes the same key.
+    function parentEmailKey(email) {
+      return email.trim().lower().replace('/', '%2F');
+    }
+
+    function parentEmailPath(schoolId, key) {
+      return /databases/$(database)/documents/schools/$(schoolId)/parentEmails/$(key);
+    }
+
+    function parentDocPath(schoolId, branchId, parentId) {
+      return /databases/$(database)/documents/schools/$(schoolId)/branches/$(branchId)/parents/$(parentId);
+    }
+
+    // After this write the parent has no email, or the school's reservation
+    // of that email names this parent.
+    function parentEmailReserved(schoolId, parentId) {
+      return !('email' in nd()) || nd().email == null || nd().email.trim() == ''
+        || getAfter(parentEmailPath(schoolId, parentEmailKey(nd().email))).data.parentId == parentId;
+    }
+
+    // The parent named by reservation [r] holds email [key] after this write.
+    function parentHoldsEmail(schoolId, r, key) {
+      return existsAfter(parentDocPath(schoolId, r.branchId, r.parentId))
+        && getAfter(parentDocPath(schoolId, r.branchId, r.parentId)).data.email is string
+        && parentEmailKey(getAfter(parentDocPath(schoolId, r.branchId, r.parentId)).data.email) == key;
+    }
+
+    function parentEmailClaimOk(schoolId, key) {
+      return canManageStudentData(schoolId, nd().branchId)
+        && nd().keys().hasOnly(['schoolId', 'branchId', 'parentId', 'email', 'createdAt', 'createdBy'])
+        && nd().schoolId == schoolId
+        && nd().parentId is string
+        && nd().createdAt == request.time
+        && nd().createdBy == request.auth.uid
+        && parentHoldsEmail(schoolId, nd(), key);
+    }
+
     function assignmentPath(schoolId, branchId, assignmentId) {
       return /databases/$(database)/documents/schools/$(schoolId)/branches/$(branchId)/teacherAssignments/$(assignmentId);
     }
@@ -1837,6 +1892,15 @@ service cloud.firestore {
       }
       // Grants/revocations of per-branch roles (setBranchAccess, staff
       // deactivation). Cloud Functions write; school admins read.
+      // One parent per email in the school (see parentEmailKey). Taken over
+      // only when the parent it names no longer has that email.
+      match /parentEmails/{emailKey} {
+        allow get: if isActiveCaller() && callerSchoolId() == schoolId && callerRole() != 'PARENT';
+        allow create: if parentEmailClaimOk(schoolId, emailKey);
+        allow update: if parentEmailClaimOk(schoolId, emailKey)
+          && !parentHoldsEmail(schoolId, resource.data, emailKey);
+      }
+
       match /branchAccessAudit/{eventId} {
         allow read: if isSchoolAdminOrAbove(schoolId);
       }
@@ -1951,9 +2015,11 @@ service cloud.firestore {
               allow create: if canManageAcademicSetup(schoolId, branchId) && validCreateAudit()
                 && newInTenant(schoolId, branchId)
                 && nd().academicYearId == academicYearId
-                && nd().classId == classId;
+                && nd().classId == classId
+                && validCapacity(nd());
               allow update: if canManageAcademicSetup(schoolId, branchId) && validUpdateAudit()
-                && changedOnly(['name', 'code', 'capacity', 'status', 'updatedAt', 'updatedBy']);
+                && changedOnly(['name', 'code', 'capacity', 'status', 'updatedAt', 'updatedBy'])
+                && validCapacity(nd());
             }
 
             // The class-subject relationship (brief §14): doc id ==
@@ -2131,7 +2197,8 @@ service cloud.firestore {
           ) || teacherOfParent(schoolId, branchId, parentId);
 
           allow create: if canManageStudentData(schoolId, branchId) && validCreateAudit()
-            && newInTenant(schoolId, branchId);
+            && newInTenant(schoolId, branchId)
+            && parentEmailReserved(schoolId, parentId);
 
           // linkedUserId is included here (not immutable) — granting
           // portal access is an ordinary admin edit to this record, same
@@ -2146,7 +2213,9 @@ service cloud.firestore {
               'phone', 'alternatePhone', 'email', 'occupation', 'photoUrl',
               'addressLine1', 'addressLine2', 'city', 'state', 'country', 'postalCode',
               'status', 'linkedUserId', 'updatedAt', 'updatedBy',
-            ]);
+            ])
+            && (!('email' in request.resource.data.diff(resource.data).affectedKeys())
+              || parentEmailReserved(schoolId, parentId));
 
         }
 
@@ -2207,7 +2276,8 @@ service cloud.firestore {
             && existsAfter(staffCodePath(schoolId, branchId, nd().employeeCodeLower))
             && getAfter(staffCodePath(schoolId, branchId, nd().employeeCodeLower)).data.staffId == staffId
             && isActiveConfigEntry(departmentPath(schoolId, branchId, nd().departmentId))
-            && isActiveConfigEntry(designationPath(schoolId, branchId, nd().designationId));
+            && isActiveConfigEntry(designationPath(schoolId, branchId, nd().designationId))
+            && validStaffPerson(nd());
 
           // schoolId, branchId and the audit-origin fields are not in this
           // list: a record cannot be moved to another school/branch.

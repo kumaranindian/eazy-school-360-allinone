@@ -35,13 +35,19 @@ class _PlatformNotificationGateState
     extends ConsumerState<PlatformNotificationGate> {
   bool _showing = false;
 
+  /// Acknowledged here. The list refetches after an acknowledgement and
+  /// still holds the old copy meanwhile; without this the same notice opened
+  /// again and needed a second click (DASH-01-OBS-01).
+  final _done = <String>{};
+
   Future<void> _show(PlatformNotification n) async {
     _showing = true;
-    await showDialog<void>(
+    final acted = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (_) => NotificationDialog(notification: n),
     );
+    if (acted == true) _done.add(n.id);
     _showing = false;
     if (mounted) setState(() {});
   }
@@ -56,10 +62,12 @@ class _PlatformNotificationGateState
     final pending =
         [
           for (final n in list)
-            if (n.pendingAck) n,
+            if (n.pendingAck && !_done.contains(n.id)) n,
         ]..sort(
-          (a, b) => (a.createdAt ?? DateTime(0)).compareTo(
-            b.createdAt ?? DateTime(0),
+          // Newest first: for school status changes only the latest matters
+          // (the server marks the older ones read).
+          (a, b) => (b.createdAt ?? DateTime(0)).compareTo(
+            a.createdAt ?? DateTime(0),
           ),
         );
     if (pending.isNotEmpty && !_showing) {
@@ -109,7 +117,7 @@ class _NotificationDialogState extends ConsumerState<NotificationDialog> {
       return;
     }
     ref.invalidate(myPlatformNotificationsProvider);
-    if (mounted) Navigator.pop(context);
+    if (mounted) Navigator.pop(context, true);
   }
 
   @override

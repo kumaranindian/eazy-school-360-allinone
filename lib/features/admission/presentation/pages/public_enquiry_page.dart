@@ -5,6 +5,7 @@ import '../../../../core/errors/error_mapper.dart';
 import '../../domain/public_portal.dart';
 import '../providers/admission_providers.dart';
 import '../providers/public_portal_providers.dart';
+import '../../../../shared/forms/app_form.dart';
 
 /// `/admission/{slug}`: the school's public enquiry form. Open to anyone, no
 /// sign-in; the server decides which school and branch it belongs to.
@@ -167,9 +168,9 @@ class _EnquiryFormState extends ConsumerState<_EnquiryForm> {
         .where((y) => y.id == _yearId)
         .expand((y) => y.classes)
         .toList();
-    return Form(
-      key: _form,
-      child: ListView(
+    return AppForm(
+      formKey: _form,
+      child: FormScrollView(
         padding: const EdgeInsets.all(16),
         children: [
           if (info.introText.isNotEmpty) ...[

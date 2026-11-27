@@ -77,6 +77,11 @@ async function highestSequence(db, schoolId, branchId) {
   return snap.docs.reduce((best, d) => Math.max(best, sequenceOf(d.data().admissionNumber) || 0), 0);
 }
 
+/** The parentEmails id: lower-cased, '/' -> '%2F' (as firestore.rules parentEmailKey). */
+function parentEmailKey(email) {
+  return email.trim().toLowerCase().split('/').join('%2F');
+}
+
 async function convertToStudent(ctx, uid, token, data) {
   const { db, now } = ctx;
   const { schoolId, branchId, enquiryId } = data || {};
@@ -101,6 +106,17 @@ async function convertToStudent(ctx, uid, token, data) {
   const enquirySnap = await b.collection('admissionEnquiries').doc(enquiryId).get();
   if (!enquirySnap.exists) return { error: 'NOT_FOUND' };
   const guardians = ((guardianSnap.exists ? guardianSnap.data().guardians : null) || enquirySnap.data().guardians || []).slice(0, 4);
+  // STU-01-OBS-01: a roll number is used once per section and year.
+  if (v.rollNumber) {
+    const taken = await b.collection('students')
+      .where('currentAcademicYearId', '==', v.academicYearId)
+      .where('currentSectionId', '==', v.sectionId)
+      .where('currentRollNumber', '==', v.rollNumber)
+      .limit(2).get();
+    if (taken.docs.some((d) => d.id !== studentId && d.data().status === 'ACTIVE')) {
+      return { error: 'FAILED_PRECONDITION', reason: `roll number ${v.rollNumber} is already used in this section` };
+    }
+  }
   const existingParent = [];
   for (const g of guardians) {
     const found = await b.collection('parents').where('phone', '==', g.phone).limit(1).get();
@@ -141,11 +157,25 @@ async function convertToStudent(ctx, uid, token, data) {
     const parentPlan = [];
     for (let idx = 0; idx < guardians.length; idx++) {
       const g = guardians[idx];
-      const parentId = existingParent[idx] || `p_${g.phone}`;
-      const ref = b.collection('parents').doc(parentId);
-      const snap = await tx.get(ref);
+      let parentId = existingParent[idx] || `p_${g.phone}`;
+      let ref = b.collection('parents').doc(parentId);
+      let snap = await tx.get(ref);
+      // One parent per email in the school (STU-02-DEF-01): a guardian whose
+      // email already belongs to a parent is that parent (same id, as a
+      // branch transfer keeps it); a new one reserves the email.
+      let emailRef = null;
+      if (!snap.exists && typeof g.email === 'string' && g.email.trim()) {
+        emailRef = db.collection('schools').doc(schoolId).collection('parentEmails').doc(parentEmailKey(g.email));
+        const held = await tx.get(emailRef);
+        if (held.exists && held.data().parentId) {
+          parentId = held.data().parentId;
+          ref = b.collection('parents').doc(parentId);
+          snap = await tx.get(ref);
+          emailRef = null;
+        }
+      }
       const access = await tx.get(b.collection('parentAccess').doc(parentId));
-      parentPlan.push({ g, idx, ref, exists: snap.exists, parentId, access: access.exists ? access.data() : null });
+      parentPlan.push({ g, idx, ref, exists: snap.exists, parentId, emailRef, access: access.exists ? access.data() : null });
     }
 
     // Admission number: the first free reservation from the starting sequence.
@@ -195,6 +225,9 @@ async function convertToStudent(ctx, uid, token, data) {
           occupation: null, photoUrl: null, addressLine1: addr.line1 || null, addressLine2: null, city: addr.city || null, state: addr.state || null, country: addr.country || null, postalCode: null,
           status: 'ACTIVE', linkedUserId: null, createdAt: now, updatedAt: now, createdBy: uid, updatedBy: uid,
         });
+        if (p.emailRef) {
+          tx.set(p.emailRef, { schoolId, branchId, parentId: p.parentId, email: g.email.trim().toLowerCase(), createdAt: now, createdBy: uid });
+        }
       }
       tx.set(b.collection('students').doc(studentId).collection('parentLinks').doc(p.parentId), {
         schoolId, branchId, studentId, parentId: p.parentId, relationshipType: relationshipOf(g.relationship),

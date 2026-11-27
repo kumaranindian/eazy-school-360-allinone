@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { test, before, after } from 'node:test';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getBytes, deleteObject } from 'firebase/storage';
+import { ref, uploadBytes, getBytes, deleteObject, updateMetadata } from 'firebase/storage';
 
 let testEnv;
 before(async () => {
@@ -25,7 +25,11 @@ const stamp = { createdAt: serverTimestamp(), updatedAt: serverTimestamp(), crea
 const st = (uid) => testEnv.authenticatedContext(uid).storage();
 const BYTES = new Uint8Array([1, 2, 3, 4]);
 const f = (name, id = 'pub', school = A, branch = NORTH) => `schools/${school}/branches/${branch}/announcements/${id}/files/${name}`;
-const type = (contentType) => ({ contentType });
+// Uploads arrive PENDING (HW-01-OBS-01); markPassed simulates the server check.
+const type = (contentType) => ({ contentType, customMetadata: { contentCheck: 'PENDING' } });
+const markPassed = (...paths) => testEnv.withSecurityRulesDisabled(async (c) => {
+  for (const p of paths) await updateMetadata(ref(c.storage(), p), { customMetadata: { contentCheck: 'PASSED' } });
+});
 
 async function seed() {
   await testEnv.withSecurityRulesDisabled(async (c) => {
@@ -96,6 +100,7 @@ test('reading: published and due is readable in school; drafts, future and wrong
   await seed();
   const put = (id, name, uid = 'aas-t1') => uploadBytes(ref(st(uid), f(name, id)), BYTES, type('application/pdf'));
   for (const id of ['pub', 'draft', 'future', 'staff', 'parents']) await assertSucceeds(put(id, 'a.pdf'));
+  await markPassed(...['pub', 'draft', 'future', 'staff', 'parents'].map((id) => f('a.pdf', id)));
   // everyone in the school reads a published, due, branch-wide file
   for (const uid of ['aas-p1', 'aas-t2', 'aas-t1', 'aas-br-north', 'aas-admin']) await assertSucceeds(getBytes(ref(st(uid), f('a.pdf', 'pub'))));
   // drafts / scheduled: author and admins only
@@ -117,4 +122,14 @@ test('another school (or branch admin of another branch) cannot read, even knowi
   await assertFails(getBytes(ref(testEnv.unauthenticatedContext().storage(), f('sec.pdf'))));
   // a file under an announcement that does not exist cannot be created or read
   await assertFails(uploadBytes(ref(st('aas-t1'), f('ghost.pdf', 'nope')), BYTES, type('application/pdf')));
+});
+
+test('HW-01-OBS-01: a published file stays hidden from readers until the server check passes', async () => {
+  await seed();
+  await assertFails(uploadBytes(ref(st('aas-t1'), f('nomark.pdf')), BYTES, { contentType: 'application/pdf' }));
+  await assertSucceeds(uploadBytes(ref(st('aas-t1'), f('wait.pdf')), BYTES, type('application/pdf')));
+  for (const uid of ['aas-p1', 'aas-t2']) await assertFails(getBytes(ref(st(uid), f('wait.pdf'))));
+  for (const uid of ['aas-t1', 'aas-br-north', 'aas-admin']) await assertSucceeds(getBytes(ref(st(uid), f('wait.pdf'))));
+  await markPassed(f('wait.pdf'));
+  for (const uid of ['aas-p1', 'aas-t2']) await assertSucceeds(getBytes(ref(st(uid), f('wait.pdf'))));
 });

@@ -300,7 +300,8 @@ class AnnouncementAttachmentsEditor extends ConsumerWidget {
               hint ??
                   'Images (JPG, PNG, WebP) and documents (PDF, Word, Excel, '
                       'TXT), up to ${AnnouncementFilePolicy.maxBytes ~/ (1024 * 1024)} MB each. '
-                      'Files are not scanned for malware.',
+                      'Each file is checked against its type before others can '
+                      'open it; files are not scanned for viruses.',
               style: theme.textTheme.bodySmall,
             ),
           ],

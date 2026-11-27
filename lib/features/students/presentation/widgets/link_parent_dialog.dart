@@ -11,6 +11,7 @@ import '../../domain/relationship_type.dart';
 import '../providers/parent_providers.dart';
 import '../providers/student_providers.dart';
 import 'parent_duplicates_dialog.dart';
+import '../../../../shared/forms/app_form.dart';
 
 /// Links a parent/guardian to a student (brief §9) — either an existing
 /// parent record (searched by name) or a newly-created one, then sets the
@@ -217,8 +218,8 @@ class _LinkParentDialogState extends ConsumerState<LinkParentDialog> {
         ref.watch(studentWriteControllerProvider).isLoading ||
         ref.watch(parentWriteControllerProvider).isLoading;
 
-    return Form(
-      key: _formKey,
+    return AppForm(
+      formKey: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -136,7 +136,10 @@ String _summary(WidgetTester tester) =>
 void main() {
   group('weekly offs page', () {
     testWidgets('shows the saved weekly offs in words', (tester) async {
-      await _pump(tester, FakeCalendarRepository(workingDays: _sundayOff()));
+      await _pump(
+        tester,
+        FakeCalendarRepository(workingDays: _sundayOff(configured: true)),
+      );
       expect(find.text('Weekly offs'), findsWidgets);
       expect(_summary(tester), 'Sunday');
       expect(
@@ -149,6 +152,13 @@ void main() {
       );
       // Nothing to save until something changes.
       expect(tester.widget<FilledButton>(_save()).onPressed, isNull);
+    });
+
+    testWidgets('never saved: the defaults can be saved as they are '
+        '(SET-01-OBS-03)', (tester) async {
+      final calendar = FakeCalendarRepository(workingDays: _sundayOff());
+      await _pump(tester, calendar);
+      expect(tester.widget<FilledButton>(_save()).onPressed, isNotNull);
     });
 
     testWidgets('alternate Saturdays: 2nd and 4th, saved as off-weeks', (

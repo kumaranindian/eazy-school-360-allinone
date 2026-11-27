@@ -187,7 +187,8 @@ void main() {
         await tester.ensureVisible(find.text('Reset password…'));
         await tester.tap(find.text('Reset password…'));
         await tester.pumpAndSettle();
-        expect(find.text('Name + mobile number'), findsOneWidget);
+        // Removed: guessable (STU-02-OBS-01).
+        expect(find.text('Name + mobile number'), findsNothing);
         await tester.ensureVisible(find.text('One password set by you'));
         await tester.tap(find.text('One password set by you'));
         await tester.pumpAndSettle();

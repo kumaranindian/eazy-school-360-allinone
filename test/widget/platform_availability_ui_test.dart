@@ -233,23 +233,41 @@ void main() {
     );
 
     testWidgets(
-      'several pending: oldest first, the next appears after acknowledging',
+      'several pending: newest first, the next appears after acknowledging '
+      '(DASH-01-OBS-01)',
       (tester) async {
         final w = await _pump(
           tester,
           profile: _user(UserRole.schoolAdmin),
           mine: [
-            _note('new', title: 'Second one', at: 9),
             _note('old', title: 'First one', at: 2),
+            _note('new', title: 'Second one', at: 9),
           ],
         );
-        expect(find.text('First one'), findsOneWidget);
-        await tester.tap(ack);
-        await tester.pumpAndSettle();
         expect(find.text('Second one'), findsOneWidget);
         await tester.tap(ack);
         await tester.pumpAndSettle();
-        expect(w.ops.acknowledged, ['old', 'new']);
+        expect(find.text('First one'), findsOneWidget);
+        await tester.tap(ack);
+        await tester.pumpAndSettle();
+        expect(w.ops.acknowledged, ['new', 'old']);
+        expect(popup, findsNothing);
+      },
+    );
+
+    testWidgets(
+      'one click on "I understand" closes it, even before the list is '
+      'refreshed (DASH-01-OBS-01)',
+      (tester) async {
+        final w = await _pump(
+          tester,
+          profile: _user(UserRole.schoolAdmin),
+          mine: [_note('n1')],
+        );
+        w.ops.staleAfterAck = true;
+        await tester.tap(ack);
+        await tester.pumpAndSettle();
+        expect(w.ops.acknowledged, ['n1']);
         expect(popup, findsNothing);
       },
     );

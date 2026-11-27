@@ -307,6 +307,29 @@ void main() {
       );
     });
 
+    test('empty teaching periods are a warning, not a silent pass '
+        '(TT-01-OBS-02)', () {
+      final t = _tt(
+        'sa',
+        status: TimetableStatus.draft,
+        days: {'MONDAY': 'y1__regular', 'TUESDAY': 'y1__regular'},
+      );
+      // 3 teaching periods a day x 2 days = 6; only one is filled.
+      final issues = _validate(
+        TimetableBundle(t, [_e(t, 'p1', 1, 540, 580, 'math', 't1')]),
+      );
+      final unfilled = issues.where((i) => i.kind == IssueKind.unfilled);
+      expect(unfilled, hasLength(1));
+      expect(unfilled.single.isError, isFalse);
+      expect(
+        unfilled.single.message,
+        '5 of 6 teaching periods have no '
+        'subject and teacher yet.',
+      );
+      // A warning does not stop publishing.
+      expect(TimetablePublication.checkPublish(t, issues), isNull);
+    });
+
     test(
       'a teacher who is not the assigned teacher for the subject is refused',
       () {
@@ -316,7 +339,7 @@ void main() {
         );
         expect(_kinds(issues), contains(IssueKind.notAssigned));
         expect(
-          issues.first.message,
+          issues.firstWhere((i) => i.isError).message,
           allOf(contains('Teacher t2'), contains('math')),
         );
       },

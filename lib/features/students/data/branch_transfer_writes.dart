@@ -5,6 +5,7 @@ import '../../../core/constants/firestore_fields.dart';
 import '../domain/academic_record_status.dart';
 import '../domain/admission_key.dart';
 import 'admission_reservation.dart';
+import 'parent_email_reservation.dart';
 import '../domain/parent_student_link.dart';
 import '../domain/student.dart';
 import '../domain/student_academic_record.dart';
@@ -33,11 +34,17 @@ class TransferGuardian {
   /// The ACTIVE link in the old branch.
   final ParentStudentLink link;
 
+  /// The school already has a `parentEmails` reservation for this guardian's
+  /// email; otherwise the copy reserves it (the `parents` create rule needs
+  /// it).
+  final bool emailReserved;
+
   const TransferGuardian({
     required this.parentId,
     required this.parentData,
     required this.existsInDestination,
     required this.link,
+    this.emailReserved = false,
   });
 }
 
@@ -205,6 +212,21 @@ abstract final class BranchTransferWrites {
             },
           ),
         );
+        final email = g.parentData!['email'];
+        if (!g.emailReserved && email is String && email.trim().isNotEmpty) {
+          writes.add(
+            PlannedWrite.create(
+              ParentEmailReservation.path(schoolId, email),
+              ParentEmailReservation.data(
+                schoolId: schoolId,
+                branchId: to,
+                parentId: g.parentId,
+                email: email,
+                actorId: i.actorId,
+              ),
+            ),
+          );
+        }
       }
       final link = ParentStudentLink(
         relationshipId: g.parentId,

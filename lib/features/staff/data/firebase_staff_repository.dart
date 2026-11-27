@@ -373,6 +373,13 @@ class FirebaseStaffRepository implements StaffRepository {
     required String createdBy,
   }) async {
     try {
+      // An id made by the form: a repeated save returns the staff member it
+      // already created (STU-01-DEF-01 pattern).
+      final collection = _staffCollection(staff.schoolId, staff.branchId);
+      final ref = staff.staffId.isEmpty
+          ? collection.doc()
+          : collection.doc(staff.staffId);
+      if (staff.staffId.isNotEmpty && (await ref.get()).exists) return ref.id;
       _assertValidCode(staff.employeeCode);
       if (!await isEmployeeCodeAvailable(
         staff.schoolId,
@@ -396,7 +403,6 @@ class FirebaseStaffRepository implements StaffRepository {
         label: 'designation',
       );
 
-      final ref = _staffCollection(staff.schoolId, staff.branchId).doc();
       final codeRef = _codeDoc(
         staff.schoolId,
         staff.branchId,

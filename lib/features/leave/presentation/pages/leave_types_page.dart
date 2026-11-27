@@ -14,6 +14,7 @@ import '../../domain/leave_type.dart';
 import '../../domain/leave_units.dart';
 import '../providers/leave_providers.dart';
 import '../widgets/leave_scope.dart';
+import '../../../../shared/forms/app_form.dart';
 
 /// `/leave/types` — leave types and the branch's leave policy. Everyone with
 /// leave access can read; only `manageLeaveTypes` holders see the controls.
@@ -341,8 +342,8 @@ class _LeaveTypeFormState extends ConsumerState<LeaveTypeForm> {
           : null;
     }
 
-    return Form(
-      key: _formKey,
+    return AppForm(
+      formKey: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -8,6 +8,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/validators/validators.dart';
 import '../../domain/section.dart';
 import '../providers/academic_structure_providers.dart';
+import '../../../../shared/forms/app_form.dart';
 
 class SectionFormDialog extends ConsumerStatefulWidget {
   final String schoolId;
@@ -100,8 +101,8 @@ class _SectionFormDialogState extends ConsumerState<SectionFormDialog> {
         .watch(academicStructureWriteControllerProvider)
         .isLoading;
 
-    return Form(
-      key: _formKey,
+    return AppForm(
+      formKey: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -129,10 +130,7 @@ class _SectionFormDialogState extends ConsumerState<SectionFormDialog> {
             controller: _capacity,
             decoration: const InputDecoration(labelText: 'Capacity (optional)'),
             keyboardType: TextInputType.number,
-            validator: (v) =>
-                v == null || v.trim().isEmpty || int.tryParse(v.trim()) != null
-                ? null
-                : 'Enter a whole number.',
+            validator: (v) => Validators.wholeNumber(v, fieldName: 'Capacity'),
           ),
           if (_isEditing) ...[
             const SizedBox(height: AppSpacing.sm),

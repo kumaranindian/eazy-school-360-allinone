@@ -175,6 +175,7 @@ class _ProvisionLoginsDialogState extends ConsumerState<ProvisionLoginsDialog> {
   /// in small, throttled steps with retries, so a long list neither times out
   /// nor trips rate limits.
   Future<void> _run({List<String>? onlyIds}) async {
+    if (_running) return; // a second tap before the rebuild
     final ids = onlyIds ?? [for (final p in widget.people) p.id];
     setState(() {
       _running = true;

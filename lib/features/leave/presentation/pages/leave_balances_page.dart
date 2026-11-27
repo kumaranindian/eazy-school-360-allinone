@@ -23,6 +23,7 @@ import '../../domain/leave_type.dart';
 import '../../domain/leave_units.dart';
 import '../providers/leave_providers.dart';
 import '../widgets/leave_scope.dart';
+import '../../../../shared/forms/app_form.dart';
 
 /// `/leave/balances` — find a staff member, see their balances for the year
 /// and the append-only ledger; reviewers with `adjustLeaveBalances` can adjust
@@ -576,8 +577,8 @@ class _AdjustFormState extends ConsumerState<_AdjustForm> {
 
   @override
   Widget build(BuildContext context) {
-    return Form(
-      key: _formKey,
+    return AppForm(
+      formKey: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,

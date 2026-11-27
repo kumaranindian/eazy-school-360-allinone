@@ -11,6 +11,7 @@ import '../../domain/blood_group.dart';
 import '../../domain/gender.dart';
 import '../../domain/student.dart';
 import '../providers/student_providers.dart';
+import '../../../../shared/forms/app_form.dart';
 
 /// Edits a student's profile (identity, contact and address). Status and
 /// placement have their own dialogs and are not touched here; the student's
@@ -155,8 +156,8 @@ class _StudentEditDialogState extends ConsumerState<StudentEditDialog> {
     // Keeps the (auto-dispose) write controller alive while a save is running.
     ref.watch(studentWriteControllerProvider);
     const gap = SizedBox(height: AppSpacing.sm);
-    return Form(
-      key: _formKey,
+    return AppForm(
+      formKey: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

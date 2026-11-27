@@ -15,6 +15,7 @@ import '../../../timetable/presentation/widgets/timetable_scope.dart';
 import '../../domain/exam_enums.dart';
 import '../../domain/examination.dart';
 import '../providers/exam_providers.dart';
+import '../../../../shared/forms/app_form.dart';
 
 /// `/exams/new` and `/exams/edit/:examId` — the examination's own details.
 /// Subjects and marks are configured on its detail page. The id is built from
@@ -269,9 +270,9 @@ class _FormState extends ConsumerState<_Form> {
     }
 
     return PageColumn(
-      child: Form(
-        key: _formKey,
-        child: ListView(
+      child: AppForm(
+        formKey: _formKey,
+        child: FormScrollView(
           padding: const EdgeInsets.all(AppSpacing.md),
           children: [
             SectionCard(

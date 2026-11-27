@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { test, before, after } from 'node:test';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getBytes, deleteObject } from 'firebase/storage';
+import { ref, uploadBytes, getBytes, deleteObject, updateMetadata } from 'firebase/storage';
 
 let testEnv;
 before(async () => {
@@ -23,7 +23,13 @@ const SOUTH = 'south';
 const stamp = { createdAt: serverTimestamp(), updatedAt: serverTimestamp(), createdBy: 'seed', updatedBy: 'seed' };
 const storageFor = (uid) => testEnv.authenticatedContext(uid).storage();
 const BYTES = new Uint8Array([1, 2, 3, 4]);
-const PDF = { contentType: 'application/pdf' };
+// The app uploads every file marked PENDING (HW-01-OBS-01); the server check
+// marks it PASSED, simulated here by markPassed.
+const PENDING = { customMetadata: { contentCheck: 'PENDING' } };
+const PDF = { contentType: 'application/pdf', ...PENDING };
+const markPassed = (...paths) => testEnv.withSecurityRulesDisabled(async (c) => {
+  for (const p of paths) await updateMetadata(ref(c.storage(), p), { customMetadata: { contentCheck: 'PASSED' } });
+});
 
 const hwFile = (f = 'a.pdf', hw = 'hw1', b = NORTH, s = A) => `schools/${s}/branches/${b}/homework/${hw}/files/${f}`;
 const subFile = (student = 'hst-stu1', f = 'a.pdf', hw = 'hw1') => `schools/${A}/branches/${NORTH}/homework/${hw}/submissions/${student}/${f}`;
@@ -69,13 +75,14 @@ test('homework files: the creating teacher or an admin uploads; create-only; typ
   await assertFails(uploadBytes(ref(storageFor('hst-t1'), hwFile('x.exe')), BYTES, { contentType: 'application/x-msdownload' }));
   await assertFails(uploadBytes(ref(storageFor('hst-t1'), hwFile('x.html')), BYTES, { contentType: 'text/html' }));
   await assertFails(uploadBytes(ref(storageFor('hst-t1'), hwFile('big.pdf')), new Uint8Array(10 * 1024 * 1024 + 1), PDF));
-  await assertSucceeds(uploadBytes(ref(storageFor('hst-t1'), hwFile('ok.png')), BYTES, { contentType: 'image/png' }));
+  await assertSucceeds(uploadBytes(ref(storageFor('hst-t1'), hwFile('ok.png')), BYTES, { contentType: 'image/png', ...PENDING }));
 });
 
 test('homework files: published ones are readable by branch teachers and parents; drafts only by author/admin', async () => {
   await seed();
   await assertSucceeds(uploadBytes(ref(storageFor('hst-t1'), hwFile('pub.pdf', 'hw1')), BYTES, PDF));
   await assertSucceeds(uploadBytes(ref(storageFor('hst-t1'), hwFile('d.pdf', 'hwd')), BYTES, PDF));
+  await markPassed(hwFile('pub.pdf', 'hw1'), hwFile('d.pdf', 'hwd'));
   for (const uid of ['hst-t1', 'hst-t2', 'hst-p1', 'hst-br-north', 'hst-admin']) {
     await assertSucceeds(getBytes(ref(storageFor(uid), hwFile('pub.pdf', 'hw1'))));
   }
@@ -99,6 +106,7 @@ test('submission files: only a LINKED parent writes under their child; create-on
   // type restriction applies to submissions too
   await assertFails(uploadBytes(ref(storageFor('hst-p1'), subFile('hst-stu1', 'x.js')), BYTES, { contentType: 'text/javascript' }));
 
+  await markPassed(subFile('hst-stu1', 'work.pdf'));
   // read: own child's parent, the homework's creator, admins — not others
   for (const uid of ['hst-p1', 'hst-t1', 'hst-br-north', 'hst-admin']) {
     await assertSucceeds(getBytes(ref(storageFor(uid), subFile('hst-stu1', 'work.pdf'))));
@@ -115,6 +123,7 @@ test('announcement files: author/admin upload; published readable school-wide; d
   await assertFails(uploadBytes(ref(storageFor('hst-t2'), annFile('b.pdf', 'an1')), BYTES, PDF));
   await assertFails(uploadBytes(ref(storageFor('hst-p1'), annFile('b.pdf', 'an1')), BYTES, PDF));
   await assertFails(uploadBytes(ref(storageFor('hst-t1'), annFile('a.pdf', 'an1')), BYTES, PDF)); // overwrite
+  await markPassed(annFile('a.pdf', 'an1'), annFile('d.pdf', 'and'));
   for (const uid of ['hst-p1', 'hst-t2', 'hst-t1']) await assertSucceeds(getBytes(ref(storageFor(uid), annFile('a.pdf', 'an1'))));
   await assertFails(getBytes(ref(storageFor('hst-admin-b'), annFile('a.pdf', 'an1'))));
   await assertSucceeds(getBytes(ref(storageFor('hst-t1'), annFile('d.pdf', 'and'))));
@@ -127,4 +136,22 @@ test('unauthenticated and unknown paths are denied', async () => {
   await assertFails(getBytes(ref(anon, hwFile('a.pdf'))));
   await assertFails(uploadBytes(ref(anon, hwFile('z.pdf')), BYTES, PDF));
   await assertFails(uploadBytes(ref(storageFor('hst-admin'), `schools/${A}/branches/${NORTH}/homework/hw1/other/a.pdf`), BYTES, PDF));
+});
+
+test('HW-01-OBS-01: an upload must arrive PENDING; until the server check passes only the uploader and admins read it', async () => {
+  await seed();
+  await assertFails(uploadBytes(ref(storageFor('hst-t1'), hwFile('nomark.pdf')), BYTES, { contentType: 'application/pdf' }));
+  await assertFails(uploadBytes(ref(storageFor('hst-t1'), hwFile('passed.pdf')), BYTES, { contentType: 'application/pdf', customMetadata: { contentCheck: 'PASSED' } }));
+  await assertSucceeds(uploadBytes(ref(storageFor('hst-t1'), hwFile('wait.pdf')), BYTES, PDF));
+  for (const uid of ['hst-p1', 'hst-t2']) await assertFails(getBytes(ref(storageFor(uid), hwFile('wait.pdf'))));
+  for (const uid of ['hst-t1', 'hst-br-north', 'hst-admin']) await assertSucceeds(getBytes(ref(storageFor(uid), hwFile('wait.pdf'))));
+  // submissions: the teacher waits for the check too
+  await assertSucceeds(uploadBytes(ref(storageFor('hst-p1'), subFile('hst-stu1', 'wait.pdf')), BYTES, PDF));
+  await assertFails(getBytes(ref(storageFor('hst-t1'), subFile('hst-stu1', 'wait.pdf'))));
+  await assertFails(uploadBytes(ref(storageFor('hst-p1'), subFile('hst-stu1', 'nomark.pdf')), BYTES, { contentType: 'application/pdf' }));
+  // the client cannot mark its own file as checked (create-only)
+  await assertFails(updateMetadata(ref(storageFor('hst-t1'), hwFile('wait.pdf')), { customMetadata: { contentCheck: 'PASSED' } }));
+  await markPassed(hwFile('wait.pdf'), subFile('hst-stu1', 'wait.pdf'));
+  await assertSucceeds(getBytes(ref(storageFor('hst-p1'), hwFile('wait.pdf'))));
+  await assertSucceeds(getBytes(ref(storageFor('hst-t1'), subFile('hst-stu1', 'wait.pdf'))));
 });

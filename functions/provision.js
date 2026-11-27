@@ -11,25 +11,15 @@ const MAX_BATCH = 50;
 // ACTIVATION_EMAIL set no password the admin can know (the person sets their
 // own through the emailed link); the other three set one on the server.
 // Nothing here ever stores or logs a password.
-const PASSWORD_OPTIONS = ['NAME_MOBILE', 'RANDOM_TEMP', 'ACTIVATION_EMAIL', 'RESET_LINK', 'ADMIN_DEFINED'];
+// NAME_MOBILE (first letters of the name + end of the mobile) was removed:
+// anyone who knows both could guess it before the first change (STU-02-OBS-01).
+const PASSWORD_OPTIONS = ['RANDOM_TEMP', 'ACTIVATION_EMAIL', 'RESET_LINK', 'ADMIN_DEFINED'];
 const MIN_PASSWORD = 8;
 const MAX_PASSWORD = 64;
-const SERVER_SET = ['NAME_MOBILE', 'RANDOM_TEMP', 'ADMIN_DEFINED'];
+const SERVER_SET = ['RANDOM_TEMP', 'ADMIN_DEFINED'];
 
 const passwordPolicyOk = (p) =>
   typeof p === 'string' && p.length >= MIN_PASSWORD && p.length <= MAX_PASSWORD && /[A-Za-z]/.test(p) && /\d/.test(p);
-
-// First four letters of the name (upper case) + last five digits of the mobile.
-// Missing letters/digits is a refusal, never a weaker password.
-function nameMobilePassword(name, phone) {
-  const letters = String(name || '')
-    .normalize('NFKD')
-    .replace(/[^A-Za-z]/g, '')
-    .toUpperCase();
-  const digits = String(phone || '').replace(/\D/g, '');
-  if (letters.length < 4 || digits.length < 5) return null;
-  return letters.slice(0, 4) + digits.slice(-5);
-}
 
 // Cryptographically random, always satisfying the policy (letters + digits).
 function randomTempPassword() {
@@ -50,8 +40,7 @@ function initialPassword(setup, name, phone) {
   if (!setup || !SERVER_SET.includes(setup.option)) return { password: null };
   if (setup.option === 'RANDOM_TEMP') return { password: randomTempPassword(), reveal: true };
   if (setup.option === 'ADMIN_DEFINED') return { password: setup.password };
-  const pw = nameMobilePassword(name, phone);
-  return pw ? { password: pw } : { problem: 'PASSWORD_INPUT_MISSING' };
+  return { password: null };
 }
 
 const branchRef = (db, s, b) => db.collection('schools').doc(s).collection('branches').doc(b);
@@ -552,7 +541,7 @@ async function resetOne(ctx, id) {
 //     stored or logged, and the new admin must change a server-set one at
 //     first sign-in;
 //   - every creation is written to the school's authAudit trail.
-const ADMIN_PASSWORD_OPTIONS = ['ACTIVATION_EMAIL', 'RANDOM_TEMP', 'ADMIN_DEFINED', 'NAME_MOBILE'];
+const ADMIN_PASSWORD_OPTIONS = ['ACTIVATION_EMAIL', 'RANDOM_TEMP', 'ADMIN_DEFINED'];
 
 async function createSchoolAdmin({ db, auth, now }, callerUid, data, token) {
   const { schoolId, name, email, phone, passwordSetup } = data || {};
@@ -633,4 +622,4 @@ async function createSchoolAdmin({ db, auth, now }, callerUid, data, token) {
   };
 }
 
-module.exports = { createSchoolAdmin, resetLoginPassword, changeInitialPassword, provisionLogins, nameMobilePassword, randomTempPassword, passwordPolicyOk, PASSWORD_OPTIONS, ensureAuthUser, enablePortalLinks, refreshParentAccess, MAX_BATCH };
+module.exports = { createSchoolAdmin, resetLoginPassword, changeInitialPassword, provisionLogins, randomTempPassword, passwordPolicyOk, PASSWORD_OPTIONS, ensureAuthUser, enablePortalLinks, refreshParentAccess, MAX_BATCH };

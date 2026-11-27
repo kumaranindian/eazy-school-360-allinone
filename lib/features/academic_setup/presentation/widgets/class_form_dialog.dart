@@ -8,6 +8,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/validators/validators.dart';
 import '../../domain/school_class.dart';
 import '../providers/academic_structure_providers.dart';
+import '../../../../shared/forms/app_form.dart';
 
 class ClassFormDialog extends ConsumerStatefulWidget {
   final String schoolId;
@@ -93,8 +94,8 @@ class _ClassFormDialogState extends ConsumerState<ClassFormDialog> {
         .watch(academicStructureWriteControllerProvider)
         .isLoading;
 
-    return Form(
-      key: _formKey,
+    return AppForm(
+      formKey: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

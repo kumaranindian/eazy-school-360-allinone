@@ -15,6 +15,7 @@ import '../../../students/presentation/widgets/parents/parents_ui.dart';
 import '../../domain/admission_application.dart';
 import '../../domain/admission_settings.dart';
 import '../providers/admission_providers.dart';
+import '../../../../shared/forms/app_form.dart';
 
 /// School-wide admission settings: the module switch, number prefixes, the
 /// enquiry sources and the default follow-up interval. Saved through the
@@ -211,9 +212,9 @@ class _AdmissionSettingsPageState extends ConsumerState<AdmissionSettingsPage> {
                         : context.go(AppRoutes.admissions),
                   ),
                   Expanded(
-                    child: Form(
-                      key: _form,
-                      child: ListView(
+                    child: AppForm(
+                      formKey: _form,
+                      child: FormScrollView(
                         padding: EdgeInsets.all(wide.isMobile ? 16 : 24),
                         children: [
                           Center(

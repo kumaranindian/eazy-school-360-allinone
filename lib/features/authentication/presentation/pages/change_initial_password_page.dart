@@ -12,6 +12,7 @@ import '../providers/auth_providers.dart';
 import '../providers/initial_password_providers.dart';
 import '../sign_out.dart';
 import '../widgets/auth_scaffold.dart';
+import '../../../../shared/forms/app_form.dart';
 
 /// Shown on first sign-in after an administrator set (or derived) the
 /// password. The person picks their own; the old one stops working.
@@ -88,8 +89,8 @@ class _ChangeInitialPasswordPageState
       subtitle:
           'Your administrator set a temporary password. Pick a new one to '
           'continue — the temporary one will stop working.',
-      child: Form(
-        key: _formKey,
+      child: AppForm(
+        formKey: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

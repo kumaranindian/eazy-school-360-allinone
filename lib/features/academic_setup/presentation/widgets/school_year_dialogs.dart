@@ -10,6 +10,7 @@ import '../../../../core/validators/validators.dart';
 import '../../../school_setup/domain/branch.dart';
 import '../../domain/school_academic_year.dart';
 import '../providers/academic_structure_providers.dart';
+import '../../../../shared/forms/app_form.dart';
 
 /// Defines a school-wide academic year (name + dates). School admin only.
 class SchoolYearFormDialog extends ConsumerStatefulWidget {
@@ -88,8 +89,8 @@ class _SchoolYearFormDialogState extends ConsumerState<SchoolYearFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Form(
-      key: _formKey,
+    return AppForm(
+      formKey: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

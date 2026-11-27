@@ -515,8 +515,12 @@ class _WorkingDaysPageState extends ConsumerState<WorkingDaysPage> {
                                       : null,
                                   child: const Text('Cancel'),
                                 ),
+                                // Never saved: the defaults can be confirmed
+                                // as they are (SET-01-OBS-03), which also
+                                // completes the setup checklist step.
                                 FilledButton(
-                                  onPressed: (!dirty || isSaving)
+                                  onPressed:
+                                      ((!dirty && configured) || isSaving)
                                       ? null
                                       : () => _save(
                                           userId: tenant.user.userId,

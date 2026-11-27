@@ -1,4 +1,5 @@
 import '../../attendance/domain/attendance_day.dart';
+import '../../attendance/domain/attendance_tally.dart';
 import '../../fees/domain/fee_summary.dart';
 
 /// Today's student attendance across the branch, built from the registers
@@ -9,7 +10,10 @@ import '../../fees/domain/fee_summary.dart';
 /// * a student who has no mark is **not marked**, never "absent";
 /// * late and half-day students are present (they attended), so they count in
 ///   [present];
-/// * the denominator is the branch's active students ([expected]).
+/// * the attendance percentage follows the attendance reports
+///   ([AttendanceTally.percentage]): attended ÷ **marked** students, with a
+///   half day weighted 0.5 (DASH-01-DEF-02); students not marked yet are not
+///   in the denominator, they are shown as "Not marked".
 class AttendanceToday {
   final int expected;
   final int present;
@@ -17,13 +21,26 @@ class AttendanceToday {
   final int marked;
   final int registersTaken;
 
+  /// Attended students weighted as in the reports (half day 0.5). Defaults
+  /// to [present] (no half days).
+  final double? _attended;
+
   const AttendanceToday({
     required this.expected,
     required this.present,
     required this.absent,
     required this.marked,
     required this.registersTaken,
-  });
+    double? attended,
+  }) : _attended = attended;
+
+  double get attended => _attended ?? present.toDouble();
+
+  /// Attendance of the marked students, 0-1 (0 when nobody is marked).
+  double get attendanceRate =>
+      marked <= 0 ? 0 : (attended / marked).clamp(0, 1).toDouble();
+
+  int get attendancePercent => (attendanceRate * 100).round();
 
   /// Students without a mark yet (never negative if the data disagrees).
   int get notMarked => (expected - marked).clamp(0, expected);
@@ -40,24 +57,21 @@ class AttendanceToday {
     required int expectedStudents,
     required Iterable<AttendanceDay> registers,
   }) {
-    var present = 0;
-    var absent = 0;
-    var marked = 0;
+    var total = const AttendanceTally();
     var taken = 0;
     for (final d in registers) {
       final t = d.tally;
       if (t.marked == 0) continue; // an opened, still empty register
       taken++;
-      present += t.present + t.late + t.halfDay;
-      absent += t.absent;
-      marked += t.marked;
+      total = total + t;
     }
     return AttendanceToday(
       expected: expectedStudents,
-      present: present,
-      absent: absent,
-      marked: marked,
+      present: total.present + total.late + total.halfDay,
+      absent: total.absent,
+      marked: total.marked,
       registersTaken: taken,
+      attended: total.attendedDays,
     );
   }
 }

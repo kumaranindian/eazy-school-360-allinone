@@ -10,6 +10,7 @@ import '../../domain/parent.dart';
 import '../../domain/parent_duplicates.dart';
 import '../providers/parent_providers.dart';
 import 'parent_duplicates_dialog.dart';
+import '../../../../shared/forms/app_form.dart';
 
 /// How [ParentFormDialog] closed (null: cancelled).
 class ParentFormResult {
@@ -226,8 +227,8 @@ class _ParentFormDialogState extends ConsumerState<ParentFormDialog> {
     final isSaving =
         ref.watch(parentWriteControllerProvider).isLoading || _checking;
 
-    return Form(
-      key: _formKey,
+    return AppForm(
+      formKey: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

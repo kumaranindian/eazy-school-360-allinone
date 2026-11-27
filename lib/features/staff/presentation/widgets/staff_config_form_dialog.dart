@@ -10,6 +10,7 @@ import '../../domain/department.dart';
 import '../../domain/designation.dart';
 import '../providers/staff_providers.dart';
 import 'staff_config_entry.dart';
+import '../../../../shared/forms/app_form.dart';
 
 /// Create/edit a department or designation. The code is typed once at
 /// creation and then fixed (it is the document id and the uniqueness key);
@@ -138,8 +139,8 @@ class _StaffConfigFormDialogState extends ConsumerState<StaffConfigFormDialog> {
     final isSaving = ref.watch(staffSetupWriteControllerProvider).isLoading;
     final label = widget.kind.singular;
 
-    return Form(
-      key: _formKey,
+    return AppForm(
+      formKey: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

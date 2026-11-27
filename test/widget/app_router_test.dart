@@ -104,6 +104,26 @@ void main() {
     expect(_location(container), AppRoutes.dashboard);
   });
 
+  testWidgets(
+    'DASH-01-DEF-01: a platform page left by the previous user is not '
+    'opened for a school admin; they land on the dashboard',
+    (tester) async {
+      final container = await _pumpSignedIn(
+        tester,
+        profile: _profile(role: UserRole.schoolAdmin),
+      );
+      for (final start in [
+        '/?from=%2Fplatform%2Fschools%2Fschool-9',
+        '/login?from=%2Fplatform%2Fschools%2Fschool-9',
+      ]) {
+        container.read(appRouterProvider).go(start);
+        await tester.pumpAndSettle();
+        expect(_location(container), AppRoutes.dashboard, reason: start);
+        expect(find.textContaining('platform role'), findsNothing);
+      }
+    },
+  );
+
   testWidgets('signed in with no profile -> create-school onboarding', (
     tester,
   ) async {

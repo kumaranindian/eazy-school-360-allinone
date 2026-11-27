@@ -78,6 +78,34 @@ void main() {
       expect(a.completion, 1);
     });
 
+    test('the ring is present of marked students, not registers done '
+        '(DASH-01-DEF-02)', () {
+      // QA: total 2, present 1, absent 1 showed 100%.
+      final a = AttendanceToday.from(
+        expectedStudents: 2,
+        registers: [_day(const AttendanceTally(present: 1, absent: 1))],
+      );
+      expect(a.attendancePercent, 50);
+    });
+
+    test('the ring weights late and half day as the reports do', () {
+      const t = AttendanceTally(present: 4, late: 2, halfDay: 1, absent: 1);
+      final a = AttendanceToday.from(
+        expectedStudents: 30,
+        registers: [_day(t)],
+      );
+      // (4 + 2 + 0.5) / 8 = 81.25 %, same as AttendanceTally.percentage.
+      expect(a.attendanceRate * 100, closeTo(t.percentage!, 1e-9));
+      expect(a.attendancePercent, 81);
+      // Unmarked students do not lower it.
+      expect(a.notMarked, 22);
+    });
+
+    test('nobody marked: 0 %, no divide by zero', () {
+      final a = AttendanceToday.from(expectedStudents: 30, registers: const []);
+      expect(a.attendancePercent, 0);
+    });
+
     test('no students: no divide by zero', () {
       final a = AttendanceToday.from(expectedStudents: 0, registers: const []);
       expect(a.completion, 0);

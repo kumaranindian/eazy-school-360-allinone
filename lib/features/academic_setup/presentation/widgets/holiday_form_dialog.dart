@@ -12,6 +12,7 @@ import '../../domain/holiday.dart';
 import '../../domain/holiday_rules.dart';
 import '../../domain/holiday_type.dart';
 import '../providers/calendar_providers.dart';
+import '../../../../shared/forms/app_form.dart';
 
 class HolidayFormDialog extends ConsumerStatefulWidget {
   final String schoolId;
@@ -175,8 +176,8 @@ class _HolidayFormDialogState extends ConsumerState<HolidayFormDialog> {
   Widget build(BuildContext context) {
     final isSaving = ref.watch(calendarWriteControllerProvider).isLoading;
 
-    return Form(
-      key: _formKey,
+    return AppForm(
+      formKey: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

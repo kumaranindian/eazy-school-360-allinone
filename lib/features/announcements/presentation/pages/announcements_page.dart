@@ -18,8 +18,11 @@ import '../../../homework/presentation/widgets/homework_widgets.dart';
 import '../../../staff/presentation/widgets/staff_branch_scope.dart';
 import '../../../../shared/layouts/stat_chips.dart';
 import '../../domain/announcement.dart';
+import '../../../homework/presentation/providers/homework_providers.dart'
+    show announcementsProvider;
 import '../providers/announcement_providers.dart';
 import '../widgets/current_announcements_card.dart';
+import '../../../../shared/paging/reload_on_return.dart';
 
 /// `/announcements` — what is addressed to the person right now (published,
 /// started, not expired), plus recent updates. Managers also see drafts,
@@ -91,7 +94,14 @@ class _AnnouncementList extends ConsumerStatefulWidget {
   ConsumerState<_AnnouncementList> createState() => _AnnouncementListState();
 }
 
-class _AnnouncementListState extends ConsumerState<_AnnouncementList> {
+class _AnnouncementListState extends ConsumerState<_AnnouncementList>
+    with ReloadOnReturn {
+  @override
+  void onReturn() {
+    ref.invalidate(announcementsProvider);
+    ref.invalidate(visibleAnnouncementsProvider);
+  }
+
   _View _view = _View.current;
 
   bool get _manages => widget.tenant.can(Permission.manageAnnouncements);

@@ -167,3 +167,31 @@ test('helpers', () => {
   assert.equal(c.relationshipOf(''), 'GUARDIAN');
   assert.deepEqual(c.splitName('A B C'), { firstName: 'A', middleName: 'B', lastName: 'C' });
 });
+
+test('a new guardian reserves the email; one already in the school is reused (STU-02-DEF-01)', async () => {
+  const db = fakeDb(seed());
+  await c.convertToStudent(ctx(db), 'adminA', undefined, req());
+  assert.equal(get(db, 'schools/sA/parentEmails/m@example.com').parentId, 'p_9876543210');
+
+  const db2 = fakeDb({
+    ...seed(),
+    'schools/sA/parentEmails/m@example.com': { parentId: 'p_old', branchId: 'b2' },
+  });
+  await c.convertToStudent(ctx(db2), 'adminA', undefined, req());
+  assert.ok(get(db2, `${B}/students/s_e1/parentLinks/p_old`), 'linked to the parent that has the email');
+  assert.equal(get(db2, `${B}/parents/p_9876543210`), undefined);
+  assert.equal(get(db2, 'schools/sA/parentEmails/m@example.com').parentId, 'p_old');
+});
+
+test('a roll number already used in the section is refused (STU-01-OBS-01)', async () => {
+  const db = fakeDb({
+    ...seed(),
+    [`${B}/students/other`]: { status: 'ACTIVE', currentAcademicYearId: 'ay1', currentSectionId: 's1', currentRollNumber: '7' },
+  });
+  const r = await c.convertToStudent(ctx(db), 'adminA', undefined, req());
+  assert.equal(r.error, 'FAILED_PRECONDITION');
+  assert.match(r.reason, /roll number 7/);
+  assert.equal(get(db, `${B}/students/s_e1`), undefined);
+  // another roll number goes through
+  assert.ok((await c.convertToStudent(ctx(db), 'adminA', undefined, req({ rollNumber: '8' }))).result);
+});

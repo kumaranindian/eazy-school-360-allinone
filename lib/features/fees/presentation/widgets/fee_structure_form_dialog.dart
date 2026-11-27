@@ -15,6 +15,7 @@ import '../../domain/fee_structure.dart';
 import '../../domain/money.dart';
 import '../providers/fee_providers.dart';
 import 'fee_scope.dart';
+import '../../../../shared/forms/app_form.dart';
 
 /// Opens the fee form: a full-screen page on a phone, a wide two-pane dialog
 /// (step list on the left, form on the right) on tablet and desktop.
@@ -555,8 +556,8 @@ class _FeeStructureFormDialogState
             ],
           ),
         );
-        return Form(
-          key: _formKey,
+        return AppForm(
+          formKey: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

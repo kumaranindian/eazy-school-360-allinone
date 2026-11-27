@@ -15,6 +15,7 @@ import '../../domain/admission_application.dart';
 import '../../domain/admission_enquiry.dart';
 import '../providers/admission_providers.dart';
 import '../widgets/admission_widgets.dart';
+import '../../../../shared/forms/app_form.dart';
 
 /// Edit the details of a DRAFT application. They start as a copy of the enquiry
 /// and can be corrected here without touching the enquiry itself.
@@ -265,9 +266,9 @@ class _ApplicationFormPageState extends ConsumerState<ApplicationFormPage> {
                     : context.go('/admissions/enquiries/${a.enquiryId}'),
               ),
               Expanded(
-                child: Form(
-                  key: _form,
-                  child: ListView(
+                child: AppForm(
+                  formKey: _form,
+                  child: FormScrollView(
                     padding: EdgeInsets.all(wide.isMobile ? 16 : 24),
                     children: [
                       Center(

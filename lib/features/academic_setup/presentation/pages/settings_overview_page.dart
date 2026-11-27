@@ -101,6 +101,24 @@ class SettingsOverviewPage extends ConsumerWidget {
         setupLabel: 'Subjects',
       ),
     ]),
+    _Group('Staff', 'Needed before staff can be added', [
+      _Section(
+        label: 'Departments',
+        description: 'Academic, administration, transport and so on',
+        icon: Icons.apartment_outlined,
+        route: AppRoutes.staffDepartments,
+        permission: Permission.viewStaff,
+        setupLabel: 'Departments',
+      ),
+      _Section(
+        label: 'Designations',
+        description: 'Job titles such as teacher or accountant',
+        icon: Icons.badge_outlined,
+        route: AppRoutes.staffDesignations,
+        permission: Permission.viewStaff,
+        setupLabel: 'Designations',
+      ),
+    ]),
     _Group('Calendar', 'When the school is in session', [
       _Section(
         label: 'Weekly offs',

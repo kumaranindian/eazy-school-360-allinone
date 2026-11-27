@@ -21,6 +21,7 @@ import '../../domain/student.dart';
 import '../../domain/student_status.dart';
 import '../providers/student_providers.dart';
 import '../widgets/student_placement_label.dart';
+import '../../../../shared/paging/reload_on_return.dart';
 
 enum _SearchBy {
   name('Name'),
@@ -40,7 +41,15 @@ class StudentsListPage extends ConsumerStatefulWidget {
   ConsumerState<StudentsListPage> createState() => _StudentsListPageState();
 }
 
-class _StudentsListPageState extends ConsumerState<StudentsListPage> {
+class _StudentsListPageState extends ConsumerState<StudentsListPage>
+    with ReloadOnReturn {
+  @override
+  void onReturn() {
+    final s = _schoolId, b = _branchId;
+    if (s != null && b != null) _resetAndLoad(s, b);
+    ref.invalidate(studentCountsProvider);
+  }
+
   final _searchController = TextEditingController();
   Timer? _debounce;
   _SearchBy _searchBy = _SearchBy.name;

@@ -146,6 +146,20 @@
             },
             {
               "op": "set",
+              "path": "schools/__SCHOOL__/parentEmails/ravi@example.com",
+              "data": {
+                "schoolId": "__SCHOOL__",
+                "branchId": "south",
+                "parentId": "par-new",
+                "email": "ravi@example.com",
+                "createdAt": {
+                  "$serverTimestamp": true
+                },
+                "createdBy": "bt-admin"
+              }
+            },
+            {
+              "op": "set",
               "path": "schools/__SCHOOL__/branches/south/students/stu-1/parentLinks/par-new",
               "data": {
                 "schoolId": "__SCHOOL__",

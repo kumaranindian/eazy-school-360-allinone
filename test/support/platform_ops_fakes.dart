@@ -567,6 +567,10 @@ class FakePlatformOpsRepository implements PlatformOpsRepository {
 
   List<PlatformNotification> myNotifications = [];
   final acknowledged = <String>[];
+
+  /// The list keeps returning the old copy after an acknowledgement (the
+  /// refetch is slow): the dialog must still close on one click.
+  bool staleAfterAck = false;
   final dismissedIds = <String>[];
 
   @override
@@ -578,6 +582,7 @@ class FakePlatformOpsRepository implements PlatformOpsRepository {
   Future<void> acknowledgeNotification(String id) async {
     _maybeFail();
     acknowledged.add(id);
+    if (staleAfterAck) return;
     myNotifications = [
       for (final n in myNotifications)
         if (n.id == id) _acked(n) else n,

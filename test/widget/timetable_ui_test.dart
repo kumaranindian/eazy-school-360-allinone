@@ -557,10 +557,26 @@ void main() {
         );
         await w.go(tester, '/timetable');
         expect(find.textContaining('Class 5 SA · v1'), findsOneWidget);
-        expect(find.textContaining('Class 5 SB · v1'), findsOneWidget);
+        // The draft is in the list and also in "Drafts in progress", with
+        // an Open action (TT-01-OBS-01).
+        expect(find.textContaining('Class 5 SB · v1'), findsNWidgets(2));
+        final drafts = find.byKey(const ValueKey('timetable-drafts'));
+        expect(
+          find.descendant(of: drafts, matching: find.textContaining('SB')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: drafts, matching: find.textContaining('SA')),
+          findsNothing,
+        );
         expect(find.text('Published'), findsWidgets);
         expect(find.text('Draft'), findsWidgets);
         expect(find.text('New timetable'), findsOneWidget);
+        await tester.tap(
+          find.descendant(of: drafts, matching: find.text('Open')),
+        );
+        await tester.pumpAndSettle();
+        expect(w.location, '/timetable/editor/${draft.timetableId}');
       },
     );
 

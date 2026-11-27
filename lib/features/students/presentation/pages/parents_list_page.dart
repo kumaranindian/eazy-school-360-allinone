@@ -30,6 +30,7 @@ import '../../../../core/errors/error_mapper.dart';
 import '../providers/parent_providers.dart';
 import '../providers/student_providers.dart';
 import '../widgets/parent_form_dialog.dart';
+import '../../../../shared/paging/reload_on_return.dart';
 
 /// The parent/guardian directory (brief §21): name, phone, email, number
 /// of children, status — search, filter, and cursor pagination, same
@@ -41,7 +42,14 @@ class ParentsListPage extends ConsumerStatefulWidget {
   ConsumerState<ParentsListPage> createState() => _ParentsListPageState();
 }
 
-class _ParentsListPageState extends ConsumerState<ParentsListPage> {
+class _ParentsListPageState extends ConsumerState<ParentsListPage>
+    with ReloadOnReturn {
+  @override
+  void onReturn() {
+    final s = _schoolId, b = _branchId;
+    if (s != null && b != null) _resetAndLoad(s, b);
+  }
+
   final _searchController = TextEditingController();
   Timer? _debounce;
   ActivationStatus? _statusFilter;

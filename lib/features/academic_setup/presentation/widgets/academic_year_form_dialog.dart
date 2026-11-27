@@ -10,6 +10,7 @@ import '../../../../core/validators/validators.dart';
 import '../../domain/academic_year.dart';
 import '../../domain/academic_year_status.dart';
 import '../providers/academic_structure_providers.dart';
+import '../../../../shared/forms/app_form.dart';
 
 class AcademicYearFormDialog extends ConsumerStatefulWidget {
   final String schoolId;
@@ -120,8 +121,8 @@ class _AcademicYearFormDialogState
         .watch(academicStructureWriteControllerProvider)
         .isLoading;
 
-    return Form(
-      key: _formKey,
+    return AppForm(
+      formKey: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
