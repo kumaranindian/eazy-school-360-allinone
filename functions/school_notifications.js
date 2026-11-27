@@ -97,6 +97,9 @@ const view = (id, n) => ({
   acknowledgedAtMs: toMs(n.acknowledgedAt),
 });
 
+/** A school status change notice (SCHOOL_ACTIVATED, SCHOOL_SUSPENDED, ...). */
+const isStatusNotice = (n) => Object.prototype.hasOwnProperty.call(LIFECYCLE_COPY, n.type);
+
 /** The caller's notifications, newest first. First sight marks them DELIVERED. */
 async function listMyPlatformNotifications(ctx, uid, token) {
   if (!(await recipient(ctx, uid, token))) return { error: 'PERMISSION_DENIED' };
@@ -112,6 +115,18 @@ async function listMyPlatformNotifications(ctx, uid, token) {
     out.push(view(d.id, n));
   }
   out.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+  // School status notices (activated, suspended, restored...): only the
+  // latest one still matters. Older unread ones are marked read (superseded)
+  // so the administrator is not walked through the whole history at sign-in
+  // (DASH-01-OBS-01).
+  let latestStatus = null;
+  for (const n of out) {
+    if (!isStatusNotice(n) || n.state === 'ACKNOWLEDGED') continue;
+    if (!latestStatus) { latestStatus = n; continue; }
+    await ctx.db.collection(COL).doc(n.id).update({ state: 'ACKNOWLEDGED', acknowledgedAt: ctx.now, supersededBy: latestStatus.id });
+    n.state = 'ACKNOWLEDGED';
+    n.acknowledgedAtMs = toMs(ctx.now);
+  }
   const pending = out.filter((n) => n.state !== 'ACKNOWLEDGED').length;
   return { notifications: out.slice(0, 50), pending };
 }

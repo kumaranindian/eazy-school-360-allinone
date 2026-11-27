@@ -17,6 +17,7 @@ import '../../domain/fee_repositories.dart';
 import '../../domain/money.dart';
 import '../providers/fee_providers.dart';
 import '../widgets/fee_scope.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// `/fees/invoices/generate` — bulk invoice generation for a class/section and
 /// billing period, in three explicit steps: choose → **preview** (who is
@@ -481,7 +482,7 @@ class _GenerateState extends ConsumerState<_Generate> {
                   ? null
                   : () async {
                       final now = SchoolTime.wallNow();
-                      final picked = await showDatePicker(
+                      final picked = await showSchoolDatePicker(
                         context: context,
                         initialDate: now,
                         firstDate: DateTime(now.year - 1),

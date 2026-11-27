@@ -8,6 +8,7 @@ import '../../domain/login_provisioning.dart';
 import '../../domain/school_admin.dart';
 import '../providers/school_admin_providers.dart';
 import 'password_setup_picker.dart';
+import '../../../../shared/forms/app_form.dart';
 
 /// Adds another school administrator. The server does the work (clients may
 /// not grant `SCHOOL_ADMIN`); this dialog collects the person's details and
@@ -22,8 +23,7 @@ Future<bool?> showAddSchoolAdminDialog({
   builder: (_) => AddSchoolAdminDialog(schoolId: schoolId),
 );
 
-/// The options that make sense for an administrator. "Name + mobile" is left
-/// out: it is guessable, and this is the most powerful role in the school.
+/// The options that make sense for an administrator.
 const _adminOptions = [
   PasswordSetupOption.activationEmail,
   PasswordSetupOption.randomTemp,
@@ -191,8 +191,8 @@ class _AddSchoolAdminDialogState extends ConsumerState<AddSchoolAdminDialog> {
     );
   }
 
-  Widget _formBody(ThemeData theme) => Form(
-    key: _form,
+  Widget _formBody(ThemeData theme) => AppForm(
+    formKey: _form,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

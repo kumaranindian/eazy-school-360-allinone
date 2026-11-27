@@ -451,6 +451,11 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
           .first,
     );
   } else {
+    // The whole form is built (FormScrollView), so the target exists while
+    // off screen. A focused text field keeps scrolling itself back into
+    // view, so drop the focus first.
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
     await tester.ensureVisible(finder);
   }
   await tester.pumpAndSettle();

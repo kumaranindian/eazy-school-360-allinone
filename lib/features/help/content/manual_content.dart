@@ -462,7 +462,7 @@ const _guides = [
       ),
       ManualStep(
         'Choose how the first password is set',
-        'Pick one: Name + mobile number (easy to guess, least secure), Random temporary password (shown once for you to download), Activation email (the parent sets their own password from a secure link — recommended), Password set/reset link, or One password set by you for the whole batch.',
+        'Pick one: Random temporary password (shown once for you to download), Activation email (the parent sets their own password from a secure link — recommended), Password set/reset link, or One password set by you for the whole batch.',
         mistake:
             'Sending passwords by chat or writing them where others can see them. Prefer the activation email.',
       ),

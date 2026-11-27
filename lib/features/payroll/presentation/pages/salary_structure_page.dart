@@ -8,6 +8,7 @@ import '../../../fees/domain/money.dart';
 import '../../../staff/presentation/widgets/staff_branch_scope.dart';
 import '../../domain/payroll.dart';
 import '../providers/payroll_providers.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// `/payroll/staff/:staffId`: one person's salary structure. The version in
 /// force today, every earlier version, and (school admin only) a form that
@@ -351,7 +352,7 @@ class _StructureFormState extends ConsumerState<_StructureForm> {
 
   Future<void> _pickMonth() async {
     final d = DateTime.parse(_from);
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: d,
       firstDate: DateTime(d.year - 2),

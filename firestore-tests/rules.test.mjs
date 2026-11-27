@@ -1108,3 +1108,28 @@ test('a school admin granting portal access writes linkedParentId on /users, but
     }),
   );
 });
+
+test('SET-01-DEF-01: a section capacity is empty or a whole number of at least 1', async () => {
+  let yearId;
+  await seed(async (db) => {
+    const result = await seedFullStructure(db, { schoolId: SCHOOL_A, branchId: MAIN, adminUid: 'admin-a' });
+    yearId = result.yearId;
+    await setDoc(
+      doc(db, 'schools', SCHOOL_A, 'branches', MAIN, 'academicYears', yearId, 'classes', 'class-cap'),
+      classDoc({ schoolId: SCHOOL_A, branchId: MAIN, academicYearId: yearId, createdBy: 'admin-a' }),
+    );
+  });
+  const adminA = asUser('admin-a');
+  const ref = (id) => doc(adminA, 'schools', SCHOOL_A, 'branches', MAIN, 'academicYears', yearId, 'classes', 'class-cap', 'sections', id);
+  const section = (capacity) => ({
+    ...sectionDoc({ schoolId: SCHOOL_A, branchId: MAIN, academicYearId: yearId, classId: 'class-cap', createdBy: 'admin-a' }),
+    capacity,
+  });
+  await assertSucceeds(setDoc(ref('ok-null'), section(null)));
+  await assertSucceeds(setDoc(ref('ok-40'), section(40)));
+  for (const bad of [0, -5, 2.5, '40']) {
+    await assertFails(setDoc(ref(`bad-${String(bad).replace('.', '_')}`), section(bad)));
+  }
+  await assertFails(updateDoc(ref('ok-40'), { capacity: -5, updatedAt: serverTimestamp(), updatedBy: 'admin-a' }));
+  await assertSucceeds(updateDoc(ref('ok-40'), { capacity: 35, updatedAt: serverTimestamp(), updatedBy: 'admin-a' }));
+});

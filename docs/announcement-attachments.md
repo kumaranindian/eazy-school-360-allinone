@@ -19,7 +19,7 @@ Metadata stays in `announcements.attachments[]` (existing `FileAttachment`): `pa
 * Tests: `firestore-tests/announcement-attachment-storage-rules.test.mjs`, `homework-storage-rules.test.mjs`, `homework-rules.test.mjs`.
 
 ## Limitations
-* Storage rules cannot sniff bytes or scan for malware; the app checks signatures but **no malware scanning exists**. Production recommendation: the Firebase "Scan files with Cloud Storage Antivirus"-style extension or a Cloud Function on `finalize` that scans and quarantines.
+* Storage rules cannot sniff bytes or scan for malware. Since 2026-11-27 (QA HW-01-OBS-01) the server checks every homework, submission and announcement file: the app uploads it with custom metadata `contentCheck=PENDING` (required by `storage.rules`), the `checkUploadedFile` Storage trigger (`functions/upload_check.js`) reads the first 4 KB and either marks the object `PASSED` or deletes it when the bytes do not match the extension. Until it is `PASSED`, only branch admins and the uploader can read it. Files uploaded before this change carry no mark and stay readable. This is a type check, **not a virus scan**: a scanner (e.g. ClamAV on Cloud Run or a scanning API) would plug into the same PENDING → PASSED step and needs a separate decision on cost.
 * Finer audience scoping (a parent of another class/section who knows the path) needs more Firestore lookups than Storage rules allow; as before, the app lists only what is addressed to the viewer, and the rule enforces school, published/due and staff-vs-parent audience.
 * Interrupted uploads are retried by the user (Retry), not resumed.
 * Web needs the bucket CORS from `storage.cors.json` for thumbnails (already in the repo; see DEVELOPMENT_GUIDE.md).

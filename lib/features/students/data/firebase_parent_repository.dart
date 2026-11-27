@@ -5,12 +5,14 @@ import 'package:firebase_storage/firebase_storage.dart';
 
 import '../../../core/constants/activation_status.dart';
 import '../../../core/constants/firestore_fields.dart';
+import '../../../core/errors/app_failure.dart';
 import '../../../core/errors/error_mapper.dart';
 import '../../users/domain/user_profile.dart';
 import '../domain/paged_result.dart';
 import '../domain/parent.dart';
 import '../domain/parent_repository.dart';
 import '../domain/student.dart';
+import 'parent_email_reservation.dart';
 
 /// `/schools/{s}/branches/{b}/parents/{parentId}`. [getChildrenForParent]
 /// is the one method here that reaches outside this collection — a
@@ -184,8 +186,23 @@ class FirebaseParentRepository implements ParentRepository {
     required String createdBy,
   }) async {
     try {
-      final ref = _parentsCollection(parent.schoolId, parent.branchId).doc();
-      await ref.set(parent.toFirestoreCreate(createdBy: createdBy));
+      // An id made by the form is reused on a repeat call (STU-02-DEF-01).
+      final collection = _parentsCollection(parent.schoolId, parent.branchId);
+      final ref = parent.parentId.isEmpty
+          ? collection.doc()
+          : collection.doc(parent.parentId);
+      await _firestore.runTransaction((tx) async {
+        final existing = await tx.get(ref);
+        if (existing.exists) return; // already saved by an earlier attempt
+        final reservation = await _claimEmail(
+          tx,
+          parent,
+          ref.id,
+          actorId: createdBy,
+        );
+        tx.set(ref, parent.toFirestoreCreate(createdBy: createdBy));
+        reservation?.call();
+      });
       return ref.id;
     } catch (error, stackTrace) {
       throw mapExceptionToFailure(error, stackTrace);
@@ -195,14 +212,77 @@ class FirebaseParentRepository implements ParentRepository {
   @override
   Future<void> updateParent(Parent parent, {required String updatedBy}) async {
     try {
-      await _parentDoc(
-        parent.schoolId,
-        parent.branchId,
-        parent.parentId,
-      ).update(parent.toFirestoreUpdate(updatedBy: updatedBy));
+      final ref = _parentDoc(parent.schoolId, parent.branchId, parent.parentId);
+      await _firestore.runTransaction((tx) async {
+        final before = await tx.get(ref);
+        final oldEmail = before.data()?['email'] as String?;
+        // Any change to the stored text counts: the rules compare it so.
+        final changed = (parent.email ?? '') != (oldEmail ?? '');
+        final reservation = changed
+            ? await _claimEmail(tx, parent, ref.id, actorId: updatedBy)
+            : null;
+        tx.update(ref, parent.toFirestoreUpdate(updatedBy: updatedBy));
+        reservation?.call();
+      });
     } catch (error, stackTrace) {
       throw mapExceptionToFailure(error, stackTrace);
     }
+  }
+
+  /// Checks that [parent]'s email is free in the school (or already this
+  /// parent's) and returns the write that reserves it, to run after the
+  /// parent write in the same transaction. A reservation left by a parent
+  /// that no longer has that email is taken over. Throws when another
+  /// parent of the school has it.
+  Future<void Function()?> _claimEmail(
+    Transaction tx,
+    Parent parent,
+    String parentId, {
+    required String actorId,
+  }) async {
+    final email = parent.email?.trim() ?? '';
+    if (email.isEmpty) return null;
+    final resRef = _firestore.doc(
+      ParentEmailReservation.path(parent.schoolId, email),
+    );
+    final res = await tx.get(resRef);
+    if (res.exists) {
+      final holder = res.data()!;
+      if (holder['parentId'] == parentId) return null;
+      final DocumentSnapshot<Map<String, dynamic>> other;
+      try {
+        other = await tx.get(
+          _parentDoc(
+            parent.schoolId,
+            holder[FirestoreFields.branchId] as String,
+            holder['parentId'] as String,
+          ),
+        );
+      } on FirebaseException catch (e) {
+        // A branch admin cannot open another branch's parent: it exists.
+        if (e.code == 'permission-denied') {
+          throw const ValidationFailure(parentEmailInUseMessage);
+        }
+        rethrow;
+      }
+      final otherEmail = other.data()?['email'] as String?;
+      if (other.exists &&
+          otherEmail != null &&
+          ParentEmailReservation.key(otherEmail) ==
+              ParentEmailReservation.key(email)) {
+        throw const ValidationFailure(parentEmailInUseMessage);
+      }
+    }
+    return () => tx.set(
+      resRef,
+      ParentEmailReservation.data(
+        schoolId: parent.schoolId,
+        branchId: parent.branchId,
+        parentId: parentId,
+        email: email,
+        actorId: actorId,
+      ),
+    );
   }
 
   /// Without a timeout a missing bucket or blocked rule retries for a long

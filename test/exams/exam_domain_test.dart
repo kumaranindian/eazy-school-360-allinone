@@ -203,6 +203,14 @@ void main() {
       expect(exam(start: 'soon').validate(), isNotNull);
       expect(exam(scheme: '').validate(), isNotNull);
     });
+    test(
+      'marks entry before the first exam date is flagged (EXM-01-OBS-01)',
+      () {
+        expect(ExamRules.startsAfter(exam(), '2026-08-31'), isTrue);
+        expect(ExamRules.startsAfter(exam(), '2026-09-01'), isFalse);
+        expect(ExamRules.startsAfter(exam(), '2026-09-05'), isFalse);
+      },
+    );
     test('the id is deterministic, so a duplicate scope + name collides', () {
       String id(String n, {String? section}) => Examination.idFor(
         academicYearId: 'y',

@@ -9,6 +9,7 @@ import '../../../../core/validators/validators.dart';
 import '../../domain/subject.dart';
 import '../../domain/subject_type.dart';
 import '../providers/academic_structure_providers.dart';
+import '../../../../shared/forms/app_form.dart';
 
 class SubjectFormDialog extends ConsumerStatefulWidget {
   final String schoolId;
@@ -101,8 +102,8 @@ class _SubjectFormDialogState extends ConsumerState<SubjectFormDialog> {
         .watch(academicStructureWriteControllerProvider)
         .isLoading;
 
-    return Form(
-      key: _formKey,
+    return AppForm(
+      formKey: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

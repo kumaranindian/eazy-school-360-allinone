@@ -9,9 +9,11 @@ import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/extensions/context_extensions.dart';
 import '../../../../core/tenant/tenant_context_provider.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/utils/client_ids.dart';
 import '../../../../core/utils/date_formatting.dart';
 import '../../../../core/validators/validators.dart';
 import '../../../../shared/error/empty_view.dart';
+import '../../../../shared/forms/submit_lock.dart';
 import '../../../../shared/loading/async_value_widget.dart';
 import '../../../academic_setup/presentation/providers/academic_structure_providers.dart';
 import '../../domain/blood_group.dart';
@@ -29,6 +31,8 @@ import '../widgets/admission_wizard.dart';
 import '../widgets/parent_duplicates_dialog.dart';
 import '../../../users/domain/login_provisioning.dart';
 import '../../../users/presentation/widgets/provision_logins_dialog.dart';
+import '../../../../shared/forms/app_form.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 enum _ParentMode { skip, existing, newParent }
 
@@ -83,7 +87,19 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
   String? _sectionId;
   final _rollNumber = TextEditingController();
 
+  /// Names of the chosen placement, shown on Review (STU-01-OBS-02).
+  String? _yearName;
+  String? _className;
+  String? _sectionName;
+
   bool _saving = false;
+
+  /// One admission per wizard (STU-01-DEF-01): the ids are made once, so a
+  /// repeated save finds the student and parent it already wrote, and the
+  /// lock ignores a second tap before the button rebuilds as disabled.
+  final _studentId = newClientId();
+  final _parentId = newClientId();
+  final _submit = SubmitLock();
 
   /// The admission number is generated (`ADM-0001`), never typed. It is
   /// looked up per branch, and looked up again at save.
@@ -225,6 +241,8 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
     String currentUserId,
   ) async {
     if (_step == 0 && !_canGoToParentStep) return;
+    if (_step == 0 && !await _notADuplicate(schoolId, branchId)) return;
+    if (!mounted) return;
     if (_step == 1 && !await _guardianStepDone(schoolId, branchId)) return;
     if (!mounted) return;
     if (_step == 2 && !_canReview) {
@@ -241,6 +259,51 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
     setState(() => _step += 1);
   }
 
+  /// STU-01-OBS-01: a student with the same name and date of birth is
+  /// probably already admitted; ask before going on. A failed lookup does not
+  /// block the admission.
+  Future<bool> _notADuplicate(String schoolId, String branchId) async {
+    final dob = _dateOfBirth;
+    if (dob == null) return true;
+    List<Student> same;
+    try {
+      same = await ref
+          .read(studentRepositoryProvider)
+          .findByNameAndBirthDate(
+            schoolId: schoolId,
+            branchId: branchId,
+            fullName: _name.full,
+            dateOfBirth: dob,
+          );
+    } catch (_) {
+      return true;
+    }
+    if (same.isEmpty || !mounted) return true;
+    final numbers = same.map((s) => s.admissionNumber).join(', ');
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: const ValueKey('possible-duplicate-student'),
+        title: const Text('This student may already be admitted'),
+        content: Text(
+          'A student named ${_name.full}, born ${formatDisplayDate(dob)}, '
+          'already exists ($numbers). Admit a new student anyway?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Go back'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Admit anyway'),
+          ),
+        ],
+      ),
+    );
+    return go == true;
+  }
+
   bool get _canReview =>
       _academicYearId != null && _classId != null && _sectionId != null;
 
@@ -252,7 +315,7 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
     setState(() => _saving = true);
 
     Student studentWith(String admissionNumber) => Student(
-      studentId: '',
+      studentId: _studentId,
       schoolId: schoolId,
       branchId: branchId,
       admissionNumber: admissionNumber,
@@ -273,17 +336,23 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
       status: StudentStatus.active,
     );
 
-    // The next number is read again now: another admin may have used the
-    // one shown. If it is taken between the read and the write, ask again.
+    // The number shown on Review is the one saved. Only when another admin
+    // has used it meanwhile is the next free one read (and then shown).
     String? newStudentId;
     Object? admitError;
     Student? student;
     for (var attempt = 0; attempt < 3 && newStudentId == null; attempt++) {
       admitError = null;
       try {
-        final number = await ref
-            .read(admissionNumberSourceProvider)
-            .nextNumber(schoolId: schoolId, branchId: branchId);
+        final shown = _admissionNumber.text.trim();
+        final number = attempt == 0 && shown.isNotEmpty
+            ? shown
+            : await ref
+                  .read(admissionNumberSourceProvider)
+                  .nextNumber(schoolId: schoolId, branchId: branchId);
+        if (mounted && number != shown) {
+          setState(() => _admissionNumber.text = number);
+        }
         student = studentWith(number);
         newStudentId = await ref
             .read(studentWriteControllerProvider.notifier)
@@ -329,7 +398,7 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
         parentId = _selectedParent?.parentId;
         if (_parentMode == _ParentMode.newParent) {
           final newParent = Parent(
-            parentId: '',
+            parentId: _parentId,
             schoolId: schoolId,
             branchId: branchId,
             firstName: _newParentFirstName.text.trim(),
@@ -453,7 +522,7 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
   ];
 
   Future<void> _pickDateOfBirth() async {
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: _dateOfBirth ?? DateTime(SchoolTime.wallNow().year - 10),
       firstDate: DateTime(1990),
@@ -468,7 +537,7 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
   }
 
   Future<void> _pickAdmissionDate() async {
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: _admissionDate,
       firstDate: DateTime(2000),
@@ -486,8 +555,8 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
     final scheme = Theme.of(context).colorScheme;
     final tint = scheme.primary.withValues(alpha: 0.08);
     const sp = SizedBox(height: AppSpacing.md);
-    return Form(
-      key: _basicFormKey,
+    return AppForm(
+      formKey: _basicFormKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -753,9 +822,11 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
                 ),
               const Spacer(),
               FilledButton(
-                onPressed: busy
+                onPressed: busy || _submit.busy
                     ? null
-                    : () => _continue(schoolId, branchId, tenant.user.userId),
+                    : () => _submit.run(
+                        () => _continue(schoolId, branchId, tenant.user.userId),
+                      ),
                 child: busy
                     ? const SizedBox(
                         height: 18,
@@ -879,8 +950,8 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
             ),
         ],
         if (_parentMode == _ParentMode.newParent)
-          Form(
-            key: _parentFormKey,
+          AppForm(
+            formKey: _parentFormKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -1003,6 +1074,10 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
                 ],
                 onChanged: (v) => setState(() {
                   _academicYearId = v;
+                  _yearName = years
+                      .where((y) => y.academicYearId == v)
+                      .firstOrNull
+                      ?.name;
                   _classId = null;
                   _sectionId = null;
                 }),
@@ -1038,6 +1113,10 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
                   ],
                   onChanged: (v) => setState(() {
                     _classId = v;
+                    _className = classes
+                        .where((c) => c.classId == v)
+                        .firstOrNull
+                        ?.name;
                     _sectionId = null;
                   }),
                 ),
@@ -1069,7 +1148,13 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
                     for (final s in sections)
                       DropdownMenuItem(value: s.sectionId, child: Text(s.name)),
                   ],
-                  onChanged: (v) => setState(() => _sectionId = v),
+                  onChanged: (v) => setState(() {
+                    _sectionId = v;
+                    _sectionName = sections
+                        .where((s) => s.sectionId == v)
+                        .firstOrNull
+                        ?.name;
+                  }),
                 ),
                 loading: () => const LinearProgressIndicator(),
                 error: (_, __) => const Text('Unable to load sections.'),
@@ -1094,6 +1179,14 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
       children: [
         Text(_name.full, style: Theme.of(context).textTheme.titleMedium),
         Text('Admission number: ${_admissionNumber.text}'),
+        if (_dateOfBirth != null)
+          Text('Date of birth: ${formatDisplayDate(_dateOfBirth!)}'),
+        Text('Academic year: ${_yearName ?? '—'}'),
+        Text('Class: ${_className ?? '—'}'),
+        Text('Section: ${_sectionName ?? '—'}'),
+        Text(
+          'Roll number: ${_rollNumber.text.trim().isEmpty ? 'Not set' : _rollNumber.text.trim()}',
+        ),
         Text(
           'Parent/guardian: ${_parentMode == _ParentMode.skip
               ? 'To be added later'

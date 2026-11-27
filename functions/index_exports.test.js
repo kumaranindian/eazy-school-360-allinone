@@ -11,6 +11,7 @@ test('index.js loads and exports the governance callables, scheduler and trigger
     'listMyPlatformNotifications', 'acknowledgeNotification', 'dismissNotification',
     'savePlan', 'listPlans', 'setSubscription', 'extendSubscription', 'renewSubscription', 'cancelSubscription', 'grantTrial', 'getSubscriptionHistory', 'masterScheduler',
     'setSchoolFeatures', 'getFeatureConfig', 'setFeatureDefaults', 'getFeatureHistory',
+    'checkUploadedFile',
     'queryAuditEvents', 'exportAuditEvents', 'getAuditSummary', 'getAuditEvent', 'reportClientEvent', 'auditMirrorPlatform', 'auditMirrorAuth',
   ];
   for (const name of want) assert.ok(m[name], `missing export ${name}`);

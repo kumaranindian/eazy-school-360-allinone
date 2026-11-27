@@ -50,10 +50,15 @@ class TimetableScope extends ConsumerStatefulWidget {
   final Widget Function(BuildContext context, TimetableContext tt) builder;
   final bool showYearSelector;
 
+  /// The module named when there is no academic year yet, e.g. "homework"
+  /// (EXM-01-OBS-02: exams and homework said "timetables").
+  final String moduleName;
+
   const TimetableScope({
     super.key,
     required this.builder,
     this.showYearSelector = true,
+    this.moduleName = 'timetables',
   });
 
   @override
@@ -89,10 +94,11 @@ class _TimetableScopeState extends ConsumerState<TimetableScope> {
         }
         final years = yearsAsync.value ?? const <AcademicYear>[];
         if (years.isEmpty) {
-          return const EmptyView(
+          return EmptyView(
             icon: Icons.event_outlined,
             message:
-                'Create an academic year in Settings before using timetables.',
+                'Create an academic year in Settings before using '
+                '${widget.moduleName}.',
           );
         }
         final selected = years.firstWhere(

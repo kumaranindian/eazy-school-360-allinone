@@ -10,6 +10,8 @@ import '../../../../core/validators/validators.dart';
 import '../../domain/academic_year.dart';
 import '../../domain/academic_year_status.dart';
 import '../providers/academic_structure_providers.dart';
+import '../../../../shared/forms/app_form.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 class AcademicYearFormDialog extends ConsumerStatefulWidget {
   final String schoolId;
@@ -45,7 +47,7 @@ class _AcademicYearFormDialogState
   bool get _linked => widget.existing.schoolYearId != null;
 
   Future<void> _pickDate({required bool isStart}) async {
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: (isStart ? _startDate : _endDate) ?? SchoolTime.wallNow(),
       firstDate: DateTime(2000),
@@ -120,8 +122,8 @@ class _AcademicYearFormDialogState
         .watch(academicStructureWriteControllerProvider)
         .isLoading;
 
-    return Form(
-      key: _formKey,
+    return AppForm(
+      formKey: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

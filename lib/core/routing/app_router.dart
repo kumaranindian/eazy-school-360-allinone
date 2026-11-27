@@ -51,6 +51,7 @@ import '../../features/platform_admin/presentation/providers/platform_session_pr
 import '../../features/platform_admin/presentation/widgets/platform_scaffold.dart';
 import '../permissions/user_role.dart';
 import '../tenant/account_inactive_exception.dart';
+import '../tenant/tenant_context.dart';
 import '../tenant/tenant_context_provider.dart';
 import 'app_routes.dart';
 import 'return_to.dart';
@@ -86,6 +87,10 @@ class _RouterRefreshListenable extends ChangeNotifier {
 /// SECURITY_ARCHITECTURE.md).
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshListenable = _RouterRefreshListenable(ref);
+  // Pages opened with context.push (Add staff, Admit student, New homework…)
+  // show their own address, so a browser refresh or Back returns to that
+  // page instead of the list it was opened from (STF-01-OBS-02).
+  GoRouter.optionURLReflectsImperativeAPIs = true;
 
   return GoRouter(
     initialLocation: '/',
@@ -193,8 +198,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (signedOutOrOnboardingPaths.contains(path)) {
         // Back to the page the user was headed for (permissions are checked
         // when that location is redirected in turn).
-        return ReturnTo.safe(state.uri.queryParameters[ReturnTo.param]) ??
-            AppRoutes.dashboard;
+        // go_router does not run this redirect again on the location it
+        // returns, so the target is checked here for THIS user: a page left
+        // by the previous account (a platform page, or one this role may not
+        // open) falls back to the dashboard (DASH-01-DEF-01).
+        final from = ReturnTo.safe(state.uri.queryParameters[ReturnTo.param]);
+        return from != null && _mayOpen(tenant, from)
+            ? from
+            : AppRoutes.dashboard;
       }
 
       // First sign-in with an admin-set / derived password: replace it first.
@@ -380,6 +391,33 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+/// Whether [tenant] may open [target] (a `?from=` destination): platform
+/// pages only for platform administrators, and the route's permission when
+/// it has one (DASH-01-DEF-01).
+bool _mayOpen(TenantContext tenant, String target) {
+  final path = Uri.parse(target).path;
+  final platform =
+      path == AppRoutes.platformHome ||
+      path.startsWith('${AppRoutes.platformHome}/') ||
+      path == AppRoutes.platformMfa;
+  if (platform) return tenant.role == UserRole.platformAdmin;
+  for (final entry in AppRoutes.requiredPermissions.entries) {
+    if (_templateMatches(entry.key, path)) return tenant.can(entry.value);
+  }
+  return true;
+}
+
+/// `/students/:studentId` matches `/students/abc`.
+bool _templateMatches(String template, String path) {
+  final a = template.split('/');
+  final b = path.split('/');
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (!a[i].startsWith(':') && a[i] != b[i]) return false;
+  }
+  return true;
+}
 
 /// The `?from=` destination carried by [uri] when it is a platform page,
 /// else null (a platform admin without a school only goes to those).

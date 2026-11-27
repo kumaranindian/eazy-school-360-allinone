@@ -12,6 +12,7 @@ import '../../domain/mfa.dart';
 import '../providers/auth_providers.dart';
 import 'mfa_code_dialog.dart';
 import 'phone_otp_form.dart';
+import '../../../../shared/forms/app_form.dart';
 
 class LoginForm extends ConsumerStatefulWidget {
   const LoginForm({super.key});
@@ -96,8 +97,8 @@ class _LoginFormState extends ConsumerState<LoginForm> {
     // hidden password input outlives the sign-in page.
     return AutofillGroup(
       onDisposeAction: AutofillContextAction.commit,
-      child: Form(
-        key: _formKey,
+      child: AppForm(
+        formKey: _formKey,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -8,6 +8,7 @@ import '../../../../core/routing/app_routes.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/validators/validators.dart';
 import '../providers/auth_providers.dart';
+import '../../../../shared/forms/app_form.dart';
 
 class ForgotPasswordForm extends ConsumerStatefulWidget {
   const ForgotPasswordForm({super.key});
@@ -73,8 +74,8 @@ class _ForgotPasswordFormState extends ConsumerState<ForgotPasswordForm> {
       );
     }
 
-    return Form(
-      key: _formKey,
+    return AppForm(
+      formKey: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

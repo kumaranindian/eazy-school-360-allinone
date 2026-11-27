@@ -31,8 +31,9 @@ class AcademicYearsPage extends ConsumerWidget {
     String branchId,
     String userId,
     List<AcademicYear> years,
-    List<SchoolAcademicYear> registry,
-  ) async {
+    List<SchoolAcademicYear> registry, {
+    bool registryLoaded = true,
+  }) async {
     final openable = SchoolYearRules.openableIn(registry, [
       for (final y in years) y.academicYearId,
     ]);
@@ -43,6 +44,7 @@ class AcademicYearsPage extends ConsumerWidget {
         branchId: branchId,
         userId: userId,
         openable: openable,
+        noSchoolYears: registryLoaded && registry.isEmpty,
       ),
     );
     if (opened == true && context.mounted) {
@@ -113,6 +115,9 @@ class AcademicYearsPage extends ConsumerWidget {
                     tenant.user.userId,
                     yearsAsync.value ?? const [],
                     registryAsync.value ?? const [],
+                    // An empty list while loading must not read as "none
+                    // exist" (SET-01-OBS-01).
+                    registryLoaded: registryAsync.hasValue,
                   ),
                 )
               : null,

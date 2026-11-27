@@ -13,6 +13,8 @@ import '../../domain/money.dart';
 import '../../domain/payment.dart';
 import '../../domain/payment_rules.dart';
 import '../providers/fee_providers.dart';
+import '../../../../shared/forms/app_form.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 Widget _footer(
   BuildContext context, {
@@ -85,6 +87,7 @@ class _CollectPaymentDialogState extends ConsumerState<CollectPaymentDialog> {
   PaymentMethod _method = PaymentMethod.cash;
   late String _dateKey = FeeDates.todayKey();
   bool _busy = false;
+  bool _confirming = false;
 
   Future<void> _submit() async {
     if (_busy) return;
@@ -108,7 +111,16 @@ class _CollectPaymentDialogState extends ConsumerState<CollectPaymentDialog> {
       context.showSnackBar(problem, isError: true);
       return;
     }
-    final confirmed = await _confirm(amount);
+    // A double click must not open two confirmations (STU-01-DEF-01); the
+    // payment id already makes a repeated request the same payment.
+    if (_confirming) return;
+    _confirming = true;
+    final bool confirmed;
+    try {
+      confirmed = await _confirm(amount);
+    } finally {
+      _confirming = false;
+    }
     if (!confirmed || !mounted) return;
     setState(() => _busy = true);
     try {
@@ -212,8 +224,8 @@ class _CollectPaymentDialogState extends ConsumerState<CollectPaymentDialog> {
   @override
   Widget build(BuildContext context) {
     final invoice = widget.invoice;
-    return Form(
-      key: _formKey,
+    return AppForm(
+      formKey: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -297,7 +309,7 @@ class _CollectPaymentDialogState extends ConsumerState<CollectPaymentDialog> {
                 ? null
                 : () async {
                     final now = SchoolTime.wallNow();
-                    final picked = await showDatePicker(
+                    final picked = await showSchoolDatePicker(
                       context: context,
                       initialDate: now,
                       firstDate: DateTime(now.year - 1),
@@ -410,8 +422,8 @@ class _ReasonDialogState extends State<ReasonDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Form(
-      key: _formKey,
+    return AppForm(
+      formKey: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

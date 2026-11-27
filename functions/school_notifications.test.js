@@ -89,8 +89,10 @@ test('list: only my own, first sight marks DELIVERED, newest first, pending coun
   await L.transitionSchool(c, 'owner', OWNER, { schoolId: 's1', to: 'SUSPENDED', reason: 'Unpaid for three months', idempotencyKey: 'k2' });
   const mine = await N.listMyPlatformNotifications(c, 'a1', PW);
   assert.equal(mine.notifications.length, 2);
-  assert.equal(mine.pending, 2);
-  assert.ok(mine.notifications.every((n) => n.state === 'DELIVERED' && n.requiresAck));
+  // Two status changes: only one is still to be read (DASH-01-OBS-01).
+  assert.equal(mine.pending, 1);
+  assert.ok(mine.notifications.every((n) => n.requiresAck));
+  assert.deepEqual(mine.notifications.map((n) => n.state).sort(), ['ACKNOWLEDGED', 'DELIVERED']);
   assert.ok(mine.notifications.every((n) => !('recipientUserId' in n) && !('sourceEventId' in n)));
   const rows = (await all(db)).filter((r) => r.recipientUserId === 'a2');
   assert.ok(rows.every((r) => r.state === 'CREATED'), 'a2 has not seen theirs yet');
@@ -143,4 +145,23 @@ test('callers who may not read: unknown, disabled, no school, sign-in method off
     assert.deepEqual(await N.listMyPlatformNotifications(c, uid, PW), { error: 'PERMISSION_DENIED' }, uid);
     assert.deepEqual(await N.acknowledgeNotification(c, uid, PW, { id: 'x' }), { error: 'PERMISSION_DENIED' }, uid);
   }
+});
+
+test('status notices: only the latest unread one is shown; older ones are marked read (DASH-01-OBS-01)', async () => {
+  const db = world();
+  let t = 1700000000000;
+  const c = { db, get now() { return new Date(t += 1000); }, nowDate: () => new Date(t) };
+  await L.transitionSchool(c, 'owner', OWNER, { schoolId: 's1', to: 'ACTIVE', idempotencyKey: 'k1' });
+  await L.transitionSchool(c, 'owner', OWNER, { schoolId: 's1', to: 'SUSPENDED', reason: 'Unpaid', idempotencyKey: 'k2' });
+  await L.transitionSchool(c, 'owner', OWNER, { schoolId: 's1', to: 'ACTIVE', idempotencyKey: 'k3' });
+  const r = await N.listMyPlatformNotifications(c, 'a1', PW);
+  const unread = r.notifications.filter((n) => n.state !== 'ACKNOWLEDGED');
+  assert.equal(r.pending, 1);
+  assert.equal(unread.length, 1);
+  const newest = Math.max(...r.notifications.map((n) => n.createdAtMs));
+  assert.equal(unread[0].createdAtMs, newest, 'the newest change');
+  // Stays read on the next look; acknowledging the latest clears the queue.
+  assert.equal((await N.listMyPlatformNotifications(c, 'a1', PW)).pending, 1);
+  assert.deepEqual(await N.acknowledgeNotification(c, 'a1', PW, { id: unread[0].id }), { ok: true });
+  assert.equal((await N.listMyPlatformNotifications(c, 'a1', PW)).pending, 0);
 });

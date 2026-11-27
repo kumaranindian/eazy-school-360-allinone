@@ -16,6 +16,7 @@ import '../../../staff/presentation/widgets/staff_branch_scope.dart';
 import '../../domain/expense.dart';
 import '../../domain/expense_report.dart';
 import '../providers/expense_providers.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// Saves CSV text for the person (a save dialog). Behind a provider so tests
 /// need no platform dialog. Returns whether a file was saved.
@@ -123,7 +124,7 @@ class _ReportState extends ConsumerState<_Report> {
   Future<void> _pick(bool from) async {
     final today = SchoolTime.today();
     final current = DateTime.tryParse(from ? _from : _to) ?? today;
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: current.isAfter(today) ? today : current,
       firstDate: DateTime(today.year - 5, today.month, today.day),

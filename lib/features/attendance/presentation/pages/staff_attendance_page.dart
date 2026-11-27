@@ -23,6 +23,7 @@ import '../../domain/staff_attendance_repository.dart';
 import '../providers/attendance_providers.dart';
 import '../widgets/calendar_support.dart';
 import '../widgets/register_editor.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// `/attendance/staff` — the branch's staff on a date. Managers mark and
 /// correct; finance can look (read-only). Only staff who were employed on the
@@ -123,7 +124,7 @@ class _StaffAttendanceState extends ConsumerState<_StaffAttendance> {
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: _date,
       firstDate: DateTime(2000),

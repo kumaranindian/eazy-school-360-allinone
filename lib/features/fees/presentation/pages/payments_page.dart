@@ -20,6 +20,7 @@ import '../providers/fee_providers.dart';
 import '../widgets/fee_row_actions.dart';
 import '../widgets/fee_scope.dart';
 import '../widgets/fee_widgets.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// `/fees/payments` — payment and receipt history for the year, newest first,
 /// filterable by status (reversed payments stay listed, marked), method and
@@ -81,7 +82,7 @@ class _PaymentsState extends ConsumerState<_Payments> {
 
   Future<void> _pick(bool from) async {
     final now = SchoolTime.wallNow();
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: now,
       firstDate: DateTime(now.year - 3),

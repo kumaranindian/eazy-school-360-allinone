@@ -65,18 +65,12 @@ class PasswordSetupPicker extends StatelessWidget {
             title: Text(o.label),
             subtitle: Text(o.description),
           ),
-        if (option == PasswordSetupOption.nameMobile ||
-            option == PasswordSetupOption.adminDefined)
+        if (option == PasswordSetupOption.adminDefined)
           Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 4),
             child: Text(
-              option == PasswordSetupOption.nameMobile
-                  ? 'Less secure: anyone who knows a name and mobile number can '
-                        'guess it. People are asked to change it at first '
-                        'sign-in. A name of 4+ letters and a mobile of 5+ '
-                        'digits are needed.'
-                  : 'Less secure: everyone shares this password until they '
-                        'change it at first sign-in. It is not stored anywhere.',
+              'Less secure: everyone shares this password until they '
+              'change it at first sign-in. It is not stored anywhere.',
               style: TextStyle(color: theme.colorScheme.error),
             ),
           ),

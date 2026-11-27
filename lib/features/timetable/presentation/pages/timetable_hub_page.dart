@@ -26,6 +26,7 @@ import '../../../../shared/filters/filter_bar.dart';
 import '../providers/timetable_providers.dart';
 import '../widgets/timetable_format.dart';
 import '../widgets/timetable_scope.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// `/timetable` — every version of every section's timetable for the year,
 /// with what is in force, and the way into editing, bell schedules,
@@ -107,9 +108,49 @@ class _HubState extends ConsumerState<_Hub> {
       ),
     ];
 
+    // TT-01-OBS-01: drafts are easy to lose in the full list; show the ones
+    // in progress first, each with an Open action.
+    final drafts = [
+      for (final t in all.value ?? const <Timetable>[])
+        if (t.isDraft) t,
+    ];
+
     final body = ListView(
       padding: const EdgeInsets.all(AppSpacing.md),
       children: [
+        if (canManage && drafts.isNotEmpty) ...[
+          Card(
+            key: const ValueKey('timetable-drafts'),
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Drafts in progress (${drafts.length})',
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  for (final t in drafts)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text('${t.title} · v${t.version}'),
+                      subtitle: Text(
+                        '${t.entryCount} period${t.entryCount == 1 ? '' : 's'} filled',
+                      ),
+                      trailing: FilledButton.tonal(
+                        onPressed: () =>
+                            context.go('/timetable/editor/${t.timetableId}'),
+                        child: const Text('Open'),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
         FilterBar(fieldsBuilder: () => filters),
         const SizedBox(height: AppSpacing.md),
         all.when(
@@ -292,7 +333,7 @@ class _NewTimetableFormState extends ConsumerState<NewTimetableForm> {
 
   Future<void> _pick(bool from) async {
     final y = widget.tt.year;
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: (from ? _from : _to) ?? y.startDate.toUtc(),
       firstDate: y.startDate.toUtc(),

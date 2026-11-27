@@ -38,6 +38,7 @@ import '../../../../shared/filters/page_actions.dart';
 import '../../../../shared/layouts/stat_chips.dart';
 import '../../../../shared/layouts/status_chips.dart';
 import '../staff_export_action.dart';
+import '../../../../shared/paging/reload_on_return.dart';
 
 /// The staff directory: desktop table / mobile cards, search by name,
 /// employee code, phone or email, filters for status / department /
@@ -78,7 +79,13 @@ class _StaffList extends ConsumerStatefulWidget {
   ConsumerState<_StaffList> createState() => _StaffListState();
 }
 
-class _StaffListState extends ConsumerState<_StaffList> {
+class _StaffListState extends ConsumerState<_StaffList> with ReloadOnReturn {
+  @override
+  void onReturn() {
+    _applyQuery();
+    ref.invalidate(staffCountsProvider);
+  }
+
   final _controller = PagedListController<Staff>();
   final _searchController = TextEditingController();
   Timer? _debounce;

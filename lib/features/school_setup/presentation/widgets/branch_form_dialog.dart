@@ -8,6 +8,7 @@ import '../../../../core/validators/validators.dart';
 import '../../domain/branch.dart';
 import '../../domain/branch_status.dart';
 import '../providers/school_profile_providers.dart';
+import '../../../../shared/forms/app_form.dart';
 
 /// Create/edit form for a [Branch], shown inside
 /// `showAdaptiveAppDialog` by `branches_page.dart`. Pass [existing] to
@@ -115,8 +116,8 @@ class _BranchFormDialogState extends ConsumerState<BranchFormDialog> {
   Widget build(BuildContext context) {
     final isSaving = ref.watch(schoolProfileWriteControllerProvider).isLoading;
 
-    return Form(
-      key: _formKey,
+    return AppForm(
+      formKey: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

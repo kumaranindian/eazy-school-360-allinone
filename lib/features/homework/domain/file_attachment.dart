@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:typed_data';
+import '../../../core/files/file_signatures.dart';
 
 /// Metadata of an uploaded file. The bytes live in Firebase Storage under a
 /// tenant- and record-scoped path; only this small record is in Firestore.
@@ -67,8 +69,13 @@ abstract final class FilePolicy {
     return typeByExtension[fileName.substring(dot + 1).toLowerCase()];
   }
 
-  /// A user-readable reason the file is not acceptable, or null.
-  static String? validate({required String fileName, required int sizeBytes}) {
+  /// A user-readable reason the file is not acceptable, or null. With
+  /// [bytes], the contents must also match the extension (HW-01-OBS-01).
+  static String? validate({
+    required String fileName,
+    required int sizeBytes,
+    Uint8List? bytes,
+  }) {
     if (contentTypeFor(fileName) == null) {
       return 'That file type is not allowed. Use ${extensions.join(', ')}.';
     }
@@ -76,6 +83,10 @@ abstract final class FilePolicy {
     // Storage rules require size < 10 MB, so exactly 10 MB is refused too.
     if (sizeBytes >= maxBytes) {
       return 'Each file must be under ${maxBytes ~/ (1024 * 1024)} MB.';
+    }
+    final ext = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+    if (bytes != null && !FileSignatures.matches(ext, bytes)) {
+      return 'The file contents do not match its .$ext type.';
     }
     return null;
   }

@@ -20,6 +20,7 @@ import '../../domain/timetable_repositories.dart';
 import '../providers/timetable_providers.dart';
 import '../widgets/timetable_format.dart';
 import '../widgets/timetable_scope.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 String _today() => AttendanceDate.key(SchoolTime.wallNow());
 
@@ -80,7 +81,7 @@ class _SubsState extends ConsumerState<_Subs> {
 
   Future<void> _pick(bool from) async {
     final y = widget.tt.year;
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: AttendanceDate.parse(from ? _from : _to),
       firstDate: y.startDate.toUtc(),
@@ -572,7 +573,7 @@ class _NewState extends ConsumerState<_New> {
 
   Future<void> _pick(bool from) async {
     final y = widget.tt.year;
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: AttendanceDate.parse(from ? _from : _to),
       firstDate: y.startDate.toUtc(),

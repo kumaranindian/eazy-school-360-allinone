@@ -10,6 +10,7 @@ import 'package:eazy_school_360/features/timetable/domain/substitution.dart';
 import 'package:eazy_school_360/features/timetable/domain/timetable.dart';
 import 'package:eazy_school_360/features/timetable/domain/timetable_enums.dart';
 import 'package:eazy_school_360/features/timetable/domain/timetable_validation.dart';
+import 'package:eazy_school_360/features/timetable/presentation/pages/timetable_views_pages.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 PeriodSlot _p(String id, int n, int s, int e) => PeriodSlot(
@@ -307,6 +308,29 @@ void main() {
       );
     });
 
+    test('empty teaching periods are a warning, not a silent pass '
+        '(TT-01-OBS-02)', () {
+      final t = _tt(
+        'sa',
+        status: TimetableStatus.draft,
+        days: {'MONDAY': 'y1__regular', 'TUESDAY': 'y1__regular'},
+      );
+      // 3 teaching periods a day x 2 days = 6; only one is filled.
+      final issues = _validate(
+        TimetableBundle(t, [_e(t, 'p1', 1, 540, 580, 'math', 't1')]),
+      );
+      final unfilled = issues.where((i) => i.kind == IssueKind.unfilled);
+      expect(unfilled, hasLength(1));
+      expect(unfilled.single.isError, isFalse);
+      expect(
+        unfilled.single.message,
+        '5 of 6 teaching periods have no '
+        'subject and teacher yet.',
+      );
+      // A warning does not stop publishing.
+      expect(TimetablePublication.checkPublish(t, issues), isNull);
+    });
+
     test(
       'a teacher who is not the assigned teacher for the subject is refused',
       () {
@@ -316,7 +340,7 @@ void main() {
         );
         expect(_kinds(issues), contains(IssueKind.notAssigned));
         expect(
-          issues.first.message,
+          issues.firstWhere((i) => i.isError).message,
           allOf(contains('Teacher t2'), contains('math')),
         );
       },
@@ -1012,6 +1036,45 @@ void main() {
         ],
       );
       expect(w, contains(SubstitutionWarning.teacherChanged));
+    });
+  });
+
+  group('week view follows the weekly offs (TT-01-OBS-03)', () {
+    final t = _tt(
+      'sa',
+      days: {'MONDAY': 'y1__regular', 'SATURDAY': 'y1__regular'},
+    );
+    final bundle = TimetableBundle(t, [
+      _e(t, 'p1', 1, 540, 580, 'math', 't1'),
+      _e(t, 'p1', 1, 540, 580, 'math', 't1', day: Weekday.saturday),
+    ]);
+    final offs = WorkingDays(
+      schoolId: 's',
+      branchId: 'b',
+      isWorkingDay: {for (final d in Weekday.values) d: d != Weekday.sunday},
+      saturdayOffWeeks: const {2, 4},
+    );
+    Map<Weekday, List<dynamic>> week(String monday) => buildWeek(
+      bundles: [bundle],
+      mondayKey: monday,
+      substitutions: const [],
+      showClass: false,
+      showTeacher: true,
+      workingDays: offs,
+    );
+
+    test('the 2nd Saturday is shown as a weekly off, not its periods', () {
+      // Saturday 12 Dec 2026 is the 2nd Saturday.
+      final sat = week('2026-12-07')[Weekday.saturday]!;
+      expect(sat, hasLength(1));
+      expect(sat.single.title, 'Weekly off · 2nd Saturday');
+      expect(week('2026-12-07')[Weekday.monday]!.single.title, 'math');
+    });
+
+    test('the 1st Saturday keeps its periods', () {
+      // Saturday 5 Dec 2026 is the 1st Saturday.
+      final sat = week('2026-11-30')[Weekday.saturday]!;
+      expect(sat.single.title, 'math');
     });
   });
 }

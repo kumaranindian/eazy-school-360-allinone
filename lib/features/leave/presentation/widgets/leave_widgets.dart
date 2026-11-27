@@ -5,6 +5,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../domain/leave_application.dart';
 import '../../domain/leave_enums.dart';
 import '../../domain/leave_units.dart';
+import '../../../../shared/forms/app_form.dart';
 
 String leaveDate(String key) {
   final p = key.split('-');
@@ -133,8 +134,8 @@ Future<String?> askLeaveRemarks(
     context: context,
     builder: (context) => AlertDialog(
       title: Text(title),
-      content: Form(
-        key: formKey,
+      content: AppForm(
+        formKey: formKey,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

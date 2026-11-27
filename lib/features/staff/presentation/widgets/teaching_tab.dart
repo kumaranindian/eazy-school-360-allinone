@@ -16,6 +16,7 @@ import '../../domain/teacher_assignment.dart';
 import '../providers/academic_names_provider.dart';
 import '../providers/staff_providers.dart';
 import 'teacher_assignment_dialog.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// A teacher's classes, sections, subjects and class-teacher duties,
 /// grouped by academic year — current *and* ended, so the history of who
@@ -220,7 +221,7 @@ class _YearSection extends ConsumerWidget {
     TeacherAssignment assignment,
   ) async {
     final now = SchoolTime.wallNow();
-    final endDate = await showDatePicker(
+    final endDate = await showSchoolDatePicker(
       context: context,
       helpText: 'Assignment end date',
       initialDate: now.isBefore(assignment.startDate)

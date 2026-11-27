@@ -39,7 +39,12 @@ class FirebaseHomeworkFileStore implements HomeworkFileStore {
           .ref(path)
           .putData(
             Uint8List.fromList(bytes),
-            SettableMetadata(contentType: contentType),
+            // Hidden from readers until the server has checked the bytes
+            // (functions/upload_check.js, HW-01-OBS-01).
+            SettableMetadata(
+              contentType: contentType,
+              customMetadata: const {'contentCheck': 'PENDING'},
+            ),
           );
       return FileAttachment(
         path: path,

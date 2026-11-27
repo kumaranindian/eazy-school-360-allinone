@@ -19,6 +19,7 @@ import '../../domain/leave_units.dart';
 import '../providers/leave_providers.dart';
 import '../widgets/leave_scope.dart';
 import '../widgets/leave_widgets.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// Everything on this screen comes from aggregate `count()` / `sum()` queries
 /// (or, for the balance table, a bounded query of one type's balances) — no
@@ -57,7 +58,7 @@ class _ReportsState extends ConsumerState<_Reports> {
   Future<void> _pick(bool from) async {
     final y = widget.leave.year;
     final current = AttendanceDate.parse(from ? _from : _to);
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: current,
       firstDate: y.startDate.toUtc(),

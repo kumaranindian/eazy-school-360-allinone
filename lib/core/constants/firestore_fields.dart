@@ -39,6 +39,8 @@ abstract final class FirestoreFields {
   static const String staffCollection = 'staff';
   static const String staffCodesCollection = 'staffCodes';
   static const String admissionNumbersCollection = 'admissionNumbers';
+  static const String parentEmailsCollection = 'parentEmails';
+  static const String rollNumbersCollection = 'rollNumbers';
   static const String staffDocumentsCollection = 'documents';
   static const String departmentsCollection = 'departments';
   static const String designationsCollection = 'designations';

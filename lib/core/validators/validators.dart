@@ -55,6 +55,26 @@ abstract final class Validators {
     return null;
   }
 
+  /// A whole number from [min] to [max]; empty is allowed unless [required]
+  /// (SET-01-DEF-01: a section capacity of 0 or -5 was accepted).
+  static String? wholeNumber(
+    String? value, {
+    int min = 1,
+    int max = 10000,
+    bool required = false,
+    String fieldName = 'This field',
+  }) {
+    final v = (value ?? '').trim();
+    if (v.isEmpty) return required ? '$fieldName is required.' : null;
+    final n = int.tryParse(v);
+    if (n == null || !RegExp(r'^-?\d+$').hasMatch(v)) {
+      return 'Enter a whole number.';
+    }
+    if (n < min) return 'Enter $min or more.';
+    if (n > max) return 'Enter $max or less.';
+    return null;
+  }
+
   static String? password(String? value) {
     final requiredError = required(value, fieldName: 'Password');
     if (requiredError != null) return requiredError;

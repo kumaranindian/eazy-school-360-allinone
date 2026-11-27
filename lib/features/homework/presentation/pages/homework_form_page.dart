@@ -22,6 +22,9 @@ import '../../domain/homework_rules.dart';
 import '../providers/homework_options.dart';
 import '../providers/homework_providers.dart';
 import '../widgets/homework_widgets.dart';
+import '../../../../shared/forms/app_form.dart';
+import '../../../../shared/forms/submit_lock.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// `/homework/new` and `/homework/edit/:homeworkId`.
 ///
@@ -44,6 +47,7 @@ class HomeworkFormPage extends StatelessWidget {
         title: Text(homeworkId == null ? 'New homework' : 'Edit homework'),
       ),
       body: TimetableScope(
+        moduleName: 'homework',
         showYearSelector: homeworkId == null,
         builder: (context, tt) => _HomeworkForm(tt: tt, homeworkId: homeworkId),
       ),
@@ -144,7 +148,7 @@ class _HomeworkFormState extends ConsumerState<_HomeworkForm> {
   Future<void> _pickDate({DateTime? first}) async {
     final today = SchoolTime.wallNow();
     final start = first ?? DateTime(today.year, today.month, today.day);
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: (_dueDate != null && !_dueDate!.isBefore(start))
           ? _dueDate!
@@ -265,7 +269,19 @@ class _HomeworkFormState extends ConsumerState<_HomeworkForm> {
     return null;
   }
 
-  Future<void> _create(
+  /// Held from the first tap through the preview and the save, so a double
+  /// click neither opens two previews nor saves twice (STU-01-DEF-01).
+  final _lock = SubmitLock();
+
+  Future<void> _create(List<HomeworkOption> options, {required bool publish}) {
+    final run = _lock.run(() => _createNow(options, publish: publish));
+    setState(() {});
+    return run.whenComplete(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  Future<void> _createNow(
     List<HomeworkOption> options, {
     required bool publish,
   }) async {
@@ -368,7 +384,15 @@ class _HomeworkFormState extends ConsumerState<_HomeworkForm> {
     }
   }
 
-  Future<void> _saveExisting(Homework h) async {
+  Future<void> _saveExisting(Homework h) {
+    final run = _lock.run(() => _saveExistingNow(h));
+    setState(() {});
+    return run.whenComplete(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  Future<void> _saveExistingNow(Homework h) async {
     if (_saving) return;
     final common = _validateCommon();
     if (common != null) return setState(() => _error = common);
@@ -516,9 +540,9 @@ class _HomeworkFormState extends ConsumerState<_HomeworkForm> {
     final fixed = published; // policy/marks/title fixed once published
     final todayStart = SchoolTime.wallNow();
     return PageColumn(
-      child: Form(
-        key: _formKey,
-        child: ListView(
+      child: AppForm(
+        formKey: _formKey,
+        child: FormScrollView(
           padding: const EdgeInsets.all(AppSpacing.md),
           children: [
             if (published)
@@ -582,6 +606,7 @@ class _HomeworkFormState extends ConsumerState<_HomeworkForm> {
                   TextFormField(
                     controller: _description,
                     maxLength: 4000,
+                    buildCounter: trimmedCounter(_description),
                     minLines: 4,
                     maxLines: 12,
                     decoration: const InputDecoration(
@@ -725,8 +750,9 @@ class _HomeworkFormState extends ConsumerState<_HomeworkForm> {
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     'PDF, JPG, PNG, TXT or DOCX, up to 10 MB each, at most '
-                    '${FilePolicy.maxFilesPerRecord} files. Files are not '
-                    'scanned for malware.',
+                    '${FilePolicy.maxFilesPerRecord} files. Each file is checked '
+                    'against its type before others can open it; files are not '
+                    'scanned for viruses.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
@@ -751,13 +777,13 @@ class _HomeworkFormState extends ConsumerState<_HomeworkForm> {
               children: [
                 if (existing == null) ...[
                   OutlinedButton(
-                    onPressed: _saving
+                    onPressed: _saving || _lock.busy
                         ? null
                         : () => _create(options, publish: false),
                     child: const Text('Save draft'),
                   ),
                   FilledButton.icon(
-                    onPressed: _saving
+                    onPressed: _saving || _lock.busy
                         ? null
                         : () => _create(options, publish: true),
                     icon: const Icon(Icons.visibility_outlined),
@@ -765,10 +791,12 @@ class _HomeworkFormState extends ConsumerState<_HomeworkForm> {
                   ),
                 ] else
                   FilledButton(
-                    onPressed: _saving ? null : () => _saveExisting(existing),
+                    onPressed: _saving || _lock.busy
+                        ? null
+                        : () => _saveExisting(existing),
                     child: const Text('Save changes'),
                   ),
-                if (_saving)
+                if (_saving || _lock.busy)
                   const Padding(
                     padding: EdgeInsets.all(8),
                     child: SizedBox(

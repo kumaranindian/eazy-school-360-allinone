@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/logging/app_logger.dart';
+import '../../../core/routing/app_router.dart';
+import '../../../core/routing/app_routes.dart';
 import '../../notifications/presentation/providers/push_providers.dart';
 import 'providers/auth_providers.dart';
 
@@ -19,6 +21,9 @@ bool _signingOut = false;
 ///    [cleanupTimeout]; the server also drops devices that stop checking in
 ///    and those of disabled accounts.
 /// 3. Signs out. A second tap while one is running does nothing.
+/// 4. Forgets the page the user was on: the sign-in page opens without a
+///    `?from=`, so the next account never starts on the previous user's page
+///    (DASH-01-DEF-01). A reload or deep link still keeps its `?from=`.
 Future<void> signOutWithCleanup(
   WidgetRef ref, {
   Duration cleanupTimeout = const Duration(seconds: 4),
@@ -37,6 +42,11 @@ Future<void> signOutWithCleanup(
       // unregisterPushDevice logs its own failures.
     }
     await ref.read(authRepositoryProvider).signOut();
+    try {
+      ref.read(appRouterProvider).go(AppRoutes.login);
+    } catch (_) {
+      // No router (a widget test): nothing to clear.
+    }
   } finally {
     _signingOut = false;
   }

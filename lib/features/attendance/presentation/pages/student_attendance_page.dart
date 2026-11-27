@@ -25,6 +25,7 @@ import '../../domain/student_attendance_repository.dart';
 import '../providers/attendance_providers.dart';
 import '../widgets/calendar_support.dart';
 import '../widgets/register_editor.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// `/attendance/students` — pick academic year → class → section → date, load
 /// the students enrolled then, mark, review the totals and save.
@@ -33,7 +34,20 @@ import '../widgets/register_editor.dart';
 /// branch. The selectors are convenience — `firestore.rules` is what refuses a
 /// teacher writing to a section that is not theirs.
 class StudentAttendancePage extends StatelessWidget {
-  const StudentAttendancePage({super.key});
+  /// The register to open, e.g. from a pending chip on the attendance home
+  /// (ATT-01-OBS-01): `/attendance/students?year=..&class=..&section=..&date=`.
+  final String? initialYearId;
+  final String? initialClassId;
+  final String? initialSectionId;
+  final String? initialDateKey;
+
+  const StudentAttendancePage({
+    super.key,
+    this.initialYearId,
+    this.initialClassId,
+    this.initialSectionId,
+    this.initialDateKey,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -44,21 +58,36 @@ class StudentAttendancePage extends StatelessWidget {
           tenant: tenant,
           schoolId: schoolId,
           branchId: branchId,
+          initial: (
+            year: initialYearId,
+            classId: initialClassId,
+            section: initialSectionId,
+            date: initialDateKey,
+          ),
         ),
       ),
     );
   }
 }
 
+typedef _InitialRegister = ({
+  String? year,
+  String? classId,
+  String? section,
+  String? date,
+});
+
 class _StudentAttendance extends ConsumerStatefulWidget {
   final TenantContext tenant;
   final String schoolId;
   final String branchId;
+  final _InitialRegister initial;
 
   const _StudentAttendance({
     required this.tenant,
     required this.schoolId,
     required this.branchId,
+    required this.initial,
   });
 
   @override
@@ -66,10 +95,25 @@ class _StudentAttendance extends ConsumerStatefulWidget {
 }
 
 class _StudentAttendanceState extends ConsumerState<_StudentAttendance> {
-  String? _yearId;
-  String? _classId;
-  String? _sectionId;
-  DateTime _date = AttendanceDate.dateOnly(SchoolTime.wallNow());
+  late String? _yearId = widget.initial.year;
+  late String? _classId = widget.initial.classId;
+  late String? _sectionId = widget.initial.section;
+  late DateTime _date = _initialDate();
+
+  /// A register asked for in the address is loaded once it is chosen.
+  late bool _loadInitial = widget.initial.section != null;
+
+  DateTime _initialDate() {
+    final key = widget.initial.date;
+    if (key != null) {
+      try {
+        return AttendanceDate.parse(key);
+      } catch (_) {
+        // a bad date in the address: today
+      }
+    }
+    return AttendanceDate.dateOnly(SchoolTime.wallNow());
+  }
 
   StudentRegister? _register;
   AttendanceSheet? _sheet;
@@ -146,7 +190,7 @@ class _StudentAttendanceState extends ConsumerState<_StudentAttendance> {
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: _date,
       firstDate: DateTime(2000),
@@ -248,6 +292,15 @@ class _StudentAttendanceState extends ConsumerState<_StudentAttendance> {
                     );
               })
               .toList();
+
+    if (_loadInitial &&
+        _sectionId != null &&
+        sections.any((s) => s.sectionId == _sectionId)) {
+      _loadInitial = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _load();
+      });
+    }
 
     if (!_isManager && _sectionId == null && sections.length == 1) {
       _sectionId = sections.single.sectionId;

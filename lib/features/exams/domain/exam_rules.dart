@@ -11,6 +11,11 @@ abstract final class ExamRules {
     return e.validate();
   }
 
+  /// The exam's first date is after [todayKey] (yyyy-MM-dd): marks entry
+  /// would open before the exam (EXM-01-OBS-01).
+  static bool startsAfter(Examination e, String todayKey) =>
+      e.startDateKey.compareTo(todayKey) > 0;
+
   static String? checkStart(Examination e, int sheetCount) {
     if (e.status != ExamStatus.scheduled) {
       return 'Marks entry opens for a scheduled examination.';

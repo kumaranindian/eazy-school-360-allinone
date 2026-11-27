@@ -71,7 +71,7 @@ const BRANCH_COLLECTIONS = [
 
 // Collections directly under schools/{s}.
 // expenseCategories / expenseSettings hold who last changed them; expenses (with their `history`) and receipts are branch collections above.
-const SCHOOL_COLLECTIONS = ['academicYears', 'admissionSettings', 'authAudit', 'authSettings', 'branchAccessAudit', 'branding', 'expenseCategories', 'expenseSettings', 'feeReminderSettings', 'payComponents', 'payrollSettings', 'studentTransfers'];
+const SCHOOL_COLLECTIONS = ['academicYears', 'admissionSettings', 'authAudit', 'authSettings', 'branchAccessAudit', 'branding', 'expenseCategories', 'expenseSettings', 'feeReminderSettings', 'parentEmails', 'payComponents', 'payrollSettings', 'studentTransfers'];
 
 // Nested collections, found with a collection-group query on a few fields each
 // (single-field indexes for these are declared in firestore.indexes.json).

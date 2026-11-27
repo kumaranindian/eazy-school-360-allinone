@@ -17,6 +17,7 @@ import '../../domain/weekly_pattern.dart';
 import '../../domain/working_days.dart';
 import '../providers/setup_status_provider.dart';
 import '../providers/calendar_providers.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// How Saturday is configured in the form. "Alternate" and "selected" both end
 /// up as a set of off-weeks; "every Saturday" switches Saturday off entirely,
@@ -105,7 +106,7 @@ class _WorkingDaysPageState extends ConsumerState<WorkingDaysPage> {
 
   Future<void> _pickStart(_Draft current) async {
     final now = SchoolTime.wallNow();
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: current.startsOn ?? DateTime(now.year, now.month, now.day),
       firstDate: DateTime(2000),
@@ -515,8 +516,12 @@ class _WorkingDaysPageState extends ConsumerState<WorkingDaysPage> {
                                       : null,
                                   child: const Text('Cancel'),
                                 ),
+                                // Never saved: the defaults can be confirmed
+                                // as they are (SET-01-OBS-03), which also
+                                // completes the setup checklist step.
                                 FilledButton(
-                                  onPressed: (!dirty || isSaving)
+                                  onPressed:
+                                      ((!dirty && configured) || isSaving)
                                       ? null
                                       : () => _save(
                                           userId: tenant.user.userId,

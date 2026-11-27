@@ -6,6 +6,7 @@ import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../domain/mfa.dart';
 import '../providers/auth_providers.dart';
+import '../../../../shared/forms/app_form.dart';
 
 /// Asks for the 6-digit code from the authenticator app after a correct
 /// password. Closes itself when the code is accepted (the router then moves on
@@ -59,8 +60,8 @@ class _MfaCodeDialogState extends ConsumerState<MfaCodeDialog> {
     final busy = ref.watch(mfaSignInControllerProvider).isLoading;
     return AlertDialog(
       title: const Text('Two-step verification'),
-      content: Form(
-        key: _form,
+      content: AppForm(
+        formKey: _form,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

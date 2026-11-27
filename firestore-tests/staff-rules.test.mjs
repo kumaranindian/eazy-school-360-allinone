@@ -637,3 +637,23 @@ test('Staff documents: managers create/soft-remove metadata for their own branch
 function assert(condition) {
   if (!condition) throw new Error('assertion failed');
 }
+
+test('STF-01-DEF-01: a new staff member needs first and last name, date of birth, gender and phone', async () => {
+  await seedWorld();
+  const uid = 'stf-bradmin-north';
+  const admin = asUser(uid);
+  const create = (staffId, code, over) => {
+    const batch = writeBatch(admin);
+    batch.set(doc(admin, ...branch(A, NORTH), 'staff', staffId), { ...staffDoc({ code, createdBy: uid }), ...over });
+    batch.set(doc(admin, ...branch(A, NORTH), 'staffCodes', code.toLowerCase()), codeDoc({ staffId, code, createdBy: uid }));
+    return batch.commit();
+  };
+  await assertSucceeds(create('staff-q0', 'EMP-0900', { phone: '+91 98765-43210' }));
+  const missing = [
+    { firstName: '  ' }, { lastName: '' }, { dateOfBirth: null }, { gender: null }, { gender: 'X' },
+    { phone: '' }, { phone: '12' }, { phone: 'call me' },
+  ];
+  for (const [i, over] of missing.entries()) {
+    await assertFails(create(`staff-q${i + 1}`, `EMP-09${10 + i}`, over));
+  }
+});

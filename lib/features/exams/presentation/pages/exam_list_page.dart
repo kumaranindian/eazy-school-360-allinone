@@ -21,6 +21,7 @@ import '../../domain/exam_enums.dart';
 import '../../domain/examination.dart';
 import '../providers/exam_providers.dart';
 import '../widgets/exam_widgets.dart';
+import '../../../../shared/paging/reload_on_return.dart';
 
 /// `/exams` — the branch's examinations for an academic year, with their
 /// state and what to do next. Teachers see them to find their marks sheets;
@@ -57,7 +58,10 @@ class ExamListPage extends ConsumerWidget {
               label: const Text('New examination'),
             )
           : null,
-      body: TimetableScope(builder: (context, tt) => _ExamList(tt: tt)),
+      body: TimetableScope(
+        moduleName: 'examinations',
+        builder: (context, tt) => _ExamList(tt: tt),
+      ),
     );
   }
 }
@@ -70,7 +74,12 @@ class _ExamList extends ConsumerStatefulWidget {
   ConsumerState<_ExamList> createState() => _ExamListState();
 }
 
-class _ExamListState extends ConsumerState<_ExamList> {
+class _ExamListState extends ConsumerState<_ExamList> with ReloadOnReturn {
+  @override
+  void onReturn() {
+    _configure();
+  }
+
   final _controller = PagedListController<Examination>();
   String? _classId;
   ExamStatus? _status;

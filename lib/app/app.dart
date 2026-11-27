@@ -2,6 +2,7 @@ import '../shared/availability/app_requirements_gate.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -63,6 +64,15 @@ class App extends ConsumerWidget {
       darkTheme: AppTheme.dark(brand),
       themeMode: brand.appearance.themeMode,
       routerConfig: router,
+      // The app stays en_US; the extra locales are only for the date pickers,
+      // which follow the school's date format (SET-01-DEF-02).
+      locale: const Locale('en', 'US'),
+      supportedLocales: const [
+        Locale('en', 'US'),
+        Locale('en', 'GB'),
+        Locale('en', 'CA'),
+      ],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       builder: (context, child) => ForcedAppUpdate(
         child: AppRequirementsGate(
           child: _AdaptiveText(

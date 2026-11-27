@@ -19,6 +19,9 @@ import '../../domain/staff_status.dart';
 import '../providers/staff_providers.dart';
 import '../widgets/form_grid.dart';
 import '../widgets/staff_branch_scope.dart';
+import '../../../../shared/forms/app_form.dart';
+import '../../../../core/utils/client_ids.dart';
+import '../../../../shared/forms/submit_lock.dart';
 
 /// Create (`/staff/new`) or edit (`/staff/:id/edit`) a staff member. Teaching
 /// responsibility is a switch on the one staff form — there is no separate
@@ -156,12 +159,21 @@ class _StaffFormState extends ConsumerState<_StaffForm> {
   String? _optional(TextEditingController c) =>
       c.text.trim().isEmpty ? null : c.text.trim();
 
-  Future<void> _submit() async {
+  /// One save at a time, with one id per new staff member (STU-01-DEF-01).
+  final _lock = SubmitLock();
+  final _newStaffId = newClientId();
+
+  Future<void> _submit() => _lock.run(_save).then((_) {
+    if (mounted) setState(() {});
+  });
+
+  Future<void> _save() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    setState(() {}); // the button shows the lock
 
     final base = widget.existing;
     Staff staffWith(String code) => Staff(
-      staffId: base?.staffId ?? '',
+      staffId: base?.staffId ?? _newStaffId,
       schoolId: widget.schoolId,
       branchId: widget.branchId,
       employeeCode: code,
@@ -190,6 +202,7 @@ class _StaffFormState extends ConsumerState<_StaffForm> {
 
     final controller = ref.read(staffWriteControllerProvider.notifier);
     String? savedId;
+    Object? failure;
     if (_isEditing) {
       if (await controller.updateStaff(
         staffWith(_employeeCode.text.trim()),
@@ -210,7 +223,8 @@ class _StaffFormState extends ConsumerState<_StaffForm> {
             staffWith(code),
             createdBy: widget.userId,
           );
-        } catch (_) {
+        } catch (error) {
+          failure = error;
           break;
         }
         if (savedId != null) break;
@@ -232,7 +246,7 @@ class _StaffFormState extends ConsumerState<_StaffForm> {
         context.pushReplacement('/staff/$savedId');
       }
     } else {
-      final error = ref.read(staffWriteControllerProvider).error;
+      final error = ref.read(staffWriteControllerProvider).error ?? failure;
       context.showSnackBar(
         error == null
             ? 'Unable to save this staff member.'
@@ -270,7 +284,8 @@ class _StaffFormState extends ConsumerState<_StaffForm> {
 
   @override
   Widget build(BuildContext context) {
-    final isSaving = ref.watch(staffWriteControllerProvider).isLoading;
+    final isSaving =
+        ref.watch(staffWriteControllerProvider).isLoading || _lock.busy;
     final branchKey = (schoolId: widget.schoolId, branchId: widget.branchId);
     final departments = ref.watch(departmentsProvider(branchKey));
     final designations = ref.watch(designationsProvider(branchKey));
@@ -296,9 +311,9 @@ class _StaffFormState extends ConsumerState<_StaffForm> {
       appBar: AppBar(
         title: Text(_isEditing ? 'Edit staff member' : 'Add staff member'),
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
+      body: AppForm(
+        formKey: _formKey,
+        child: FormScrollView(
           padding: const EdgeInsets.all(AppSpacing.md),
           children: [
             if (needsSetup)

@@ -21,6 +21,7 @@ import '../../domain/admission_status.dart';
 import '../../domain/enquiry_query.dart';
 import '../providers/admission_providers.dart';
 import '../widgets/admission_widgets.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// All enquiries of the branch: search (name, mobile or enquiry number), the
 /// filters, cursor paging, and a card per enquiry (one column on a phone, two
@@ -111,7 +112,7 @@ class _EnquiryListPageState extends ConsumerState<EnquiryListPage> {
 
   Future<void> _pickDate(bool from) async {
     final now = SchoolTime.today();
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: now,
       firstDate: DateTime(now.year - 5),

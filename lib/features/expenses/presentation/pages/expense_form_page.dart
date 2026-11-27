@@ -13,6 +13,7 @@ import '../../../fees/domain/money.dart';
 import '../../../staff/presentation/widgets/staff_branch_scope.dart';
 import '../../domain/expense.dart';
 import '../providers/expense_providers.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// `/expenses/new` and `/expenses/:id/edit`: record or change a DRAFT expense.
 /// The server owns the number, currency, status and creator; this form only
@@ -166,7 +167,7 @@ class _FormState extends ConsumerState<_Form> {
   Future<void> _pickDate() async {
     final today = SchoolTime.today();
     final current = DateTime.tryParse(_dateKey ?? '') ?? today;
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: current.isAfter(today) ? today : current,
       firstDate: DateTime(today.year - 5, today.month, today.day),

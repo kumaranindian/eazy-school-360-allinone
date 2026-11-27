@@ -37,6 +37,7 @@ test('all functions share the project region, and timeouts are within the 2nd-ge
 test('Firestore triggers watch well-formed document paths', () => {
   for (const { name, ep } of endpoints) {
     if (!ep.eventTrigger) continue;
+    if (ep.eventTrigger.eventType.startsWith('google.cloud.storage.')) continue; // Storage, checked below
     const path = ep.eventTrigger.eventFilterPathPatterns && ep.eventTrigger.eventFilterPathPatterns.document;
     assert.ok(path, `${name} has no document pattern`);
     const parts = path.split('/');
@@ -44,6 +45,14 @@ test('Firestore triggers watch well-formed document paths', () => {
     for (const p of parts) assert.match(p, /^(\{[A-Za-z]+\}|[A-Za-z][A-Za-z0-9]*)$/, `${name}: bad segment "${p}" in ${path}`);
     assert.ok(/(created|updated|written|deleted)$/.test(ep.eventTrigger.eventType), `${name}: ${ep.eventTrigger.eventType}`);
   }
+});
+
+test('the one Storage trigger is the upload check on the default bucket (HW-01-OBS-01)', () => {
+  const storage = endpoints.filter(({ ep }) => ep.eventTrigger && ep.eventTrigger.eventType.startsWith('google.cloud.storage.'));
+  assert.deepEqual(storage.map((e) => e.name), ['checkUploadedFile']);
+  const t = storage[0].ep.eventTrigger;
+  assert.equal(t.eventType, 'google.cloud.storage.object.v1.finalized');
+  assert.ok(t.eventFilters.bucket, 'a bucket is named');
 });
 
 test('scheduled functions have a real schedule', () => {

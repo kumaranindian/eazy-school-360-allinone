@@ -35,7 +35,15 @@ class FirebaseAnnouncementFileUploader implements AnnouncementFileUploader {
     try {
       final task = _storage
           .ref(path)
-          .putData(bytes, SettableMetadata(contentType: type));
+          .putData(
+            bytes,
+            // Hidden from readers until the server has checked the bytes
+            // (functions/upload_check.js, HW-01-OBS-01).
+            SettableMetadata(
+              contentType: type,
+              customMetadata: const {'contentCheck': 'PENDING'},
+            ),
+          );
       final sub = task.snapshotEvents.listen((s) {
         if (s.totalBytes > 0) {
           onProgress?.call(s.bytesTransferred / s.totalBytes);

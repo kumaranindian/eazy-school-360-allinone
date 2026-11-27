@@ -290,6 +290,7 @@ Future<List<PendingFile>> pickValidatedFiles({
     final problem = FilePolicy.validate(
       fileName: f.name,
       sizeBytes: bytes.length,
+      bytes: bytes,
     );
     if (problem != null) {
       onProblem('${f.name}: $problem');

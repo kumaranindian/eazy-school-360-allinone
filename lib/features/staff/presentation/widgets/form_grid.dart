@@ -2,6 +2,7 @@ import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// Lays form fields out in two columns when there is room and a single
 /// column otherwise (mobile / narrow windows), without any fixed pixel
@@ -72,7 +73,7 @@ class DateFormField extends FormField<DateTime> {
              ),
              child: InkWell(
                onTap: () async {
-                 final picked = await showDatePicker(
+                 final picked = await showSchoolDatePicker(
                    context: context,
                    initialDate:
                        state.value ?? initialPickerDate ?? SchoolTime.wallNow(),

@@ -19,6 +19,7 @@ import '../domain/student_repository.dart';
 import '../domain/student_status.dart';
 import '../domain/admission_key.dart';
 import 'admission_reservation.dart';
+import 'parent_email_reservation.dart';
 import 'branch_transfer_writes.dart';
 import 'parent_access_sync.dart';
 
@@ -392,6 +393,72 @@ class FirebaseStudentRepository implements StudentRepository {
     }
   }
 
+  /// STU-01-OBS-01: a roll number is used once per section and academic
+  /// year. Checked by the app before every admission, bulk row and section
+  /// change (Firestore rules do not hold roll numbers).
+  Future<void> _assertRollNumberFree({
+    required String schoolId,
+    required String branchId,
+    required String academicYearId,
+    required String sectionId,
+    required String? rollNumber,
+    String? excludingStudentId,
+  }) async {
+    final roll = rollNumber?.trim() ?? '';
+    if (roll.isEmpty) return;
+    final taken = await _studentsCollection(schoolId, branchId)
+        .where('currentAcademicYearId', isEqualTo: academicYearId)
+        .where('currentSectionId', isEqualTo: sectionId)
+        .where('currentRollNumber', isEqualTo: roll)
+        .limit(2)
+        .get();
+    if (taken.docs.any(
+      (d) =>
+          d.id != excludingStudentId &&
+          d.data()[FirestoreFields.status] == StudentStatus.active.wireValue,
+    )) {
+      throw ValidationFailure(
+        'Roll number $roll is already used in this section this year.',
+      );
+    }
+  }
+
+  @override
+  Future<List<Student>> findByNameAndBirthDate({
+    required String schoolId,
+    required String branchId,
+    required String fullName,
+    required DateTime dateOfBirth,
+  }) async {
+    try {
+      final name = fullName
+          .trim()
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .toLowerCase();
+      if (name.isEmpty) return const [];
+      final snap = await _studentsCollection(
+        schoolId,
+        branchId,
+      ).where('displayNameLower', isEqualTo: name).limit(20).get();
+      bool sameDay(DateTime a) =>
+          (a.year == dateOfBirth.year &&
+              a.month == dateOfBirth.month &&
+              a.day == dateOfBirth.day) ||
+          // a date saved as UTC midnight (enquiry conversion)
+          (a.toUtc().year == dateOfBirth.year &&
+              a.toUtc().month == dateOfBirth.month &&
+              a.toUtc().day == dateOfBirth.day);
+      return [
+        for (final d in snap.docs)
+          if (d.data()['dateOfBirth'] is Timestamp &&
+              sameDay((d.data()['dateOfBirth'] as Timestamp).toDate()))
+            Student.fromFirestore(schoolId, branchId, d.id, d.data()),
+      ];
+    } catch (error, stackTrace) {
+      throw mapExceptionToFailure(error, stackTrace);
+    }
+  }
+
   @override
   Future<String> admitStudent({
     required Student student,
@@ -402,6 +469,19 @@ class FirebaseStudentRepository implements StudentRepository {
     required String createdBy,
   }) async {
     try {
+      // A student id made by the form (STU-01-DEF-01): a repeated call - a
+      // double click, a retry after a lost response - finds the student it
+      // already saved and returns it instead of admitting a second one.
+      final collection = _studentsCollection(
+        student.schoolId,
+        student.branchId,
+      );
+      final studentRef = student.studentId.isEmpty
+          ? collection.doc()
+          : collection.doc(student.studentId);
+      if (student.studentId.isNotEmpty && (await studentRef.get()).exists) {
+        return studentRef.id;
+      }
       final invalid = AdmissionKey.validate(student.admissionNumber);
       if (invalid != null) throw ValidationFailure(invalid);
       final available = await isAdmissionNumberAvailable(
@@ -421,11 +501,14 @@ class FirebaseStudentRepository implements StudentRepository {
         classId,
         sectionId,
       );
+      await _assertRollNumberFree(
+        schoolId: student.schoolId,
+        branchId: student.branchId,
+        academicYearId: academicYearId,
+        sectionId: sectionId,
+        rollNumber: rollNumber,
+      );
 
-      final studentRef = _studentsCollection(
-        student.schoolId,
-        student.branchId,
-      ).doc();
       final studentCode = 'STU-${studentRef.id.substring(0, 8).toUpperCase()}';
       final studentToSave = Student(
         studentId: studentRef.id,
@@ -501,6 +584,10 @@ class FirebaseStudentRepository implements StudentRepository {
       try {
         await batch.commit();
       } on FirebaseException {
+        // The same admission committed by a parallel call: same student.
+        if (student.studentId.isNotEmpty && (await studentRef.get()).exists) {
+          return studentRef.id;
+        }
         if (!await isAdmissionNumberAvailable(
           student.schoolId,
           student.branchId,
@@ -689,6 +776,14 @@ class FirebaseStudentRepository implements StudentRepository {
               d,
         ],
       );
+      await _assertRollNumberFree(
+        schoolId: schoolId,
+        branchId: branchId,
+        academicYearId: newAcademicYearId,
+        sectionId: newSectionId,
+        rollNumber: newRollNumber,
+        excludingStudentId: studentId,
+      );
       final newRecordRef = _academicRecordsCollection(
         schoolId,
         branchId,
@@ -876,11 +971,20 @@ class FirebaseStudentRepository implements StudentRepository {
           data = from.data();
           if (data == null) continue; // a dangling link carries nothing over
         }
+        final email = data?['email'];
+        final emailReserved =
+            email is! String ||
+            email.trim().isEmpty ||
+            (await _firestore
+                    .doc(ParentEmailReservation.path(schoolId, email))
+                    .get())
+                .exists;
         guardians.add(
           TransferGuardian(
             parentId: parentId,
             parentData: data,
             existsInDestination: exists,
+            emailReserved: emailReserved,
             link: ParentStudentLink.fromFirestore(
               schoolId,
               fromBranchId,

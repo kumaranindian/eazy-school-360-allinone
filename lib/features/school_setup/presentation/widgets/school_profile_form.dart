@@ -9,6 +9,7 @@ import '../../../../core/validators/validators.dart';
 import '../../domain/school.dart';
 import '../providers/school_profile_providers.dart';
 import 'school_logo_picker.dart';
+import '../../../../shared/forms/app_form.dart';
 
 /// Editable form for the three sections the brief asks for — Basic
 /// Information, Contact, Address — laid out as two columns on
@@ -137,8 +138,8 @@ class _SchoolProfileFormState extends ConsumerState<SchoolProfileForm> {
     return ResponsiveBuilder(
       builder: (context, screenSize) {
         final columns = screenSize.isMobile ? 1 : 2;
-        return Form(
-          key: _formKey,
+        return AppForm(
+          formKey: _formKey,
           child: IgnorePointer(
             ignoring: isSaving,
             child: Opacity(

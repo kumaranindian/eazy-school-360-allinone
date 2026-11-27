@@ -23,6 +23,9 @@ import '../../domain/announcement_save_flow.dart';
 import '../../domain/attachment_upload_controller.dart';
 import '../providers/announcement_providers.dart';
 import '../widgets/announcement_attachments.dart';
+import '../../../../shared/forms/app_form.dart';
+import '../../../../shared/forms/submit_lock.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// `/announcements/new` and `/announcements/edit/:announcementId`.
 ///
@@ -47,6 +50,7 @@ class AnnouncementFormPage extends StatelessWidget {
         ),
       ),
       body: TimetableScope(
+        moduleName: 'announcements',
         showYearSelector: false,
         builder: (context, tt) => _Form(tt: tt, announcementId: announcementId),
       ),
@@ -188,7 +192,7 @@ class _FormState extends ConsumerState<_Form> {
     final initial = initialInstant == null
         ? null
         : SchoolTime.wallOf(initialInstant);
-    final date = await showDatePicker(
+    final date = await showSchoolDatePicker(
       context: context,
       initialDate: initial ?? now,
       firstDate: DateTime(now.year, now.month, now.day),
@@ -255,7 +259,19 @@ class _FormState extends ConsumerState<_Form> {
     if (ok && mounted && !_files.hasUnresolved) setState(() => _error = null);
   }
 
-  Future<void> _save(Announcement? existing, {required bool publish}) async {
+  /// Held from the first tap through the preview and the save
+  /// (STU-01-DEF-01).
+  final _lock = SubmitLock();
+
+  Future<void> _save(Announcement? existing, {required bool publish}) {
+    final run = _lock.run(() => _saveNow(existing, publish: publish));
+    setState(() {});
+    return run.whenComplete(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  Future<void> _saveNow(Announcement? existing, {required bool publish}) async {
     if (_saving || _files.isUploading) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final tt = widget.tt;
@@ -431,9 +447,9 @@ class _FormState extends ConsumerState<_Form> {
     final classNames = {for (final c in classes ?? []) c.classId: c.name};
 
     return PageColumn(
-      child: Form(
-        key: _formKey,
-        child: ListView(
+      child: AppForm(
+        formKey: _formKey,
+        child: FormScrollView(
           padding: const EdgeInsets.all(AppSpacing.md),
           children: [
             SectionCard(
@@ -566,6 +582,7 @@ class _FormState extends ConsumerState<_Form> {
                   TextFormField(
                     controller: _body,
                     maxLength: 4000,
+                    buildCounter: trimmedCounter(_body),
                     minLines: 5,
                     maxLines: 14,
                     decoration: const InputDecoration(
@@ -664,27 +681,27 @@ class _FormState extends ConsumerState<_Form> {
               children: [
                 if (published)
                   FilledButton(
-                    onPressed: _saving
+                    onPressed: _saving || _lock.busy
                         ? null
                         : () => _save(existing, publish: false),
                     child: const Text('Save update'),
                   )
                 else ...[
                   OutlinedButton(
-                    onPressed: _saving
+                    onPressed: _saving || _lock.busy
                         ? null
                         : () => _save(existing, publish: false),
                     child: const Text('Save draft'),
                   ),
                   FilledButton.icon(
-                    onPressed: _saving
+                    onPressed: _saving || _lock.busy
                         ? null
                         : () => _save(existing, publish: true),
                     icon: const Icon(Icons.visibility_outlined),
                     label: const Text('Preview & publish'),
                   ),
                 ],
-                if (_saving)
+                if (_saving || _lock.busy)
                   const Padding(
                     padding: EdgeInsets.all(8),
                     child: SizedBox(

@@ -725,6 +725,8 @@ void main() {
   });
 
   group('create form', () {
+    _shortScreenTests();
+    _ownAddressTests();
     // Tall viewports so the whole (lazily built) list is on screen at once;
     // the widths are what matter for the overflow check.
     for (final size in [const Size(360, 3200), const Size(1400, 1800)]) {
@@ -758,6 +760,68 @@ void main() {
         },
       );
     }
+  });
+}
+
+void _ownAddressTests() {
+  // STF-01-OBS-02: the pushed Add staff page has its own address, so a
+  // browser refresh or Back keeps the user there.
+  testWidgets('Add staff opens at its own address (/staff/new)', (
+    tester,
+  ) async {
+    final world = await _pump(tester, role: UserRole.branchAdmin);
+    await world.go(tester, '/staff');
+    await tester.tap(find.text('Add staff').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Add staff member'), findsOneWidget);
+    final router = world.container.read(appRouterProvider);
+    expect(router.routeInformationProvider.value.uri.path, '/staff/new');
+  });
+}
+
+void _shortScreenTests() {
+  // STF-01-DEF-01 / OBS-01: on a normal screen the top fields are scrolled
+  // out of view when Save is pressed; they must still be validated, and the
+  // form must take the user to the first one in error.
+  testWidgets('a short screen still validates every field and goes to the '
+      'first one in error', (tester) async {
+    final world = await _pump(
+      tester,
+      role: UserRole.branchAdmin,
+      size: const Size(1000, 700),
+    );
+    await world.go(tester, '/staff/new');
+    final create = find.text('Create staff member');
+    await tester.ensureVisible(create);
+    await tester.pumpAndSettle();
+    await tester.tap(create);
+    await tester.pumpAndSettle();
+    for (final error in [
+      'First name is required.',
+      'Last name is required.',
+      'Date of birth is required.',
+      'Gender is required.',
+      'Phone number is required.',
+      'Department is required.',
+      'Designation is required.',
+    ]) {
+      expect(find.text(error), findsOneWidget, reason: error);
+    }
+    expect(find.textContaining('Unable to save'), findsNothing);
+    // Scrolled back up, the first name focused.
+    final firstName = find.descendant(
+      of: find.widgetWithText(TextFormField, 'First name'),
+      matching: find.byType(EditableText),
+    );
+    expect(tester.widget<EditableText>(firstName).focusNode.hasFocus, isTrue);
+    expect(tester.getRect(firstName).top, greaterThanOrEqualTo(0));
+    expect(tester.getRect(firstName).bottom, lessThanOrEqualTo(700));
+
+    // Typing clears that error at once (SET-01-OBS-02).
+    await tester.enterText(firstName, 'Priya');
+    await tester.pump();
+    expect(find.text('First name is required.'), findsNothing);
+    expect(find.text('Last name is required.'), findsOneWidget);
   });
 }
 

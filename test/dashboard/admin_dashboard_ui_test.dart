@@ -153,11 +153,12 @@ void main() {
     expect(find.text('87'), findsOneWidget); // parents: a count, never "View"
     expect(find.text('14'), findsOneWidget); // active staff
     expect(find.text('View'), findsNothing);
-    // attendance: present 90, absent 10, not marked 20, completion 83% (100/120)
+    // attendance: present 90, absent 10, not marked 20; the ring is present of
+    // the marked students, 90% (90/100), not 83% marked (DASH-01-DEF-02)
     expect(find.text('90'), findsOneWidget);
     expect(find.text('10'), findsOneWidget);
     expect(find.text('20'), findsOneWidget);
-    expect(find.text('83%'), findsOneWidget);
+    expect(find.text('90%'), findsOneWidget);
     // fees: the school's currency, exact amounts
     expect(find.textContaining('₹1,25,000.00'), findsWidgets);
     expect(find.textContaining('₹40,000.00'), findsWidgets);

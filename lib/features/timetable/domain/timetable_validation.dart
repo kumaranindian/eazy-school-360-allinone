@@ -119,6 +119,37 @@ abstract final class TimetableValidator {
       }
     }
 
+    // TT-01-OBS-02: teaching periods left empty. A warning, not an error:
+    // a free period can be on purpose, but "No problems found" with 9 of 10
+    // periods empty was misleading.
+    if (entries.isNotEmpty) {
+      var total = 0;
+      var unfilled = 0;
+      for (final wd in t.dayPeriodSets.keys) {
+        final set = periodSets[t.dayPeriodSets[wd]];
+        if (set == null || !workingWeekdays.contains(wd)) continue;
+        for (final slot in set.teachingSlots) {
+          total++;
+          if (!entries.any(
+            (e) => e.weekday.wireValue == wd && e.slotId == slot.slotId,
+          )) {
+            unfilled++;
+          }
+        }
+      }
+      if (unfilled > 0) {
+        issues.add(
+          TimetableIssue(
+            severity: IssueSeverity.warning,
+            kind: IssueKind.unfilled,
+            message:
+                '$unfilled of $total teaching period${total == 1 ? '' : 's'} '
+                '${unfilled == 1 ? 'has' : 'have'} no subject and teacher yet.',
+          ),
+        );
+      }
+    }
+
     final byTeacherSubject = {
       for (final a in sectionAssignments)
         if (!a.isClassTeacher &&

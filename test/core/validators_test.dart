@@ -130,4 +130,27 @@ void main() {
       }
     });
   });
+
+  group('wholeNumber (SET-01-DEF-01: section capacity)', () {
+    test('empty is fine when optional, required otherwise', () {
+      expect(Validators.wholeNumber(''), isNull);
+      expect(Validators.wholeNumber(null), isNull);
+      expect(
+        Validators.wholeNumber('', required: true, fieldName: 'Capacity'),
+        'Capacity is required.',
+      );
+    });
+    test('0 and negatives are refused', () {
+      expect(Validators.wholeNumber('0'), 'Enter 1 or more.');
+      expect(Validators.wholeNumber('-5'), 'Enter 1 or more.');
+    });
+    test('decimals and text are refused', () {
+      expect(Validators.wholeNumber('2.5'), 'Enter a whole number.');
+      expect(Validators.wholeNumber('forty'), 'Enter a whole number.');
+    });
+    test('a whole number in range is accepted', () {
+      expect(Validators.wholeNumber(' 40 '), isNull);
+      expect(Validators.wholeNumber('10001'), 'Enter 10000 or less.');
+    });
+  });
 }

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../school_setup/presentation/providers/school_providers.dart';
+import '../../../staff/presentation/providers/staff_providers.dart';
 import '../../domain/setup_status.dart';
 import 'academic_setup_keys.dart';
 import 'academic_structure_providers.dart';
@@ -58,12 +59,32 @@ final setupStatusProvider = FutureProvider.autoDispose
           }
         }
 
+        // SET-01-OBS-03: done only when every class teaches at least one
+        // subject (a subject list with nothing linked to a class is not set
+        // up).
         final subjects = await ref.watch(subjectsProvider(yearKey).future);
-        hasAnySubject = subjects.isNotEmpty;
+        var everyClassHasSubject = classes.isNotEmpty && subjects.isNotEmpty;
+        for (final schoolClass in classes) {
+          if (!everyClassHasSubject) break;
+          final links = await ref.watch(
+            classSubjectsProvider((
+              schoolId: key.schoolId,
+              branchId: key.branchId,
+              academicYearId: currentYear.academicYearId,
+              classId: schoolClass.classId,
+            )).future,
+          );
+          if (links.isEmpty) everyClassHasSubject = false;
+        }
+        hasAnySubject = everyClassHasSubject;
 
         final holidays = await ref.watch(holidaysProvider(yearKey).future);
         hasAnyHoliday = holidays.isNotEmpty;
       }
+
+      // Needed before any staff member can be added (SET-01-OBS-03).
+      final departments = await ref.watch(departmentsProvider(key).future);
+      final designations = await ref.watch(designationsProvider(key).future);
 
       final workingDaysConfigured = await ref
           .watch(calendarRepositoryProvider)
@@ -99,6 +120,16 @@ final setupStatusProvider = FutureProvider.autoDispose
           SetupItem(
             label: 'Subjects',
             isComplete: hasAnySubject,
+            isRequired: true,
+          ),
+          SetupItem(
+            label: 'Departments',
+            isComplete: departments.any((d) => d.isActive),
+            isRequired: true,
+          ),
+          SetupItem(
+            label: 'Designations',
+            isComplete: designations.any((d) => d.isActive),
             isRequired: true,
           ),
           SetupItem(

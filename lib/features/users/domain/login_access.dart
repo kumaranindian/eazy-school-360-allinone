@@ -227,8 +227,8 @@ abstract class LoginAccessRepository {
   });
 
   /// Sets a new password for an existing login and requires a change at next
-  /// sign-in. Only the server-set options ([PasswordSetupOption.nameMobile],
-  /// [PasswordSetupOption.randomTemp], [PasswordSetupOption.adminDefined])
+  /// sign-in. Only the server-set options ([PasswordSetupOption.randomTemp],
+  /// [PasswordSetupOption.adminDefined])
   /// are valid; the link options are emails. Returns the generated password
   /// for [PasswordSetupOption.randomTemp] (shown once), otherwise null.
   Future<String?> resetPassword({

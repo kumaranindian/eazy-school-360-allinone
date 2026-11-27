@@ -24,6 +24,7 @@ import '../../domain/homework_enums.dart';
 import '../../domain/homework_repositories.dart';
 import '../providers/homework_providers.dart';
 import '../widgets/homework_widgets.dart';
+import '../../../../shared/paging/reload_on_return.dart';
 
 /// `/homework` — a teacher's own homework, or the branch's for an admin.
 /// Counts at the top come from aggregate queries; the list is paginated.
@@ -43,7 +44,10 @@ class HomeworkListPage extends ConsumerWidget {
               label: const Text('New homework'),
             )
           : null,
-      body: TimetableScope(builder: (context, tt) => _HomeworkList(tt: tt)),
+      body: TimetableScope(
+        moduleName: 'homework',
+        builder: (context, tt) => _HomeworkList(tt: tt),
+      ),
     );
   }
 }
@@ -56,7 +60,15 @@ class _HomeworkList extends ConsumerStatefulWidget {
   ConsumerState<_HomeworkList> createState() => _HomeworkListState();
 }
 
-class _HomeworkListState extends ConsumerState<_HomeworkList> {
+class _HomeworkListState extends ConsumerState<_HomeworkList>
+    with ReloadOnReturn {
+  @override
+  void onReturn() {
+    _configure();
+    ref.invalidate(homeworkStatusCountProvider);
+    ref.invalidate(awaitingReviewProvider);
+  }
+
   final _controller = PagedListController<Homework>();
   HomeworkStatus? _status;
   String? _classId;

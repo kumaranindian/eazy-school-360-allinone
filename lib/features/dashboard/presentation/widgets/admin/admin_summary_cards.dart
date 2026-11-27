@@ -65,8 +65,10 @@ class AttendanceSummaryCard extends StatelessWidget {
       body = Row(
         children: [
           AdminProgressRing(
-            fraction: d.completion,
-            centerText: '${d.completionPercent}%',
+            // Present of the students marked, as in the attendance reports
+            // (DASH-01-DEF-02); unmarked students are the "Not marked" line.
+            fraction: d.attendanceRate,
+            centerText: '${d.attendancePercent}%',
             color: p.success,
           ),
           const SizedBox(width: 16),

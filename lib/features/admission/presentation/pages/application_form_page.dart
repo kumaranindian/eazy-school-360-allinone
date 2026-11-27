@@ -15,6 +15,8 @@ import '../../domain/admission_application.dart';
 import '../../domain/admission_enquiry.dart';
 import '../providers/admission_providers.dart';
 import '../widgets/admission_widgets.dart';
+import '../../../../shared/forms/app_form.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// Edit the details of a DRAFT application. They start as a copy of the enquiry
 /// and can be corrected here without touching the enquiry itself.
@@ -265,9 +267,9 @@ class _ApplicationFormPageState extends ConsumerState<ApplicationFormPage> {
                     : context.go('/admissions/enquiries/${a.enquiryId}'),
               ),
               Expanded(
-                child: Form(
-                  key: _form,
-                  child: ListView(
+                child: AppForm(
+                  formKey: _form,
+                  child: FormScrollView(
                     padding: EdgeInsets.all(wide.isMobile ? 16 : 24),
                     children: [
                       Center(
@@ -301,18 +303,19 @@ class _ApplicationFormPageState extends ConsumerState<ApplicationFormPage> {
                                             : null,
                                         builder: (state) => InkWell(
                                           onTap: () async {
-                                            final picked = await showDatePicker(
-                                              context: context,
-                                              initialDate:
-                                                  DateTime.tryParse(
-                                                    _dob ?? '',
-                                                  ) ??
-                                                  DateTime(today.year - 5),
-                                              firstDate: DateTime(
-                                                today.year - 25,
-                                              ),
-                                              lastDate: today,
-                                            );
+                                            final picked =
+                                                await showSchoolDatePicker(
+                                                  context: context,
+                                                  initialDate:
+                                                      DateTime.tryParse(
+                                                        _dob ?? '',
+                                                      ) ??
+                                                      DateTime(today.year - 5),
+                                                  firstDate: DateTime(
+                                                    today.year - 25,
+                                                  ),
+                                                  lastDate: today,
+                                                );
                                             if (picked != null) {
                                               setState(
                                                 () => _dob = SchoolTime.keyOf(

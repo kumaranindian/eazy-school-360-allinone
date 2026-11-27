@@ -22,6 +22,7 @@ import '../../domain/leave_units.dart';
 import '../../domain/leave_workflow.dart';
 import '../providers/leave_providers.dart';
 import 'leave_widgets.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// Who the leave is for, resolved by the page that hosts the form.
 class LeaveSubject {
@@ -139,7 +140,7 @@ class _LeaveApplyFormState extends ConsumerState<LeaveApplyForm> {
         DateTime.utc(today.year, today.month, today.day);
     if (initial.isBefore(first)) initial = first;
     if (initial.isAfter(last)) initial = last;
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: initial,
       firstDate: first,

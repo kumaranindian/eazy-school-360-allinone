@@ -9,16 +9,11 @@ enum LoginKind {
 }
 
 /// How the first password is set when logins are created. The two link
-/// options set no password anyone knows; the other three set one on the
+/// options set no password anyone knows; the other two set one on the
 /// server (never stored, never logged) and ask the person to change it at
-/// first sign-in.
+/// first sign-in. "Name + mobile number" was removed: it could be guessed
+/// by anyone who knows both (STU-02-OBS-01).
 enum PasswordSetupOption {
-  nameMobile(
-    'NAME_MOBILE',
-    'Name + mobile number',
-    'First 4 letters of the name (capitals) + last 5 digits of the mobile, '
-        'e.g. KART43210. Easy to guess — less secure.',
-  ),
   randomTemp(
     'RANDOM_TEMP',
     'Random temporary password',

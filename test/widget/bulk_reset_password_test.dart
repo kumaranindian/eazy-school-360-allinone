@@ -108,7 +108,8 @@ void main() {
     testWidgets('bulk reset dialog lays out on $name', (tester) async {
       await _open(tester, size: size, scale: scale);
       expect(find.text('Reset passwords'), findsWidgets);
-      expect(find.text('Name + mobile number'), findsOneWidget);
+      // Removed: guessable (STU-02-OBS-01).
+      expect(find.text('Name + mobile number'), findsNothing);
       await tester.ensureVisible(find.text('One password set by you'));
       await tester.tap(find.text('One password set by you'));
       await tester.pumpAndSettle();

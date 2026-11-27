@@ -1,6 +1,9 @@
 import '../../../../core/regional/school_time.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../../core/routing/app_routes.dart';
 
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/extensions/context_extensions.dart';
@@ -10,6 +13,8 @@ import '../../../../core/validators/validators.dart';
 import '../../../school_setup/domain/branch.dart';
 import '../../domain/school_academic_year.dart';
 import '../providers/academic_structure_providers.dart';
+import '../../../../shared/forms/app_form.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// Defines a school-wide academic year (name + dates). School admin only.
 class SchoolYearFormDialog extends ConsumerStatefulWidget {
@@ -43,7 +48,7 @@ class _SchoolYearFormDialogState extends ConsumerState<SchoolYearFormDialog> {
   }
 
   Future<void> _pick({required bool start}) async {
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: (start ? _start : _end) ?? SchoolTime.wallNow(),
       firstDate: DateTime(2000),
@@ -88,8 +93,8 @@ class _SchoolYearFormDialogState extends ConsumerState<SchoolYearFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Form(
-      key: _formKey,
+    return AppForm(
+      formKey: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -299,12 +304,17 @@ class OpenSchoolYearDialog extends ConsumerStatefulWidget {
   final String userId;
   final List<SchoolAcademicYear> openable;
 
+  /// The school has no school years at all (SET-01-OBS-01), as opposed to
+  /// all of them being open here already.
+  final bool noSchoolYears;
+
   const OpenSchoolYearDialog({
     super.key,
     required this.schoolId,
     required this.branchId,
     required this.userId,
     required this.openable,
+    this.noSchoolYears = false,
   });
 
   @override
@@ -351,7 +361,30 @@ class _OpenSchoolYearDialogState extends ConsumerState<OpenSchoolYearDialog> {
           style: context.textStyles.bodySmall,
         ),
         const SizedBox(height: AppSpacing.sm),
-        if (widget.openable.isEmpty)
+        if (widget.openable.isEmpty && widget.noSchoolYears)
+          Padding(
+            key: const ValueKey('no-school-years'),
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'No school years exist yet. A school admin creates them in '
+                  'School years; then they can be opened here.',
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                TextButton.icon(
+                  icon: const Icon(Icons.arrow_forward),
+                  label: const Text('Go to School years'),
+                  onPressed: () {
+                    Navigator.of(context).pop(false);
+                    context.go(AppRoutes.settingsSchoolYears);
+                  },
+                ),
+              ],
+            ),
+          )
+        else if (widget.openable.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
             child: Text(

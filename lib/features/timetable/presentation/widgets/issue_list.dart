@@ -92,6 +92,7 @@ extension IssueKindLabel on IssueKind {
     IssueKind.sectionOverlap => 'Replaces a version',
     IssueKind.teacherOnLeave => 'Teacher on leave',
     IssueKind.empty => 'Empty',
+    IssueKind.unfilled => 'Empty periods',
     IssueKind.stalePeriods => 'Out of date',
   };
 }

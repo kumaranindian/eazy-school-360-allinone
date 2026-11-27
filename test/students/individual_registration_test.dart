@@ -22,6 +22,8 @@ import 'package:eazy_school_360/features/students/domain/parent_duplicates.dart'
 import 'package:eazy_school_360/features/students/domain/parent_repository.dart';
 import 'package:eazy_school_360/features/students/domain/relationship_type.dart';
 import 'package:eazy_school_360/features/students/domain/student.dart';
+import 'package:eazy_school_360/features/students/domain/student_status.dart';
+import 'package:eazy_school_360/features/students/domain/gender.dart';
 import 'package:eazy_school_360/features/students/domain/student_repository.dart';
 import 'package:eazy_school_360/features/students/domain/admission_number_format.dart';
 import 'package:eazy_school_360/features/students/presentation/pages/student_admission_page.dart';
@@ -96,6 +98,17 @@ typedef _Link = ({String studentId, String parentId, bool canAccessPortal});
 class _Students implements StudentRepository {
   final List<Student> admitted = [];
   final List<_Link> links = [];
+
+  /// What the same name + date of birth lookup finds (STU-01-OBS-01).
+  List<Student> sameNameAndBirth = const [];
+
+  @override
+  Future<List<Student>> findByNameAndBirthDate({
+    required String schoolId,
+    required String branchId,
+    required String fullName,
+    required DateTime dateOfBirth,
+  }) async => sameNameAndBirth;
 
   @override
   Future<String> admitStudent({
@@ -576,6 +589,81 @@ void main() {
       await tester.tap(find.text('Done'));
       await _settle(tester);
       expect(find.text('Profile student-1'), findsOneWidget);
+    });
+
+    testWidgets('same name and date of birth as an existing student: asks '
+        'first (STU-01-OBS-01)', (tester) async {
+      final h = _Harness();
+      h.students.sameNameAndBirth = [
+        Student(
+          studentId: 'old-1',
+          schoolId: 'school-1',
+          branchId: 'main',
+          admissionNumber: 'ADM-0003',
+          studentCode: 'STU-OLD',
+          firstName: 'Asha',
+          lastName: 'Nair',
+          dateOfBirth: DateTime(2016),
+          gender: Gender.female,
+          admissionDate: DateTime(2024),
+          status: StudentStatus.active,
+        ),
+      ];
+      await _pumpAdmission(tester, h);
+      await _fillBasics(tester);
+      final ask = find.byKey(const ValueKey('possible-duplicate-student'));
+      expect(ask, findsOneWidget);
+      expect(find.textContaining('ADM-0003'), findsOneWidget);
+      await tester.tap(find.text('Go back'));
+      await tester.pumpAndSettle();
+      expect(ask, findsNothing);
+      expect(find.text('Student Details'), findsWidgets); // still step one
+      await _next(tester);
+      await tester.tap(find.text('Admit anyway'));
+      await tester.pumpAndSettle();
+      expect(find.text('Add later'), findsWidgets); // the guardian step
+    });
+
+    testWidgets('a double click on Admit student admits once, with one parent '
+        'and one login dialog (STU-01-DEF-01, STU-01-OBS-03)', (tester) async {
+      final h = _Harness();
+      await _pumpAdmission(tester, h);
+      await _fillBasics(tester);
+      await _fillNewParent(tester);
+      await _tapVisible(
+        tester,
+        find.text('Give this parent a login after admission'),
+      );
+      await _next(tester);
+      await _placeAndReview(tester);
+      // Review shows the placement and the number that will be saved
+      // (STU-01-OBS-02).
+      expect(find.text('Class: Grade 1'), findsOneWidget);
+      expect(find.text('Section: A'), findsOneWidget);
+      expect(find.textContaining('Date of birth: '), findsOneWidget);
+      expect(find.text('Roll number: Not set'), findsOneWidget);
+      final shown = find.textContaining('Admission number: ADM-');
+      final number = tester.widget<Text>(shown).data!.split(': ').last;
+
+      final admit = find.widgetWithText(FilledButton, 'Admit student');
+      await tester.ensureVisible(admit);
+      await tester.pump();
+      await tester.tap(admit);
+      await tester.tap(admit, warnIfMissed: false);
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      expect(h.students.admitted, hasLength(1));
+      expect(h.parents.created, hasLength(1));
+      expect(h.students.admitted.single.admissionNumber, number);
+      // Ids made by the form, so a repeat call lands on the same documents.
+      expect(h.students.admitted.single.studentId, hasLength(20));
+      expect(h.parents.created.single.parentId, hasLength(20));
+      expect(
+        find.text('Allow portal access to their children'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('same email as an existing parent: no second record; the '
