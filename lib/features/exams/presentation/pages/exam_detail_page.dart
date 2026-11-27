@@ -5,10 +5,12 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/activation_status.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/permissions/permission.dart';
+import '../../../../core/regional/school_time.dart';
 import '../../../../core/permissions/user_role.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/tenant/tenant_context.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/utils/date_formatting.dart';
 import '../../../../shared/error/empty_view.dart';
 import '../../../../shared/error/error_view.dart';
 import '../../../academic_setup/domain/section.dart';
@@ -19,11 +21,13 @@ import '../../../staff/presentation/providers/staff_providers.dart';
 import '../../../staff/presentation/widgets/staff_branch_scope.dart';
 import '../../../timetable/presentation/providers/timetable_providers.dart';
 import '../../domain/exam_enums.dart';
+import '../../domain/exam_rules.dart';
 import '../../domain/exam_repositories.dart';
 import '../../domain/examination.dart';
 import '../../domain/marks.dart';
 import '../providers/exam_providers.dart';
 import '../widgets/exam_widgets.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// `/exams/detail/:examId` — one examination: its subjects and marks
 /// configuration, the workflow actions open to the person, and the marks
@@ -348,10 +352,24 @@ class _DetailState extends ConsumerState<_Detail> {
                       onPressed: _busy || expectedSheets == 0
                           ? null
                           : () async {
+                              // EXM-01-OBS-01: say so when the exam has
+                              // not started yet (allowed, e.g. an exam
+                              // held early, but rarely meant).
+                              final early = ExamRules.startsAfter(
+                                exam,
+                                SchoolTime.todayKey(),
+                              );
                               if (!await confirmAction(
                                 context,
-                                title: 'Open marks entry?',
+                                title: early
+                                    ? 'The exam has not started yet'
+                                    : 'Open marks entry?',
                                 body:
+                                    '${early ? 'This examination starts on '
+                                              '${formatDisplayDate(AttendanceDate.parse(exam.startDateKey))}. '
+                                              'Open marks entry before it '
+                                              'starts only if the papers '
+                                              'are already written. ' : ''}'
                                     'Subjects and marks can no longer be '
                                     'changed. $expectedSheets marks sheet(s) '
                                     '(${subjects.length} subject(s) × '
@@ -832,7 +850,7 @@ class _SubjectDialogState extends State<_SubjectDialog> {
                       final start = AttendanceDate.parse(
                         widget.exam.startDateKey,
                       );
-                      final d = await showDatePicker(
+                      final d = await showSchoolDatePicker(
                         context: context,
                         initialDate: _dateKey == null
                             ? start

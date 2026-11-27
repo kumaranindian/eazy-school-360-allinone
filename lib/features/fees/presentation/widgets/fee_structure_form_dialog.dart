@@ -16,6 +16,7 @@ import '../../domain/money.dart';
 import '../providers/fee_providers.dart';
 import 'fee_scope.dart';
 import '../../../../shared/forms/app_form.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// Opens the fee form: a full-screen page on a phone, a wide two-pane dialog
 /// (step list on the left, form on the right) on tablet and desktop.
@@ -97,7 +98,7 @@ class _FeeStructureFormDialogState
 
   Future<void> _pickDate(bool from) async {
     final now = SchoolTime.wallNow();
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: now,
       firstDate: DateTime(now.year - 2),

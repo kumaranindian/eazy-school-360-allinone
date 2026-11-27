@@ -5,6 +5,7 @@ import '../../domain/admission_activity.dart';
 import '../providers/admission_providers.dart';
 import 'admission_widgets.dart';
 import 'activity_widgets.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 String _iso(DateTime d) => SchoolTime.keyOf(d);
 
@@ -29,7 +30,7 @@ class _DateField extends StatelessWidget {
     return InkWell(
       onTap: () async {
         final initial = DateTime.tryParse(value ?? '') ?? first;
-        final picked = await showDatePicker(
+        final picked = await showSchoolDatePicker(
           context: context,
           initialDate: initial.isBefore(first) ? first : initial,
           firstDate: first,

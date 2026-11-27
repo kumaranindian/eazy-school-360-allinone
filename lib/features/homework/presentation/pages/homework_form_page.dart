@@ -24,6 +24,7 @@ import '../providers/homework_providers.dart';
 import '../widgets/homework_widgets.dart';
 import '../../../../shared/forms/app_form.dart';
 import '../../../../shared/forms/submit_lock.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// `/homework/new` and `/homework/edit/:homeworkId`.
 ///
@@ -46,6 +47,7 @@ class HomeworkFormPage extends StatelessWidget {
         title: Text(homeworkId == null ? 'New homework' : 'Edit homework'),
       ),
       body: TimetableScope(
+        moduleName: 'homework',
         showYearSelector: homeworkId == null,
         builder: (context, tt) => _HomeworkForm(tt: tt, homeworkId: homeworkId),
       ),
@@ -146,7 +148,7 @@ class _HomeworkFormState extends ConsumerState<_HomeworkForm> {
   Future<void> _pickDate({DateTime? first}) async {
     final today = SchoolTime.wallNow();
     final start = first ?? DateTime(today.year, today.month, today.day);
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: (_dueDate != null && !_dueDate!.isBefore(start))
           ? _dueDate!
@@ -604,6 +606,7 @@ class _HomeworkFormState extends ConsumerState<_HomeworkForm> {
                   TextFormField(
                     controller: _description,
                     maxLength: 4000,
+                    buildCounter: trimmedCounter(_description),
                     minLines: 4,
                     maxLines: 12,
                     decoration: const InputDecoration(

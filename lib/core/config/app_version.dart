@@ -2,7 +2,7 @@
 /// `pubspec.yaml` (`name+build`) — `test/core/app_version_test.dart` fails
 /// if they drift, so a build can never advertise the wrong number.
 const String appVersionName = '1.1.0';
-const String appBuildNumber = '14';
+const String appBuildNumber = '15';
 
 /// "v1.1.0 (14)".
 const String appVersionLabel = 'v$appVersionName ($appBuildNumber)';

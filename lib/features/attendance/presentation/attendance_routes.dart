@@ -14,7 +14,15 @@ List<RouteBase> attendanceRoutes() => [
     routes: [
       GoRoute(
         path: 'students',
-        builder: (context, state) => const StudentAttendancePage(),
+        builder: (context, state) {
+          final q = state.uri.queryParameters;
+          return StudentAttendancePage(
+            initialYearId: q['year'],
+            initialClassId: q['class'],
+            initialSectionId: q['section'],
+            initialDateKey: q['date'],
+          );
+        },
       ),
       GoRoute(
         path: 'staff',

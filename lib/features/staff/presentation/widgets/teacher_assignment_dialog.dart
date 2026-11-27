@@ -11,6 +11,7 @@ import '../../../academic_setup/presentation/providers/academic_setup_keys.dart'
 import '../../../academic_setup/presentation/providers/academic_structure_providers.dart';
 import '../../domain/staff.dart';
 import '../providers/staff_providers.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// Assigns a teacher to a section — either as its class teacher or for one
 /// subject. Offers only what is valid: open academic years, classes of that
@@ -43,7 +44,7 @@ class _TeacherAssignmentDialogState
   DateTime _startDate = SchoolTime.wallNow();
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: _startDate,
       firstDate: DateTime(2000),

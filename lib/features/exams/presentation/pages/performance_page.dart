@@ -39,7 +39,10 @@ class PerformancePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(title: const Text('Academic performance')),
-      body: TimetableScope(builder: (context, tt) => _Performance(tt: tt)),
+      body: TimetableScope(
+        moduleName: 'examinations',
+        builder: (context, tt) => _Performance(tt: tt),
+      ),
     );
   }
 }

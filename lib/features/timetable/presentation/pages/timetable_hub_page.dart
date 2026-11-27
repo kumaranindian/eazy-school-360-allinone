@@ -26,6 +26,7 @@ import '../../../../shared/filters/filter_bar.dart';
 import '../providers/timetable_providers.dart';
 import '../widgets/timetable_format.dart';
 import '../widgets/timetable_scope.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// `/timetable` — every version of every section's timetable for the year,
 /// with what is in force, and the way into editing, bell schedules,
@@ -332,7 +333,7 @@ class _NewTimetableFormState extends ConsumerState<NewTimetableForm> {
 
   Future<void> _pick(bool from) async {
     final y = widget.tt.year;
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: (from ? _from : _to) ?? y.startDate.toUtc(),
       firstDate: y.startDate.toUtc(),

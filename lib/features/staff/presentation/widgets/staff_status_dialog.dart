@@ -9,6 +9,7 @@ import '../../../../core/utils/date_formatting.dart';
 import '../../domain/staff.dart';
 import '../../domain/staff_status.dart';
 import '../providers/staff_providers.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// A lifecycle change (notice, resignation, retirement, ...). Only moves
 /// allowed by [StaffStatus.allowedTransitions] are offered; staff are never
@@ -37,7 +38,7 @@ class _StaffStatusDialogState extends ConsumerState<StaffStatusDialog> {
   final _notes = TextEditingController();
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: _effectiveDate,
       firstDate: DateTime(2000),

@@ -14,6 +14,7 @@ import '../../domain/payment.dart';
 import '../../domain/payment_rules.dart';
 import '../providers/fee_providers.dart';
 import '../../../../shared/forms/app_form.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 Widget _footer(
   BuildContext context, {
@@ -308,7 +309,7 @@ class _CollectPaymentDialogState extends ConsumerState<CollectPaymentDialog> {
                 ? null
                 : () async {
                     final now = SchoolTime.wallNow();
-                    final picked = await showDatePicker(
+                    final picked = await showSchoolDatePicker(
                       context: context,
                       initialDate: now,
                       firstDate: DateTime(now.year - 1),

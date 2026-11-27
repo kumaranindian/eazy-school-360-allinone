@@ -726,6 +726,7 @@ void main() {
 
   group('create form', () {
     _shortScreenTests();
+    _ownAddressTests();
     // Tall viewports so the whole (lazily built) list is on screen at once;
     // the widths are what matter for the overflow check.
     for (final size in [const Size(360, 3200), const Size(1400, 1800)]) {
@@ -759,6 +760,22 @@ void main() {
         },
       );
     }
+  });
+}
+
+void _ownAddressTests() {
+  // STF-01-OBS-02: the pushed Add staff page has its own address, so a
+  // browser refresh or Back keeps the user there.
+  testWidgets('Add staff opens at its own address (/staff/new)', (
+    tester,
+  ) async {
+    final world = await _pump(tester, role: UserRole.branchAdmin);
+    await world.go(tester, '/staff');
+    await tester.tap(find.text('Add staff').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Add staff member'), findsOneWidget);
+    final router = world.container.read(appRouterProvider);
+    expect(router.routeInformationProvider.value.uri.path, '/staff/new');
   });
 }
 

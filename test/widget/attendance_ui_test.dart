@@ -367,6 +367,15 @@ void main() {
       },
     );
 
+    testWidgets('a register in the address opens with class and section chosen '
+        '(ATT-01-OBS-01)', (tester) async {
+      final w = await _pump(tester, role: UserRole.branchAdmin);
+      await w.go(tester, '/attendance/students?year=y1&class=c5&section=sec-a');
+      // No picking: the register of Class 5 A is loaded.
+      expect(find.text('Not marked: 3'), findsOneWidget);
+      expect(find.text('Anil Kumar'), findsOneWidget);
+    });
+
     testWidgets(
       'nobody is pre-marked; the summary starts at everyone not marked',
       (tester) async {

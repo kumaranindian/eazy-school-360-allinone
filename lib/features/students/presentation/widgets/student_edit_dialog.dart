@@ -12,6 +12,7 @@ import '../../domain/gender.dart';
 import '../../domain/student.dart';
 import '../providers/student_providers.dart';
 import '../../../../shared/forms/app_form.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// Edits a student's profile (identity, contact and address). Status and
 /// placement have their own dialogs and are not touched here; the student's
@@ -83,7 +84,7 @@ class _StudentEditDialogState extends ConsumerState<StudentEditDialog> {
 
   Future<void> _pickDob() async {
     final now = SchoolTime.wallNow();
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: _dob.isAfter(now) ? now : _dob,
       firstDate: DateTime(1990),

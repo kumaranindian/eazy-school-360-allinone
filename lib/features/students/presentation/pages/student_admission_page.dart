@@ -32,6 +32,7 @@ import '../widgets/parent_duplicates_dialog.dart';
 import '../../../users/domain/login_provisioning.dart';
 import '../../../users/presentation/widgets/provision_logins_dialog.dart';
 import '../../../../shared/forms/app_form.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 enum _ParentMode { skip, existing, newParent }
 
@@ -521,7 +522,7 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
   ];
 
   Future<void> _pickDateOfBirth() async {
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: _dateOfBirth ?? DateTime(SchoolTime.wallNow().year - 10),
       firstDate: DateTime(1990),
@@ -536,7 +537,7 @@ class _StudentAdmissionPageState extends ConsumerState<StudentAdmissionPage> {
   }
 
   Future<void> _pickAdmissionDate() async {
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: _admissionDate,
       firstDate: DateTime(2000),

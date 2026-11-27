@@ -18,6 +18,7 @@ import '../../domain/fee_summary.dart';
 import '../../domain/money.dart';
 import '../providers/fee_providers.dart';
 import '../widgets/fee_scope.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// `/fees/reports` — collections for a date range (by payment method, with
 /// reversals and refunds beside them), outstanding balance by class and
@@ -137,7 +138,7 @@ class _ReportsState extends ConsumerState<_Reports> {
 
   Future<void> _pick(bool from) async {
     final now = SchoolTime.wallNow();
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: now,
       firstDate: DateTime(now.year - 3),

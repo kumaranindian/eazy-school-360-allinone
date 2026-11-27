@@ -24,6 +24,7 @@ import '../../domain/attendance_day.dart';
 import '../../domain/attendance_tally.dart';
 import '../providers/attendance_providers.dart';
 import '../widgets/attendance_summary_bar.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// `/attendance` — what is happening today (or any date) and where to go.
 ///
@@ -358,7 +359,7 @@ class _HubState extends ConsumerState<_Hub> {
         Flexible(
           child: OutlinedButton.icon(
             onPressed: () async {
-              final picked = await showDatePicker(
+              final picked = await showSchoolDatePicker(
                 context: context,
                 initialDate: _date,
                 firstDate: DateTime(2000),
@@ -506,7 +507,19 @@ class _HubState extends ConsumerState<_Hub> {
                     label: Text(
                       '${s.schoolClass.name} ${s.section.name} · ${s.day == null ? 'Not started' : s.day!.status.displayName}',
                     ),
-                    onPressed: () => context.push('/attendance/students'),
+                    // Opens this register, class and section chosen
+                    // (ATT-01-OBS-01).
+                    onPressed: () => context.push(
+                      Uri(
+                        path: '/attendance/students',
+                        queryParameters: {
+                          'year': s.section.academicYearId,
+                          'class': s.schoolClass.classId,
+                          'section': s.section.sectionId,
+                          'date': AttendanceDate.key(_date),
+                        },
+                      ).toString(),
+                    ),
                   ),
               ],
             ),

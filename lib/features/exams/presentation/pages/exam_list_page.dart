@@ -58,7 +58,10 @@ class ExamListPage extends ConsumerWidget {
               label: const Text('New examination'),
             )
           : null,
-      body: TimetableScope(builder: (context, tt) => _ExamList(tt: tt)),
+      body: TimetableScope(
+        moduleName: 'examinations',
+        builder: (context, tt) => _ExamList(tt: tt),
+      ),
     );
   }
 }

@@ -44,7 +44,10 @@ class HomeworkListPage extends ConsumerWidget {
               label: const Text('New homework'),
             )
           : null,
-      body: TimetableScope(builder: (context, tt) => _HomeworkList(tt: tt)),
+      body: TimetableScope(
+        moduleName: 'homework',
+        builder: (context, tt) => _HomeworkList(tt: tt),
+      ),
     );
   }
 }

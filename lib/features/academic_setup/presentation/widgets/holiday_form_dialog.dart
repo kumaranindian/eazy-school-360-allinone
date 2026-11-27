@@ -13,6 +13,7 @@ import '../../domain/holiday_rules.dart';
 import '../../domain/holiday_type.dart';
 import '../providers/calendar_providers.dart';
 import '../../../../shared/forms/app_form.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 class HolidayFormDialog extends ConsumerStatefulWidget {
   final String schoolId;
@@ -54,7 +55,7 @@ class _HolidayFormDialogState extends ConsumerState<HolidayFormDialog> {
   bool get _isEditing => widget.existing != null;
 
   Future<void> _pickDate({required bool end}) async {
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: end ? _endDate : _date,
       firstDate: DateTime(2000),

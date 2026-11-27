@@ -18,6 +18,7 @@ import '../../../students/presentation/widgets/parents/parents_ui.dart';
 import '../../domain/admission_report.dart';
 import '../providers/admission_providers.dart';
 import '../widgets/report_pdf.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// Admission reports: conversion, sources, classes, staff, branches, lost
 /// enquiries, follow-up performance and fee collection. The figures are
@@ -41,7 +42,7 @@ class _State extends ConsumerState<AdmissionReportsPage> {
 
   Future<void> _pick(bool from) async {
     final now = DateTime.now();
-    final d = await showDatePicker(
+    final d = await showSchoolDatePicker(
       context: context,
       initialDate: (from ? _from : _to) ?? now,
       firstDate: DateTime(now.year - 6),

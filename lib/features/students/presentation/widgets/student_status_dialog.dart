@@ -9,6 +9,7 @@ import '../../../../core/utils/date_formatting.dart';
 import '../../domain/student.dart';
 import '../../domain/student_status.dart';
 import '../providers/student_providers.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// A lifecycle status change (brief §20: withdrawal, graduation, ...) —
 /// captures effective date, reason, and notes; never deletes the student.
@@ -34,7 +35,7 @@ class _StudentStatusDialogState extends ConsumerState<StudentStatusDialog> {
   final _notes = TextEditingController();
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: _effectiveDate,
       firstDate: DateTime(2000),

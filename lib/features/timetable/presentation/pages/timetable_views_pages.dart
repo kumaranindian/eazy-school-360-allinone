@@ -20,7 +20,9 @@ import '../../../../shared/loading/async_value_widget.dart';
 import '../../../academic_setup/domain/academic_year.dart';
 import '../../../academic_setup/domain/academic_year_status.dart';
 import '../../../academic_setup/domain/weekday.dart';
+import '../../../academic_setup/domain/working_days.dart';
 import '../../../academic_setup/presentation/providers/academic_structure_providers.dart';
+import '../../../academic_setup/presentation/providers/calendar_providers.dart';
 import '../../../attendance/domain/attendance_date.dart';
 import '../../../fees/presentation/pages/parent_fees_page.dart'
     show linkedChildrenProvider;
@@ -43,6 +45,7 @@ Map<Weekday, List<AgendaItem>> buildWeek({
   required bool showClass,
   required bool showTeacher,
   String? coveringTeacherId,
+  WorkingDays? workingDays,
 }) {
   final result = <Weekday, List<AgendaItem>>{};
   final monday = AttendanceDate.parse(mondayKey);
@@ -56,6 +59,19 @@ Map<Weekday, List<AgendaItem>> buildWeek({
     final date = DateTime.utc(monday.year, monday.month, monday.day + i);
     final key = AttendanceDate.key(date);
     final wd = Weekday.fromDateTimeWeekday(date.weekday);
+    // TT-01-OBS-03: the branch's weekly offs decide the day, so a 2nd or
+    // 4th Saturday off shows as off even though Saturday is in the
+    // timetable.
+    final off = workingDays?.weeklyOffLabel(
+      DateTime(date.year, date.month, date.day),
+    );
+    if (off != null &&
+        byTimetable.values.any((b) => b.entries.any((e) => e.weekday == wd))) {
+      (result[wd] ??= []).add(
+        AgendaItem(time: '', title: 'Weekly off · $off', isEmpty: true),
+      );
+      continue;
+    }
     final items = <(int, AgendaItem)>[];
     for (final t in TimetableResolver.allOn(published, key)) {
       for (final e in byTimetable[t.timetableId]!.entries) {
@@ -329,6 +345,11 @@ class SectionWeek extends ConsumerWidget {
           substitutions: subs.value ?? const [],
           showClass: false,
           showTeacher: true,
+          workingDays: ref
+              .watch(
+                workingDaysProvider((schoolId: schoolId, branchId: branchId)),
+              )
+              .value,
         );
         final days = _usedDays(items);
         if (days.isEmpty) {
@@ -445,6 +466,11 @@ class TeacherWeek extends ConsumerWidget {
           onlyTeacherId: teacherStaffId,
           showClass: true,
           showTeacher: false,
+          workingDays: ref
+              .watch(
+                workingDaysProvider((schoolId: schoolId, branchId: branchId)),
+              )
+              .value,
         );
         final covers = subs.value ?? const <Substitution>[];
         for (final s in covers) {

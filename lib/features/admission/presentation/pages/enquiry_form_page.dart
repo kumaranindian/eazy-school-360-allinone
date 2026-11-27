@@ -17,6 +17,7 @@ import '../../domain/admission_settings.dart';
 import '../providers/admission_providers.dart';
 import '../widgets/admission_widgets.dart';
 import '../../../../shared/forms/app_form.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// New enquiry / edit enquiry. The server validates and numbers it; this form
 /// checks the obvious things first so a person is not sent to the network for
@@ -174,7 +175,7 @@ class _EnquiryFormPageState extends ConsumerState<EnquiryFormPage> {
     required DateTime last,
   }) async {
     final initial = DateTime.tryParse(current ?? '') ?? SchoolTime.today();
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: initial.isBefore(first)
           ? first

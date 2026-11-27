@@ -28,6 +28,7 @@ import '../widgets/fee_scope.dart';
 import '../widgets/student_all_years_ledger.dart';
 import '../widgets/fee_widgets.dart';
 import '../../../../shared/layouts/scrollable_header.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 enum _StatusFilter { all, overdue, issued, partiallyPaid, paid, voided }
 
@@ -164,7 +165,7 @@ class _InvoicesState extends ConsumerState<_Invoices> {
 
   Future<void> _pick(bool from) async {
     final now = SchoolTime.wallNow();
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: now,
       firstDate: DateTime(now.year - 3),

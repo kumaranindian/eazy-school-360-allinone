@@ -25,6 +25,7 @@ import '../providers/announcement_providers.dart';
 import '../widgets/announcement_attachments.dart';
 import '../../../../shared/forms/app_form.dart';
 import '../../../../shared/forms/submit_lock.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// `/announcements/new` and `/announcements/edit/:announcementId`.
 ///
@@ -49,6 +50,7 @@ class AnnouncementFormPage extends StatelessWidget {
         ),
       ),
       body: TimetableScope(
+        moduleName: 'announcements',
         showYearSelector: false,
         builder: (context, tt) => _Form(tt: tt, announcementId: announcementId),
       ),
@@ -190,7 +192,7 @@ class _FormState extends ConsumerState<_Form> {
     final initial = initialInstant == null
         ? null
         : SchoolTime.wallOf(initialInstant);
-    final date = await showDatePicker(
+    final date = await showSchoolDatePicker(
       context: context,
       initialDate: initial ?? now,
       firstDate: DateTime(now.year, now.month, now.day),
@@ -580,6 +582,7 @@ class _FormState extends ConsumerState<_Form> {
                   TextFormField(
                     controller: _body,
                     maxLength: 4000,
+                    buildCounter: trimmedCounter(_body),
                     minLines: 5,
                     maxLines: 14,
                     decoration: const InputDecoration(

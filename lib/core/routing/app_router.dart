@@ -87,6 +87,10 @@ class _RouterRefreshListenable extends ChangeNotifier {
 /// SECURITY_ARCHITECTURE.md).
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshListenable = _RouterRefreshListenable(ref);
+  // Pages opened with context.push (Add staff, Admit student, New homework…)
+  // show their own address, so a browser refresh or Back returns to that
+  // page instead of the list it was opened from (STF-01-OBS-02).
+  GoRouter.optionURLReflectsImperativeAPIs = true;
 
   return GoRouter(
     initialLocation: '/',

@@ -20,6 +20,7 @@ import '../../domain/expense.dart';
 import '../../domain/expense_repository.dart';
 import '../../domain/expense_settings.dart';
 import '../providers/expense_providers.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// `/expenses/:id`: one expense, read-only. A draft can be edited by its
 /// creator or an admin (the server checks the same).
@@ -576,7 +577,7 @@ class _PayDialogState extends State<_PayDialog> {
 
   Future<void> _pick() async {
     final today = SchoolTime.today();
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: DateTime.tryParse(_date) ?? today,
       firstDate: DateTime(today.year - 1, today.month, today.day),

@@ -16,6 +16,7 @@ import '../../domain/exam_enums.dart';
 import '../../domain/examination.dart';
 import '../providers/exam_providers.dart';
 import '../../../../shared/forms/app_form.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// `/exams/new` and `/exams/edit/:examId` — the examination's own details.
 /// Subjects and marks are configured on its detail page. The id is built from
@@ -32,6 +33,7 @@ class ExamFormPage extends StatelessWidget {
         title: Text(examId == null ? 'New examination' : 'Edit examination'),
       ),
       body: TimetableScope(
+        moduleName: 'examinations',
         showYearSelector: examId == null,
         builder: (context, tt) => _Form(tt: tt, examId: examId),
       ),
@@ -90,7 +92,7 @@ class _FormState extends ConsumerState<_Form> {
   Future<void> _pick(bool start) async {
     final now = SchoolTime.wallNow();
     final initial = (start ? _start : _end) ?? _start ?? now;
-    final picked = await showDatePicker(
+    final picked = await showSchoolDatePicker(
       context: context,
       initialDate: initial,
       firstDate: DateTime(now.year - 1),

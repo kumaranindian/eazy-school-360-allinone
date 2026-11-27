@@ -141,3 +141,13 @@ class FormScrollView extends StatelessWidget {
     ),
   );
 }
+
+/// A `buildCounter` that counts what will be saved: the text without the
+/// blank lines and spaces around it, so an empty-looking box never shows
+/// "6/4000" (COM-01-OBS-01).
+InputCounterWidgetBuilder trimmedCounter(TextEditingController controller) =>
+    (context, {required currentLength, required isFocused, maxLength}) => Text(
+      '${controller.text.trim().length}/${maxLength ?? ''}',
+      style: Theme.of(context).textTheme.bodySmall,
+      semanticsLabel: '${controller.text.trim().length} characters',
+    );

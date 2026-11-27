@@ -26,6 +26,7 @@ import '../../domain/attendance_status.dart';
 import '../../domain/attendance_tally.dart';
 import '../providers/attendance_providers.dart';
 import '../widgets/attendance_summary_bar.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 enum _ReportKind { students, staff }
 
@@ -437,7 +438,7 @@ class _ReportsState extends ConsumerState<_Reports> {
         icon: const Icon(Icons.calendar_today_outlined, size: 18),
         label: Text('$label ${formatDisplayDate(value)}'),
         onPressed: () async {
-          final picked = await showDatePicker(
+          final picked = await showSchoolDatePicker(
             context: context,
             initialDate: value,
             firstDate: DateTime(2000),

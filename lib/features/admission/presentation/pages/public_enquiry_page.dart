@@ -6,6 +6,7 @@ import '../../domain/public_portal.dart';
 import '../providers/admission_providers.dart';
 import '../providers/public_portal_providers.dart';
 import '../../../../shared/forms/app_form.dart';
+import '../../../../shared/dates/school_date_picker.dart';
 
 /// `/admission/{slug}`: the school's public enquiry form. Open to anyone, no
 /// sign-in; the server decides which school and branch it belongs to.
@@ -80,7 +81,7 @@ class _EnquiryFormState extends ConsumerState<_EnquiryForm> {
 
   Future<void> _pickDob() async {
     final now = DateTime.now();
-    final d = await showDatePicker(
+    final d = await showSchoolDatePicker(
       context: context,
       initialDate: DateTime(now.year - 5),
       firstDate: DateTime(now.year - 25),
