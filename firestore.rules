@@ -37,6 +37,78 @@ service cloud.firestore {
       return request.resource.data;
     }
 
+    // Shared blocks, each written once (the release has a compiled-size
+    // limit; see CLAUDE.md).
+
+    // Manager create (audited, in this tenant) and update (audited).
+    function setupCreate(schoolId, branchId) {
+      return canManageAcademicSetup(schoolId, branchId) && validCreateAudit() && newInTenant(schoolId, branchId);
+    }
+
+    function setupUpdate(schoolId, branchId) {
+      return canManageAcademicSetup(schoolId, branchId) && validUpdateAudit();
+    }
+
+    function staffMgrCreate(schoolId, branchId) {
+      return canManageStaff(schoolId, branchId) && validCreateAudit() && newInTenant(schoolId, branchId);
+    }
+
+    function staffMgrUpdate(schoolId, branchId) {
+      return canManageStaff(schoolId, branchId) && validUpdateAudit();
+    }
+
+    function studentMgrCreate(schoolId, branchId) {
+      return canManageStudentData(schoolId, branchId) && validCreateAudit() && newInTenant(schoolId, branchId);
+    }
+
+    function studentMgrUpdate(schoolId, branchId) {
+      return canManageStudentData(schoolId, branchId) && validUpdateAudit();
+    }
+
+    // A leave record about a student their parent may read, or about a staff
+    // member that person may read.
+    function leaveSubjectVisible(schoolId, branchId) {
+      return (resource.data.subjectKind == 'STUDENT'
+          && canAccessAsParent(schoolId, branchId, resource.data.subjectId))
+        || (resource.data.subjectKind == 'STAFF'
+          && isOwnLeaveStaff(schoolId, branchId, resource.data.subjectId));
+    }
+
+    // A leave type's pay type, entitlement (half days, 1..732) and status.
+    function validLeaveTypeTerms(d) {
+      return (d.kind == 'STUDENT'
+          ? (d.payType == 'NA' && d.annualEntitlementUnits == null)
+          : d.payType in ['PAID', 'UNPAID'])
+        && (d.annualEntitlementUnits == null
+          || (d.annualEntitlementUnits is int
+            && d.annualEntitlementUnits >= 1
+            && d.annualEntitlementUnits <= 732))
+        && d.status in ['ACTIVE', 'INACTIVE'];
+    }
+
+    // The timetable named by nd().supersededBy is published after this write,
+    // for the same class and section (and academic year when [sameYear]).
+    function supersededByPublished(schoolId, branchId, sameYear) {
+      let t = getAfter(ttDoc(schoolId, branchId, 'timetables', nd().supersededBy)).data;
+      return nd().supersededBy is string
+        && t.status == 'PUBLISHED'
+        && t.classId == resource.data.classId
+        && t.sectionId == resource.data.sectionId
+        && (!sameYear || t.academicYearId == resource.data.academicYearId);
+    }
+
+    // An attendance register (day) edit: counts, status and finalization.
+    function dayUpdateOk() {
+      return changedOnly([
+          'status', 'enrolled', 'present', 'absent', 'late', 'halfDay', 'notMarked',
+          'dayKind', 'overrideReason', 'revision', 'finalizedAt', 'finalizedBy', 'updatedAt', 'updatedBy',
+        ])
+        && nd().status in ['DRAFT', 'FINALIZED']
+        && revisionNext()
+        && validDayCounts(nd())
+        && validDayFinalization(nd());
+    }
+
     // The write bumps the revision by exactly one.
     function revisionNext() {
       return nd().revision == resource.data.revision + 1;
@@ -477,17 +549,15 @@ service cloud.firestore {
 
     // STF-01-DEF-01: the fields the Add staff form requires.
     function validStaffPerson(d) {
-      return d.firstName is string && d.firstName.trim().size() > 0
-        && d.lastName is string && d.lastName.trim().size() > 0
+      return d.firstName.trim() != '' && d.lastName.trim() != ''
         && d.dateOfBirth is timestamp
         && d.gender in ['MALE', 'FEMALE', 'OTHER']
-        && d.phone is string && d.phone.trim().matches('^\\+?[0-9 ()-]{7,20}$');
+        && d.phone.trim().matches('[+]?[0-9 ()-]{7,20}');
     }
 
     // SET-01-DEF-01: a section's capacity is optional, else a whole number >= 1.
     function validCapacity(d) {
-      return !('capacity' in d) || d.capacity == null
-        || (d.capacity is int && d.capacity >= 1 && d.capacity <= 10000);
+      return d.get('capacity', null) == null || (d.capacity is int && d.capacity > 0);
     }
 
     // STU-02-DEF-01: one parent per email address in a school. The key
@@ -509,25 +579,14 @@ service cloud.firestore {
     // After this write the parent has no email, or the school's reservation
     // of that email names this parent.
     function parentEmailReserved(schoolId, parentId) {
-      return !('email' in nd()) || nd().email == null || nd().email.trim() == ''
+      return nd().get('email', '') in [null, '']
         || getAfter(parentEmailPath(schoolId, parentEmailKey(nd().email))).data.parentId == parentId;
     }
 
     // The parent named by reservation [r] holds email [key] after this write.
     function parentHoldsEmail(schoolId, r, key) {
-      return existsAfter(parentDocPath(schoolId, r.branchId, r.parentId))
-        && getAfter(parentDocPath(schoolId, r.branchId, r.parentId)).data.email is string
-        && parentEmailKey(getAfter(parentDocPath(schoolId, r.branchId, r.parentId)).data.email) == key;
-    }
-
-    function parentEmailClaimOk(schoolId, key) {
-      return canManageStudentData(schoolId, nd().branchId)
-        && nd().keys().hasOnly(['schoolId', 'branchId', 'parentId', 'email', 'createdAt', 'createdBy'])
-        && nd().schoolId == schoolId
-        && nd().parentId is string
-        && nd().createdAt == request.time
-        && nd().createdBy == request.auth.uid
-        && parentHoldsEmail(schoolId, nd(), key);
+      let p = parentDocPath(schoolId, r.branchId, r.parentId);
+      return existsAfter(p) && parentEmailKey(getAfter(p).data.get('email', '')) == key;
     }
 
     function assignmentPath(schoolId, branchId, assignmentId) {
@@ -1896,9 +1955,15 @@ service cloud.firestore {
       // only when the parent it names no longer has that email.
       match /parentEmails/{emailKey} {
         allow get: if isActiveCaller() && callerSchoolId() == schoolId && callerRole() != 'PARENT';
-        allow create: if parentEmailClaimOk(schoolId, emailKey);
-        allow update: if parentEmailClaimOk(schoolId, emailKey)
-          && !parentHoldsEmail(schoolId, resource.data, emailKey);
+        // A claim, or taking over one whose parent no longer has the email.
+        // Only a correct reservation can be written (the parent it names
+        // must hold the email after the write), so any active member of the
+        // school may write it; creating the parent needs canManageStudentData.
+        allow create, update: if isActiveCaller() && callerSchoolId() == schoolId
+          && nd().keys().hasOnly(['schoolId', 'branchId', 'parentId', 'email', 'createdAt', 'createdBy'])
+          && nd().createdBy == request.auth.uid
+          && parentHoldsEmail(schoolId, nd(), emailKey)
+          && (resource == null || !parentHoldsEmail(schoolId, resource.data, emailKey));
       }
 
       match /branchAccessAudit/{eventId} {
@@ -1989,13 +2054,12 @@ service cloud.firestore {
           // branch where it has a child, never list the years.
           allow get: if canViewAcademicSetup(schoolId, branchId) || parentInBranch(schoolId, branchId);
           allow list: if canViewAcademicSetup(schoolId, branchId);
-          allow create: if canManageAcademicSetup(schoolId, branchId) && validCreateAudit()
-            && newInTenant(schoolId, branchId)
+          allow create: if setupCreate(schoolId, branchId)
             && branchYearMatchesSchoolYear(schoolId, academicYearId, nd());
           // Years opened from the school-wide registry keep its name and dates;
           // only the branch's own lifecycle (status) changes. Older branch-only
           // years remain fully editable.
-          allow update: if canManageAcademicSetup(schoolId, branchId) && validUpdateAudit()
+          allow update: if setupUpdate(schoolId, branchId)
             && (resource.data.get('schoolYearId', null) == null
                 ? (changedOnly(['name', 'startDate', 'endDate', 'startDateKey', 'endDateKey', 'status', 'updatedAt', 'updatedBy'])
                    && (!nd().diff(resource.data).affectedKeys().hasAny(['startDate', 'endDate', 'startDateKey', 'endDateKey'])
@@ -2004,20 +2068,18 @@ service cloud.firestore {
 
           match /classes/{classId} {
             allow read: if canViewAcademicSetup(schoolId, branchId);
-            allow create: if canManageAcademicSetup(schoolId, branchId) && validCreateAudit()
-              && newInTenant(schoolId, branchId)
+            allow create: if setupCreate(schoolId, branchId)
               && nd().academicYearId == academicYearId;
-            allow update: if canManageAcademicSetup(schoolId, branchId) && validUpdateAudit()
+            allow update: if setupUpdate(schoolId, branchId)
               && changedOnly(['name', 'code', 'displayOrder', 'status', 'updatedAt', 'updatedBy']);
 
             match /sections/{sectionId} {
               allow read: if canViewAcademicSetup(schoolId, branchId);
-              allow create: if canManageAcademicSetup(schoolId, branchId) && validCreateAudit()
-                && newInTenant(schoolId, branchId)
+              allow create: if setupCreate(schoolId, branchId)
                 && nd().academicYearId == academicYearId
                 && nd().classId == classId
                 && validCapacity(nd());
-              allow update: if canManageAcademicSetup(schoolId, branchId) && validUpdateAudit()
+              allow update: if setupUpdate(schoolId, branchId)
                 && changedOnly(['name', 'code', 'capacity', 'status', 'updatedAt', 'updatedBy'])
                 && validCapacity(nd());
             }
@@ -2041,21 +2103,19 @@ service cloud.firestore {
 
           match /subjects/{subjectId} {
             allow read: if canViewAcademicSetup(schoolId, branchId);
-            allow create: if canManageAcademicSetup(schoolId, branchId) && validCreateAudit()
-              && newInTenant(schoolId, branchId)
+            allow create: if setupCreate(schoolId, branchId)
               && nd().academicYearId == academicYearId;
-            allow update: if canManageAcademicSetup(schoolId, branchId) && validUpdateAudit()
+            allow update: if setupUpdate(schoolId, branchId)
               && changedOnly(['name', 'code', 'shortName', 'type', 'displayOrder', 'status', 'updatedAt', 'updatedBy']);
           }
 
           match /holidays/{holidayId} {
             // Families read the calendar to count leave days; never write it.
             allow read: if canViewAcademicSetup(schoolId, branchId) || parentInBranch(schoolId, branchId);
-            allow create: if canManageAcademicSetup(schoolId, branchId) && validCreateAudit()
-              && newInTenant(schoolId, branchId)
+            allow create: if setupCreate(schoolId, branchId)
               && nd().academicYearId == academicYearId
               && validHoliday(nd());
-            allow update: if canManageAcademicSetup(schoolId, branchId) && validUpdateAudit()
+            allow update: if setupUpdate(schoolId, branchId)
               && changedOnly(['date', 'endDate', 'name', 'type', 'description', 'status', 'updatedAt', 'updatedBy'])
               && validHoliday(nd());
           }
@@ -2101,14 +2161,13 @@ service cloud.firestore {
             || teacherHasSection(schoolId, branchId, resource.data.currentClassId, resource.data.currentSectionId)
             || teacherHasAnyOf(schoolId, branchId, resource.data.get('extraSectionKeys', null));
 
-          allow create: if canManageStudentData(schoolId, branchId) && validCreateAudit()
-            && newInTenant(schoolId, branchId)
+          allow create: if studentMgrCreate(schoolId, branchId)
             && admissionReserved(schoolId, branchId, studentId)
             && ('transferredTo' in nd()) == false
             && (!('transferredFrom' in nd())
                 || transferDestinationOk(schoolId, branchId, studentId, nd()));
 
-          allow update: if canManageStudentData(schoolId, branchId) && validUpdateAudit()
+          allow update: if studentMgrUpdate(schoolId, branchId)
             && (!nd().diff(resource.data).affectedKeys().hasAny(['transferredTo'])
                 || transferSourceOk(schoolId, branchId, studentId, resource.data, nd()))
             // A student who has been moved to another branch stays TRANSFERRED here.
@@ -2136,10 +2195,9 @@ service cloud.firestore {
           match /academicRecords/{recordId} {
             allow read: if canViewStudentData(schoolId, branchId) || canAccessAsParent(schoolId, branchId, studentId)
               || teacherOfStudent(schoolId, branchId, studentId);
-            allow create: if canManageStudentData(schoolId, branchId) && validCreateAudit()
-              && newInTenant(schoolId, branchId)
+            allow create: if studentMgrCreate(schoolId, branchId)
               && nd().studentId == studentId;
-            allow update: if canManageStudentData(schoolId, branchId) && validUpdateAudit()
+            allow update: if studentMgrUpdate(schoolId, branchId)
               && changedOnly(['status', 'endDate', 'rollNumber', 'updatedAt', 'updatedBy']);
           }
 
@@ -2150,11 +2208,10 @@ service cloud.firestore {
               isActiveCaller() && callerRole() == 'PARENT' && callerSchoolId() == schoolId
                 && callerProfile().linkedParentId == parentId
             ) || teacherOfStudent(schoolId, branchId, studentId);
-            allow create: if canManageStudentData(schoolId, branchId) && validCreateAudit()
-              && newInTenant(schoolId, branchId)
+            allow create: if studentMgrCreate(schoolId, branchId)
               && nd().studentId == studentId
               && nd().parentId == parentId;
-            allow update: if canManageStudentData(schoolId, branchId) && validUpdateAudit()
+            allow update: if studentMgrUpdate(schoolId, branchId)
               && changedOnly(['relationshipType', 'isPrimary', 'isEmergencyContact', 'canAccessPortal', 'status', 'updatedAt', 'updatedBy']);
           }
         }
@@ -2196,8 +2253,7 @@ service cloud.firestore {
               && callerProfile().linkedParentId == parentId
           ) || teacherOfParent(schoolId, branchId, parentId);
 
-          allow create: if canManageStudentData(schoolId, branchId) && validCreateAudit()
-            && newInTenant(schoolId, branchId)
+          allow create: if studentMgrCreate(schoolId, branchId)
             && parentEmailReserved(schoolId, parentId);
 
           // linkedUserId is included here (not immutable) — granting
@@ -2207,14 +2263,14 @@ service cloud.firestore {
           // update rule's own PLATFORM_ADMIN-only `isPlatformAdmin()`
           // branch — a school/branch admin cannot grant themselves or
           // anyone else a role change by writing through this path.
-          allow update: if canManageStudentData(schoolId, branchId) && validUpdateAudit()
+          allow update: if studentMgrUpdate(schoolId, branchId)
             && changedOnly([
               'firstName', 'middleName', 'lastName', 'displayName', 'displayNameLower',
               'phone', 'alternatePhone', 'email', 'occupation', 'photoUrl',
               'addressLine1', 'addressLine2', 'city', 'state', 'country', 'postalCode',
               'status', 'linkedUserId', 'updatedAt', 'updatedBy',
             ])
-            && (!('email' in request.resource.data.diff(resource.data).affectedKeys())
+            && (nd().get('email', null) == resource.data.get('email', null)
               || parentEmailReserved(schoolId, parentId));
 
         }
@@ -2226,21 +2282,19 @@ service cloud.firestore {
         // `create` on an existing id is an update, which is denied.
         match /departments/{departmentId} {
           allow read: if canViewAcademicSetup(schoolId, branchId);
-          allow create: if canManageStaff(schoolId, branchId) && validCreateAudit()
-            && newInTenant(schoolId, branchId)
+          allow create: if staffMgrCreate(schoolId, branchId)
             && nd().status == 'ACTIVE'
             && validConfigCode(nd(), departmentId);
-          allow update: if canManageStaff(schoolId, branchId) && validUpdateAudit()
+          allow update: if staffMgrUpdate(schoolId, branchId)
             && changedOnly(['name', 'description', 'status', 'updatedAt', 'updatedBy']);
         }
 
         match /designations/{designationId} {
           allow read: if canViewAcademicSetup(schoolId, branchId);
-          allow create: if canManageStaff(schoolId, branchId) && validCreateAudit()
-            && newInTenant(schoolId, branchId)
+          allow create: if staffMgrCreate(schoolId, branchId)
             && nd().status == 'ACTIVE'
             && validConfigCode(nd(), designationId);
-          allow update: if canManageStaff(schoolId, branchId) && validUpdateAudit()
+          allow update: if staffMgrUpdate(schoolId, branchId)
             && changedOnly(['name', 'description', 'status', 'updatedAt', 'updatedBy']);
         }
 
@@ -2266,8 +2320,7 @@ service cloud.firestore {
         match /staff/{staffId} {
           allow read: if canViewStaff(schoolId, branchId) || isOwnStaffRecord(schoolId, branchId, resource.data);
 
-          allow create: if canManageStaff(schoolId, branchId) && validCreateAudit()
-            && newInTenant(schoolId, branchId)
+          allow create: if staffMgrCreate(schoolId, branchId)
             && nd().status == 'ACTIVE'
             && nd().userId == null
             && nd().employeeCode is string
@@ -2281,7 +2334,7 @@ service cloud.firestore {
 
           // schoolId, branchId and the audit-origin fields are not in this
           // list: a record cannot be moved to another school/branch.
-          allow update: if canManageStaff(schoolId, branchId) && validUpdateAudit()
+          allow update: if staffMgrUpdate(schoolId, branchId)
             && changedOnly([
               'employeeCode', 'employeeCodeLower', 'firstName', 'middleName', 'lastName',
               'displayName', 'displayNameLower', 'photoUrl', 'dateOfBirth', 'gender', 'bloodGroup',
@@ -2312,14 +2365,13 @@ service cloud.firestore {
           // proofs, certificates): managers only, never finance/teachers.
           match /documents/{documentId} {
             allow read: if canManageStaff(schoolId, branchId);
-            allow create: if canManageStaff(schoolId, branchId) && validCreateAudit()
-              && newInTenant(schoolId, branchId)
+            allow create: if staffMgrCreate(schoolId, branchId)
               && nd().staffId == staffId
               && nd().status == 'ACTIVE'
               && nd().storagePath is string
               && nd().storagePath.matches(
                 'schools/' + schoolId + '/branches/' + branchId + '/staff/' + staffId + '/documents/.*');
-            allow update: if canManageStaff(schoolId, branchId) && validUpdateAudit()
+            allow update: if staffMgrUpdate(schoolId, branchId)
               && changedOnly(['status', 'updatedAt', 'updatedBy'])
               && nd().status in ['ACTIVE', 'REMOVED'];
           }
@@ -2349,8 +2401,7 @@ service cloud.firestore {
           // section is active (its path ties it to the class + academic
           // year), the subject is linked to that class, and the
           // uniqueness slot is claimed in the same batch.
-          allow create: if canManageStaff(schoolId, branchId) && validCreateAudit()
-            && newInTenant(schoolId, branchId)
+          allow create: if staffMgrCreate(schoolId, branchId)
             && nd().status == 'ACTIVE'
             && nd().endDate == null
             && nd().isClassTeacher is bool
@@ -2371,7 +2422,7 @@ service cloud.firestore {
 
           // Only ACTIVE -> ENDED, and only if the slot is released in the
           // same batch.
-          allow update: if canManageStaff(schoolId, branchId) && validUpdateAudit()
+          allow update: if staffMgrUpdate(schoolId, branchId)
             && changedOnly(['status', 'endDate', 'updatedAt', 'updatedBy'])
             && resource.data.status == 'ACTIVE'
             && nd().status == 'ENDED'
@@ -2424,14 +2475,7 @@ service cloud.firestore {
           // A finalized register can only be touched (corrected or
           // re-opened) by a manager.
           allow update: if validUpdateAudit()
-            && changedOnly([
-              'status', 'enrolled', 'present', 'absent', 'late', 'halfDay', 'notMarked',
-              'dayKind', 'overrideReason', 'revision', 'finalizedAt', 'finalizedBy', 'updatedAt', 'updatedBy',
-            ])
-            && nd().status in ['DRAFT', 'FINALIZED']
-            && revisionNext()
-            && validDayCounts(nd())
-            && validDayFinalization(nd())
+            && dayUpdateOk()
             && canMarkStudentAttendance(schoolId, branchId, resource.data)
             && (resource.data.status != 'FINALIZED' || canManageAttendance(schoolId, branchId));
 
@@ -2503,14 +2547,7 @@ service cloud.firestore {
             && validDayCounts(nd())
             && validDayFinalization(nd());
           allow update: if canManageAttendance(schoolId, branchId) && validUpdateAudit()
-            && changedOnly([
-              'status', 'enrolled', 'present', 'absent', 'late', 'halfDay', 'notMarked',
-              'dayKind', 'overrideReason', 'revision', 'finalizedAt', 'finalizedBy', 'updatedAt', 'updatedBy',
-            ])
-            && nd().status in ['DRAFT', 'FINALIZED']
-            && revisionNext()
-            && validDayCounts(nd())
-            && validDayFinalization(nd());
+            && dayUpdateOk();
         }
 
         match /staffAttendance/{attendanceId} {
@@ -2861,36 +2898,19 @@ service cloud.firestore {
             && nd().name is string
             && nd().name.size() >= 2 && nd().name.size() <= 60
             && nd().payType in ['PAID', 'UNPAID', 'NA']
-            && (nd().kind == 'STUDENT'
-              ? (nd().payType == 'NA' && nd().annualEntitlementUnits == null)
-              : nd().payType in ['PAID', 'UNPAID'])
-            && (nd().annualEntitlementUnits == null
-              || (nd().annualEntitlementUnits is int
-                && nd().annualEntitlementUnits >= 1
-                && nd().annualEntitlementUnits <= 732))
-            && nd().status in ['ACTIVE', 'INACTIVE'];
+            && validLeaveTypeTerms(nd());
           allow update: if canReviewLeave(schoolId, branchId) && validUpdateAudit()
             && nd().schoolId == resource.data.schoolId
             && nd().branchId == resource.data.branchId
             && nd().kind == resource.data.kind
             && nd().code == resource.data.code
-            && (nd().kind == 'STUDENT'
-              ? (nd().payType == 'NA' && nd().annualEntitlementUnits == null)
-              : nd().payType in ['PAID', 'UNPAID'])
-            && (nd().annualEntitlementUnits == null
-              || (nd().annualEntitlementUnits is int
-                && nd().annualEntitlementUnits >= 1
-                && nd().annualEntitlementUnits <= 732))
-            && nd().status in ['ACTIVE', 'INACTIVE'];
+            && validLeaveTypeTerms(nd());
         }
 
         match /leaveApplications/{applicationId} {
           allow read: if canReviewLeave(schoolId, branchId)
             || resource.data.applicantUserId == request.auth.uid
-            || (resource.data.subjectKind == 'STUDENT'
-              && canAccessAsParent(schoolId, branchId, resource.data.subjectId))
-            || (resource.data.subjectKind == 'STAFF'
-              && isOwnLeaveStaff(schoolId, branchId, resource.data.subjectId));
+            || leaveSubjectVisible(schoolId, branchId);
 
           allow create: if isActiveCaller()
             && nd().applicantUserId == request.auth.uid
@@ -2995,10 +3015,7 @@ service cloud.firestore {
         match /leaveHistory/{entryId} {
           allow read: if canReviewLeave(schoolId, branchId)
             || resource.data.applicantUserId == request.auth.uid
-            || (resource.data.subjectKind == 'STUDENT'
-              && canAccessAsParent(schoolId, branchId, resource.data.subjectId))
-            || (resource.data.subjectKind == 'STAFF'
-              && isOwnLeaveStaff(schoolId, branchId, resource.data.subjectId));
+            || leaveSubjectVisible(schoolId, branchId);
           allow create: if isActiveCaller()
             && newInTenant(schoolId, branchId)
             && nd().actorId == request.auth.uid
@@ -3017,10 +3034,7 @@ service cloud.firestore {
             || (resource.data.subjectKind == 'STUDENT' && canViewStudentData(schoolId, branchId))
             || (resource.data.subjectKind == 'STUDENT'
               && teacherHasSection(schoolId, branchId, resource.data.get('classId', null), resource.data.get('sectionId', null)))
-            || (resource.data.subjectKind == 'STUDENT'
-              && canAccessAsParent(schoolId, branchId, resource.data.subjectId))
-            || (resource.data.subjectKind == 'STAFF'
-              && isOwnLeaveStaff(schoolId, branchId, resource.data.subjectId));
+            || leaveSubjectVisible(schoolId, branchId);
           allow create: if canReviewLeave(schoolId, branchId)
             && newInTenant(schoolId, branchId)
             && nd().status == 'ACTIVE'
@@ -3346,14 +3360,7 @@ service cloud.firestore {
               (resource.data.status == 'PUBLISHED' && nd().status == 'ARCHIVED'
                 && nd().lastEvent == 'SUPERSEDED'
                 && changedOnly(['status', 'revision', 'lastEvent', 'supersededBy', 'lockSeq', 'updatedAt', 'updatedBy'])
-                && nd().supersededBy is string
-                && getAfter(ttDoc(schoolId, branchId, 'timetables', nd().supersededBy)).data.status == 'PUBLISHED'
-                && getAfter(ttDoc(schoolId, branchId, 'timetables', nd().supersededBy)).data.classId
-                   == resource.data.classId
-                && getAfter(ttDoc(schoolId, branchId, 'timetables', nd().supersededBy)).data.sectionId
-                   == resource.data.sectionId
-                && getAfter(ttDoc(schoolId, branchId, 'timetables', nd().supersededBy)).data.academicYearId
-                   == resource.data.academicYearId
+                && supersededByPublished(schoolId, branchId, true)
                 && publishLockBumped(schoolId, branchId))
               ||
               // a published version that started earlier ends the day before
@@ -3365,12 +3372,7 @@ service cloud.firestore {
                 && nd().effectiveToKey >= resource.data.effectiveFromKey
                 && (resource.data.effectiveToKey == null
                     || nd().effectiveToKey < resource.data.effectiveToKey)
-                && nd().supersededBy is string
-                && getAfter(ttDoc(schoolId, branchId, 'timetables', nd().supersededBy)).data.status == 'PUBLISHED'
-                && getAfter(ttDoc(schoolId, branchId, 'timetables', nd().supersededBy)).data.classId
-                   == resource.data.classId
-                && getAfter(ttDoc(schoolId, branchId, 'timetables', nd().supersededBy)).data.sectionId
-                   == resource.data.sectionId
+                && supersededByPublished(schoolId, branchId, false)
                 && publishLockBumped(schoolId, branchId))
               ||
               // discard a draft
